@@ -34,8 +34,7 @@ jobs:
           pip install flask fastapi sanic tornado aiohttp
       - name: Run lint
         run: |
-          flake8 utilmeta --count --select=E9,F63,F7,F82 --show-source --statistics
-          --per-file-ignores="utilmeta\bin\template\full\config\service.py:E999 utilmeta\bin\template\lite\server.py:E999"
+          flake8 utilmeta --count --select=E9,F63,F7,F82 --show-source --statistics --per-file-ignores="utilmeta\bin\template\full\config\service.py:E999 utilmeta\bin\template\lite\server.py:E999"
       - name: Run tests
         run: |
           pytest --cov=utilmeta

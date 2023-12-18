@@ -39,7 +39,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "utype>=0.3.5",
+    "utype>=0.3.7",
 ]
 dynamic = ["version"]
 

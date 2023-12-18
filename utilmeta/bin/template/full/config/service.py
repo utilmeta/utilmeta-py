@@ -1,14 +1,14 @@
 from utilmeta import UtilMeta
 from config.conf import configure
 from config.env import env
-import {backend}
+import {backend}    # noqa
 import sys
 
 service = UtilMeta(
     __name__,
     name='{name}',
     description='{description}',
-    backend={backend},
+    backend={backend},  # noqa
     production=env.PRODUCTION,
     version=(0, 1, 0),
     host='{host}' if env.PRODUCTION else '127.0.0.1',

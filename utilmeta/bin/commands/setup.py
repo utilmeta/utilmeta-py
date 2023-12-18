@@ -103,7 +103,7 @@ class SetupCommand(BaseServiceCommand):
 
                 if str(file).endswith('.py') or str(file).endswith('.ini'):
                     content = read_from(path)
-                    write_to(path, self.render(content))
+                    write_to(path, self.render(content.replace('# noqa', '')))
 
         print(f'UtilMeta project <{BLUE % self.project_name}> successfully setup at path: {project_path}')
 

@@ -1,0 +1,24 @@
+/.idea
+*/.idea
+/build
+/dist
+/UtilMeta.egg-info
+*/__pycache__
+__pycache__/
+*.py[cod]
+.coverage
+.obsidian
+/docs/zh/.obsidian
+*/.coverage
+*/.obsidian
+
+/tests/service/media/*
+/tests/service/deploy/run/
+/tests/service/deploy/log/
+*.sqlite3
+db
+/tests/server/db
+*/restats
+/.ext
+# .ext/ is used to store pre-developer files that helps development
+/.pytest_cache

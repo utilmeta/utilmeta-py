@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling >= 1.13.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "UtilMeta"
+description = "UtilMeta - progressive meta framework for API development in Python"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {file = "LICENSE"}
+authors = [
+    { name = "Xulin Zhou (voidZXL)", email = "zxl@utilmeta.com" },
+]
+keywords = ["API", "meta", "progressive", "declarative", "web", "utype"]
+classifiers = [
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Typing :: Typed",
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = [
+    "utype>=0.3.5",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://utilmeta.com"
+Documentation = "https://utilmeta.com"
+Repository = "https://github.com/utilmeta/utilmeta-py"
+
+[project.optional-dependencies]
+all = [
+    "django >= 4.1.0",
+    "fastapi >= 0.95.0",
+    "sanic >= 22.0.0",
+    "flask >= 2.3.0",
+    "tornado >= 6.2",
+]
+
+[tool.hatch.version]
+path = "utilmeta/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.github",
+    "/docs",
+    "/tests"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["utilmeta"]

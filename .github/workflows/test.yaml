@@ -1,0 +1,39 @@
+name: UtilMeta Common CI
+# run before every pull request and every push
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+  push:
+    paths-ignore:
+      - 'docs/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: "3.11"
+        django-version: "4.1"
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest pytest-cov
+          pip install django==${{ matrix.python-version }}
+          pip install flask, fastapi, sanic, tornado, aiohttp
+      - name: Run lint
+        run: |
+          flake8 utilmeta --count --select=E9,F63,F7,F82 --show-source --statistics
+          --per-file-ignores="utilmeta\bin\template\full\config\service.py:E999 utilmeta\bin\template\lite\server.py:E999"
+      - name: Run tests
+        run: |
+          pytest --cov=utilmeta
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3

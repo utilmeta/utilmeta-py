@@ -50,6 +50,7 @@ Repository = "https://github.com/utilmeta/utilmeta-py"
 
 [project.optional-dependencies]
 all = [
+    "databases >= 0.7.0",
     "django >= 4.1.0",
     "fastapi >= 0.95.0",
     "sanic >= 22.0.0",

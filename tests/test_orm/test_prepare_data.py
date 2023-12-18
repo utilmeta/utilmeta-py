@@ -19,7 +19,9 @@ def test_prepare_data(service):
         User.objects.exists()
     except (OperationalError, ProgrammingError):
         import os
-        os.system("python -m utilmeta migrate")
+        from django.core.management import execute_from_command_line
+        execute_from_command_line([__name__, 'migrate'])
+        # os.system("python -m utilmeta migrate")
 
     # delete all data
     User.objects.all().delete()

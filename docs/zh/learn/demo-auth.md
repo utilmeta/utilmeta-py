@@ -228,7 +228,7 @@ class UserAPI(api.API):
     @api.post
     def signup(self): ...
 
-	# new ++++
+    # new ++++
     @api.post
     def login(self, data: LoginSchema = request.Body) -> UserSchema:
         user = auth.user_config.login(
@@ -283,7 +283,7 @@ class UserAPI(api.API):
     @api.post
     def logout(self): ...
 
-	# new ++++
+    # new ++++
     def get(self, user: User = auth.user_config) -> UserSchema:
         return UserSchema.init(user)
 

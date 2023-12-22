@@ -74,12 +74,11 @@ Press CTRL+C to quit
 
 ```python
 class RootAPI(api.API):
-	@api.get
-	def bmi(self,
-			weight: float = utype.Param(gt=0, le=1000),
-			height: float = utype.Param(gt=0, le=4)
-			):
-		return round(weight / height ** 2, 2)
+    @api.get
+    def bmi(self,
+            weight: float = utype.Param(gt=0, le=1000),
+            height: float = utype.Param(gt=0, le=4)):
+        return round(weight / height ** 2, 2)
 ```
 
 在上面的函数中，我们声明了 `weight` 参数需要大于 0，小于等于 1000，`height` 参数需要大于 0，小于等于 4，如果输入的数据不符合这些规则，则 UtilMeta 会自动处理并返回 `400 BadRequest` 响应

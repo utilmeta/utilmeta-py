@@ -3,21 +3,19 @@ This is a simple one-file project alternative when you setup UtilMeta project
 """
 from utilmeta import UtilMeta
 from utilmeta.core import api
-from env import env
-import sys
-import {backend}    # noqa
+import os
+{import_backend}    # noqa
 
-
+production = bool(os.getenv('UTILMETA_PRODUCTION'))
 service = UtilMeta(
     __name__,
     name='{name}',
     description='{description}',
     backend={backend},  # noqa
-    production=env.PRODUCTION,
+    production=production,
     version=(0, 1, 0),
-    host='{host}' if env.PRODUCTION else '127.0.0.1',
-    port=80 if env.PRODUCTION else 8000,
-    background='-b' in sys.argv,
+    host='{host}' if production else '127.0.0.1',
+    port=80 if production else 8000,
 )
 
 

@@ -158,3 +158,11 @@ class SignatureAccess(BaseAuthentication):
             'in': 'header',
             'description': self.description or '',
         }
+
+    @property
+    def headers(self):
+        return [
+            self.access_key_header.lower(),
+            self.timestamp_header.lower(),
+            self.signature_header.lower()
+        ]

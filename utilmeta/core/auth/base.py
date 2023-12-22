@@ -5,6 +5,7 @@ from utilmeta.core.orm import ModelAdaptor
 
 class BaseAuthentication(Property):
     name = None
+    headers = []
 
     def login(self, request: Request, key: str, expiry_age: int = None):
         raise NotImplementedError

@@ -20,6 +20,7 @@ class TornadoServerAdaptor(ServerAdaptor):
     def request_handler(self):
         request_adaptor_cls = self.request_adaptor_cls
         root_api = self.resolve()
+        service = self
 
         if self.asynchronous:
             class Handler(RequestHandler):
@@ -46,6 +47,7 @@ class TornadoServerAdaptor(ServerAdaptor):
 
                 async def handle(self, path: str):
                     try:
+                        path = service.load_route(path)
                         request = request_adaptor_cls(self.request, path)
                         response: Response = await root_api(request)()
                         if not isinstance(response, Response):
@@ -80,6 +82,7 @@ class TornadoServerAdaptor(ServerAdaptor):
 
                 def handle(self, path: str):
                     try:
+                        path = service.load_route(path)
                         request = request_adaptor_cls(self.request, path)
                         response: Response = root_api(request)()
                     except Exception as e:
@@ -89,12 +92,6 @@ class TornadoServerAdaptor(ServerAdaptor):
                         self.add_header(key, value)
 
         return Handler
-
-    @property
-    def root_pattern(self):
-        if not self.config.root_url:
-            return '/(.*)'
-        return '/%s/(.*)' % self.config.root_url.strip('/')
 
     def application(self):
         return self.setup()
@@ -110,7 +107,7 @@ class TornadoServerAdaptor(ServerAdaptor):
         if self.app:
             return self.app
         self.app = self.application_cls([
-            (self.root_pattern, self.request_handler())
+            ('(.*)', self.request_handler())
         ])
         return self.app
 

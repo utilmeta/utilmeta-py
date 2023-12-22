@@ -1,8 +1,11 @@
 from utilmeta.utils import awaitable
-from .cache import CacheSessionSchema
+from .cache import CacheSessionSchema, CacheSession
+from .db import DBSessionSchema
 
 
 class AbstractCachedDBSessionSchema(CacheSessionSchema):
+    _config: 'CachedDbSession'
+
     def db_exists(self, session_key: str) -> bool:
         raise NotImplementedError
 
@@ -80,3 +83,55 @@ class AbstractCachedDBSessionSchema(CacheSessionSchema):
         except Exception as e:
             print(f'Delete with error: {e}')
             # ignore cache failed
+
+
+class CachedDBSessionSchema(AbstractCachedDBSessionSchema, DBSessionSchema):
+    def load_data(self):
+        if not self._session_key:
+            return None
+        # to be inherited
+        session = self._model_cls.filter(
+            session_key=self._session_key
+        ).first()
+        if session:
+            try:
+                self.get_cache().set(
+                    self.get_key(),
+                    session.encoded_data,
+                    timeout=self.timeout,
+                )
+            except Exception as e:
+                print(f'Sync to cache failed: {e}')
+                # ignore
+            return self.decode(session.encoded_data)
+        return None
+
+    @awaitable(load_data)
+    async def load_data(self):
+        # to be inherited
+        if not self._session_key:
+            return None
+        # to be inherited
+        session = await self._model_cls.filter(
+            session_key=self._session_key
+        ).afirst()
+        if session:
+            try:
+                await self.get_cache().set(
+                    self.get_key(),
+                    session.encoded_data,
+                    timeout=self.timeout,
+                )
+            except Exception as e:
+                print(f'Sync to cache failed: {e}')
+                # ignore
+            return self.decode(session.encoded_data)
+        return None
+
+
+class CachedDbSession(CacheSession):
+    DEFAULT_ENGINE = CachedDBSessionSchema
+
+    def __init__(self, session_model, **kwargs):
+        super().__init__(**kwargs)
+        self.session_model = session_model

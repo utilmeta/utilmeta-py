@@ -84,9 +84,12 @@ class ContextWrapper:
                 if prop.__ident__ in ident_props:
                     raise DuplicateContextProperty(ident=prop.__ident__)
                 ident_props[prop.__ident__] = prop
-            properties[key] = prop.init(val)
+            properties[key] = self.init_prop(prop, val)
         self.properties = properties
         self.parser = parser
+
+    def init_prop(self, prop, val):    # noqa, to be inherit
+        return prop.init(val)
 
     def parse_context(self, context: object) -> dict:
         if not isinstance(context, self.context_cls):

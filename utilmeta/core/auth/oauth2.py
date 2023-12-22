@@ -32,6 +32,9 @@ class Auth0JWTBearerTokenValidator(JWTBearerTokenValidator):
 class OAuth2(BaseAuthentication):
     name = 'oauth2'
     protector_cls = ResourceProtector
+    headers = [
+        'authorization'
+    ]
 
     def __init__(self, *validators: BearerTokenValidator, scopes_key=None):
         self.protector = self.protector_cls()

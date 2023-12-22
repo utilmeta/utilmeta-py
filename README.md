@@ -1,6 +1,6 @@
 # UtilMeta API Framework - Python
 
-—— Progressive meta framework for API development in Python
+<img src="https://utilmeta.com/img/logo-main.png" alt="drawing" width="50"/> <strong style="font-size: 24px">UtilMeta </strong> | Progressive meta framework for API development in Python
 
 * Official Website: [https://utilmeta.com](https://utilmeta.com/)
 * License: Apache 2.0

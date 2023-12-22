@@ -1,6 +1,6 @@
 import re
 from typing import Union, Dict, Type, List, Optional, TYPE_CHECKING
-from utilmeta.utils import awaitable, get_doc, regular, duplicate, pop
+from utilmeta.utils import awaitable, get_doc, regular, duplicate, pop, distinct_add, multi
 
 import inspect
 from functools import partial
@@ -71,11 +71,26 @@ class APIRoute:
         self.after_hooks = after_hooks or []
         self.error_hooks = error_hooks or {}
 
-        # self.compile_route()
+        self.header_names = []
+        self.init_headers()
 
-    def initialize(self, api: Type['API']):
+    def init_headers(self):
         # meant to be inherited
-        pass
+        if isinstance(self.handler, Endpoint):
+            self.header_names = self.handler.wrapper.header_names
+        else:
+            for route in self.handler._routes:
+                distinct_add(self.header_names, route.header_names)
+
+            for key, val in self.handler._properties.items():
+                name = val.field.name.lower()
+                if getattr(val.prop.__in__, '__ident__', None) == 'header':
+                    if name not in self.header_names:
+                        self.header_names.append(name)
+                else:
+                    headers = getattr(val.prop, 'headers', None)
+                    if headers and multi(headers):
+                        distinct_add(self.header_names, [str(v).lower() for v in headers])
 
     @classmethod
     def from_routes(cls, *routes):

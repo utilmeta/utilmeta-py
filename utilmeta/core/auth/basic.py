@@ -5,6 +5,9 @@ from .base import BaseAuthentication
 
 class BasicAuth(BaseAuthentication):
     name = 'basic'
+    headers = [
+        'authorization'
+    ]
 
     @classmethod
     def getter(cls, request: Request, field=None):

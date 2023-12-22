@@ -16,6 +16,9 @@ class BaseSession(BaseAuthentication):
     Cookie = Cookie
     DEFAULT_CONTEXT_VAR = var.RequestContextVar('_session', cached=True)
     DEFAULT_ENGINE = None
+    headers = [
+        'cookie'
+    ]
 
     def get_session(self, request: Request, engine=None):
         session_key = request.cookies.get(self.cookie_name)

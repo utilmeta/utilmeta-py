@@ -1,8 +1,7 @@
 from utilmeta import UtilMeta
 from config.conf import configure
 from config.env import env
-import {backend}    # noqa
-import sys
+{import_backend}    # noqa
 
 service = UtilMeta(
     __name__,
@@ -13,7 +12,6 @@ service = UtilMeta(
     version=(0, 1, 0),
     host='{host}' if env.PRODUCTION else '127.0.0.1',
     port=80 if env.PRODUCTION else 8000,
-    background='-b' in sys.argv,
 )
 service.mount('service.api.RootAPI', route='/api')
 configure(service)

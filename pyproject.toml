@@ -40,6 +40,7 @@ classifiers = [
 ]
 dependencies = [
     "utype>=0.3.7",
+    "databases>=0.7.0"
 ]
 dynamic = ["version"]
 
@@ -50,9 +51,8 @@ Repository = "https://github.com/utilmeta/utilmeta-py"
 
 [project.optional-dependencies]
 all = [
-    "databases >= 0.7.0",
     "django >= 4.1.0",
-    "fastapi >= 0.95.0",
+    "starlette  >= 0.27.0",
     "sanic >= 22.0.0",
     "flask >= 2.3.0",
     "tornado >= 6.2",
@@ -70,3 +70,6 @@ exclude = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["utilmeta"]
+
+[project.scripts]
+meta = "utilmeta.bin.meta:main"

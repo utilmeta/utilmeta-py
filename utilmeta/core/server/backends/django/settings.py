@@ -200,7 +200,10 @@ class DjangoSettings(Config):
         databases = {}
 
         if config:
+            from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
             for name, db in config.databases.items():
+                if not db.sync_adaptor_cls:
+                    db.sync_adaptor_cls = DjangoDatabaseAdaptor
                 databases[name] = self.get_database(db, service)
 
         if self.root_urlconf:

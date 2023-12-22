@@ -411,34 +411,33 @@ class OpenAPI(BaseAPISpec):
                         data.update(example=field.field.example)
                     params[key] = data
 
+            elif prop.__ident__ == 'body':
+                schema = generator()
+                # treat differently
+                content_type = getattr(prop, 'content_type', None)
+                if not content_type:
+                    # guess
+                    content_type = guess_content_type(schema)
+                media_types[content_type] = {
+                    'schema': schema
+                }
+                body_description = prop.description
+                body_required = prop.required
+
             elif prop.__ident__ in self.PARAMS_IN:
                 # all the params in this prop is in the __ident__
                 schema = generator()
-
-                if prop.__ident__ == 'body':
-                    # treat differently
-                    content_type = getattr(prop, 'content_type', None)
-                    if not content_type:
-                        # guess
-                        content_type = guess_content_type(schema)
-                    media_types[content_type] = {
-                        'schema': schema
-                    }
-                    body_description = prop.description
-                    body_required = prop.required
-
-                else:
-                    schema_type = schema.get('type')
-                    if schema_type != 'object' and not schema.get('$ref'):
-                        raise TypeError(f'Invalid object type: {field.type} for request property: '
-                                        f'{repr(prop.__ident__)}, must be a object type, got {repr(schema_type)}')
-                    params[key] = {
-                        'in': prop.__ident__,
-                        'name': key,
-                        'schema': schema,
-                        'style': 'form',
-                        'explode': True
-                    }
+                schema_type = schema.get('type')
+                if schema_type != 'object' and not schema.get('$ref'):
+                    raise TypeError(f'Invalid object type: {field.type} for request property: '
+                                    f'{repr(prop.__ident__)}, must be a object type, got {repr(schema_type)}')
+                params[key] = {
+                    'in': prop.__ident__,
+                    'name': key,
+                    'schema': schema,
+                    'style': 'form',
+                    'explode': True
+                }
 
         if media_types:
             if body_params:

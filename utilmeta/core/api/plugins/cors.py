@@ -113,12 +113,11 @@ class CORSPlugin(Plugin):
             if request.is_options:
                 if self.allow_headers == '*':
                     response.set_header(Header.ALLOW_HEADERS, '*')
-                elif self.allow_headers:
+                else:
                     # request_headers = [h.strip().lower() for h in
                     #                    request.headers.get(Header.OPTIONS_HEADERS, '').split(',')]
-                    allow_headers = [h.lower() for h in
-                                     var.allow_headers.get(request)
-                                     or self.allow_headers]
+                    allow_headers = list(self.allow_headers or [])
+                    allow_headers.extend([h.lower() for h in var.allow_headers.get(request)])
                     if allow_headers:
                         response.set_header(Header.ALLOW_HEADERS, ','.join(allow_headers))
 

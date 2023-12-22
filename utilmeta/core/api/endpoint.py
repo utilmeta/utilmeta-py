@@ -3,8 +3,10 @@ from utilmeta.utils import exceptions as exc
 from typing import Callable, Union, TYPE_CHECKING
 from utilmeta.utils.plugin import PluginTarget, PluginEvent
 from utilmeta.utils.error import Error
-from utilmeta.utils.context import ContextWrapper
+from utilmeta.utils.context import ContextWrapper, Property
+from utype.parser.base import BaseParser
 from utype.parser.func import FunctionParser
+from utype.parser.field import ParserField
 import inspect
 from ..request import Request, var
 from ..request.properties import QueryParam
@@ -25,6 +27,27 @@ class RequestContextWrapper(ContextWrapper):
     context_cls = Request
     default_property = QueryParam
     parser: FunctionParser
+
+    def __init__(self, *args, **kwargs):
+        self.header_names = []
+        super().__init__(*args, **kwargs)
+        # used in generate allow headers
+
+    def init_prop(self, prop: Property, val: ParserField):    # noqa, to be inherit
+        if prop.__ident__ == 'header':
+            for origin in val.input_origins:
+                parser = getattr(origin, '__parser__', None)
+                if isinstance(parser, BaseParser):
+                    utils.distinct_add(self.header_names, [str(v).lower() for v in parser.fields])
+        elif prop.__in__ and getattr(prop.__in__, '__ident__', None) == 'header':
+            name = val.name.lower()
+            if name not in self.header_names:
+                self.header_names += name
+        else:
+            headers = getattr(prop, 'headers', None)
+            if headers and utils.multi(headers):
+                utils.distinct_add(self.header_names, [str(v).lower() for v in headers])
+        return prop.init(val)
 
 
 class Endpoint(PluginTarget):

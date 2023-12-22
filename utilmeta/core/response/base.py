@@ -11,11 +11,10 @@ from utilmeta.utils import Headers
 from .backends.base import ResponseAdaptor
 from utilmeta.utils.error import Error
 from utype.parser.cls import ClassParser
+from utype.utils.functional import get_obj_name
 import utype
 import re
 from ..file.base import File
-
-
 
 
 class ResponseClassParser(ClassParser):
@@ -63,6 +62,8 @@ class Response:
     name: str = None
     description: str = None
 
+    wrapped: bool = False
+
     def __class_getitem__(cls, item):
         """
         we DO NOT use a generic type here because we don't want user to inherit both Response and Generate[ResultType]
@@ -89,11 +90,15 @@ class Response:
         class _response(cls):
             result: item
 
+        _response.__name__ = _response.__qualname__ = get_obj_name(item) + 'Response'
+
         return _response
 
     def __init_subclass__(cls, **kwargs):
         cls.__parser__ = cls.__parser_cls__.apply_for(cls)
         cls.description = cls.description or get_doc(cls)
+        cls.wrapped = bool(cls.result_key or cls.count_key or cls.message_key or cls.state_key)
+
         if not cls.content_type and cls.wrapped:
             cls.content_type = JSON
 
@@ -287,10 +292,6 @@ class Response:
             self.message = str(error.exception)
         error.log(console=True)
         self._error = error
-
-    @property
-    def wrapped(self):
-        return self.result_key or self.count_key or self.message_key or self.state_key
 
     def build_data(self):
         if self.wrapped:

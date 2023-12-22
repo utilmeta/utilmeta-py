@@ -1,4 +1,4 @@
-from django.db.models import Model
+from django.db import models
 from .queryset import AwaitableManager, AwaitableQuerySet
 from utilmeta.utils.datastructure import Static
 from django.db.models import CharField, NOT_PROVIDED
@@ -232,7 +232,7 @@ class ChoiceField(CharField):
         return name, path, args, kwargs
 
 
-class AwaitableModel(Model):
+class AwaitableModel(models.Model):
     objects = AwaitableManager()
 
     class Meta:
@@ -277,3 +277,21 @@ async def ACASCADE(collector, field, sub_objs, using):
     from django.db import connections
     if field.null and not connections[using].features.can_defer_constraint_checks:
         collector.add_field_update(field, None, sub_objs)
+
+
+class AbstractSession(AwaitableModel):
+    session_key = models.CharField(max_length=60, unique=True)
+    encoded_data = models.TextField(null=True)
+
+    # user = models.CharField(max_length=200, default=None, null=True)        # _user_id
+    # somehow we allow anonymous session
+
+    # ip = models.GenericIPAddressField()
+    # ua_info = models.JSONField(default=dict)  # User-Agent string
+    created_time = models.DateTimeField(auto_now_add=True)
+    last_activity = models.DateTimeField(default=None, null=True)
+    expiry_time = models.DateTimeField(default=None, null=True)
+    deleted_time = models.DateTimeField(default=None, null=True)    # already expired
+
+    class Meta:
+        abstract = True

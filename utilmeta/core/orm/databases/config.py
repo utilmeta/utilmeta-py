@@ -102,6 +102,8 @@ class Database(Config):
         else:
             if self.sync_adaptor_cls:
                 self.adaptor = self.sync_adaptor_cls(self, alias)
+        if not self.adaptor:
+            raise exceptions.NotConfigured('Database adaptor not implemented')
         self.asynchronous = asynchronous
         self.adaptor.check()
 
@@ -163,6 +165,12 @@ class DatabaseConnections(Config):
 
     def hook(self, service: UtilMeta):
         for name, db in self.databases.items():
+            if not db.sync_adaptor_cls:
+                if service.adaptor and service.adaptor.sync_db_adaptor_cls:
+                    db.sync_adaptor_cls = service.adaptor.sync_db_adaptor_cls
+            if not db.async_adaptor_cls:
+                if service.adaptor and service.adaptor.async_db_adaptor_cls:
+                    db.async_adaptor_cls = service.adaptor.async_db_adaptor_cls
             db.apply(name, asynchronous=service.asynchronous)
 
     @classmethod

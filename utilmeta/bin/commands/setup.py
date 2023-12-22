@@ -4,7 +4,7 @@ from typing import Literal, Optional
 import os
 from ..constant import RED, META_INI, BLUE
 from utilmeta.bin import template as package
-from utilmeta.utils import read_from, write_to, import_obj
+from utilmeta.utils import read_from, write_to, import_obj, check_requirement
 import shutil
 
 TEMP_PATH = package.__path__[0]
@@ -12,6 +12,14 @@ TEMP_PATH = package.__path__[0]
 
 class SetupCommand(BaseServiceCommand):
     SERVER_BACKENDS = 'utilmeta.core.server.backends'
+    DEFAULT_SUPPORTS = [
+        'django',
+        'flask',
+        'fastapi',
+        'starlette',
+        'sanic',
+        'tornado'
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -65,19 +73,19 @@ class SetupCommand(BaseServiceCommand):
         self.description = input('>>> ') or ''
 
         print(f'Choose the http backend of your project')
-        print(f' - django (default)')
-        print(f' - flask')
-        print(f' - fastapi')
-        print(f' - sanic')
-        print(f' - tornado')
+        for pkg in self.DEFAULT_SUPPORTS:
+            print(f' - {pkg}%s' % (' (default)' if pkg == self.default_backend else ''))
 
         while not self.backend:
-            self.backend = input('>>> ') or self.default_backend
+            self.backend = (input('>>> ') or self.default_backend).lower()
             try:
                 import_obj(f'{self.SERVER_BACKENDS}.{self.backend}')
-            except (ImportError, ModuleNotFoundError):
-                print(f'backend: {repr(self.backend)} not supported or not installed, please enter again')
-                self.backend = None
+            except ModuleNotFoundError:
+                if self.backend in self.DEFAULT_SUPPORTS:
+                    check_requirement(self.backend, install_when_require=True)
+                else:
+                    print(f'backend: {repr(self.backend)} not supported or not installed, please enter again')
+                    self.backend = None
 
         print(f'Enter the production host of your service (default: {self.default_host})')
         self.host = input('>>> ') or self.default_host
@@ -121,6 +129,7 @@ class SetupCommand(BaseServiceCommand):
             content,
             name=self.project_name,
             backend=self.backend,
+            import_backend=f'import {self.backend}',
             description=self.description,
             host=self.host
         )

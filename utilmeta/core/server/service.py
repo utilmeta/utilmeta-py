@@ -1,18 +1,18 @@
-from typing import Union, Callable, Type, TypeVar, Optional, TYPE_CHECKING
+from typing import Union, Callable, Type, TypeVar, Optional
 import sys
 import os
 from utilmeta.utils import import_obj, awaitable
 from utilmeta.conf.base import Config
 import inspect
 
-if TYPE_CHECKING:
-    from utilmeta.core.api.specs.base import BaseAPISpec
+# if TYPE_CHECKING:
+#     from utilmeta.core.api.specs.base import BaseAPISpec
 
 T = TypeVar('T')
 
 
 class UtilMeta:
-    DEFAULT_API_SPEC = 'utilmeta.core.api.specs.openapi.OpenAPI'
+    # DEFAULT_API_SPEC = 'utilmeta.core.api.specs.openapi.OpenAPI'
 
     def __init__(
         self,
@@ -31,7 +31,9 @@ class UtilMeta:
         # for document generation
         background: bool = False,
         asynchronous: bool = None,
-        auto_reload: bool = None
+        auto_reload: bool = None,
+        api=None,
+        url: str = '',
     ):
         """
             ! THERE MUST BE NO IMPORT BEFORE THE CONFIG IS ASSIGNED PROPERLY !
@@ -49,8 +51,8 @@ class UtilMeta:
         # 3. sys.path[0] / os.getcwd()
         self.project_dir = os.path.dirname(self.module.__file__)
 
-        self.root_api = None
-        self.root_url = None
+        self.root_api = api
+        self.root_url = str(url or '').strip('/')
         # self.root_url = str(root_url).strip('/')
         self.production = production
         self.version = version
@@ -91,6 +93,8 @@ class UtilMeta:
         from utilmeta.core.server.backends.base import ServerAdaptor
         self.adaptor: Optional[ServerAdaptor] = None
         self.set_backend(backend)
+
+        self.routes = {}
 
     def set_backend(self, backend):
         if not backend:
@@ -201,7 +205,8 @@ class UtilMeta:
     def mount(self, api: Union[str, Callable], route: str = ''):
         if self.root_api:
             if self.root_api != api:
-                raise ValueError(f'UtilMeta: root api conflicted: {api}, {self.root_api}')
+                raise ValueError(f'UtilMeta: root api conflicted: {api}, {self.root_api}, '
+                                 f'you can only mount a service once')
             return
         self.root_api = api
         self.root_url = str(route).strip('/')
@@ -257,6 +262,6 @@ class UtilMeta:
             return self.origin + '/' + self.root_url
         return self.origin
 
-    def generate(self, spec: Union[str, Type['BaseAPISpec']] = DEFAULT_API_SPEC):
-        if self.document:
-            return self.document
+    # def generate(self, spec: Union[str, Type['BaseAPISpec']] = DEFAULT_API_SPEC):
+    #     if self.document:
+    #         return self.document

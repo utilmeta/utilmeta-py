@@ -25,19 +25,12 @@ class FlaskServerAdaptor(ServerAdaptor):
         self.setup()
         return self.app
 
-    @property
-    def root_route(self):
-        if not self.config.root_url:
-            return ''
-        return '/' + self.config.root_url.strip('/')
-
     def setup(self):
         if self._ready:
             return
         self.add_api(
             self.app,
             self.resolve(),
-            route=self.root_route,
             asynchronous=self.asynchronous
         )
 
@@ -70,8 +63,11 @@ class FlaskServerAdaptor(ServerAdaptor):
         if not issubclass(utilmeta_api_class, API):
             raise TypeError(f'Invalid api class: {utilmeta_api_class}')
 
+        if route:
+            route = route.strip('/') + '/'
+
         if asynchronous:
-            @app.route('%s/<path:path>' % route, methods=cls.HANDLED_METHODS)
+            @app.route('%s<path:path>' % route, methods=cls.HANDLED_METHODS)
             async def f(path: str):
                 from flask import request
                 try:
@@ -82,7 +78,7 @@ class FlaskServerAdaptor(ServerAdaptor):
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
                 return cls.response_adaptor_cls.reconstruct(resp)
         else:
-            @app.route('%s/<path:path>' % route, methods=cls.HANDLED_METHODS)
+            @app.route('%s<path:path>' % route, methods=cls.HANDLED_METHODS)
             def f(path: str):
                 from flask import request
                 try:

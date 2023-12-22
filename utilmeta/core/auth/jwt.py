@@ -9,6 +9,9 @@ from typing import Any, Union
 class JsonWebToken(BaseAuthentication):
     name = 'jwt'
     jwt_var = var.RequestContextVar('_jwt_token')
+    headers = [
+        'authorization'
+    ]
 
     def getter(self, request: Request, field = None):
         token_type, token = request.authorization
@@ -34,8 +37,8 @@ class JsonWebToken(BaseAuthentication):
         return jwt_params
 
     def __init__(self,
+                 key: Union[str, Any],
                  encode_algorithm: str = 'HS256',
-                 key: Union[str, Any] = None,
                  # jwk: Union[str, dict] = None,
                  # jwk json string / dict
                  # jwk file path
@@ -45,6 +48,8 @@ class JsonWebToken(BaseAuthentication):
                  user_token_field: str = None
                  ):
         super().__init__(required=required)
+        if not key:
+            raise ValueError('Authentication config error: JWT key is required')
         self.encode_algorithm = encode_algorithm
         self.secret_key = key
         # self.jwk = jwk
@@ -74,10 +79,10 @@ class JsonWebToken(BaseAuthentication):
             from jwt import JWT  # noqa
             from jwt.jwk import OctetJWK  # noqa
             jwt = JWT()
-            key = None
+            jwt_key = None
             if self.secret_key:
-                key = OctetJWK(key=self.secret_key.encode())
-            jwt_token = jwt.encode(token_dict, key=key, alg=self.encode_algorithm)
+                jwt_key = OctetJWK(key=self.secret_key.encode())
+            jwt_token = jwt.encode(token_dict, key=jwt_key, alg=self.encode_algorithm)
         except ImportError:
             # jwt 1.7
             import jwt  # noqa

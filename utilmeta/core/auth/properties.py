@@ -60,6 +60,8 @@ class User(Property):
         user = self.get_user(request)
         user_var.set(user)
         if not user:
+            if field and type(None) in field.input_origins:
+                return None
             if self.required:
                 raise exc.Unauthorized
             return unprovided
@@ -75,6 +77,8 @@ class User(Property):
         user = await self.get_user(request)
         user_var.set(user)
         if not user:
+            if field and type(None) in field.input_origins:
+                return None
             if self.required:
                 raise exc.Unauthorized
             return unprovided
@@ -106,7 +110,7 @@ class User(Property):
                  login_ip_field=None,
                  password_field=None,
                  default=unprovided,
-                 required: bool = True,
+                 required: bool = None,
                  # context var
                  context_var=None,
                  id_context_var=None,
@@ -143,6 +147,10 @@ class User(Property):
             self.context_var.register_factory(self.get_user)
             self.id_context_var.register_factory(self.get_user_id)
             self.prepare_fields()
+
+    @property
+    def headers(self):
+        return self.authentication.headers
 
     def prepare_fields(self):
         if self.login_fields:

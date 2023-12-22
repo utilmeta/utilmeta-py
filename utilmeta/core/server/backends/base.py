@@ -1,7 +1,8 @@
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
-from utilmeta.utils import BaseAdaptor
+from utilmeta.utils import BaseAdaptor, exceptions
+import re
 
 
 class ServerAdaptor(BaseAdaptor):
@@ -28,6 +29,8 @@ class ServerAdaptor(BaseAdaptor):
     application_cls = None
     request_adaptor_cls = None
     response_adaptor_cls = None
+    sync_db_adaptor_cls = None
+    async_db_adaptor_cls = None
 
     def __init__(self, config: 'UtilMeta'):
         self.root = None
@@ -35,8 +38,25 @@ class ServerAdaptor(BaseAdaptor):
         self.background = config.background
         self.asynchronous = config.asynchronous
         if self.asynchronous is None:
-            self.asynchronous = self.default_asynchronous
+            config.asynchronous = self.asynchronous = self.default_asynchronous
         self.proxy = None
+
+    @property
+    def root_pattern(self):
+        if not self.config.root_url:
+            return None
+        return re.compile('%s/(.*)' % self.config.root_url.strip('/'))
+
+    def load_route(self, path: str):
+        if not self.config.root_url:
+            return path
+        path = path.strip('/')
+        match = self.root_pattern.match(path)
+        if match:
+            return match.groups()[0]
+        if path == self.config.root_url:
+            return ''
+        raise exceptions.NotFound
 
     def resolve(self):
         if self.root:

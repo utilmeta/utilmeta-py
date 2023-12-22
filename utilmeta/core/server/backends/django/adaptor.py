@@ -1,3 +1,5 @@
+import re
+
 import django
 import sys
 from functools import update_wrapper
@@ -7,6 +9,7 @@ from django.utils.deprecation import MiddlewareMixin
 from django.urls import re_path
 
 from utilmeta import UtilMeta
+from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
 from utilmeta.core.request.backends.django import DjangoRequestAdaptor
 from utilmeta.core.response.backends.django import DjangoResponseAdaptor
 from utilmeta.utils import Header, localhost, pop
@@ -31,6 +34,7 @@ class DjangoServerAdaptor(ServerAdaptor):
     backend = django
     request_adaptor_cls = DjangoRequestAdaptor
     response_adaptor_cls = DjangoResponseAdaptor
+    sync_db_adaptor_cls = DjangoDatabaseAdaptor
     default_asynchronous = False
     URLPATTERNS = 'urlpatterns'
     DEFAULT_PORT = 8000
@@ -42,19 +46,13 @@ class DjangoServerAdaptor(ServerAdaptor):
         self.settings = config.get_config(DjangoSettings) or DjangoSettings()
         self.app = None
 
-    @property
-    def root_pattern(self):
-        if not self.config.root_url:
-            return '(.*)'
-        return '%s/(.*)' % self.config.root_url.strip('/')
-
     def setup(self):
         if self._ready:
             return
         self.settings.setup(self.config)
         self.add_api(
             self.config.resolve(),
-            route=self.root_pattern,
+            route='(.*)',
             asynchronous=self.asynchronous
         )
         self._ready = True
@@ -67,8 +65,7 @@ class DjangoServerAdaptor(ServerAdaptor):
             urls.append(api_path)
         setattr(self.config.module, self.URLPATTERNS, urls)
 
-    @classmethod
-    def _get_api(cls, utilmeta_api_class, asynchronous: bool = False):
+    def _get_api(self, utilmeta_api_class, asynchronous: bool = False):
         """
         Mount a API class
         make sure it is called after all your fastapi route is set
@@ -78,23 +75,23 @@ class DjangoServerAdaptor(ServerAdaptor):
             raise TypeError(f'Invalid api class: {utilmeta_api_class}')
 
         if asynchronous:
-            async def f(request, *args, **kwargs):
+            async def f(request, route: str = '', *args, **kwargs):
                 try:
-                    req = cls.request_adaptor_cls(request, *args, **kwargs)
+                    req = self.request_adaptor_cls(request, self.load_route(route), *args, **kwargs)
                     root = utilmeta_api_class(req)
                     resp = await root()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
-                return cls.response_adaptor_cls.reconstruct(resp)
+                return self.response_adaptor_cls.reconstruct(resp)
         else:
-            def f(request, *args, **kwargs):
+            def f(request, route: str = '', *args, **kwargs):
                 try:
-                    req = cls.request_adaptor_cls(request, *args, **kwargs)
+                    req = self.request_adaptor_cls(request, self.load_route(route), *args, **kwargs)
                     root = utilmeta_api_class(req)
                     resp = root()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
-                return cls.response_adaptor_cls.reconstruct(resp)
+                return self.response_adaptor_cls.reconstruct(resp)
 
         update_wrapper(f, utilmeta_api_class, updated=())
         f.csrf_exempt = True  # noqa

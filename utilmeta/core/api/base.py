@@ -1,7 +1,7 @@
 from typing import Union, Dict, Type, List
 from utilmeta.utils.error import Error
 from utilmeta.utils.context import ParserProperty
-from utilmeta.utils import Header, EndpointAttr, COMMON_METHODS, awaitable, classonlymethod
+from utilmeta.utils import Header, EndpointAttr, COMMON_METHODS, awaitable, classonlymethod, distinct_add
 from utilmeta.utils import exceptions as exc
 
 import inspect
@@ -172,7 +172,7 @@ class API(PluginTarget):
                     raise e.__class__(f'{cls.__name__}: generate route [{repr(key)}] failed with error: {e}') from e
                 if route.private:
                     continue
-                route.initialize(cls)
+                # route.initialize(cls)
                 routes.append(route)
                 # make the annotated key as a property that can access through instance
                 setattr(cls, key, route.make_property())
@@ -196,7 +196,7 @@ class API(PluginTarget):
                     raise e.__class__(f'{cls.__name__}: generate route [{repr(key)}] failed with error: {e}') from e
                 if route.private:
                     continue
-                route.initialize(cls)
+                # route.initialize(cls)
                 routes.append(route)
                 continue
 
@@ -238,7 +238,6 @@ class API(PluginTarget):
                         )
                     except Exception as e:
                         raise e.__class__(f'{cls.__name__}: generate route [{repr(key)}] failed with error: {e}') from e
-                    route.initialize(cls)
                     routes.append(route)
                 continue
 
@@ -280,7 +279,8 @@ class API(PluginTarget):
 
     @classonlymethod
     def _make_property(cls, name: str, prop: Property):
-        if prop.__ident__ == 'body' or getattr(prop.__in__, '__ident__', None) == 'body':
+        _in = getattr(prop.__in__, '__ident__', None)
+        if prop.__ident__ == 'body' or _in == 'body':
             raise ValueError(f'{cls.__name__}: API class cannot define '
                              f'Body or BodyParam common params: [{repr(name)}]')
 
@@ -341,13 +341,17 @@ class API(PluginTarget):
         cls._generator = generator
         return cls
 
+    # @classonlymethod
+    # def __adapt__(cls, vendor_router):
+    #     # adapt a vendor (other backends) router to utilmeta
+    #     # and mount to API, also can apply before/error/after hooks and plugins
+    #     # usage
+    #     # class AdaptAPI(API):
+    #     #    ad_fastapi = API.__adapt__(fastapi.routing.APIRouter())
+    #     pass
+
     @classonlymethod
-    def __adapt__(cls, vendor_router):
-        # adapt a vendor (other backends) router to utilmeta
-        # and mount to API, also can apply before/error/after hooks and plugins
-        # usage
-        # class AdaptAPI(API):
-        #    ad_fastapi = API.__adapt__(fastapi.routing.APIRouter())
+    def __as__(cls, backend):
         pass
 
     @classonlymethod
@@ -419,7 +423,7 @@ class API(PluginTarget):
         return await process_response(self, result)
 
     def _resolve(self) -> APIRoute:
-        method_routes = {}
+        method_routes: Dict[str, APIRoute] = {}
         for route in self._routes:
             if route.match_route(self.request):
                 # path math
@@ -434,8 +438,13 @@ class API(PluginTarget):
                 method_routes.setdefault(route.method, route)
         if method_routes:
             allow_methods = var.allow_methods.init(self.request)
+            allow_headers = var.allow_headers.init(self.request)
             route_var = var.unmatched_route.init(self.request)
             allow_methods.set(list(method_routes))
+            headers = []
+            for route in method_routes.values():
+                distinct_add(headers, route.header_names)
+            allow_headers.set(headers)
             route_var.set('')
             if self.request.method not in method_routes:
                 raise exc.MethodNotAllowed(

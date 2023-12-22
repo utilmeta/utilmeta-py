@@ -40,7 +40,12 @@ class BaseServiceCommand(BaseCommand):
 
     @property
     def main_file(self):
-        return self.service_config.get('main')
+        file: str = self.service_config.get('main')
+        if not file:
+            return file
+        if file.endswith('.py'):
+            return file
+        return file + '.py'
 
     @property
     def application_ref(self):

@@ -46,10 +46,10 @@ meta add user
 可以看到在我们的项目文件夹中新创建出了一个 `user` 文件夹，其中包括
 ```
 /user
-	/migrations
-	api.py
-	models.py
-	schema.py
+    /migrations
+    api.py
+    models.py
+    schema.py
 ```
 
 其中 `migrations` 文件夹是 Django 用来处理数据库迁移文件的，`models.py` 是我们编写数据模型的地方
@@ -79,10 +79,10 @@ class User(models.Model):
 
 class Session(AbstractSession):
     user = models.ForeignKey(
-	    User, related_name='sessions', 
-	    null=True, default=None, 
-	    on_delete=models.CASCADE
-	)
+        User, related_name='sessions', 
+        null=True, default=None, 
+        on_delete=models.CASCADE
+    )
 ```
 
 可以看到除了 User 模型外，我们还编写了一个用户记录用户会话和登录状态的 Session 模型，我们将通过这个模型实现用户的登录与鉴权
@@ -225,7 +225,7 @@ class LoginSchema(utype.Schema):
 
 @auth.session_config.plugin
 class UserAPI(api.API):
-	@api.post
+    @api.post
     def signup(self): ...
 
 	# new ++++
@@ -276,7 +276,7 @@ class UserUpdateSchema(orm.Schema[User]):
 
 @auth.session_config.plugin
 class UserAPI(api.API):
-	@api.post
+    @api.post
     def signup(self): ...
     @api.post
     def login(self): ...
@@ -288,7 +288,7 @@ class UserAPI(api.API):
         return UserSchema.init(user)
 
     def put(self, data: UserUpdateSchema = request.Body, 
-		    user: User = auth.user_config) -> UserSchema:
+            user: User = auth.user_config) -> UserSchema:
         data.id = user.pk
         data.save()
         return UserSchema.init(data.pk)

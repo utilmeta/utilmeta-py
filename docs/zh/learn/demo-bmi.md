@@ -13,8 +13,8 @@ meta setup demo-bmi
 
 ```
 /bmi
-	server.py
-	meta.ini
+    server.py
+    meta.ini
 ```
 
 ::: tip
@@ -37,9 +37,9 @@ class RootAPI(api.API):
 
 ```python
 class RootAPI(api.API):  
-	@api.get  
-	def bmi(self, weight: float, height: float):  
-		return round(weight / height ** 2, 1)
+    @api.get  
+    def bmi(self, weight: float, height: float):  
+         return round(weight / height ** 2, 1)
 ```
 
 我们在 `bmi` 函数中添加的参数 `weight` 和 `height` 会被默认处理为查询参数，在函数中进行计算并直接返回即可，UtilMeta 将会处理 HTTP 响应的包装和返回
@@ -128,7 +128,7 @@ UtilMeta 能够根据你编写的接口声明自动为你生成 API 文档，我
 from utilmeta.core.api.specs.openapi import OpenAPI
 
 class RootAPI(api.API):
-	docs: OpenAPI.as_api('openapi.json')  # new
+    docs: OpenAPI.as_api('openapi.json')  # new
 
     @api.get
     def bmi(self,

@@ -141,7 +141,7 @@ class TestAPI(api.API):
     @api.put
     def update(
         self,
-        image: file.File = request.BodyParam(),
+        image: file.File = request.BodyParam(max_length=10 * 1024),
         query: QuerySchema = request.Query,
         test_cookie: str = request.CookieParam(alias='test-cookie', default='default'),
         name: str = request.BodyParam(max_length=30),
@@ -160,11 +160,11 @@ class TestAPI(api.API):
 
     # ------- TEST headers
 
-
     @api.post
     def operation(
         self,
         dic: Dict[int, Tuple[str, Dict[str, bool], List[int]]] = request.Body,
+        # tf: file.FileType('*/xml') = request.BodyParam,
         x_test_header: int = request.HeaderParam(default=0),
         headers: HeaderSchema = request.Headers,
     ) -> Tuple[
@@ -185,6 +185,9 @@ class TestAPI(api.API):
     ) -> Tuple[int, int, DataSchema]:
         return x_test_id, q, data
 
+    # class FileData(utype.Schema):
+    #     files: List[file.File] = utype.Field(max_length=10)
+
     @api.handle('*', exceptions.BadRequest)
     def handle_bad_request(self, e):
         return HookResponse(error=e, status=422)
@@ -195,3 +198,22 @@ class TestAPI(api.API):
 
     @api.after('*')
     def add_response(self) -> HookResponse: pass
+
+    # class FilesData(utype.Schema):
+    #     name: str
+    #     files: List[file.File] = utype.Field(max_length=10)
+
+    @api.post
+    def upload(self, data: file.File = request.Body):
+        # for i, f in enumerate(data.files):
+        #     f.save(f'/tmp/{data.name}-{i}')
+        return data.read()
+
+
+class UserAPI(api.API):
+    sessionid: str = request.CookieParam(required=True)
+    csrftoken: str = request.CookieParam(default=None)
+
+    @api.post
+    def operation(self):
+        return [self.sessionid, self.csrftoken]

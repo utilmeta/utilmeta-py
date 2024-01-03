@@ -55,6 +55,7 @@ class TornadoServerAdaptor(ServerAdaptor):
                     except Exception as e:
                         response = getattr(root_api, 'response', Response)(error=e)
                     self.write(response.prepare_body())
+                    self.set_status(response.status, reason=response.reason)
                     for key, value in response.prepare_headers(with_content_type=True):
                         self.add_header(key, value)
         else:
@@ -88,6 +89,7 @@ class TornadoServerAdaptor(ServerAdaptor):
                     except Exception as e:
                         response = getattr(root_api, 'response', Response)(error=e)
                     self.write(response.prepare_body())
+                    self.set_status(response.status, reason=response.reason)
                     for key, value in response.prepare_headers(with_content_type=True):
                         self.add_header(key, value)
 

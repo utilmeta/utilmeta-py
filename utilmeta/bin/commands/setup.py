@@ -87,6 +87,9 @@ class SetupCommand(BaseServiceCommand):
                     print(f'backend: {repr(self.backend)} not supported or not installed, please enter again')
                     self.backend = None
 
+        if self.backend == 'starlette':
+            check_requirement('uvicorn', install_when_require=True)
+
         print(f'Enter the production host of your service (default: {self.default_host})')
         self.host = input('>>> ') or self.default_host
 

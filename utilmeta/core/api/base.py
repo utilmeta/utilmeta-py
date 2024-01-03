@@ -297,7 +297,8 @@ class API(PluginTarget):
         def getter(self: 'API'):
             value = inst.get(self.request)
             if unprovided(value):
-                raise AttributeError(f'{cls.__name__}: property: <{name}> not provided')
+                raise exc.BadRequest(f'{cls.__name__}: '
+                                     f'{prop.__class__.__name__}({repr(field.name)}) not provided')
             self.__dict__[name] = value     # auto-cached
             return value
 

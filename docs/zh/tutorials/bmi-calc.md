@@ -1,4 +1,4 @@
-# 案例教程 - 简单的 BMI 计算 API
+# 简单的 BMI 计算 API
 
 我们的入门教程是编写一个简单的 BMI 计算 API，根据输入的身高，体重信息计算对应的 BMI 数值
 ## 1. 创建项目
@@ -17,9 +17,9 @@ meta setup demo-bmi
     meta.ini
 ```
 
-::: tip
-`server.py` 是你的开发文件，而 `meta.ini` 是一个让 `meta` 命令行识别项目根目录和元信息的配置文件 
-:::
+!!! abstract ""
+	`server.py` 是你的开发文件，而 `meta.ini` 是一个让 `meta` 命令行识别项目根目录和元信息的配置文件 
+
 ## 2. 编写基础的 API 实现
 
 我们打开 `server.py`，可以发现其中已经有了一个名为 `RootAPI` 的类
@@ -49,13 +49,13 @@ class RootAPI(api.API):
 python server.py
 ```
 
-当年看到如下提示即说明启动成功
+当看到如下提示即说明启动成功
 ```
- * Running on http://127.0.0.1:8000
+Running on http://127.0.0.1:8000
 Press CTRL+C to quit
 ```
 
-接着我们可以直接使用浏览器访问 http://127.0.0.1:8000/api/bmi?weight=70&height=1.85
+接着我们可以直接使用浏览器访问 [http://127.0.0.1:8000/api/bmi?weight=70&height=1.85](http://127.0.0.1:8000/api/bmi?weight=70&height=1.85)
 来调用 API，可以看到 API 返回了
 ```json
 20.5
@@ -63,6 +63,7 @@ Press CTRL+C to quit
 
 
 这个例子足够简单，但它也有一些可以优化的地方，比如
+
 * 没有对请求参数值的大小作校验，如果参数 `height` 是 0 则会发生错误，如果参数是负数也没有意义
 * 数字作为结果直接进行了返回，通常的做法应该使用一个 JSON 进行返回
 
@@ -83,9 +84,9 @@ class RootAPI(api.API):
 
 在上面的函数中，我们声明了 `weight` 参数需要大于 0，小于等于 1000，`height` 参数需要大于 0，小于等于 4，如果输入的数据不符合这些规则，则 UtilMeta 会自动处理并返回 `400 BadRequest` 响应
 
-::: tip
-UtilMeta 使用 `utype` 获得数据规则声明与解析的能力，你可以在 [这篇文档](https://utype.io/zh/references/rule/) 中发现更多的规则校验参数和用法
-:::
+!!! abstract "utype"
+	UtilMeta 使用 `utype` 获得数据规则声明与解析的能力，你可以在 [这篇文档](https://utype.io/zh/references/rule/) 中发现更多的规则校验参数和用法
+
 
 另外对于返回结果，我们可以使用一个 JSON 来返回 BMI 的数值和对应的等级，为了使响应同样可以被整合到 API 文档中，我们可以使用 `utype.Schema` 来定义响应的格式，如
 ```python
@@ -113,7 +114,7 @@ class RootAPI(api.API):
 
 在 BMISchema 中我们额外声明了一个 `level` 属性，通过对 `value` 的计算得出对应的 BMI 等级，而 `level` 同样会作为字段进行输出，接口所返回的 BMISchema 实例会被 UtilMeta 直接处理成 JSON 格式响应给客户端
 
-当我们重启项目并再次访问  http://127.0.0.1:8000/api/bmi?weight=70&height=1.85 时，可以看到如下的返回结果
+当我们重启项目并再次访问 [http://127.0.0.1:8000/api/bmi?weight=70&height=1.85](http://127.0.0.1:8000/api/bmi?weight=70&height=1.85) 时，可以看到如下的返回结果
 ```json
 {"value": 20.45, "level": 1}
 ```
@@ -143,4 +144,4 @@ class RootAPI(api.API):
 
 我们可以使用任意实现了 OpenAPI 标准的 API 调试器（如 [Swagger Editor](https://editor.swagger.io/)）加载这个 JSON 文档即可看到我们编写的 API 的输入与响应参数都已被完整的记录到了 API 文档中
 
-![[bmi-api-doc.png]]
+![BMI API Doc](/assets/bmi-api-doc.png)

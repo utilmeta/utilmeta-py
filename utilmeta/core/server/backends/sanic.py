@@ -60,8 +60,11 @@ class SanicServerAdaptor(ServerAdaptor):
         from utilmeta.core.api.base import API
         if not issubclass(utilmeta_api_class, API):
             raise TypeError(f'Invalid api class: {utilmeta_api_class}')
-        if route:
-            route = route.strip('/') + '/'
+
+        if route and route.strip('/'):
+            route = '/' + route.strip('/') + '/'
+        else:
+            route = '/'
 
         if asynchronous:
             @app.route('%s<path:path>' % route, methods=self.HANDLED_METHODS)

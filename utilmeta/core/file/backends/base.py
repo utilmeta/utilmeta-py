@@ -1,3 +1,4 @@
+import os
 from utilmeta.utils.adaptor import BaseAdaptor
 
 
@@ -21,5 +22,13 @@ class FileAdaptor(BaseAdaptor):
     def filename(self):
         raise NotImplementedError
 
-    def save(self, path: str):
-        raise NotImplementedError
+    def save(self, path: str, name: str = None):
+        file_path = path
+        name = name or self.filename
+        if name:
+            file_path = os.path.join(file_path, name)
+
+        with open(file_path, 'wb') as fp:
+            fp.write(self.file)
+
+        return file_path

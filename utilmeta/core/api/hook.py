@@ -126,7 +126,7 @@ class BeforeHook(Hook):
             kwargs.update(self.wrapper.parse_context(request))
             return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
         except utype.exc.ParseError as e:
-            raise exceptions.BadRequest(str(e)) from e
+            raise exceptions.BadRequest(str(e), detail=e.get_detail()) from e
 
     @utils.awaitable(parse_request)
     async def parse_request(self, request: Request):
@@ -136,7 +136,7 @@ class BeforeHook(Hook):
             return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
             # in base Endpoint, args is not supported
         except utype.exc.ParseError as e:
-            raise exceptions.BadRequest(str(e)) from e
+            raise exceptions.BadRequest(str(e), detail=e.get_detail()) from e
 
     def serve(self, api: 'API'):
         args, kwargs = self.parse_request(api.request)

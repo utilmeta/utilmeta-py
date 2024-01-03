@@ -1,0 +1,103 @@
+site_name: UtilMeta Documentation - Python Framework
+site_description: Progressive meta framework for API development in Python
+site_url: https://docs.utilmeta.com/py/en
+docs_dir: en
+site_dir: build
+# ref: https://github.com/squidfunk/mkdocs-material/discussions/2346
+
+theme:
+  name: material
+  favicon: https://utilmeta.com/favicon.ico
+  language: en
+  logo: https://utilmeta.com/img/logo-main.png
+  palette:
+  - media: '(prefers-color-scheme: light)'
+    scheme: default
+    primary: custom
+    toggle:
+      icon: material/lightbulb
+      name: Switch to light mode
+  - media: '(prefers-color-scheme: dark)'
+    scheme: slate
+    primary: custom
+    toggle:
+      icon: material/lightbulb-outline
+      name: Switch to dark mode
+  features:
+    - navigation.sections
+    - toc.follow
+    - navigation.tracking
+    - navigation.top
+
+repo_name: utilmeta/utilmeta-py
+repo_url: https://github.com/utilmeta/utilmeta-py
+edit_uri: edit/main/docs/en
+plugins:
+  - search
+  - privacy:
+      links_attr_map:
+        target: _blank
+
+nav:
+  - README.md
+  - Usage:
+      - guide/type.md
+      - guide/cls.md
+      - guide/func.md
+  - API References:
+      - references/rule.md
+      - references/field.md
+      - references/options.md
+  - Languages:
+      - En: /py/en
+      - Zh: /py/zh
+#  - Feature Extensions:
+#      - extension/env.md
+#      - extension/cmd.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/utilmeta/utilmeta-py
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/JdmEkFS6dS
+    - icon: fontawesome/brands/reddit
+      link: https://reddit.com/r/utilmeta
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/utilmeta
+  alternate:
+    - name: English
+      link: /py/en/
+      lang: en
+    - name: 中文
+      link: /py/zh/
+      lang: zh
+  analytics:
+    provider: google
+    property: G-SSGJ802L1R
+    feedback:
+      title: Was this page helpful?
+      ratings:
+        - icon: material/emoticon-happy-outline
+          name: This page was helpful
+          data: 1
+          note: >-
+            Thank you for your feedback~
+        - icon: material/emoticon-sad-outline
+          name: This page could be improved
+          data: 0
+          note: >-
+            Thank you for your feedback~
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - markdown.extensions.codehilite:
+      guess_lang: false
+  - admonition
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences
+  - attr_list

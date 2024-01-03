@@ -1,0 +1,102 @@
+site_name: UtilMeta Python 框架文档
+site_description: 面向 API 开发的渐进式元框架
+site_url: https://docs.utilmeta.com/py/zh
+docs_dir: zh
+site_dir: build/zh
+
+theme:
+  name: material
+  favicon: https://utilmeta.com/favicon.ico
+  language: zh
+  logo: https://utilmeta.com/img/logo-main.png
+  palette:
+  - media: '(prefers-color-scheme: light)'
+    scheme: default
+    primary: custom
+    toggle:
+      icon: material/lightbulb
+      name: Switch to light mode
+  - media: '(prefers-color-scheme: dark)'
+    scheme: slate
+    primary: custom
+    toggle:
+      icon: material/lightbulb-outline
+      name: Switch to dark mode
+  features:
+    - navigation.sections
+    - toc.follow
+    - navigation.tracking
+    - navigation.top
+
+repo_name: utilmeta/utilmeta-py
+repo_url: https://github.com/utilmeta/utilmeta-py
+edit_uri: edit/main/docs/zh
+plugins:
+  - search
+  - open-in-new-tab
+
+nav:
+  - README.md
+  - 特性指引:
+      - guide/handle-request.md
+      - guide/api-route.md
+      - guide/schema-query.md
+      - guide/auth.md
+      - guide/config-run.md
+  - 案例教程:
+      - tutorials/bmi-calc.md
+      - tutorials/user-auth.md
+      - tutorials/realworld-blog.md
+  - 切换语言:
+      - English: /py/en/
+      - 中文: /py/zh
+
+extra_css:
+  - css/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/utilmeta/utilmeta-py
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/JdmEkFS6dS
+    - icon: fontawesome/brands/reddit
+      link: https://reddit.com/r/utilmeta
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/utilmeta
+  alternate:
+    - name: English
+      link: /py/en/
+      lang: en
+    - name: 中文
+      link: /py/zh/
+      lang: zh
+  analytics:
+    provider: google
+    property: G-SSGJ802L1R
+    feedback:
+      title: 本篇文档是否能帮助到你？
+      ratings:
+        - icon: material/emoticon-happy-outline
+          name: This page was helpful
+          data: 1
+          note: >-
+            感谢反馈~
+        - icon: material/emoticon-sad-outline
+          name: This page could be improved
+          data: 0
+          note: >-
+            感谢反馈~
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - markdown.extensions.codehilite:
+      guess_lang: false
+  - admonition
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences
+  - attr_list

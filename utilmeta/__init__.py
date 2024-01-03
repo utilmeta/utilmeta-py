@@ -2,6 +2,7 @@ from .core.server.service import UtilMeta
 
 service: 'UtilMeta'     # current service in this process
 
-__home__ = 'https://utilmeta.com'
+__website__ = 'https://utilmeta.com'
+__homepage__ = 'https://utilmeta.com/py'
 __author__ = 'Xulin Zhou (voidZXL)'
-__version__ = '2.1.4'
+__version__ = '2.1.5'

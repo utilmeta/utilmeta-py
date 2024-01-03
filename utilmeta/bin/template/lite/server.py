@@ -6,6 +6,13 @@ from utilmeta.core import api
 import os
 {import_backend}    # noqa
 
+
+class RootAPI(api.API):
+    @api.get
+    def hello(self):
+        return 'world'
+
+
 production = bool(os.getenv('UTILMETA_PRODUCTION'))
 service = UtilMeta(
     __name__,
@@ -16,16 +23,9 @@ service = UtilMeta(
     version=(0, 1, 0),
     host='{host}' if production else '127.0.0.1',
     port=80 if production else 8000,
+    route='/api',
+    api=RootAPI
 )
-
-
-class RootAPI(api.API):
-    @api.get
-    def hello(self):
-        return 'world'
-
-
-service.mount(RootAPI, route='/api')
 
 app = service.application()     # used in wsgi/asgi server
 

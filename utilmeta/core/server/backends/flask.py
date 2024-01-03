@@ -53,8 +53,7 @@ class FlaskServerAdaptor(ServerAdaptor):
             **kwargs
         )
 
-    @classmethod
-    def add_api(cls, app: Flask, utilmeta_api_class, route: str = '', asynchronous: bool = False):
+    def add_api(self, app: Flask, utilmeta_api_class, route: str = '', asynchronous: bool = False):
         """
         Mount a API class
         make sure it is called after all your fastapi route is set
@@ -63,28 +62,34 @@ class FlaskServerAdaptor(ServerAdaptor):
         if not issubclass(utilmeta_api_class, API):
             raise TypeError(f'Invalid api class: {utilmeta_api_class}')
 
-        if route:
-            route = route.strip('/') + '/'
+        if route and route.strip('/'):
+            route = '/' + route.strip('/') + '/'
+        else:
+            route = '/'
 
         if asynchronous:
-            @app.route('%s<path:path>' % route, methods=cls.HANDLED_METHODS)
+            @app.route('/', defaults={'path': ''}, methods=self.HANDLED_METHODS)
+            @app.route('%s<path:path>' % route, methods=self.HANDLED_METHODS)
             async def f(path: str):
                 from flask import request
                 try:
+                    path = self.load_route(path)
                     resp = await utilmeta_api_class(
-                        cls.request_adaptor_cls(request, path)
+                        self.request_adaptor_cls(request, path)
                     )()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
-                return cls.response_adaptor_cls.reconstruct(resp)
+                return self.response_adaptor_cls.reconstruct(resp)
         else:
-            @app.route('%s<path:path>' % route, methods=cls.HANDLED_METHODS)
+            @app.route('/', defaults={'path': ''}, methods=self.HANDLED_METHODS)
+            @app.route('%s<path:path>' % route, methods=self.HANDLED_METHODS)
             def f(path: str):
                 from flask import request
                 try:
+                    path = self.load_route(path)
                     resp = utilmeta_api_class(
-                        cls.request_adaptor_cls(request, path)
+                        self.request_adaptor_cls(request, path)
                     )()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
-                return cls.response_adaptor_cls.reconstruct(resp)
+                return self.response_adaptor_cls.reconstruct(resp)

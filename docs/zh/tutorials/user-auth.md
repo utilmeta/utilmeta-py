@@ -1,11 +1,12 @@
-# 案例教程 - 用户注册登录 API
+# 用户注册登录 API
 
 这个案例我们将会用 UtilMeta 搭建起一个提供用户注册，登录，查询，修改信息的 API，这样的接口是大多数应用的标配，我们也会学习到如何使用 UtilMeta 处理数据库查询与鉴权
 
-这个案例教程使用的技术选型为
-* 使用 Django 作为 HTTP 与 ORM backend
-* 使用 SQLite 作为数据库
-* 使用 Session 来处理用户的登录状态
+!!! abstract "技术选型"
+
+	* 使用 Django 作为 HTTP 与 ORM backend
+	* 使用 SQLite 作为数据库
+	* 使用 Session 来处理用户的登录状态
 
 ## 1. 创建项目
 
@@ -87,9 +88,8 @@ class Session(AbstractSession):
 
 可以看到除了 User 模型外，我们还编写了一个用户记录用户会话和登录状态的 Session 模型，我们将通过这个模型实现用户的登录与鉴权
 
-::: tip PasswordField
-用户模型的 `password` 字段使用的 PasswordField 会自动对输入的明文密码进行哈希加密，如果你希望自行实现密码的加密与校验，也可以使用 CharField 字段声明
-:::
+!!! tip "PasswordField"
+	用户模型的 `password` 字段使用的 PasswordField 会自动对输入的明文密码进行哈希加密，如果你希望自行实现密码的加密与校验，也可以使用 CharField 字段声明
 
 ### 初始化数据库
 
@@ -147,11 +147,12 @@ user_config = auth.User(
 
 在这段代码中，SessionSchema 是处理和存储 Session 数据的核心引擎，`session_config` 是声明 Session 配置的组件，定义了我们刚编写的 Session 模型以及引擎，并且配置了相应的 Cookie 策略
 
-::: tip
-为了简化案例，我们选择了基于数据库的 Session 实现（DBSession），实际开发中，我们常常使用 Redis 等缓存作为 Session 的存储实现，或者使用 缓存+数据库 的方式，这些实现方式 UtilMeta 都支持
-:::
+!!! tip
+	为了简化案例，我们选择了基于数据库的 Session 实现（DBSession），实际开发中，我们常常使用 Redis 等缓存作为 Session 的存储实现，或者使用 缓存+数据库 的方式，这些实现方式 UtilMeta 都支持
+
 
 另外在代码中我们也声明了 `user_config` 用户鉴权配置，其中的参数
+
 * `user_model`：指定鉴权的用户模型，就是我上一节中编写好的 User 模型
 * `authentication`：指定鉴权策略，我们传入 `session_config` 来声明用户鉴权使用 Session 进行
 * `key`：在 Session 数据中保存当前用户 ID 的名称
@@ -196,14 +197,14 @@ class UserAPI(api.API):
         return UserSchema.init(data.pk)
 ```
 注册接口中的逻辑为
+
 1. 检测请求中的 `username` 是否已被注册
 2. 调用 `data.save()` 方法保存数据
 3. 为当前请求使用 `login_user` 方法登录新注册的用户
 4. 使用 `UserSchema.init(data.pk)` 将新用户的数据初始化为 UserSchema 实例后返回
 
-::: tip Schema Query
-UtilMeta 开发了一套高效的声明式 ORM 查询体系，可以称为 Schema Query, 我们在声明 Schema 类时便使用 `orm.Schema[User]` 绑定了模型，这样我们就可以通过  Schema 类的方法来实现数据的增删改查了
-:::
+!!! abstract "Schema Query"
+	UtilMeta 开发了一套高效的声明式 ORM 查询体系，可以称为 Schema Query, 我们在声明 Schema 类时便使用 `orm.Schema[User]` 绑定了模型，这样我们就可以通过  Schema 类的方法来实现数据的增删改查了
 
 另外我们发现在 UserAPI 类被施加了 `@auth.session_config.plugin` 这一装饰器插件，这是 Session 配置应用到 API 上的方式，这个插件能在每次请求结束后对请求所更新的 Session 数据进行保存处理
 
@@ -248,15 +249,13 @@ class UserAPI(api.API):
 在登录接口中，我们直接调用了鉴权配置中的 `login()` 方法来完成登录，由于我们已经配置好了登录字段与密码字段，UtilMeta 可以字段帮我们完成密码校验与登录，如果成功登录，便返回相应的用户实例
 所以当返回为空时，我们便抛出错误返回登录失败，而成功登录后，我们调用 `UserSchema.init` 放将登录的用户数据返回给客户端
 
-::: tip
-这样简化的登录方式并不是强制的，如果你希望更自由的控制登录，可以自行实现相应的逻辑
-:::
+!!! tip
+	这样简化的登录方式并不是强制的，如果你希望更自由的控制登录，可以自行实现相应的逻辑
 
 而对于登出接口，我们只需拿到当前的 session，并将其中的数据清空即可，我们这里调用的是 `session.flush()` 清空数据 
 
-::: tip
-在配置 Session 后，你在任意接口都可以使用代码中 `logout` 接口的方式拿到当前的 Session 数据，你得到的就是你声明的 SessionSchema 实例，你可以像操作其他 Schema 实例或者字典一样操作它
-:::
+!!! tip
+	在配置 Session 后，你在任意接口都可以使用代码中 `logout` 接口的方式拿到当前的 Session 数据，你得到的就是你声明的 SessionSchema 实例，你可以像操作其他 Schema 实例或者字典一样操作它
 
 ### 用户信息的获取与更新
 
@@ -301,9 +300,8 @@ class UserAPI(api.API):
 
 由于我们不能允许请求用户任意指定要更新的用户 ID，所以对于请求数据的 `id` 字段我们使用了 `no_input=True` 的选项，这其实也是一种常见的权限策略，即一个用户只能更新自己的信息
 
-::: tip API 函数的命名与路由
-当你的函数直接使用 get/put/patch/post/delete 等 HTTP 动词进行命名时，它们就会自动绑定对应的方法，路径与 API 类的路径保持一致，这些方法称为这个 API 类的核心方法
-:::
+!!! tip "API 函数的命名与路由"
+	当你的函数直接使用 get/put/patch/post/delete 等 HTTP 动词进行命名时，它们就会自动绑定对应的方法，路径与 API 类的路径保持一致，这些方法称为这个 API 类的核心方法
 
 至此我们的 API 就全部开发完成了
 ### 整合 API
@@ -322,9 +320,8 @@ service.mount(RootAPI, route='/api')
 
 我们将开发好的 UserAPI 挂载到了 RootAPI 的 `user` 属性，意味着 UserAPI 的路径被挂载到了 `/api/user`
 
-::: tip
-对于使用 Django 的 API 服务，请在导入任何模型或 API 前加入 `service.setup()`，这样 django 才能正确识别所有的数据模型
-:::
+!!! tip
+	对于使用 Django 的 API 服务，请在导入任何模型或 API 前加入 `service.setup()`，这样 django 才能正确识别所有的数据模型
 
 ## 5. 运行 API
 
@@ -345,9 +342,8 @@ Starting development server at http://127.0.0.1:8000/
 Quit the server with CTRL-BREAK.
 ```
 
-::: tip
-你可以通过调整 `server.py` 中的 UtilMeta 服务声明里的 `host` 和 `port` 参数来改变 API 服务监听的地址
-:::
+!!! tip
+	你可以通过调整 `server.py` 中的 UtilMeta 服务声明里的 `host` 和 `port` 参数来改变 API 服务监听的地址
 
 ### 调试 API
 

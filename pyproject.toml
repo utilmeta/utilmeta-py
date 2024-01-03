@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "UtilMeta"
 description = "UtilMeta - progressive meta framework for API development in Python"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = {file = "LICENSE"}
 authors = [
     { name = "Xulin Zhou (voidZXL)", email = "zxl@utilmeta.com" },
@@ -40,19 +40,19 @@ classifiers = [
 ]
 dependencies = [
     "utype>=0.3.7",
-    "databases>=0.7.0"
+    "databases>=0.7.0",
+    "django>=4.1.0"
 ]
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://utilmeta.com"
-Documentation = "https://utilmeta.com"
+Homepage = "https://utilmeta.com/py"
+Documentation = "https://docs.utilmeta.com/py/en"
 Repository = "https://github.com/utilmeta/utilmeta-py"
 
 [project.optional-dependencies]
 all = [
-    "django >= 4.1.0",
-    "starlette  >= 0.27.0",
+    "starlette >= 0.27.0",
     "sanic >= 22.0.0",
     "flask >= 2.3.0",
     "tornado >= 6.2",

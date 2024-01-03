@@ -61,10 +61,11 @@ class StarletteServerAdaptor(ServerAdaptor):
         from utilmeta.core.api.base import API
         if not isinstance(utilmeta_api_class, type) or not issubclass(utilmeta_api_class, API):
             raise TypeError(f'Invalid api class: {utilmeta_api_class}')
-        if route:
-            route = route.strip('/') + '/'
+        if route and route.strip('/'):
+            route = '/' + route.strip('/') + '/'
         else:
             route = '/'
+
         # utilmeta_api_class: Type[API]
         if asynchronous:
             # @app.route('%s/{path:path}' % route, methods=cls.HANDLED_METHODS)

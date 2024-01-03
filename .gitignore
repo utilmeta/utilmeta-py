@@ -12,6 +12,8 @@ __pycache__/
 */.coverage
 */.obsidian
 
+/docs/build
+
 /tests/service/media/*
 /tests/service/deploy/run/
 /tests/service/deploy/log/
@@ -22,3 +24,5 @@ db
 /.ext
 # .ext/ is used to store pre-developer files that helps development
 /.pytest_cache
+.cache
+/docs/.cache

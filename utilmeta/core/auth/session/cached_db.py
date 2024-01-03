@@ -4,7 +4,7 @@ from .db import DBSessionSchema
 
 
 class AbstractCachedDBSessionSchema(CacheSessionSchema):
-    _config: 'CachedDbSession'
+    _config: 'CachedDBSession'
 
     def db_exists(self, session_key: str) -> bool:
         raise NotImplementedError
@@ -129,7 +129,7 @@ class CachedDBSessionSchema(AbstractCachedDBSessionSchema, DBSessionSchema):
         return None
 
 
-class CachedDbSession(CacheSession):
+class CachedDBSession(CacheSession):
     DEFAULT_ENGINE = CachedDBSessionSchema
 
     def __init__(self, session_model, **kwargs):

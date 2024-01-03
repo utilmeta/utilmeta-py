@@ -16,13 +16,19 @@ class HttpError(Exception):
         return f'{head}: {self.message}'
 
     def __init__(self, message: str = None, *,
-                 state: Union[str, int] = None, status: int = None, result=None, extra: dict = None):
+                 state: Union[str, int] = None,
+                 status: int = None,
+                 result=None,
+                 extra: dict = None,
+                 detail: Union[dict, list] = (),
+                 ):
         self.message = str(message)
         self.state = state
         self.result = result
         if status:
             self.status = status
         self.extra = extra
+        self.detail = detail
 
     def __init_subclass__(cls, **kwargs):
         try:

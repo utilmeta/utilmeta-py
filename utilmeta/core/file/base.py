@@ -4,6 +4,8 @@ import utype
 from typing import Type
 from utilmeta.utils.exceptions import UnprocessableEntity
 
+__all__ = ['File', 'Image', 'Audio', 'Video', 'FileType']
+
 
 class InvalidFileType(UnprocessableEntity):
     pass
@@ -26,6 +28,10 @@ class File:
     truncate = property(lambda self: self.file.truncate)
     write = property(lambda self: self.file.write)
     writelines = property(lambda self: self.file.writelines)
+
+    # -------
+    max_length = None
+    type = None
 
     def __init__(self, file):
         if isinstance(file, File):
@@ -68,14 +74,17 @@ class File:
             return self.file.seekable()
         return True
 
-    def save(self, path: str):
-        return self.adaptor.save(path)
+    def save(self, path: str, name: str = None):
+        return self.adaptor.save(path, name)
 
-    async def asave(self, path: str):
+    async def asave(self, path: str, name: str = None):
         pass
 
     def __iter__(self):
         return iter(self.file)
+
+    def __len__(self):
+        return self.size
 
     @property
     def content_type(self) -> str:
@@ -117,6 +126,45 @@ class Image(File):
     def validate(self):
         if not self.content_type or not self.is_image:
             raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, image expected')
+
+
+class Audio(File):
+    def validate(self):
+        if not self.content_type or not self.is_audio:
+            raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, audio expected')
+
+
+class Video(File):
+    def validate(self):
+        if not self.content_type or not self.is_video:
+            raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, video expected')
+
+
+def FileType(content_type: str):
+    if '/' in content_type:
+        content_class, suffix = content_type.split('/')
+    else:
+        content_class, suffix = content_type, None
+
+    class FileCls(File):
+        def validate_type(self):
+            if self.content_type:
+                if '/' in self.content_type:
+                    cc, suf = self.content_type.split('/')
+                    if content_class != '*':
+                        if content_class != cc:
+                            return False
+                    if suffix not in (None, '*'):
+                        if suf != suffix:
+                            return False
+                    return True
+            return False
+
+        def validate(self):
+            if not self.validate_type():
+                raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, video expected')
+
+    return FileCls
 
 
 @utype.register_transformer(File)

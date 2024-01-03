@@ -309,7 +309,7 @@ class Endpoint(PluginTarget):
             kwargs.update(self.wrapper.parse_context(request))
             return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
         except utype.exc.ParseError as e:
-            raise exc.BadRequest(str(e)) from e
+            raise exc.BadRequest(str(e), detail=e.get_detail()) from e
 
     @utils.awaitable(parse_request)
     async def parse_request(self, request: Request):
@@ -319,7 +319,7 @@ class Endpoint(PluginTarget):
             return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
             # in base Endpoint, args is not supported
         except utype.exc.ParseError as e:
-            raise exc.BadRequest(str(e)) from e
+            raise exc.BadRequest(str(e), detail=e.get_detail()) from e
 
     def generate_call(self):
         pass

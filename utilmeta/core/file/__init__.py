@@ -1,1 +1,1 @@
-from .base import File, Image
+from .base import *

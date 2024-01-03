@@ -1,10 +1,13 @@
 import inspect
 
+import utype
+
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import awaitable
 from .base import Request
 from utilmeta.utils.context import Property
 from utype.types import *
+from utype import Schema
 from utype.parser.field import ParserField, Field
 from utype.utils.datastructures import unprovided
 from . import var
@@ -160,6 +163,10 @@ class Form(Body):
             example=example,
             **kwargs
         )
+
+    def validate_content_type(self, request: Request):
+        if self.content_type and request.content_type not in (Body.FORM_URLENCODED, Body.FORM_DATA):
+            raise exc.UnprocessableEntity('invalid content type')
 
     def getter(self, request: Request, field: ParserField = None):
         if not request.adaptor.form_type:

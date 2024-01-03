@@ -33,7 +33,7 @@ class UtilMeta:
         asynchronous: bool = None,
         auto_reload: bool = None,
         api=None,
-        url: str = '',
+        route: str = '',
     ):
         """
             ! THERE MUST BE NO IMPORT BEFORE THE CONFIG IS ASSIGNED PROPERLY !
@@ -52,7 +52,7 @@ class UtilMeta:
         self.project_dir = os.path.dirname(self.module.__file__)
 
         self.root_api = api
-        self.root_url = str(url or '').strip('/')
+        self.root_url = str(route or '').strip('/')
         # self.root_url = str(root_url).strip('/')
         self.production = production
         self.version = version
@@ -202,7 +202,12 @@ class UtilMeta:
         if callable(f):
             self.events.setdefault('shutdown', []).append(f)
 
-    def mount(self, api: Union[str, Callable], route: str = ''):
+    def mount(self, api: Union[str, Callable] = None, route: str = ''):
+        if not api:
+            def deco(_api):
+                return self.mount(_api, route=route)
+            return deco
+
         if self.root_api:
             if self.root_api != api:
                 raise ValueError(f'UtilMeta: root api conflicted: {api}, {self.root_api}, '

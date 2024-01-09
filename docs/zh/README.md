@@ -1,5 +1,9 @@
 # UtilMeta - 入门指引
 
+<img src="https://utilmeta.com/img/zh.py-intro.png" href="https://utilmeta.com/zh/py" target="_blank"  alt="drawing" width="600"/>
+
+UtilMeta 是一个面向服务端应用的渐进式元框架，基于 Python 类型注解标准高效构建声明式接口，支持使用主流 Python 框架作为运行时实现或渐进式整合
+
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/v/utilmeta" alt="">
 </a>
@@ -12,10 +16,6 @@
 <a href="https://github.com/utilmeta/utilmeta-py/actions?query=branch%3Amain+" target="_blank">
 	<img src="https://img.shields.io/github/actions/workflow/status/utilmeta/utilmeta-py/test.yaml?branch=main&label=CI" alt="">
 </a>
-
-<img src="https://utilmeta.com/img/zh.py.png" href="https://utilmeta.com/zh/py" target="_blank"  alt="drawing" width="600"/>
-
-UtilMeta 是一个面向服务端应用的渐进式元框架，基于 Python 类型注解标准高效构建声明式接口，支持使用主流 Python 框架作为运行时实现或渐进式迁移
 
 * 主页：[https://utilmeta.com/zh/py](https://utilmeta.com/zh/py)
 * 代码：<a href="https://github.com/utilmeta/utilmeta-py" target="_blank">https://github.com/utilmeta/utilmeta-py</a>

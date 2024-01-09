@@ -68,7 +68,8 @@ if __name__ == '__main__':
     service.run()
 ```
 
-> You can use `flask`, `starlette`, `sanic`, `tornado` instead of `django` as runtime backend, just install them first and replace them in the demo code
+!!! note
+	You can use `flask`, `starlette`, `sanic`, `tornado` instead of `django` as runtime backend, just install them first and replace them in the demo code
 
 ### Run
 You can execute this file by python to run the server

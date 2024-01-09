@@ -463,7 +463,7 @@ class API(PluginTarget):
                 result = route(self)
                 if isinstance(result, Response):
                     result.request = self.request
-                elif Response.is_cls(getattr(self, 'response', None)):
+                elif Response.is_cls(getattr(self.__class__, 'response', None)):
                     result = self.response(result, request=self.request)
                 response = process_response(self, result)
         except Exception as e:
@@ -480,7 +480,7 @@ class API(PluginTarget):
                 result = await route(self)
                 if isinstance(result, Response):
                     result.request = self.request
-                elif Response.is_cls(getattr(self, 'response', None)):
+                elif Response.is_cls(getattr(self.__class__, 'response', None)):
                     result = self.response(result, request=self.request)
                 response = await process_response(self, result)
         except Exception as e:

@@ -2,32 +2,34 @@ site_name: UtilMeta Python Framework | Docs
 site_description: Progressive meta framework for API development in Python
 site_url: https://docs.utilmeta.com/py/en
 docs_dir: en
-site_dir: build
+site_dir: build/en
 # ref: https://github.com/squidfunk/mkdocs-material/discussions/2346
 
 theme:
   name: material
   favicon: https://utilmeta.com/favicon.ico
   language: en
+  custom_dir: en/overrides
   logo: https://utilmeta.com/img/logo-main.png
   palette:
-  - media: '(prefers-color-scheme: light)'
-    scheme: default
-    primary: custom
-    toggle:
-      icon: material/lightbulb
-      name: Switch to light mode
   - media: '(prefers-color-scheme: dark)'
     scheme: slate
     primary: custom
     toggle:
       icon: material/lightbulb-outline
+      name: Switch to light mode
+  - media: '(prefers-color-scheme: light)'
+    scheme: default
+    primary: custom
+    toggle:
+      icon: material/lightbulb
       name: Switch to dark mode
   features:
     - navigation.sections
     - toc.follow
     - navigation.tracking
     - navigation.top
+    - announce.dismiss
 
 repo_name: utilmeta/utilmeta-py
 repo_url: https://github.com/utilmeta/utilmeta-py

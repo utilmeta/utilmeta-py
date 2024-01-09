@@ -38,8 +38,8 @@ class RootAPI(api.API):
 ```
 In this example, we declare two path parameters:
 
-*  `lang` Can only take values in `'en'` and `'zh'`
-*  `page` is a parameter greater than or equal to 1 and defaults to 1
+*  `lang`: Can only take values in `'en'` and `'zh'`
+*  `page`: is a parameter greater than or equal to 1 and defaults to 1
  
 Parameters with default values are passed in directly if they are not provided in the path, so we get the output when we request it `GET/doc/en`.
 ```json
@@ -47,6 +47,7 @@ Parameters with default values are passed in directly if they are not provided i
 ```
 
 !!! tip
+	If the request path lacks the path params without default, a 404 Notfound will be responsed, such as `GET /doc`
 
 If the request parameter does not meet the declared rules or cannot be converted to the corresponding type, you will get `400 BadRequest` an error response, such as
 
@@ -54,7 +55,7 @@ If the request parameter does not meet the declared rules or cannot be converted
 *  `GET/doc/en/0`: `page` The parameter does not meet the rule of greater than or equal to one
 
 !!! warning
-
+	If you need to combine multiple path params, there must be chars to split them (like `'/'`), `'{category}{page}'` is an invalid path template because there are no split chars between the path params
 ### Path regex
 
 Sometimes we need the path parameter to satisfy certain rules, and we can easily do this by declaring a regular expression, which is used as follows
@@ -95,7 +96,8 @@ In UtilMeta, the declaration rule of the API interface request path is
 * When there is no path string, the name of the function is used as the requested path
 * When the name of a function is an HTTP verb, its path is automatically set to `'/'` and cannot be overridden
 
-!!! Tip “API interface functions”
+!!! Tip “API functions”
+	`@api.<METHOD>` decorated method, or function with a HTTP-method-name (get/post/put/patch/delete) in the API classes is an API function, which provides HTTP access
 
 The following examples cover the above cases and provide a clear illustration of the path declaration rule
 ```python
@@ -116,7 +118,7 @@ class ArticleAPI(api.API):
 ```
 
 !!! Tip “Path match priority”
-
+	When both fixed path and variable path parameters are declared in API such as the above example, the fixed path API declaration needs to be placed above, so that UtilMeta will first match the `feed` function when matching `/article/feed` request, rather than matching it as a `slug` parameter to the `get_article` function 
 ## Query parameters
 
 Using query parameters to pass in key-value pairs is a very common way to pass parameters, for example, by `GET/article?id=3` getting the article data with ID 3
@@ -139,7 +141,7 @@ We get output when we ask `GET/doc?lang=en`.
 ```
 
 !!! tip
-
+	Query parameter is the **default** param type in API functions, so if a parameter is not defined in the path template and not assigned any other param types, it will be processed as a query parameter 
 ### Parameter alias
 If the parameter name cannot be represented as a Python variable (such as a syntax keyword or contains special symbols), you can use `utype.Param` the parameter of the `alias` component to specify the expected name of the field, such as
 ```python

@@ -89,7 +89,9 @@ class Database(Config):
         else:
             user = self.user
             if self.password:
-                user += f':{self.password}'
+                from urllib.parse import quote
+                # for special chars like @ will disrupt DNS
+                user += f':{quote(self.password)}'
             netloc = self.host
             if self.port:
                 netloc += f':{self.port}'

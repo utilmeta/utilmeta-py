@@ -11,23 +11,24 @@ theme:
   language: zh
   logo: https://utilmeta.com/img/logo-main.png
   palette:
-  - media: '(prefers-color-scheme: light)'
-    scheme: default
-    primary: custom
-    toggle:
-      icon: material/lightbulb
-      name: Switch to light mode
   - media: '(prefers-color-scheme: dark)'
     scheme: slate
     primary: custom
     toggle:
       icon: material/lightbulb-outline
+      name: Switch to light mode
+  - media: '(prefers-color-scheme: light)'
+    scheme: default
+    primary: custom
+    toggle:
+      icon: material/lightbulb
       name: Switch to dark mode
   features:
     - navigation.sections
     - toc.follow
     - navigation.tracking
     - navigation.top
+    - announce.dismiss
 
 repo_name: utilmeta/utilmeta-py
 repo_url: https://github.com/utilmeta/utilmeta-py

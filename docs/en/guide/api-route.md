@@ -14,8 +14,8 @@ class RootAPI(api.API):
 
 This simple example shows two ways to declare and organize interfaces for UtilMeta.
 
-* ** API class ** Inheritance `utilmeta.core.api.API`, in which you can declare a series of API functions as interfaces, or mount other API classes to define tree-like routes.
-* Defined ** API function ** in API functions, functions decorated with `@api` decorators are treated as API endpoint interfaces.
+* **API Class**: Inheritance `utilmeta.core.api.API`, in which you can declare a series of API functions as interfaces, or mount other API classes to define tree-like routes.
+* **API function**: in API functions, functions decorated with `@api` decorators are treated as API endpoint interfaces.
 
 ###  `@api` Decorator
 
@@ -36,7 +36,7 @@ All `@api` decorators support passing in parameters to specify specific interfac
 *  `private`: Whether the API is private. Private interfaces do not provide public calls and do not appear in the generated API documentation.
 
 !!! tip
-	
+	The `"""doc_string"""` of your API class of function will be integrated to the `description` field of the generated OpenAPI docs
 	```python
 	class UserAPI(api.API):
 		"""This is the user API"""
@@ -48,6 +48,7 @@ All `@api` decorators support passing in parameters to specify specific interfac
 If `@api` the decorator does not specify a path string with the first argument, it uses the name of the decorated function as the path to the API interface, as in Hello World `hello`
 
 !!! tip
+	If you need to define the path with the name of a HTTP method, you need to put that path in the path template string, like
 	```python
 	class RootAPI(api.API):
 		@api.get('patch')
@@ -71,9 +72,10 @@ class ArticleAPI(api.API):
 
 The Article API in the example declares `get` two core method functions, and `post`, if the Article API is mounted to the `/article` path, Then the call `GET/article` will execute `get` the logic of the function, and similarly the call `POST/article` will execute the `post` function
 
-!!! Tip “HEAD and OPTIONS Method
-	
-	
+!!! tip “HEAD and OPTIONS method“
+	When you declare a `GET` API, the path of the iAPI automatically has the ability to respond to the `HEAD` method request. (by return a response that is consistent with the headers and status code of the GET API, but with empty body)
+	For any method's API path, it will have the ability to respond to `OPTIONS` method requests, and will return headers such as allowed origin, methods, headers.
+	So you don't need to declare the  `HEAD` or `OPTIONS` API
 
 ## API Mount and Routing
 
@@ -247,6 +249,7 @@ class RootAPI(api.API):
 
 
 !!! note
+	You can use `self.request.adaptor` to get the Adaptor object of the request which contains the original request of the runtime backend you used, For instance, if you are using `starlette` as runtime backend, `self.request.adaptor.request` will give you the  `starlette.requests.Request` object
 
 ### Public parameters
 
@@ -279,8 +282,7 @@ The CommentAPI uses `@api.route` to specify a path template string for the entir
 
 We directly access `slug` the parameters and query the corresponding article instance in the initialization function of the CommentAPI, so that we can directly use the article instance in the interface. Here you can also see the convenience of using the API class.
 
-
-All public parameters need to specify a `utilmeta.core.request` parameter type as the value of the attribute. You [解析请求参数](../handle-request) are learning about all request attributes. The commonly used ones are
+All public parameters need to specify a `utilmeta.core.request` parameter type as the value of the attribute. You can learn all request attributes in [Handle request](../handle-request) . The commonly used ones are
 
 *  `request.PathParam`: Define path parameters
 *  `request.QueryParam`: Define query parameters
@@ -316,9 +318,9 @@ class ArticleAPI(api.API):
 In this example, we `self.comments` call the mounted CommentAPI in the get interface of ArticleAPI, and access the initialized instance of CommentAPI. So you can directly call the get access to get all the comments on the current post.
 
 !!! note
-
+	Using the type-annotation syntax to mount API, you will find that when you calling them in the API methods, you can fully gain the IDE's type hinting and attributes autocompletion ability
 #### Custom-initializing
-In addition to automatically initializing the API class by mounting, you can also initialize and call the API class by yourself. The initialization parameter of the API class is one ** Request object **, and the current request object can be accessed through `self.request`. So you can get the API instance directly through `CommentAPI(self.request)`
+In addition to automatically initializing the API class by mounting, you can also initialize and call the API class by yourself. The initialization parameter of the API class is one **Request object**, and the current request object can be accessed through `self.request`. So you can get the API instance directly through `CommentAPI(self.request)`
 ```python
 class CommentAPI(api.API):
     def get(self, slug: str = request.PathParam) -> List[CommentSchema]:
@@ -362,7 +364,7 @@ The defined path is to combine the interfaces of the inherited API classes.
 ```
 
 !!! warning
-
+	You can't have conflicted path in composition APIs
 ## Generate response
 
 For a simple interface, you can directly return the result data, and UtilMeta will automatically process it as a 200 HTTP response, but UtilMeta still has a perfect response template and generation system, and you can define the response code, response header and response structure by yourself.

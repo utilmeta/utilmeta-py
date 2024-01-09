@@ -1,7 +1,7 @@
-# Simple BMI Calculation API
+# BMI Calculation API
 
-Our introductory tutorial is to write a simple BMI calculation API, which calculates the corresponding BMI value according to the input height and weight information.
-## 1. Create a project
+Our introductory tutorial is to write a simple BMI calculation API, which calculates the corresponding BMI value according to the input height and weight.
+## 1. Create project
 
 Create our project directly using `meta setup` the command
 
@@ -28,10 +28,9 @@ class RootAPI(api.API):
         return 'world'
 ```
 
-Here you can see the simplest UtilMeta API interface, which uses a `@api.get` decorator to indicate that it is a GET method. The decorator does not specify a path, so the path to the interface is the name of the function.
+Here you can see the simplest UtilMeta API, which uses a `@api.get` decorator to indicate that it is a GET method. The decorator does not specify a path, so the path to the interface is the name of the function.
 
-We write our BMI calculation interface in this simple way, as follows
-
+We write the BMI calculation API as follows
 ```python
 class RootAPI(api.API):  
     @api.get  
@@ -139,4 +138,4 @@ Let’s restart the project and visit [http://127.0.0.1:8000/api/docs](http://12
 
 We can load this JSON document using any API debugger that implements the OpenAPI standard (such as [ Swagger Editor ](https://editor.swagger.io/)) and see that the input and response parameters of the API we wrote have been fully recorded in the API document.
 
-![ BMI API Doc ](/assets/bmi-api-doc.png)
+![ BMI API Doc ](https://utilmeta.com/assets/image/bmi-api-doc.png)

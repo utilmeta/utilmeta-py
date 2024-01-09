@@ -309,6 +309,7 @@ class APIRoute:
 
         for hook in self.after_hooks:
             result = hook(api, result) or result
+            result = hook.process_result(result)
 
         return result
 
@@ -328,6 +329,8 @@ class APIRoute:
 
         for hook in self.after_hooks:
             result = await hook(api, result) or result
+            result = hook.process_result(result)
+
         return result
 
     def generate(self):

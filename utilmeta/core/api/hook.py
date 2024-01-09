@@ -89,7 +89,7 @@ class Hook:
         r = self.executor(*args, **kwargs)
         if inspect.isawaitable(r):
             # executor is maybe a sync function, which will not need to await
-            return await r
+            r = await r
         return r
 
 
@@ -182,6 +182,13 @@ class AfterHook(Hook):
         if self.response:
             api.response = self.response
 
+    def process_result(self, result):
+        if isinstance(result, Response):
+            return result
+        if self.response:
+            return self.response(result)
+        return result
+
 
 class ErrorHook(Hook):
     hook_type = utils.EndpointAttr.error_hook
@@ -214,3 +221,25 @@ class ErrorHook(Hook):
         rt = self.parser.return_type
         if inspect.isclass(rt) and issubclass(rt, Response):
             self.response = rt
+
+    def prepare(self, api, *args, **kwargs):
+        if self.response:
+            api.response = self.response
+
+    def process_result(self, result):
+        if isinstance(result, Response):
+            return result
+        if self.response:
+            return self.response(result)
+        return result
+
+    def __call__(self, *args, **kwargs):
+        return self.process_result(
+            super().__call__(*args, **kwargs)
+        )
+
+    @utils.awaitable(__call__)
+    async def __call__(self, *args, **kwargs):
+        return self.process_result(
+            await super().__call__(*args, **kwargs)
+        )

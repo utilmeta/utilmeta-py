@@ -22,7 +22,57 @@ class HeaderSchema(utype.Schema):
     cookie: CookieSchema
 
 
+class TestResponse(response.Response):
+    result_key = 'test'
+    message_key = 'message'
+
+
+class Test1Response(response.Response):
+    result_key = 'test1'
+
+
+class SubAPI(api.API):
+    @api.get
+    def hello(self):
+        return 'world'
+
+    @api.get
+    def test0(self) -> response.Response:
+        return 'test0'
+
+    @api.get
+    def test1(self):
+        return 1
+
+    @api.after(test1)
+    def after_test1(self, r) -> Test1Response:
+        return r
+
+    @api.get
+    def resp(self):
+        return self.response({'resp': 1})
+
+
+class ParentAPI(api.API):
+    sub: SubAPI
+    response = TestResponse
+
+    @api.get
+    def hello(self):
+        return 'world'
+
+
+@api.route('the/api')
+class TheAPI(api.API):
+    @api.get
+    def hello(self):
+        return TestResponse('world', message='hello')
+
+
 class TestAPI(api.API):
+    # sub: SubAPI
+    parent: ParentAPI = api.route('@parent')
+    the: TheAPI
     common_state_header: int = request.HeaderParam('X-Common-State')
 
     class resp_response(response.Response):
@@ -30,6 +80,8 @@ class TestAPI(api.API):
         result_key = "data"
         state_key = "code"
         message_key = "error"
+
+    response = response.Response
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -217,3 +269,8 @@ class UserAPI(api.API):
     @api.post
     def operation(self):
         return [self.sessionid, self.csrftoken]
+
+
+# class RootAPI(api.API):
+#     response = response.Response
+#     test: TestAPI

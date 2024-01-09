@@ -1,11 +1,12 @@
 site_name: UtilMeta Python 框架文档
-site_description: 面向 API 开发的渐进式元框架
+site_description: UtilMeta | 面向后端 API 开发的 Python 渐进式元框架使用文档
 site_url: https://docs.utilmeta.com/py/zh
 docs_dir: zh
 site_dir: build/zh
 
 theme:
   name: material
+  custom_dir: zh/overrides
   favicon: https://utilmeta.com/favicon.ico
   language: zh
   logo: https://utilmeta.com/img/logo-main.png
@@ -100,3 +101,5 @@ markdown_extensions:
       alternate_style: true
   - pymdownx.superfences
   - attr_list
+
+copyright: Copyright &copy; 2019 - 2024 周煦林

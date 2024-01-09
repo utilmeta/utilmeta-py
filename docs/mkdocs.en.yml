@@ -1,4 +1,4 @@
-site_name: UtilMeta Documentation - Python Framework
+site_name: UtilMeta Python Framework | Docs
 site_description: Progressive meta framework for API development in Python
 site_url: https://docs.utilmeta.com/py/en
 docs_dir: en
@@ -34,26 +34,26 @@ repo_url: https://github.com/utilmeta/utilmeta-py
 edit_uri: edit/main/docs/en
 plugins:
   - search
-  - privacy:
-      links_attr_map:
-        target: _blank
+  - open-in-new-tab
 
 nav:
   - README.md
-  - Usage:
-      - guide/type.md
-      - guide/cls.md
-      - guide/func.md
-  - API References:
-      - references/rule.md
-      - references/field.md
-      - references/options.md
+  - Features Guide:
+      - guide/handle-request.md
+      - guide/api-route.md
+      - guide/schema-query.md
+      - guide/auth.md
+      - guide/config-run.md
+  - Case Tutorials:
+      - tutorials/bmi-calc.md
+      - tutorials/user-auth.md
+      - tutorials/realworld-blog.md
   - Languages:
-      - En: /py/en
-      - Zh: /py/zh
-#  - Feature Extensions:
-#      - extension/env.md
-#      - extension/cmd.md
+      - English: /py/en/
+      - 中文: /py/zh
+
+extra_css:
+  - css/extra.css
 
 extra:
   social:
@@ -101,3 +101,5 @@ markdown_extensions:
       alternate_style: true
   - pymdownx.superfences
   - attr_list
+
+copyright: Copyright &copy; 2019 - 2024 Xulin Zhou

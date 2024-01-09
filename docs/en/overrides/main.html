@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block announce %}
+  <!-- Add scripts that need to run before here -->
+  <span>
+      A project of
+      <img src="https://utilmeta.com/img/logo-main.png" alt="UtilMeta Logo" width="24">
+      <img src="https://utilmeta.com/img/text.svg" alt="UtilMeta" width="100" style="opacity: 0.97">
+  </span>
+  {{ super() }}
+{% endblock %}

@@ -13,9 +13,11 @@
 	<img src="https://img.shields.io/github/actions/workflow/status/utilmeta/utilmeta-py/test.yaml?branch=main&label=CI" alt="">
 </a>
 
+<img src="https://utilmeta.com/img/zh.py.png" href="https://utilmeta.com/zh/py" target="_blank"  alt="drawing" width="600"/>
+
 UtilMeta 是一个面向服务端应用的渐进式元框架，基于 Python 类型注解标准高效构建声明式接口，支持使用主流 Python 框架作为运行时实现或渐进式迁移
 
-* 主页：[https://utilmeta.com/py](https://utilmeta.com/py)
+* 主页：[https://utilmeta.com/zh/py](https://utilmeta.com/zh/py)
 * 代码：<a href="https://github.com/utilmeta/utilmeta-py" target="_blank">https://github.com/utilmeta/utilmeta-py</a>
 * 作者：<a href="https://github.com/voidZXL" target="_blank">@voidZXL</a>
 
@@ -99,6 +101,7 @@ world
 
 * [处理请求参数](guide/handle-request)：如何处理路径参数，查询参数，请求体和请求头，以及如何处理文件上传
 * [API 类与接口路由](guide/api-route)：如何使用 API 类挂载简洁地定义树状接口路由，以及利用钩子等特性方便地在接口间复用代码，处理错误，模板化响应
-* [数据查询与操作](guide/schema-query)：如何使用 Schema 声明式地编写 RESTful 接口所需要的增删改查和 ORM 操作
+* [数据查询与 ORM 操作](guide/schema-query)：如何使用 Schema 声明式地编写 RESTful 接口所需要的增删改查和 ORM 操作
 * [接口与用户鉴权](guide/auth)：如何使用 Session, JWT, OAuth 等方式为接口的请求鉴权，获取当前请求用户与简化登录操作
-* [运行与部署](guide/config-run)：如何使用声明式环境变量等特性配置服务的运行设置，启动与部署
+* [配置运行与部署](guide/config-run)：如何使用声明式环境变量等特性配置服务的运行设置，启动与部署
+* [从现有项目迁移](guide/migration)：如何从现有的后端项目中渐进式地接入 UtilMeta 接口或迁移到 UtilMeta

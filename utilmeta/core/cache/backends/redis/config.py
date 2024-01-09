@@ -1,7 +1,6 @@
 from ...config import Cache
 from typing import Optional
 from .aioredis import AioredisAdaptor
-from redis import Redis
 
 
 class RedisCache(Cache):
@@ -38,7 +37,8 @@ class RedisCache(Cache):
             return f'{self.scheme}://{self.username or ""}:{self.password}@{self.host}:{self.port}/{self.db}'
 
     @property
-    def con(self) -> Redis:
+    def con(self):
+        from redis import Redis
         return Redis.from_url(self.get_location())
 
     @property

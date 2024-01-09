@@ -1,7 +1,6 @@
 # UtilMeta API Framework - Python
 <img src="https://utilmeta.com/img/py-intro.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
 
-<img src="https://utilmeta.com/img/logo-main.png" alt="drawing" width="50"/> <strong style="font-size: 24px">UtilMeta </strong> | Progressive Meta Framework for API development in Python
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/v/utilmeta" alt="">
 </a>
@@ -105,7 +104,7 @@ Join our community to build great things together
 * [Discord](https://discord.gg/JdmEkFS6dS)
 * [X(Twitter)](https://twitter.com/@utilmeta)
 * [Reddit](https://www.reddit.com/r/utilmeta)
-* [中文讨论区](https://lnzhou.com/channels/utilmeta/py)
+* [中文讨论区](https://lnzhou.com/channels/utilmeta/community)
 
 ## Enterprise Solutions & Support
 The UtilMeta team is providing custom solutions and enterprise-level support at

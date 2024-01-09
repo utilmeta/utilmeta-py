@@ -11,7 +11,7 @@ license = {file = "LICENSE"}
 authors = [
     { name = "Xulin Zhou (voidZXL)", email = "zxl@utilmeta.com" },
 ]
-keywords = ["API", "meta", "progressive", "declarative", "web", "utype"]
+keywords = ["API", "backend", "orm", "RESTful", "meta", "progressive", "declarative", "web", "utype"]
 classifiers = [
     "Intended Audience :: Information Technology",
     "Intended Audience :: System Administrators",
@@ -39,7 +39,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "utype>=0.3.7",
+    "utype>=0.4.0",
     "databases>=0.7.0",
     "django>=4.1.0"
 ]

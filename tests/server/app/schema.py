@@ -3,6 +3,8 @@ from utilmeta.core import orm, auth
 from .models import User, Article, Comment, BaseContent
 from utype import Field
 from utilmeta.core.orm.backends.django import expressions as exp
+from utilmeta.utils import awaitable
+
 
 __all__ = ["UserSchema", "ArticleSchema", "CommentSchema",
            "ContentSchema", 'UserBase', 'UserQuery', 'ArticleQuery']
@@ -85,7 +87,10 @@ class ArticleSchema(ContentSchema[Article]):
     # views_min: int = orm.Field("views", operator="-", alias="views-")
     # operator is not allowed in creation
 
-    created_at_date: date = orm.Field("created_at.date")  # with addon
+    # created_at_date: date = orm.Field("created_at.date")  # with addon
+    # fixme: async -no such function: django_datetime_cast_date
+    # possible workaround: ignore __date in serialization, use the [date] type to convert datetime to date
+
     writable_field: str = orm.Field(mode='w', default=None)
     creatable_field: str = orm.Field(mode='a', default=None)
 
@@ -106,6 +111,17 @@ class ArticleSchema(ContentSchema[Article]):
         if 'slug' not in self:
             self.slug = '-'.join([''.join(filter(str.isalnum, v)) for v in self.title.split()]).lower()
 
+    @classmethod
+    def get_runtime_schema(cls, user_id):
+        class article_schema(cls):
+            following_likes: int = exp.SubqueryCount(
+                User.objects.filter(
+                    followers=user_id,
+                    likes=exp.OuterRef('pk')
+                )
+            )
+        return article_schema
+
 
 class UserSchema(UserBase):
     @classmethod
@@ -114,6 +130,15 @@ class UserSchema(UserBase):
         for pk in pks:
             pk_map.setdefault(pk, list(
                 Article.objects.filter(author_id=pk).order_by('-views')[:2].values_list('pk', flat=True)))
+        return pk_map
+
+    @classmethod
+    @awaitable(get_top_articles)
+    async def get_top_articles(cls, *pks):
+        pk_map = {}
+        for pk in pks:
+            pk_map.setdefault(pk, [val async for val in Article.objects.filter(
+                author_id=pk).order_by('-views')[:2].values_list('pk', flat=True)])
         return pk_map
 
     top_articles: List[ArticleSchema] = orm.Field(get_top_articles)
@@ -168,12 +193,21 @@ class UserQuery(orm.Query[User]):
 
     page: int = orm.Page(alias='@page')
     rows: int = orm.Limit(alias='@rows')
-    scope: dict = orm.Scope()
+    scope: Union[dict, list] = orm.Scope()
+    exclude: Union[dict, list] = orm.Scope(excluded=True)
 
 
 class ArticleQuery(orm.Query[Article]):
     id: int
-    author: int
+    author: str = orm.Filter('author.username')
+
+    keyword: str = orm.Filter('content__icontains')
+    within_days: int = orm.Filter(query=lambda v: exp.Q(
+        created_at__gte=datetime.now() - timedelta(days=v)
+    ))
+
+    search: str = orm.Filter(query=lambda v: exp.Q(content__icontains=v))
+
     liked: str = orm.Filter('liked_bys.username')
 
     order: List[str] = orm.OrderBy({

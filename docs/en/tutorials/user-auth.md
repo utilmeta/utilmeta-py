@@ -2,7 +2,7 @@
 
 In this case, we will use UtilMeta to build an API to provide user registration, login, query and modify information, which is the standard of most applications. We will also learn how to use UtilMeta to handle database query and authentication.
 
-!!! Abstract “Technology Selection”
+!!! Abstract “Tech Stack”
 
 	* Using Django as an HTTP and ORM backend
 	* Use SQLite as the database

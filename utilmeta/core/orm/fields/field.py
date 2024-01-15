@@ -34,6 +34,7 @@ class ParserQueryField(ParserField):
         self.queryset = None
         self.primary_key = False
         self.func = None
+        self.func_multi = False
 
     def reconstruct(self, model: 'ModelAdaptor'):
         return self.__class__(model, **self._kwargs)
@@ -138,11 +139,34 @@ class ParserQueryField(ParserField):
 
         if class_func(self.field_name):
             from utype.parser.func import FunctionParser
-            self.func = FunctionParser.apply_for(self.field_name).wrap(
-                ignore_methods=True,
-                parse_params=True,
-                parse_result=True
-            )
+            func = FunctionParser.apply_for(self.field_name)
+            # fixme: ugly approach, getting the awaitable async function
+            async_func = getattr(func.obj, '_asyncfunc', None)
+            sync_func = getattr(func.obj, '_syncfunc', None)
+            if async_func and sync_func:
+                from utilmeta.utils import awaitable
+                if isinstance(self.field_name, classmethod):
+                    sync_func = classmethod(sync_func)
+                    async_func = classmethod(async_func)
+                sync_wrapper = FunctionParser.apply_for(sync_func).wrap(
+                    ignore_methods=True,
+                    parse_params=True,
+                    parse_result=True
+                )
+                async_wrapper = FunctionParser.apply_for(async_func).wrap(
+                    ignore_methods=True,
+                    parse_params=True,
+                    parse_result=True
+                )
+                self.func = awaitable(sync_wrapper)(async_wrapper)
+            else:
+                self.func = func.wrap(
+                    ignore_methods=True,
+                    parse_params=True,
+                    parse_result=True
+                )
+            self.func_multi = bool(func.pos_var)
+
             if not self.mode:
                 self.mode = 'r'
             return

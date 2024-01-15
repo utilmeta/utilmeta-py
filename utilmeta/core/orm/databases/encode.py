@@ -116,7 +116,6 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
             self._db = None
         return
 
-
     @classmethod
     def _parse_sql_params(cls, sql: str, params=None):
         if not params:

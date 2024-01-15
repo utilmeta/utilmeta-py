@@ -61,3 +61,17 @@ class TestServers:
             service.set_backend(backend)
             service.application()
 
+    def test_adapt_django(self):
+        pass
+
+    def test_adapt_flask(self):
+        pass
+
+    def test_adapt_starlette(self):
+        pass
+
+    def test_adapt_sanic(self):
+        pass
+
+    def test_adapt_tornado(self):
+        pass

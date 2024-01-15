@@ -1,6 +1,7 @@
 from utype.parser.cls import ClassParser
 from .fields.field import ParserQueryField
 from .fields.filter import ParserFilter
+from . import exceptions
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .compiler import BaseQueryCompiler
@@ -56,6 +57,8 @@ class SchemaClassParser(ClassParser):
         return dict(model=self.model)
 
     def get_compiler(self, queryset, context=None) -> 'BaseQueryCompiler':
+        if not self.model:
+            raise exceptions.ModelRequired(f'{self.name}: model is required for query execution')
         return self.model.compiler_cls(self, queryset, context=context)
 
     def get_instance(self, data: dict):

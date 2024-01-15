@@ -153,6 +153,8 @@ class Schema(utype.Schema):
     def save(self: T, must_create: bool = False, must_update: bool = False) -> T:  # -> queryset
         # no id: create
         # id: create -(integrityError)-> update
+        if must_update and must_create:
+            raise ValueError(f'{__class__.__name__}.save(): must_create and must_update cannot both be True')
         self: Schema
         compiler = self.__parser__.get_compiler(None)
         self.pk = compiler.save_data(
@@ -166,6 +168,8 @@ class Schema(utype.Schema):
     async def asave(self: T, must_create: bool = False, must_update: bool = False) -> T:    # -> queryset
         # no id: create
         # id: create -(integrityError)-> update
+        if must_update and must_create:
+            raise ValueError(f'{__class__.__name__}.save(): must_create and must_update cannot both be True')
         self: Schema
         compiler = self.__parser__.get_compiler(None)
         self.pk = await compiler.save_data(
@@ -176,7 +180,7 @@ class Schema(utype.Schema):
         return self
 
     @classmethod
-    def bulk_save(cls: Type[T], data: List[T]) -> List[T]:
+    def bulk_save(cls: Type[T], data: List[T], must_create: bool = False, must_update: bool = False) -> List[T]:
         # the queryset is contained in the data,
         # data with id will be updated (try, and create after not exists)
         # data without id will be created
@@ -186,12 +190,12 @@ class Schema(utype.Schema):
         # 1. transform data list to schema instance list
         values = [val if isinstance(val, cls) else cls.__from__(val) for val in data]
         # 2. bulk create
-        for pk, val in zip(compiler.save_data(values), values):
+        for pk, val in zip(compiler.save_data(values, must_update=must_update, must_create=must_create), values):
             val.pk = pk
         return values
 
     @classmethod
-    async def abulk_save(cls: Type[T], data: List[T]) -> List[T]:
+    async def abulk_save(cls: Type[T], data: List[T], must_create: bool = False, must_update: bool = False) -> List[T]:
         # the queryset is contained in the data,
         # data with id will be updated (try, and create after not exists)
         # data without id will be created
@@ -200,7 +204,7 @@ class Schema(utype.Schema):
             raise TypeError(f'Invalid data: {data}, must be list')
         # 1. transform data list to schema instance list
         values = [val if isinstance(val, cls) else cls.__from__(val) for val in data]
-        for pk, val in zip(await compiler.save_data(values), values):
+        for pk, val in zip(await compiler.save_data(values, must_update=must_update, must_create=must_create), values):
             val.pk = pk
         return values
 

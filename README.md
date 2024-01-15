@@ -1,5 +1,6 @@
 # UtilMeta API Framework - Python
 <img src="https://utilmeta.com/img/py-intro.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
+UtilMeta is a progressive meta-framework for backend applications, which efficiently builds declarative APIs based on the Python type annotation standard, and supports the integration of mainstream Python frameworks as runtime backend
 
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/v/utilmeta" alt="">

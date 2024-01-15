@@ -1,21 +1,23 @@
 # Case Tutorials
 
-We have designed several introductory cases from easy to difficult, covering most of the usage of the framework from shallow to deep. You can read and learn in the following order.
+We have designed several introductory cases from easy to complex, covering most of the usage of the framework from shallow to deep. You can read and learn in the following order.
 
-[BMI Calculation API] (bmi-calc)
+[💻 BMI Calculation API](bmi-calc)
 
-!!! note ”“
+!!! note ""
+	Write a simple BMI calculation API, return the BMI value based on the input height and weight
 
+[🙋‍♂️ User login & RESTful API ](user-auth)
 
-[ ♂ User registration login query API ](user-auth)
+!!! note ""
+	Build an API that offers user signup, login, query and update info
 
-!!! note ”“
+[✍️  Realworld Blog Project ](realworld-blog)
 
-[ Realworld Blog Project ](realworld-blog)
-
-!!! note ”“
+!!! note ""
+	Build APIs for a classic blog project with features including
 	
 	* User registration, login, access, update information, follow, unfollow
 	* Article creation, modification, likes, recommendations, article comment creation and deletion
 
-Web socket chat (coming soon)
+WebSocket Chatroom (coming soon)

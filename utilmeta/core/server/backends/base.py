@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
+    from utilmeta.core.api import API
 from utilmeta.utils import BaseAdaptor, exceptions
 import re
 
@@ -11,6 +12,10 @@ class ServerAdaptor(BaseAdaptor):
     @classmethod
     def reconstruct(cls, adaptor: 'BaseAdaptor'):
         pass
+
+    @classmethod
+    def adapt(cls, api: 'API', route: str, asynchronous: bool = None):
+        raise NotImplementedError
 
     @classmethod
     def get_module_name(cls, obj: 'UtilMeta'):

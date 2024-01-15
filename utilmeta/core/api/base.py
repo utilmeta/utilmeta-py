@@ -352,7 +352,7 @@ class API(PluginTarget):
     #     pass
 
     @classonlymethod
-    def __as__(cls, backend):
+    def __as__(cls, backend, route: str, asynchronous: bool = None):
         pass
 
     @classonlymethod

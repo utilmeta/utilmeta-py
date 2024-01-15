@@ -253,9 +253,17 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                         pk_map.setdefault(val[PK], fk)
             else:
                 if field.func:
-                    pk_map = self.normalize_pk_map(
-                        field.func(*self.pk_list, __class__=self.parser.obj)
-                    )
+                    if field.func_multi:
+                        pk_map = self.normalize_pk_map(
+                            field.func(*self.pk_list, __class__=self.parser.obj)
+                        )
+                        # normalize pks from user input
+                    else:
+                        for pk in self.pk_list:
+                            pk_map[str(pk)] = self.normalize_pk_list(
+                                field.func(pk, __class__=self.parser.obj)
+                            )
+
                     # normalize user input
                 else:
                     # many related field / common values
@@ -284,19 +292,24 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # so the final values might not be the exact 'pk'
                 # we do not override if user has already selected
 
-            if related_qs.query.is_sliced:
-                # because this slice should be per-item, so we need to calculate
-                for pk in pk_list:
-                    for val in self.model.get_queryset(pk=pk).values(**{key: exp.Subquery(related_qs)}):
-                        rel = val[key]
-                        if rel is not None:
-                            pk_map.setdefault(pk, []).append(rel)
-            else:
-                # relate_name: List[xx] = orm.Field(Mod.objects.filter(reverse=OuterRef('pk')).values('name'))
-                for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
-                    rel = val[key]
-                    if rel is not None:
-                        pk_map.setdefault(val[PK], []).append(rel)
+            for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
+                rel = val[key]
+                if rel is not None:
+                    pk_map.setdefault(val[PK], []).append(rel)
+
+            # if related_qs.query.is_sliced:
+            #     # because this slice should be per-item, so we need to calculate
+            #     for pk in pk_list:
+            #         for val in self.model.get_queryset(pk=pk).values(**{key: exp.Subquery(related_qs)}):
+            #             rel = val[key]
+            #             if rel is not None:
+            #                 pk_map.setdefault(pk, []).append(rel)
+            # else:
+            #     # relate_name: List[xx] = orm.Field(Mod.objects.filter(reverse=OuterRef('pk')).values('name'))
+            #     for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
+            #         rel = val[key]
+            #         if rel is not None:
+            #             pk_map.setdefault(val[PK], []).append(rel)
 
         # convert pk_map to str key
         pk_map = {str(k): v for k, v in pk_map.items()}
@@ -347,6 +360,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                         res = result_map.get(r)
                         if res is not None:
                             rel_values.append(res)
+                    if field.related_single:
+                        rel_values = rel_values[0] if rel_values else None
                     val[key] = rel_values
                 else:
                     res = result_map.get(rel)
@@ -366,21 +381,50 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     rel = []
                 val.setdefault(key, rel)  # even for None value
 
+    def normalize_pk_list(self, value):
+        if isinstance(value, models.QuerySet):
+            value = list(value.values_list('pk', flat=True))
+        if not multi(value):
+            value = [value]
+        lst = []
+        for v in value:
+            pk = self._get_pk(v, robust=True)
+            if pk is None:
+                continue
+            lst.append(pk)
+        return lst
+
+    @awaitable(normalize_pk_list)
+    async def normalize_pk_list(self, value):
+        if isinstance(value, models.QuerySet):
+            value = [pk async for pk in value.values_list('pk', flat=True)]
+        if not multi(value):
+            value = [value]
+        lst = []
+        for v in value:
+            pk = self._get_pk(v, robust=True)
+            if pk is None:
+                continue
+            lst.append(pk)
+        return lst
+
     def normalize_pk_map(self, pk_map: dict):
         if not isinstance(pk_map, dict):
             raise TypeError(f'Invalid pk map: {pk_map}, must be a dict')
         result = {}
         for k, value in pk_map.items():
-            if not multi(value):
-                value = [value]
+            lst = self.normalize_pk_list(value)
+            if lst:
+                result[str(k)] = lst
+        return result
 
-            lst = []
-            for v in value:
-                pk = self._get_pk(v, robust=True)
-                if pk is None:
-                    continue
-                lst.append(pk)
-
+    @awaitable(normalize_pk_map)
+    async def normalize_pk_map(self, pk_map: dict):
+        if not isinstance(pk_map, dict):
+            raise TypeError(f'Invalid pk map: {pk_map}, must be a dict')
+        result = {}
+        for k, value in pk_map.items():
+            lst = await self.normalize_pk_list(value)
             if lst:
                 result[str(k)] = lst
         return result
@@ -425,11 +469,19 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # like author__followers / author__followers__join_date
                 # we need to serialize its value first
                 if field.func:
-                    pk_map = field.func(*self.pk_list, __class__=self.parser.obj)
-                    if inspect.isawaitable(pk_map):
-                        pk_map = await pk_map
-                    pk_map = self.normalize_pk_map(pk_map)
-                    # normalize pks from user input
+                    if field.func_multi:
+                        pk_map = field.func(*self.pk_list, __class__=self.parser.obj)
+                        if inspect.isawaitable(pk_map):
+                            pk_map = await pk_map
+                        pk_map = await self.normalize_pk_map(pk_map)
+                        # normalize pks from user input
+                    else:
+                        for pk in self.pk_list:
+                            rel_qs = field.func(pk, __class__=self.parser.obj)
+                            if inspect.isawaitable(rel_qs):
+                                rel_qs = await rel_qs
+                            pk_map[str(pk)] = await self.normalize_pk_list(rel_qs)
+
                 else:
                     if field.model_field.is_2o:
                         # fixme: also no many-relates included in the reverse relations
@@ -441,7 +493,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                             m = field.model_field.related_model
                             # use reverse query due to the unfixed issue on the async backend
                             if m and f:
-                                async for val in m.get_queryset(**{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
+                                async for val in m.get_queryset(
+                                        **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
                                     rel = val['__target']
                                     if rel is not None:
                                         pk_map.setdefault(rel, []).append(val[c or PK])
@@ -463,19 +516,34 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # 2. this is a related schema query, we should override the values to PK
                 related_qs = related_qs.values(PK)
 
-            if related_qs.query.is_sliced:
-                # because this slice should be per-item, so we need to calculate
-                for pk in pk_list:
-                    async for val in self.model.get_queryset(pk=pk).values(**{key: exp.Subquery(related_qs)}):
-                        rel = val[key]
-                        if rel is not None:
-                            pk_map.setdefault(pk, []).append(rel)
-            else:
-                # relate_name: List[xx] = orm.Field(Mod.objects.filter(reverse=OuterRef('pk')).values('name'))
-                async for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
-                    rel = val[key]
-                    if rel is not None:
-                        pk_map.setdefault(val[PK], []).append(rel)
+            async for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
+                rel = val[key]
+                if rel is not None:
+                    pk_map.setdefault(val[PK], []).append(rel)
+
+            # if related_qs.query.is_sliced:
+            #     # because this slice should be per-item, so we need to calculate
+            #     if related_qs.query.high_mark == related_qs.query.low_mark + 1:
+            #         # high mark not None, and the result limit is 1
+            #         async for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
+            #             rel = val[key]
+            #             if rel is not None:
+            #                 pk_map.setdefault(val[PK], []).append(rel)
+            #     else:
+            #         for pk in pk_list:
+            #             async for val in related_qs.filter():
+            #                 pass
+            #
+            #             async for val in self.model.get_queryset(pk=pk).values(**{key: exp.Subquery(related_qs)}):
+            #                 rel = val[key]
+            #                 if rel is not None:
+            #                     pk_map.setdefault(pk, []).append(rel)
+            # else:
+            #     # relate_name: List[xx] = orm.Field(Mod.objects.filter(reverse=OuterRef('pk')).values('name'))
+            #     async for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
+            #         rel = val[key]
+            #         if rel is not None:
+            #             pk_map.setdefault(val[PK], []).append(rel)
 
         pk_map = {str(k): v for k, v in pk_map.items()}
 
@@ -519,12 +587,14 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     # set to a deterministic value instead of its original query value
                     # otherwise schema parsing maybe failed
                     continue
-                if isinstance(rel, list):
+                elif isinstance(rel, list):
                     rel_values = []
                     for r in rel:
                         res = result_map.get(r)
                         if res is not None:
                             rel_values.append(res)
+                    if field.related_single:
+                        rel_values = rel_values[0] if rel_values else None
                     val[key] = rel_values
                 else:
                     res = result_map.get(rel)
@@ -611,6 +681,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 else:
                     rows = self.model.update(data, pk=pk)
                 if not rows:
+                    if must_update:
+                        raise exceptions.UpdateFailed
                     obj = self.model.create(data)
                     pk = obj.pk
             return pk
@@ -621,7 +693,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             # TODO: implement bulk create/update
             pk_list = []
             for val in data:
-                pk = await self.save_data(val)
+                pk = await self.save_data(val, must_create=must_create, must_update=must_update)
                 if pk is not None:
                     pk_list.append(pk)
             return pk_list
@@ -651,6 +723,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     if exists:
                         await self.model.update(data, pk=pk)
                     else:
+                        if must_update:
+                            raise exceptions.UpdateFailed
                         must_create = True
                 if must_create:
                     obj = await self.model.create(data)

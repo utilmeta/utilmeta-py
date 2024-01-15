@@ -267,7 +267,10 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             if '__' not in qn:
                 self.model.get_queryset(**{qn + '__isnull': False})
             else:
-                self.model.get_queryset(**{qn: None})
+                try:
+                    self.model.get_queryset(**{qn: None})
+                except ValueError:
+                    self.model.get_queryset(**{qn: ''})
         except exceptions.FieldError as e:
             raise exceptions.FieldError(f'Invalid query name: {repr(qn)} for {self.model.model}: {e}')
         except ValueError as e:

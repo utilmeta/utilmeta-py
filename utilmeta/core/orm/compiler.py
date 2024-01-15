@@ -29,10 +29,10 @@ class BaseQueryCompiler:
         includes = excludes = None
         if self.context.includes:
             inter = set(self.context.includes).intersection(field.all_aliases)
-            includes = self.context.includes.get(inter.pop())
+            includes = self.context.includes.get(inter.pop()) if inter else None
         if self.context.excludes:
             inter = set(self.context.excludes).intersection(field.all_aliases)
-            excludes = self.context.excludes.get(inter.pop())
+            excludes = self.context.excludes.get(inter.pop()) if inter else None
         return QueryContext(
             using=self.context.using,
             # single=field.related_single,

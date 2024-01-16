@@ -1,9 +1,10 @@
 from typing import Union, Callable, Type, TypeVar, Optional
 import sys
 import os
-from utilmeta.utils import import_obj, awaitable
+from utilmeta.utils import import_obj, awaitable, search_file
 from utilmeta.conf.base import Config
 import inspect
+from utilmeta.core.api import API
 
 # if TYPE_CHECKING:
 #     from utilmeta.core.api.specs.base import BaseAPISpec
@@ -16,7 +17,7 @@ class UtilMeta:
 
     def __init__(
         self,
-        module_name: str, *,
+        module_name: Optional[str], *,
         backend,
         name: str = None,
         title: str = None,
@@ -44,12 +45,13 @@ class UtilMeta:
         # if not name.replace('-', '_').isidentifier():
         #     raise ValueError(f'{self.__class__}: service name ({repr(name)}) should be a valid identifier')
 
-        self.module = sys.modules[module_name]
+        self.module = sys.modules.get(module_name or '__main__')
 
         # 1. find meta.ini
         # 2. os.path.dirname(self.module.__file__)
         # 3. sys.path[0] / os.getcwd()
-        self.project_dir = os.path.dirname(self.module.__file__)
+        self.meta_path = search_file('meta.ini')
+        self.project_dir = os.path.dirname(self.meta_path) if self.meta_path else os.getcwd()
 
         self.root_api = api
         self.root_url = str(route or '').strip('/')
@@ -99,13 +101,44 @@ class UtilMeta:
     def set_backend(self, backend):
         if not backend:
             return
-        self.backend = backend
-        self.backend_name = backend if isinstance(backend, str) else getattr(backend, '__name__', str(backend))
+
         from utilmeta.core.server.backends.base import ServerAdaptor
-        if isinstance(self.backend, type) and issubclass(self.backend, ServerAdaptor):
-            self.adaptor = self.backend(self)
+
+        application = None
+        # backend_name = None
+
+        if isinstance(backend, str):
+            backend_name = backend
+        elif isinstance(backend, type) and issubclass(backend, ServerAdaptor):
+            self.adaptor = backend(self)
+            backend = backend.backend
+            backend_name = getattr(backend, '__name__', str(backend))
+        elif inspect.ismodule(backend):
+            backend_name = getattr(backend, '__name__', str(backend))
         else:
+            # maybe an application
+            module = getattr(backend, '__module__', None)
+            if module and callable(backend):
+                # application
+                application = backend
+                backend_name = str(module).split('.')[0]
+                backend = import_obj(backend_name)
+            else:
+                raise TypeError(f'Invalid service backend: {repr(backend)}, '
+                                f'must be a supported module or application')
+
+        self.backend = backend
+        self.backend_name = backend_name
+
+        if application:
+            self._application = application
+
+        if not self.adaptor:
             self.adaptor = ServerAdaptor.dispatch(self)
+
+        if self._application and self.adaptor.application_cls:
+            if not isinstance(self._application, self.adaptor.application_cls):
+                raise ValueError(f'Invalid application for {repr(self.backend_name)}: {application}')
 
     def __repr__(self):
         return f'UtilMeta({repr(self.module_name)}, ' \
@@ -202,11 +235,23 @@ class UtilMeta:
         if callable(f):
             self.events.setdefault('shutdown', []).append(f)
 
-    def mount(self, api: Union[str, Callable] = None, route: str = ''):
+    def mount(self, api: Union[str, Callable, Type[API]] = None, route: str = ''):
         if not api:
             def deco(_api):
                 return self.mount(_api, route=route)
             return deco
+        elif isinstance(api, str):
+            pass
+        elif inspect.isclass(api) and issubclass(api, API):
+            pass
+        else:
+            # try to mount a wsgi/asgi app
+            if not route:
+                raise ValueError('Mounting applications required not-empty route')
+            if not self.adaptor:
+                raise ValueError('UtilMeta: backend is required to mount applications')
+            self.adaptor.mount(api, route=route)
+            return
 
         if self.root_api:
             if self.root_api != api:
@@ -216,8 +261,8 @@ class UtilMeta:
         self.root_api = api
         self.root_url = str(route).strip('/')
 
-    def mount_ws(self, ws: Union[str, Callable], route: str = ''):
-        pass
+    # def mount_ws(self, ws: Union[str, Callable], route: str = ''):
+    #     pass
 
     def resolve(self):
         if callable(self.root_api):
@@ -242,8 +287,6 @@ class UtilMeta:
     def application(self):
         if not self.adaptor:
             raise NotImplementedError('UtilMeta: service backend not specified')
-        if self._application:
-            return self._application
         self.setup()
         app = self.adaptor.application()
         self._application = app

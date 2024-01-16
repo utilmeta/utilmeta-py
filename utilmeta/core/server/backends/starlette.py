@@ -1,11 +1,12 @@
 import starlette
 from starlette.requests import Request
 from starlette.applications import Starlette
-from starlette.routing import Route
+# from starlette.routing import Route
 from .base import ServerAdaptor
 from utilmeta.core.response import Response
 from utilmeta.core.request.backends.starlette import StarletteRequestAdaptor
 from utilmeta.core.response.backends.starlette import StarletteResponseAdaptor
+from utilmeta.core.api import API
 
 
 class StarletteServerAdaptor(ServerAdaptor):
@@ -20,8 +21,20 @@ class StarletteServerAdaptor(ServerAdaptor):
 
     def __init__(self, config):
         super().__init__(config=config)
-        self.app = self.application_cls(debug=not self.config.production)
+        self.app = self.config._application or self.application_cls(debug=not self.config.production)
         self._ready = False
+
+    def adapt(self, api: 'API', route: str, asynchronous: bool = None):
+        if asynchronous is None:
+            asynchronous = self.default_asynchronous
+        self.add_api(self.app, api, asynchronous=asynchronous, route=route)
+
+    def mount(self, app, route: str):
+        if not self.is_asgi(app):
+            from starlette.middleware.wsgi import WSGIMiddleware
+            # todo: fix deprecated
+            app = WSGIMiddleware(app)
+        self.app.mount(route, app)
 
     def setup(self):
         # TODO: execute setup plugins
@@ -52,6 +65,9 @@ class StarletteServerAdaptor(ServerAdaptor):
                 self.config.shutdown()
 
         self._ready = True
+
+    def add_wsgi(self):
+        pass
 
     def add_api(self, app: Starlette, utilmeta_api_class, route: str = '', asynchronous: bool = False):
         """

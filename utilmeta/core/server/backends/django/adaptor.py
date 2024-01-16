@@ -1,5 +1,5 @@
 import inspect
-import re
+# import re
 
 import django
 import sys
@@ -59,22 +59,23 @@ class DjangoServerAdaptor(ServerAdaptor):
         )
         self._ready = True
 
-    @classmethod
-    def adapt(cls, api: 'API', route: str, asynchronous: bool = None):
+    def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:
-            asynchronous = cls.default_asynchronous
-        func = cls._get_api(cls, api, asynchronous=asynchronous)
-        return re_path(f'{route.strip("/")}/(.*)', func)
+            asynchronous = self.default_asynchronous
+        func = self._get_api(api, asynchronous=asynchronous)
+        path = f'{route.strip("/")}/(.*)' if route.strip('/') else '(.*)'
+        return re_path(path, func)
 
     def add_api(self, utilmeta_api_class, route: str = '', asynchronous: bool = False):
         api = self._get_api(utilmeta_api_class, asynchronous=asynchronous)
         api_path = re_path(route, api)
-        urls = getattr(self.config.module, self.URLPATTERNS, [])
+        urls = getattr(self.settings.url_conf, self.URLPATTERNS, [])
         if api_path not in urls:
             urls.append(api_path)
-        setattr(self.config.module, self.URLPATTERNS, urls)
+        print('URLS:', urls)
+        setattr(self.settings.url_conf, self.URLPATTERNS, urls)
 
-    def _get_api(self_or_cls, utilmeta_api_class, asynchronous: bool = False):
+    def _get_api(self, utilmeta_api_class, asynchronous: bool = False):
         """
         Mount a API class
         make sure it is called after all your fastapi route is set
@@ -83,31 +84,24 @@ class DjangoServerAdaptor(ServerAdaptor):
         if not issubclass(utilmeta_api_class, API):
             raise TypeError(f'Invalid api class: {utilmeta_api_class}')
 
-        cls = self_or_cls
-        if inspect.isclass(self_or_cls):
-            def route_loader(x):
-                return x
-        else:
-            route_loader = self_or_cls.load_route
-
         if asynchronous:
             async def f(request, route: str = '', *args, **kwargs):
                 try:
-                    req = cls.request_adaptor_cls(request, route_loader(route), *args, **kwargs)
+                    req = self.request_adaptor_cls(request, self.load_route(route), *args, **kwargs)
                     root = utilmeta_api_class(req)
                     resp = await root()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
-                return cls.response_adaptor_cls.reconstruct(resp)
+                return self.response_adaptor_cls.reconstruct(resp)
         else:
             def f(request, route: str = '', *args, **kwargs):
                 try:
-                    req = cls.request_adaptor_cls(request, route_loader(route), *args, **kwargs)
+                    req = self.request_adaptor_cls(request, self.load_route(route), *args, **kwargs)
                     root = utilmeta_api_class(req)
                     resp = root()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
-                return cls.response_adaptor_cls.reconstruct(resp)
+                return self.response_adaptor_cls.reconstruct(resp)
 
         update_wrapper(f, utilmeta_api_class, updated=())
         f.csrf_exempt = True  # noqa

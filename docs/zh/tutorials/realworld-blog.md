@@ -153,12 +153,12 @@ class Article(BaseContent):
     title = models.CharField(db_index=True, max_length=255)
     description = models.TextField()
     author = models.ForeignKey(
-	    'user.User', on_delete=models.CASCADE, related_name='articles')
+	    'user.User', on_delete=amodels.ACASCADE, related_name='articles')
     tags = models.ManyToManyField(Tag, related_name='articles')
 
 class Comment(BaseContent):
     article = models.ForeignKey(
-	    Article, related_name='comments', on_delete=models.CASCADE)
+	    Article, related_name='comments', on_delete=amodels.ACASCADE)
     author = models.ForeignKey(
 	    'user.User', on_delete=models.CASCADE, related_name='comments')
 ```

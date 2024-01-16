@@ -63,6 +63,7 @@ class DjangoSettings(Config):
             user_i18n: bool = None,
             language: str = None,
             append_slash: bool = False,
+            # urlpatterns: list = None,
     ):
         super().__init__(**locals())
         self.module_name = module_name
@@ -80,6 +81,8 @@ class DjangoSettings(Config):
         self.use_i18n = DEFAULT_USE_I18N if user_i18n is None else user_i18n
         self.append_slash = append_slash
         self.module = None
+        self.url_conf = None
+        # self.urlpatterns = urlpatterns
         self._settings = {}
         self._plugin_settings = {}
 
@@ -130,7 +133,7 @@ class DjangoSettings(Config):
             raise ValueError(f'django: secret_key not set for production')
         else:
             warnings.warn('django: secret_key not set, auto generating')
-        tag = f'{service.project_dir}:{service.name}:{service.description}:{service.version}' \
+        tag = f'{service.name}:{service.description}:{service.version}' \
               f'{service.backend_name}:{service.module_name}' \
               f'{django.__version__}{utilmeta.__version__}{sys.version}{platform.platform()}'.encode()
         return hashlib.sha256(tag).hexdigest()
@@ -184,7 +187,11 @@ class DjangoSettings(Config):
 
     def hook(self, service: UtilMeta):
         from .cmd import DjangoCommand
+        from .adaptor import DjangoServerAdaptor
         service.register_command(DjangoCommand)
+        if isinstance(service.adaptor, DjangoServerAdaptor):
+            service.adaptor.settings = self
+            # replace settings
 
     def setup(self, service: UtilMeta):
         if self._settings:
@@ -205,15 +212,6 @@ class DjangoSettings(Config):
                 if not db.sync_adaptor_cls:
                     db.sync_adaptor_cls = DjangoDatabaseAdaptor
                 databases[name] = self.get_database(db, service)
-
-        if self.root_urlconf:
-            url_conf = sys.modules[self.root_urlconf]
-        else:
-            url_conf = service.module
-
-        urlpatterns = getattr(url_conf, 'urlpatterns', None)
-        if not urlpatterns:
-            setattr(url_conf, 'urlpatterns', [])
 
         settings = {
             'DEBUG': not service.production,
@@ -256,3 +254,14 @@ class DjangoSettings(Config):
         os.environ[SETTINGS_MODULE] = self.module_name or service.module_name
         # not using setdefault to prevent IDE set the wrong value by default
         django.setup(set_prefix=False)
+
+        # import root url conf after the django setup
+        if self.root_urlconf:
+            self.url_conf = sys.modules.get(self.root_urlconf) or import_obj(self.root_urlconf)
+        else:
+            self.url_conf = service.module
+
+        urlpatterns = getattr(self.url_conf, 'urlpatterns', [])
+        # if self.urlpatterns:
+        #     urlpatterns = urlpatterns + self.urlpatterns
+        setattr(self.url_conf, 'urlpatterns', urlpatterns or [])

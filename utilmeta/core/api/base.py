@@ -351,9 +351,15 @@ class API(PluginTarget):
     #     #    ad_fastapi = API.__adapt__(fastapi.routing.APIRouter())
     #     pass
 
-    @classonlymethod
-    def __as__(cls, backend, route: str, asynchronous: bool = None):
-        pass
+    # @classonlymethod
+    @classmethod
+    def __as__(cls, backend, route: str, *, asynchronous: bool = None):
+        from utilmeta import UtilMeta
+        from utilmeta.core.server.backends.base import ServerAdaptor
+        service = UtilMeta(None, backend=backend, name=route.strip('/'))
+        # backend can be a module name or application
+        adaptor = ServerAdaptor.dispatch(service)
+        return adaptor.adapt(cls, route=route, asynchronous=asynchronous)
 
     @classonlymethod
     def __mount__(cls, handler: Union[APIRoute, Type['API'], APIRef, Endpoint, str], route: str = '',

@@ -1,41 +1,21 @@
 from utilmeta import UtilMeta
-from utilmeta.conf import Env
-# import starlette
-# import fastapi
-# import django
-# import sanic
-import sys
-
-
-class ServiceEnvironment(Env):
-    PRODUCTION: bool = False
-    SECRET_KEY: str = ''
-    # DB_USER: str
-    # DB_PASSWORD: str
-
-
-env = ServiceEnvironment(sys_env='BLOG_')
-
-__all__ = ['service']
+import django
 
 service = UtilMeta(
     __name__,
     name='blog',
     description='Blog - test service for utilmeta',
-    backend=None,
-    production=env.PRODUCTION,
-    version=(0, 1, 0),
-    host='0.0.0.0' if env.PRODUCTION else '127.0.0.1',
-    port=80 if env.PRODUCTION else 8800,
-    background='-b' in sys.argv,
-    asynchronous=True
+    backend=django
 )
+
 
 from utilmeta.core.server.backends.django import DjangoSettings
 from utilmeta.core.orm import DatabaseConnections, Database
 service.use(DjangoSettings(
-    apps=['app']
+    apps=['app'],
+    root_urlconf='django_urls'
 ))
+
 service.use(DatabaseConnections({
     'default': Database(
         name='db',
@@ -60,10 +40,7 @@ class RootAPI(api.API):
 
 
 service.mount(RootAPI, route='/api')
-# app = service.application()
-
+app = service.application()
 
 if __name__ == '__main__':
-    import starlette
-    service.set_backend(starlette)
     service.run()

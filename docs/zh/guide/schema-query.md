@@ -874,24 +874,241 @@ class ArticleAPI(API):
 !!! tip
 	字段控制参数是比较特殊的查询参数，它虽然并不会对查询集造成任何影响，但是会影响序列化的字段，需要通过 `query.get_context()` 传递
 
-## 数据库配置
+## 数据库与 ORM 配置
 
-* django
-* tortoise-orm（异步 ORM，类似 django 语法）
-* peewee
-* sqlachemy
+我们介绍了 UtilMeta 声明式 ORM 的用法，但如果需要接入数据库使用，还需要完成数据库与 ORM 的配置
+
+作为元框架，UtilMeta 的声明式 ORM 能够支持一系列的 ORM 引擎作为模型层实现，目前的支持状态是
+
+* **Django ORM**：**已完全支持**
+* tortoise-orm：即将支持
+* peewee：即将支持
+* sqlachemy：即将支持
+
+所以我们以 Django ORM 为例，示例如何配置数据库连接与模型
+
+首先假设你的项目使用如下命令创建
+```shell
+meta setup blog --temp=full
+```
+
+文件夹结构类似
+```
+/blog
+	/config
+		conf.py
+		service.py
+	/domain
+		/article
+			models.py
+		/user
+			models.py
+	/service
+		api.py
+	main.py
+	meta.ini
+```
+
+你可以在 `config/conf.py` 中配置如下代码
+
+=== ”config/conf.py“
+	```python
+	from utilmeta import UtilMeta
+	from config.env import env
+	
+	def configure(service: UtilMeta):
+	    from utilmeta.core.server.backends.django import DjangoSettings
+	    from utilmeta.core.orm import DatabaseConnections, Database
+	
+	    service.use(DjangoSettings(
+	        apps_package='domain',
+	        secret_key=env.DJANGO_SECRET_KEY
+	    ))
+	    service.use(DatabaseConnections({
+	        'default': Database(
+	            name='db',
+	            engine='sqlite3',
+	        )
+	    }))
+	    service.setup()
+	```
+=== "config/sevice.py"
+	```python
+	from utilmeta import UtilMeta
+	from config.conf import configure
+	from config.env import env
+	import starlette
+	
+	service = UtilMeta(
+	    __name__,
+	    name='blog',
+	    backend=starlette,
+	    production=env.PRODUCTION,
+	    host='0.0.0.0' if env.PRODUCTION else '127.0.0.1',
+	    port=80 if env.PRODUCTION else 8000,
+	)
+	configure(service)
+	```
+
+我们在 `config/conf.py` 中定义了 `configure` 函数进行服务配置，接收 `UtilMeta` 类型的服务实例，使用 `use()` 方法进行配置
+
+使用 Django ORM 需要完成 Django 的配置，UtilMeta 提供了 `DjangoSettings` 来简便地配置 Django，其中重要的参数有
+
+* `apps_package`：指定一个目录，其中的每个文件夹都会被当作一个 Django App，Django 会扫描其中的 `models.py` 文件检测所有的模型，比如例子中的 `'domain'`
+* `apps`：你也可以指定一个 Django App 的引用列表，来单独列出所有的模型目录，比如 `['domain.article', 'domain.user']`
+* `secret_key`：指定一个密钥，你可以使用环境变量来管理
+
+### 数据库连接
+
+在 UtilMeta 中，你可以使用 `DatabaseConnections` 进行数据库连接配置，其中可以传入一个字典，字典的键是数据库连接的名称，我们沿用 Django 定义数据库连接的语法，使用 `'default'` 表示默认的连接，对应的值是一个 `Database` 实例，用于配置具体的数据库连接，其中的参数包括
+
+* `name`：数据库的名称（在 SQLite3 中是数据库文件的名称）
+* `engine`：数据库引擎，Django ORM 支持的引擎有 `sqlite3`, `mysql`, `postgresql`, `oracle`
+* `user`：数据库的用户名
+* `password`：数据库的用户密码
+* `host`：数据库的主机，默认为本地（`127.0.0.1`）
+* `port`：数据库的端口号，默认根据数据库的类型决定，如 `mysql` 为 3306，`postgresql` 为 5432
+
+!!! tip "SQLite3"
+	例子中使用的数据库是 SQLite3，它无需你提供用户名，密码和主机等信息，而是会直接在你的项目根目录中创建一个以 `name` 参数为名称的文件来存储数据，适合本地快速搭建与调试
+
+
+**PostgreSQL / MySQL**
+当你需要使用 PostgreSQL 或 MySQL 这种需要提供数据库密码的连接时，我们建议你使用环境变量来管理这些敏感信息，示例如下
+
+=== "config/conf.py"
+	```python
+	from utilmeta import UtilMeta
+	from config.env import env
+	
+	def configure(service: UtilMeta):
+		from utilmeta.core.server.backends.django import DjangoSettings
+		from utilmeta.core.orm import DatabaseConnections, Database
+	
+		service.use(DjangoSettings(
+			apps_package='domain',
+			secret_key=env.DJANGO_SECRET_KEY
+		))
+		service.use(DatabaseConnections({
+	        'default': Database(
+	            name='blog',
+	            engine='postgresql',
+	            host=env.DB_HOST,
+	            user=env.DB_USER,
+	            password=env.DB_PASSWORD,
+	            port=env.DB_PORT,
+	        )
+	    }))
+		service.setup()
+	```
+=== "config/env.py"
+	```python
+	from utilmeta.conf import Env
+	
+	class ServiceEnvironment(Env):
+	    PRODUCTION: bool = False
+	    DJANGO_SECRET_KEY: str = ''
+	    DB_HOST: str = '127.0.0.1'
+	    DB_PORT: int = None
+	    DB_USER: str
+	    DB_PASSWORD: str
+	
+	env = ServiceEnvironment(sys_env='BLOG_')
+	```
+
+
+在 `config/env.py` 中，我们将配置需要的密钥信息声明了出来，在初始化参数中传入了 `sys_env='BLOG_'`，表示会拾取前缀为 `BLOG_` 的环境变量，所以你可以指定类似如下的环境变量
+
+```env
+BLOG_PRODUCTION=true
+BLOG_DJANGO_SECRET_KEY=your_key
+BLOG_DB_USER=your_user
+BLOG_DB_PASSOWRD=your_password
+```
+
+接着初始化后的 `env` 就会将环境变量解析为对应的属性并完成类型转化，你就可以直接在配置文件中使用它们了
+
+### Django 数据迁移
+
+当我们编写好数据模型后即可使用 Django 提供的迁移命令方便地创建对应的数据表了，如果你使用的是 SQLite，则无需提前安装数据库软件，否则需要先安装 PostgreSQL 或 MySQL 数据库到你的电脑或者线上环境，然后创建一个与你的连接配置的 `name` 一样的数据库，数据库准备完毕后就可以使用如下命令完成数据迁移了
+
+```shell
+meta makemigrations
+meta migrate
+```
+
+当看到以下输出时即表示迁移成功
+
+```
+Operations to perform:
+  Apply all migrations: article, contenttypes, user
+Running migrations:
+  Applying article.0001_initial... OK
+  Applying user.0001_initial... OK
+  Applying article.0002_initial... OK
+  Applying contenttypes.0001_initial... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+```
+
+对于 SQLite 数据库会直接创建出对应的数据库文件和数据表，其他的数据库则会按照你的模型定义创建出对应的数据表
+
+!!! tip "数据库迁移命令"
+	以上的命令是 Django 的数据库迁移命令，`makemigrations` 会把数据模型的变更保存为迁移文件，而 `migrate` 命令则会把迁移文件转化为创建或调整数据表的 SQL 语句执行
+
 ### 异步查询
 
+异步查询并不需要额外的配置，而是取决于你的调用方式，如果你使用了 `orm.Schema` 的异步方法，如 `ainit`, `aserialize`, `asave` 等，那么在内部就会调用异步查询的实现方式
 
-异步 ORM 需要有异步查询库的支持，UtilMeta 默认使用 encode/databases 库为主流的数据库提供异步查询支持
-
-!!! tip
-	虽然我们以 API 开发为主干讲解声明式 ORM 的用法，但你也可以独立使用这些方法，比如在定时任务中或者其他的脚本中
+ Django ORM 中的每个方法也有相应的异步实现，但实际上它只是使用 `sync_to_async` 方法将同步的函数整体转变为一个异步函数，其内部查询逻辑和驱动的实现依然全部是同步与阻塞的
 
 
+**AwaitableModel**
+UtilMeta ORM 完成了 Django ORM 中所有方法的纯异步实现，使用  [encode/databases](https://github.com/encode/databases) 库作为各个数据库引擎的异步驱动，最大程度发挥了异步查询的性能，承载这一实现的模型基类位于
 
-### Django 异步查询
+```python
+from utilmeta.core.orm.backends.django.models import AwaitableModel
+```
 
-参考 [Django Model 文档](https://docs.djangoproject.com/en/3.2/topics/db/models/ )
+如果你的 Django 模型集成自 `AwaitableModel`，那么它的所有 ORM 方法都会是完全异步实现的
 
-由于 django 没有原生的异步查询实现（其数据库查询都是同步操作），UtilMeta 实现了一套 django 原生异步接口（底层基于异步数据库查询库，如 encode/databases），能够最大程度利用
+!!! warning "ACASCADE"
+	需要注意的是，当你使用 `AwaitableModel` 对于外键的 `on_delete` 选项，如果需要选择 **级联删除** 时，应该使用 `utilmeta.core.orm.backends.django.models.ACASCADE`，这个函数是 `django.db.models.CASCADE` 的异步实现
+
+而 encode/databases 其实也是分别集成了如下的异步查询驱动
+
+* asyncpg
+* aiopg
+* aiomysql
+* asyncmy
+* aiosqlite
+
+所以如果你在选择数据库时还需要指定它的异步查询引擎，你可以在 `engine` 参数中以 `sqlite3+aiosqlite`，`postgresql+asyncpg`  的方式传递
+
+### 事务插件
+
+事务也是数据查询和操作时非常重要的机制，保障了某一系列操作的原子性（要么整体成功，要么整体失败不产生影响）
+
+UtilMeta 中可以使用 `orm.Atomic` 接口装饰器为接口启用数据库事务，我们已文章的创建接口为例展示相应的用法
+
+```python
+from utilmeta.core import orm
+
+class ArticleAPI(API):
+    @orm.Atomic('default')
+    async def post(self, article: ArticleSchema[orm.A] = request.Body, 
+                   user: User = API.user_config):
+        tags = []
+        for name in article.tag_list:
+            tag, created = await Tag.objects.aget_or_create(name=name)
+            tags.append(tag)
+        article.author_id = user.pk
+        await article.asave()
+		if self.tags:
+            # create or set tags relation in creation / update
+            await self.article.tags.aset(self.tags)
+```
+
+这个例子中的 post 接口在创建文章时，还需要完成标签的创建和设置，我们直接在接口函数上使用 `@orm.Atomic('default')` 装饰器，表示对于 `'default'` （对应在 `DatabaseConnections` 定义的数据库连接）数据库开启事务，这个函数如果成功完成执行，那么事务将得到提交，如果中间出现了任何错误（`Exception`）那么事务将会回滚
+
+所以在例子中，文章和标签要么同时创建和设置成功，要么整体失败对数据库中的数据不产生任何影响
+

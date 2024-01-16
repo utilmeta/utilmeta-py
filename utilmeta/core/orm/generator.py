@@ -5,7 +5,7 @@ from .fields.pagination import Page, Limit, Offset
 from .fields.scope import Scope
 from typing import TYPE_CHECKING
 from .context import QueryContext
-from utilmeta.utils import awaitable
+# from utilmeta.utils import awaitable
 
 
 if TYPE_CHECKING:

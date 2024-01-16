@@ -4,6 +4,7 @@ if TYPE_CHECKING:
     from utilmeta.core.api import API
 from utilmeta.utils import BaseAdaptor, exceptions
 import re
+import inspect
 
 
 class ServerAdaptor(BaseAdaptor):
@@ -13,18 +14,22 @@ class ServerAdaptor(BaseAdaptor):
     def reconstruct(cls, adaptor: 'BaseAdaptor'):
         pass
 
-    @classmethod
-    def adapt(cls, api: 'API', route: str, asynchronous: bool = None):
+    def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         raise NotImplementedError
 
     @classmethod
     def get_module_name(cls, obj: 'UtilMeta'):
+        if inspect.ismodule(obj):
+            # maybe the backend
+            return obj.__name__
         return super().get_module_name(obj.backend)
 
     @classmethod
     def qualify(cls, obj: 'UtilMeta'):
         if not cls.backend:
             return False
+        if inspect.ismodule(obj):
+            return obj == cls.backend or cls.backend.__name__.lower() == obj.__name__.lower()
         if isinstance(obj.backend, str):
             return cls.backend.__name__.lower() == obj.backend.lower()
         return cls.backend == obj.backend
@@ -75,19 +80,16 @@ class ServerAdaptor(BaseAdaptor):
     def run(self, **kwargs):
         raise NotImplementedError
 
+    def mount(self, app, route: str):
+        raise NotImplementedError
+
     def application(self):
         pass
 
-    # def resolve_proxy(self, request):
-    #     from utilmeta.core.request import Request
-    #     from utilmeta.core.response import Response
-    #     if not isinstance(request, Request):
-    #         request = Request(request)
-    #     if not self.proxy:
-    #         return None
-    #     invoke = self.proxy.get(request.current_route) or request.reroute_target
-    #     # get invoke template for proxy service or mismatched version reroute
-    #     if invoke:
-    #         # proxy request
-    #         return Response()(invoke.__proxy__(request))
-    #     return None
+    @classmethod
+    def is_asgi(cls, app):
+        if not inspect.isfunction(app):
+            app = getattr(app, '__call__', None)
+        if not app:
+            return False
+        return inspect.iscoroutinefunction(app)

@@ -10,7 +10,7 @@ UtilMeta 实现了一套独特高效的声明式 Schema 查询机制来快速实
 
 Web 开发中最常见的需求之一是提供对数据增删改查的 RESTful 接口，而 ORM（Object Relational Mapping，对象关系映射）就是一种常用的把关系数据库中的表和面向对象编程（如 Python 中的类）映射的方式，可以很大程度方便我们开发增删改查接口，相对于 SQL 拼接而言也消除了 SQL 注入的隐患
 
-我们已 Python Web 中比较常见的 Django ORM 来示例如何定义一个简单的博客应用中的用户模型与文章模型
+我们用 Python Web 中比较常见的 Django ORM 来示例如何定义一个简单的博客应用中的用户模型与文章模型
 
 ```python
 from django.db import models
@@ -159,7 +159,7 @@ class ArticleSchema(orm.Schema[Article]):
 下面以编写创建文章 API 为例展示了 `save` 方法在接口中的使用
 
 === "异步 API"
-	```python
+	```python  hl_lines="12"
 	from utilmeta.core import orm
 	from .models import Article
 	
@@ -175,7 +175,7 @@ class ArticleSchema(orm.Schema[Article]):
 	        return article.pk
 	```
 === "同步 API"
-	```python
+	```python  hl_lines="12"
 	from utilmeta.core import orm
 	from .models import Article
 	
@@ -202,7 +202,7 @@ class ArticleSchema(orm.Schema[Article]):
 下面是一个批量创建用户的接口示例
 
 === "异步 API"
-	```python
+	```python  hl_lines="10"
 	from utilmeta.core import api, orm, request
 	from .models import User
 	
@@ -215,7 +215,7 @@ class ArticleSchema(orm.Schema[Article]):
 	        await UserSchema.abulk_save(data)
 	```
 === "同步 API"
-	```python
+	```python   hl_lines="10"
 	from utilmeta.core import api, orm, request
 	from .models import User
 	
@@ -269,7 +269,7 @@ Article 模型有一个名为 `'tags'` 的多对多关系指向一个 Tag 模型
 
 对于 **外键** 字段，只会对应一个关系对象，所以你直接指定 Schema 类即可，比如
 
-```python
+```python  hl_lines="11"
 from utilmeta.core import orm
 from .models import User, Article
 from django.db import models
@@ -290,7 +290,7 @@ ArticleSchema 的 `author` 字段就直接指定了 UserSchema 作为类型声�
 
 对于 **多对多 / 一对多** 等可能包含多个关系对象的字段，你应该使用 `List[Schema]` 作为类型声明，比如
 
-```python
+```python hl_lines="12"
 from utilmeta.core import api, orm
 from .models import User, Article
 from django.db import models
@@ -758,7 +758,7 @@ class ArticleAPI(api.API):
 下面演示了一个博客项目的文章分页接口是如何处理的
 
 === "异步 API"
-	```python
+	```python hl_lines="17"
 	from utilmeta.core import orm, api, response
 	
 	class ArticlesResponse(response.Response):
@@ -779,7 +779,7 @@ class ArticleAPI(api.API):
 	        )
 	```
 === "同步 API"
-	```python
+	```python  hl_lines="17"
 	from utilmeta.core import orm, api, response
 	
 	class ArticlesResponse(response.Response):
@@ -811,7 +811,7 @@ let pages = Math.ceil(count / rows)
 
 UtilMeta 还提供了一种类似 GraphQL 的结果字段控制机制，能够让客户端选择返回哪些字段或者排除哪些字段，进一步优化接口的查询效率，示例如下
 
-```python
+```python hl_lines="18"
 from utilmeta.core import orm
 from .models import User, Article
 from django.db import models
@@ -850,7 +850,7 @@ class ArticleAPI(api.API):
 
 `get_queryset` 方法还可以接受一个 base_queryset 参数，可以在这个查询集的基础上增加查询参数中包含的过滤，排序，分页效果`
 
-```python
+```python  hl_lines="11"
 class ArticleAPI(API):
     class ListArticleQuery(orm.Query[Article]):
         author: str = orm.Filter('author.username', required=True)
@@ -911,7 +911,7 @@ meta setup blog --temp=full
 
 你可以在 `config/conf.py` 中配置如下代码
 
-=== ”config/conf.py“
+=== "config/conf.py"
 	```python
 	from utilmeta import UtilMeta
 	from config.env import env
@@ -944,8 +944,6 @@ meta setup blog --temp=full
 	    name='blog',
 	    backend=starlette,
 	    production=env.PRODUCTION,
-	    host='0.0.0.0' if env.PRODUCTION else '127.0.0.1',
-	    port=80 if env.PRODUCTION else 8000,
 	)
 	configure(service)
 	```
@@ -974,6 +972,7 @@ meta setup blog --temp=full
 
 
 **PostgreSQL / MySQL**
+
 当你需要使用 PostgreSQL 或 MySQL 这种需要提供数据库密码的连接时，我们建议你使用环境变量来管理这些敏感信息，示例如下
 
 === "config/conf.py"
@@ -1063,6 +1062,7 @@ Running migrations:
 
 
 **AwaitableModel**
+
 UtilMeta ORM 完成了 Django ORM 中所有方法的纯异步实现，使用  [encode/databases](https://github.com/encode/databases) 库作为各个数据库引擎的异步驱动，最大程度发挥了异步查询的性能，承载这一实现的模型基类位于
 
 ```python
@@ -1076,11 +1076,11 @@ from utilmeta.core.orm.backends.django.models import AwaitableModel
 
 而 encode/databases 其实也是分别集成了如下的异步查询驱动
 
-* asyncpg
-* aiopg
-* aiomysql
-* asyncmy
-* aiosqlite
+* [asyncpg](https://github.com/MagicStack/asyncpg)
+* [aiopg](https://github.com/aio-libs/aiopg)
+* [aiomysql](https://github.com/aio-libs/aiomysql)
+* [asyncmy](https://github.com/long2ice/asyncmy)
+* [aiosqlite](https://github.com/omnilib/aiosqlite)
 
 所以如果你在选择数据库时还需要指定它的异步查询引擎，你可以在 `engine` 参数中以 `sqlite3+aiosqlite`，`postgresql+asyncpg`  的方式传递
 
@@ -1090,7 +1090,7 @@ from utilmeta.core.orm.backends.django.models import AwaitableModel
 
 UtilMeta 中可以使用 `orm.Atomic` 接口装饰器为接口启用数据库事务，我们已文章的创建接口为例展示相应的用法
 
-```python
+```python hl_lines="4"
 from utilmeta.core import orm
 
 class ArticleAPI(API):

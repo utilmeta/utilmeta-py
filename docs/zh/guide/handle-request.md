@@ -9,10 +9,13 @@ API 请求可以使用多种方式携带参数信息，如
 
 我们将会一一介绍如何在 UtilMeta 中处理请求的各类参数
 
+!!! tip
+	UtilMeta 中请求参数的声明基于 Python 标准的类型注解（类型提示）语法与 [utype](https://utype.io/zh/) 库，如果你对 Python 类型注解语法还不熟悉，可以参考 [utype - Python 类型用法](https://utype.io/zh/guide/type/) 这篇文档
+
 ## 路径参数
 
 在请求 URL 路径中传递数据是一种常见的方式，比如通过 `GET /article/3` 得到 ID 为 3 的文章数据，ID 的参数就是在 URL 路径中提供的，在 UtilMeta 中声明路径参数的方式如下
-```python
+```python hl_lines="4"
 from utilmeta.core import api
 
 class RootAPI(api.API):
@@ -165,7 +168,7 @@ class RootAPI(API):
 ### 使用 Schema 类
 
 除了在函数中声明查询参数外，你也可以将所有查询参数定义为一个 Schema 类，从而更好地组合与复用，用法如下
-```python
+```python hl_lines="11"
 from utilmeta.core import api, request
 import utype
 from typing import Literal
@@ -192,7 +195,7 @@ class RootAPI(API):
 请求体数据常用于在 POST / PUT / PATCH 方法传递对象，表单或文件等数据
 
 通常在 UtilMeta 中，你可以使用 Schema 类来声明 JSON 或表单格式的请求体数据，用法如下
-```python
+```python  hl_lines="11"
 from utilmeta.core import api, request
 import utype
 
@@ -228,7 +231,7 @@ username=alice&password=123abc&remember=true
 
 ### 列表数据
 一些如批量创建与更新等场景需要上传列表类型的请求体数据，其声明方式就是在对应的 Schema 类外加上 `List[]` ，如
-```python
+```python  hl_lines="10"
 from utilmeta.core import api, orm, request
 from .models import User
 
@@ -259,7 +262,7 @@ class UserAPI(api.API):
 ### 处理文件上传
 
 如果你需要支持文件上传，只需要将文件字段的类型提示声明为文件即可，用法如下
-```python
+```python  hl_lines="7"
 from utilmeta.core import api, request, file
 import utype
 
@@ -286,7 +289,7 @@ class FileAPI(api.API):
 	对于含有文件的表单，客户端需要传递 `multipart/form-data` 类型的数据
 
 如果你需要支持上传多个文件，只需要为文件参数的类型声明外加上 `List[]`  即可，如
-```python
+```python  hl_lines="8"
 from utilmeta.core import api, request, file
 import utype
 from typing import List

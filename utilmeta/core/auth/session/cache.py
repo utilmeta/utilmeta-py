@@ -1,6 +1,6 @@
 from .schema import BaseSessionSchema, SchemaSession, SessionCreateError, SessionUpdateError
 from utilmeta.core.cache import CacheConnections, Cache
-from utilmeta.utils import awaitable
+# from utilmeta.utils import awaitable
 from typing import Type
 from utype import Field
 
@@ -35,8 +35,8 @@ class CacheSessionSchema(BaseSessionSchema):
         cache = self.get_cache()
         return bool(cache.exists(session_key))
 
-    @awaitable(exists)
-    async def exists(self, session_key: str) -> bool:
+    # @awaitable(exists)
+    async def aexists(self, session_key: str) -> bool:
         if not session_key:
             return False
         cache = self.get_cache()
@@ -51,11 +51,11 @@ class CacheSessionSchema(BaseSessionSchema):
         self._modified = True
         return
 
-    @awaitable(create)
-    async def create(self):
-        self._session_key = await self._get_new_session_key()
+    # @awaitable(create)
+    async def acreate(self):
+        self._session_key = await self._aget_new_session_key()
         try:
-            await self.save(must_create=True)
+            await self.asave(must_create=True)
         except SessionCreateError:
             return
         self._modified = True
@@ -84,10 +84,10 @@ class CacheSessionSchema(BaseSessionSchema):
         if must_create and not result:
             raise SessionCreateError
 
-    @awaitable(save)
-    async def save(self, must_create: bool = False):
+    # @awaitable(save)
+    async def asave(self, must_create: bool = False):
         if self.session_key is None:
-            return await self.create()
+            return await self.acreate()
         cache = self.get_cache()
 
         if not must_create:
@@ -95,7 +95,7 @@ class CacheSessionSchema(BaseSessionSchema):
                 if await cache.get(self.get_key()) is None:
                     # old session data is deleted
                     if self._config.interrupted == 'cycle':
-                        self._session_key = await self._get_new_session_key()
+                        self._session_key = await self._aget_new_session_key()
                     else:
                         raise SessionUpdateError
 
@@ -116,8 +116,8 @@ class CacheSessionSchema(BaseSessionSchema):
         if session_key:
             self.get_cache().delete(session_key)
 
-    @awaitable(delete)
-    async def delete(self, session_key: str = None):
+    # @awaitable(delete)
+    async def adelete(self, session_key: str = None):
         if session_key is None:
             if self.session_key is None:
                 return
@@ -129,8 +129,8 @@ class CacheSessionSchema(BaseSessionSchema):
         # to be inherited
         return None
 
-    @awaitable(load_data)
-    async def load_data(self):
+    # @awaitable(load_data)
+    async def aload_data(self):
         # to be inherited
         return None
 
@@ -154,8 +154,8 @@ class CacheSessionSchema(BaseSessionSchema):
         self._session_key = None
         return {}
 
-    @awaitable(load)
-    async def load(self):
+    # @awaitable(load)
+    async def aload(self):
         if not self._session_key:
             return {}
         try:
@@ -169,7 +169,7 @@ class CacheSessionSchema(BaseSessionSchema):
             # cache keys. If this happens, reset the session. See #17810.
             session_data = None
         if session_data is None:
-            session_data = await self.load_data()
+            session_data = await self.aload_data()
         if session_data is not None:
             return session_data
         self._session_key = None
@@ -178,17 +178,12 @@ class CacheSessionSchema(BaseSessionSchema):
 
 class CacheSession(SchemaSession):
     DEFAULT_ENGINE = CacheSessionSchema
+    schema = CacheSessionSchema
 
     def __init__(self, engine=None, cache_alias: str = 'default', key_prefix: str = None, **kwargs):
         super().__init__(engine, **kwargs)
         self.cache_alias = cache_alias
         self.key_prefix = key_prefix
-
-        @self
-        class schema(self.engine or self.DEFAULT_ENGINE): pass
-
-        schema._config = self
-        self.schema: Type[CacheSessionSchema] = schema
 
     def init(self, field):
         # check cache exists

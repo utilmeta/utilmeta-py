@@ -1,6 +1,7 @@
 from ...config import Cache
 from typing import Optional
 from .aioredis import AioredisAdaptor
+from ..django import DjangoCacheAdaptor
 
 
 class RedisCache(Cache):

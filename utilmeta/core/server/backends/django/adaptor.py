@@ -72,7 +72,6 @@ class DjangoServerAdaptor(ServerAdaptor):
         urls = getattr(self.settings.url_conf, self.URLPATTERNS, [])
         if api_path not in urls:
             urls.append(api_path)
-        print('URLS:', urls)
         setattr(self.settings.url_conf, self.URLPATTERNS, urls)
 
     def _get_api(self, utilmeta_api_class, asynchronous: bool = False):

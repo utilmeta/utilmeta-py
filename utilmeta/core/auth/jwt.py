@@ -34,11 +34,15 @@ class JsonWebToken(BaseAuthentication):
             jwt_params = jwt.decode(token, key)  # noqa
         except JWTDecodeError:
             raise exceptions.BadRequest(f'invalid jwt token')
+        if self.audience:
+            aud = jwt_params.get('aud')
+            if aud != self.audience:
+                raise exceptions.PermissionDenied(f'Invalid audience: {repr(aud)}')
         return jwt_params
 
     def __init__(self,
                  key: Union[str, Any],
-                 encode_algorithm: str = 'HS256',
+                 algorithm: str = 'HS256',
                  # jwk: Union[str, dict] = None,
                  # jwk json string / dict
                  # jwk file path
@@ -50,7 +54,7 @@ class JsonWebToken(BaseAuthentication):
         super().__init__(required=required)
         if not key:
             raise ValueError('Authentication config error: JWT key is required')
-        self.encode_algorithm = encode_algorithm
+        self.algorithm = algorithm
         self.secret_key = key
         # self.jwk = jwk
         self.audience = audience
@@ -73,6 +77,8 @@ class JsonWebToken(BaseAuthentication):
             'iss': service.origin,
             key: user.pk
         }
+        if self.audience:
+            token_dict['aud'] = self.audience
         if inv:
             token_dict['exp'] = iat + inv
         try:
@@ -82,13 +88,13 @@ class JsonWebToken(BaseAuthentication):
             jwt_key = None
             if self.secret_key:
                 jwt_key = OctetJWK(key=self.secret_key.encode())
-            jwt_token = jwt.encode(token_dict, key=jwt_key, alg=self.encode_algorithm)
+            jwt_token = jwt.encode(token_dict, key=jwt_key, alg=self.algorithm)
         except ImportError:
             # jwt 1.7
             import jwt  # noqa
             jwt_token = jwt.encode(  # noqa
                 token_dict, self.secret_key,
-                algorithm=self.encode_algorithm
+                algorithm=self.algorithm
             ).decode('ascii')
         self.jwt_var.set(request, jwt_token)
         return {self.user_token_field: jwt_token} if isinstance(self.user_token_field, str) else None

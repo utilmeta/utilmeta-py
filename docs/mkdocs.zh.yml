@@ -45,6 +45,7 @@ nav:
       - guide/schema-query.md
       - guide/auth.md
       - guide/config-run.md
+      - guide/migration.md
   - 案例教程:
       - tutorials/bmi-calc.md
       - tutorials/user-auth.md

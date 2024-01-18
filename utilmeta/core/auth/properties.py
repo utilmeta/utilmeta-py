@@ -7,6 +7,7 @@ from utype.parser.field import ParserField
 from utype.utils.datastructures import unprovided
 from .base import BaseAuthentication
 import inspect
+from typing import Union, Any
 
 
 class User(Property):
@@ -14,17 +15,22 @@ class User(Property):
     DEFAULT_ID_CONTEXT_VAR = var.user_id
     DEFAULT_SCOPES_CONTEXT_VAR = var.scopes
 
-    def get_user_id(self, request: Request):
+    # must be awaitable ----
+    def get_user_id(self, request: Request) -> Union[str, int, Any]:
         data: Mapping = self.authentication.getter(request) or {}
-        return data.get(self.key)
+        if isinstance(data, Mapping):
+            return data.get(self.key)
+        return data
 
     @awaitable(get_user_id)
-    async def get_user_id(self, request: Request):
+    async def get_user_id(self, request: Request) -> Union[str, int, Any]:
         r = self.authentication.getter(request)
         if inspect.isawaitable(r):
             r = await r
         data: Mapping = r or {}
-        return data.get(self.key)
+        if isinstance(data, Mapping):
+            return data.get(self.key)
+        return data
 
     def get_user(self, request: Request):
         user_id = self.get_user_id(request)
@@ -41,7 +47,7 @@ class User(Property):
     async def get_user(self, request: Request):
         user_id = await self.get_user_id(request)
         if user_id is not None and self.user_model:
-            inst = await self.query_user(**{self.field: user_id})
+            inst = await self.aquery_user(**{self.field: user_id})
             if inst is not None:
                 # user.set(inst)
                 if self.scopes_field:
@@ -83,6 +89,7 @@ class User(Property):
                 raise exc.Unauthorized
             return unprovided
         return user
+    # -------------------------------------------------------
 
     def init(self, field: ParserField):
         if not self.user_model:
@@ -185,8 +192,8 @@ class User(Property):
                 return inst
         return None
 
-    @awaitable(query_user)
-    async def query_user(self, q=None, **kwargs):
+    # @awaitable(query_user)
+    async def aquery_user(self, q=None, **kwargs):
         if self.user_model:
             inst = await self.user_model.get_instance(q, **kwargs)
             if inst is not None:
@@ -205,8 +212,8 @@ class User(Property):
         else:
             return None
 
-    @awaitable(query_login_user)
-    async def query_login_user(self, token: str):
+    # @awaitable(query_login_user)
+    async def aquery_login_user(self, token: str):
         if self.login_fields:
             if len(self.login_fields) == 1:
                 return await self.query_user(**{self.login_fields[0]: token})
@@ -218,7 +225,7 @@ class User(Property):
         else:
             return None
 
-    def login(self, request: Request, token: str, password: str, expiry_age: int = None):
+    def login(self, request: Request, token: str, password: str, expiry_age: int = None) -> Optional[Any]:
         user = self.query_login_user(token)
         if not user:
             return None
@@ -228,18 +235,18 @@ class User(Property):
         self.login_user(request, user, expiry_age=expiry_age)
         return user
 
-    @awaitable(login)
-    async def login(self, request: Request, token: str, password: str, expiry_age: int = None):
-        user = await self.query_login_user(token)
+    # @awaitable(login)
+    async def alogin(self, request: Request, token: str, password: str, expiry_age: int = None) -> Optional[Any]:
+        user = await self.aquery_login_user(token)
         if not user:
             return None
         encoded_password = getattr(user, self.password_field)
         if not self.check_password(password, encoded_password):
             return None
-        await self.login_user(request, user, expiry_age=expiry_age)
+        await self.alogin_user(request, user, expiry_age=expiry_age)
         return user
 
-    def login_user(self, request: Request, user, expiry_age: int = None, ignore_updates: bool = False):
+    def login_user(self, request: Request, user, expiry_age: int = None, ignore_updates: bool = False) -> None:
         self.context_var.set(request, user)
         self.id_context_var.set(request, getattr(user, 'pk', None) or getattr(user, 'id', None))
         try:
@@ -251,8 +258,8 @@ class User(Property):
         if not ignore_updates:
             self.update_fields(request, user, data)
 
-    @awaitable(login_user)
-    async def login_user(self, request: Request, user, expiry_age: int = None, ignore_updates: bool = False):
+    # @awaitable(login_user)
+    async def alogin_user(self, request: Request, user, expiry_age: int = None, ignore_updates: bool = False) -> None:
         self.context_var.set(request, user)
         self.id_context_var.set(request, getattr(user, 'pk', None) or getattr(user, 'id', None))
         try:
@@ -262,7 +269,7 @@ class User(Property):
         except NotImplementedError:
             data = None
         if not ignore_updates:
-            await self.update_fields(request, user, data)
+            await self.aupdate_fields(request, user, data)
 
     def get_update_data(self, request: Request, data=None):
         data = data or {}
@@ -274,13 +281,13 @@ class User(Property):
             return
         return data
 
-    def update_fields(self, request: Request, user, data=None):
+    def update_fields(self, request: Request, user, data=None) -> None:
         data = self.get_update_data(request, data=data)
         if data:
             self.user_model.update(data, pk=user.pk)
 
-    @awaitable(update_fields)
-    async def update_fields(self, request: Request, user, data=None):
+    # @awaitable(update_fields)
+    async def aupdate_fields(self, request: Request, user, data=None) -> None:
         data = self.get_update_data(request, data=data)
         if data:
             await self.user_model.update(data, pk=user.pk)

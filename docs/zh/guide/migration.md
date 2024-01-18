@@ -18,7 +18,7 @@ UtilMeta 接口渐进式接入现有项目就只需要这一个方法即可，�
 ### Django
 
 接入 Django 项目，只需将 `API.__as__` 方法的返回结果作为 `urlpatterns` 中的一个元素即可，如
-```python
+```python hl_lines="20"
 import django
 from django.urls import re_path
 from django.http.response import HttpResponse
@@ -51,7 +51,7 @@ urlpatterns = [
 
 Flask 应用中会使用 `Flask(__name__)` 初始化一个应用，你只需要把这个应用传递到 `API.__as__` 方法的第一个参数即可
 
-```python
+```python hl_lines="20"
 from flask import Flask
 
 app = Flask(__name__)
@@ -86,7 +86,7 @@ if __name__ == '__main__':
 ### Starlette (FastAPI)
 
 类似于 Flask，当接入 FastAPI (Starlette) 应用时，只需要把应用传入 `API.__as__` 方法即可，如 
-```python
+```python hl_lines="20"
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -125,7 +125,7 @@ if __name__ == '__main__':
 
 ### Sanic
 与 Flask 或 FastAPI 类似的用法
-```python
+```python  hl_lines="21"
 from sanic import Sanic
 from sanic.response import text
 
@@ -165,7 +165,7 @@ if __name__ == '__main__':
 
 将 UtilMeta 接口整合如 Tornado 的方式如下
 
-```python
+```python  hl_lines="21"
 import asyncio
 import tornado
 
@@ -227,8 +227,8 @@ if __name__ == "__main__":
 
 其中 `urls.py` 定义了 Django 视图路由，那么你只需要把这个文件的引用传入 DjangoSettings 的 `root_urlconf` 即可
 
-=== "service.py"
-	```python
+=== "service.py" 
+	```python  hl_lines="14"
 	from utilmeta import UtilMeta
 	import django
 	
@@ -298,7 +298,7 @@ application = get_wsgi_application()
 
 你只需要把这个 `application` 导入，并使用 UtilMeta 服务的 `mount()` 方法进行挂载即可，比如
 
-```python
+```python  hl_lines="8"
 import starlette
 from utilmeta import UtilMeta
 
@@ -317,7 +317,7 @@ service.mount(django_wsgi, '/v1')
 
 如果你使用 `flask` 作为 UtilMeta 服务 `backend`，那么只需要把 flask 应用作为 `backend` 传入 UtilMeta 服务即可
 
-```python
+```python  hl_lines="18"
 from flask import Flask
 from utilmeta import UtilMeta
 from utilmeta.core import api, response
@@ -359,7 +359,7 @@ if __name__ == '__main__':
 
 你也可以使用 `starlette` 作为 `backend` 并接入 flask 接口，只需要把 `Flask(__name__)` 的应用使用 `mount` 方法挂载即可
 
-```python
+```python  hl_lines="13"
 import starlette
 from flask import Flask
 
@@ -381,7 +381,7 @@ service.mount(flask_app, '/v1')
 
 类似 Flask，接入 Starlette (FastAPI) 只需要把核心应用使用 `mount` 方法挂载即可
 
-```python
+```python  hl_lines="22"
 from fastapi import FastAPI
 
 fastapi_app = FastAPI()
@@ -426,7 +426,7 @@ if __name__ == '__main__':
 
 接入 Sanic 接口只能使用 `sanic` 作为 UtilMeta 服务的 `backend`，用法与 Flask 类似
 
-```python
+```python  hl_lines="22"
 from sanic import Sanic, text
 
 sanic_app = Sanic('demo')

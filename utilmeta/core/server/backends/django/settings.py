@@ -7,6 +7,7 @@ from utilmeta.utils import import_obj
 from utilmeta.conf.base import Config
 from utilmeta.conf.time import Time
 from utilmeta.core.orm.databases import DatabaseConnections, Database
+from utilmeta.core.cache.config import CacheConnections, Cache
 
 DEFAULT_MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -41,6 +42,23 @@ DEFAULT_LANGUAGE_CODE = "en-us"
 DEFAULT_TIME_ZONE = "UTC"
 DEFAULT_USE_I18N = True
 DEFAULT_USE_TZ = True
+
+DB = 'django.core.cache.backends.db.DatabaseCache'
+FILE = 'django.core.cache.backends.filebased.FileBasedCache'
+DUMMY = 'django.core.cache.backends.dummy.DummyCache'
+LOCMEM = 'django.core.cache.backends.locmem.LocMemCache'
+MEMCACHED = 'django.core.cache.backends.memcached.MemcachedCache'
+PYLIBMC = 'django.core.cache.backends.memcached.PyLibMCCache'
+DJANGO_REDIS = 'django.core.cache.backends.redis.RedisCache'
+CACHE_BACKENDS = {
+    'db': DB,
+    'database': DB,
+    'file': FILE,
+    'locmem': LOCMEM,
+    'memcached': MEMCACHED,
+    'redis': DJANGO_REDIS,
+    'pylibmc': PYLIBMC
+}
 
 
 class DjangoSettings(Config):
@@ -151,6 +169,18 @@ class DjangoSettings(Config):
         return installed_apps
 
     @classmethod
+    def get_cache(cls, cache: Cache):
+        return {
+            'BACKEND': CACHE_BACKENDS.get(cache.engine) or cache.engine,
+            'LOCATION': cache.get_location(),
+            'OPTIONS': cache.options or {},
+            'KEY_FUNCTION': cache.key_function,
+            'KEY_PREFIX': cache.prefix,
+            'TIMEOUT': cache.timeout,
+            'MAX_ENTRIES': cache.max_entries,
+        }
+
+    @classmethod
     def get_database(cls, db: Database, service: UtilMeta):
         engine = db.engine
         if '.' not in db.engine:
@@ -203,15 +233,24 @@ class DjangoSettings(Config):
             module = service.module
 
         self.module = module
-        config = service.get_config(DatabaseConnections)
+        db_config = service.get_config(DatabaseConnections)
+        cache_config = service.get_config(CacheConnections)
         databases = {}
+        caches = {}
 
-        if config:
+        if db_config:
             from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
-            for name, db in config.databases.items():
+            for name, db in db_config.databases.items():
                 if not db.sync_adaptor_cls:
                     db.sync_adaptor_cls = DjangoDatabaseAdaptor
                 databases[name] = self.get_database(db, service)
+
+        if cache_config:
+            from utilmeta.core.cache.backends.django import DjangoCacheAdaptor
+            for name, cache in cache_config.caches.items():
+                if not cache.sync_adaptor_cls:
+                    cache.sync_adaptor_cls = DjangoCacheAdaptor
+                caches[name] = self.get_cache(cache)
 
         settings = {
             'DEBUG': not service.production,
@@ -226,6 +265,7 @@ class DjangoSettings(Config):
             'USE_I18N': self.use_i18n,
             'DEFAULT_AUTO_FIELD': self.default_autofield or DEFAULT_AUTO_FIELD,
             'DATABASES': databases,
+            'CACHES': caches,
             ROOT_URLCONF: self.root_urlconf or service.module_name,
             WSGI_APPLICATION: self.wsgi_application or f'{service.module_name}.app',
         }

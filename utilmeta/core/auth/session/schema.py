@@ -41,7 +41,7 @@ class BaseSessionSchema(Schema):
     1. support both sync and async session
     2. use schema to define session fields
     """
-    __options__ = Options(addition=True)
+    __options__ = Options(addition=True, ignore_required=True)
 
     _serializer_cls: ClassVar = JSONSerializer
     _config: 'SchemaSession'
@@ -85,9 +85,7 @@ class BaseSessionSchema(Schema):
             if not isinstance(session_key, str):
                 session_key = str(session_key)
             self._session_key = session_key
-            data = self.load()
-            if inspect.isawaitable(data):
-                data = await data
+            data = await self.aload()
             if not isinstance(data, dict):
                 data = {}
         else:
@@ -177,6 +175,11 @@ class BaseSessionSchema(Schema):
     def is_empty(self):
         return not self.loaded and not self
 
+    @property
+    @Field(no_output=True)
+    def request(self):
+        return self._request
+
     # @property
     # @Field(no_output=True)
     # def key_salt(self):
@@ -221,20 +224,20 @@ class BaseSessionSchema(Schema):
         super().clear()
         self._modified = True
 
-    def _get_new_session_key(self):
+    def _get_new_session_key(self) -> str:
         while True:
             session_key = gen_key(32, alnum=True, lower=True)
             if not self.exists(session_key):
                 return session_key
 
-    @awaitable(_get_new_session_key)
-    async def _get_new_session_key(self):
+    # @awaitable(_get_new_session_key)
+    async def _aget_new_session_key(self):
         while True:
             session_key = gen_key(32, alnum=True, lower=True)
-            if not await self.exists(session_key):
+            if not await self.aexists(session_key):
                 return session_key
 
-    def flush(self):
+    def flush(self) -> None:
         """
         Remove the current session data from the database and regenerate the
         key.
@@ -243,28 +246,28 @@ class BaseSessionSchema(Schema):
         self.delete()
         self._session_key = None
 
-    @awaitable(flush)
-    async def flush(self):
+    # @awaitable(flush)
+    async def aflush(self) -> None:
         """
         Remove the current session data from the database and regenerate the
         key.
         """
         self.clear()
-        await self.delete()
+        await self.adelete()
         self._session_key = None
 
-    def cycle_key(self):
+    def cycle_key(self) -> None:
         key = self._session_key
         self.create()
         if key:
             self.delete(key)
 
-    @awaitable(cycle_key)
-    async def cycle_key(self):
+    # @awaitable(cycle_key)
+    async def acycle_key(self) -> None:
         key = self._session_key
-        await self.create()
+        await self.acreate()
         if key:
-            await self.delete(key)
+            await self.adelete(key)
 
     @property
     @Field(no_output=True)
@@ -287,12 +290,12 @@ class BaseSessionSchema(Schema):
         """
         raise NotImplementedError('subclasses of SessionBase must provide an exists() method')
 
-    @awaitable(exists)
-    async def exists(self, session_key):
+    # @awaitable(exists)
+    async def aexists(self, session_key):
         """
         Return True if the given session_key already exists.
         """
-        raise NotImplementedError('subclasses of SessionBase must provide an exists() method')
+        raise NotImplementedError('subclasses of SessionBase must provide an aexists() method')
 
     def create(self):
         """
@@ -302,6 +305,14 @@ class BaseSessionSchema(Schema):
         """
         raise NotImplementedError('subclasses of SessionBase must provide a create() method')
 
+    def acreate(self):
+        """
+        Create a new session instance. Guaranteed to create a new object with
+        a unique key and will have saved the result once (with empty data)
+        before the method returns.
+        """
+        raise NotImplementedError('subclasses of SessionBase must provide a acreate() method')
+
     def save(self, must_create=False):
         """
         Save the session data. If 'must_create' is True, create a new session
@@ -310,9 +321,9 @@ class BaseSessionSchema(Schema):
         """
         raise NotImplementedError('subclasses of SessionBase must provide a save() method')
 
-    @awaitable(save)
-    async def save(self, must_create=False):
-        raise NotImplementedError('subclasses of SessionBase must provide a save() method')
+    # @awaitable(save)
+    async def asave(self, must_create=False):
+        raise NotImplementedError('subclasses of SessionBase must provide a asave() method')
 
     def delete(self, session_key=None):
         """
@@ -321,9 +332,9 @@ class BaseSessionSchema(Schema):
         """
         raise NotImplementedError('subclasses of SessionBase must provide a delete() method')
 
-    @awaitable(delete)
-    async def delete(self, session_key=None):
-        raise NotImplementedError('subclasses of SessionBase must provide a delete() method')
+    # @awaitable(delete)
+    async def adelete(self, session_key=None):
+        raise NotImplementedError('subclasses of SessionBase must provide a adelete() method')
 
     def load(self):
         """
@@ -331,14 +342,23 @@ class BaseSessionSchema(Schema):
         """
         raise NotImplementedError('subclasses of SessionBase must provide a load() method')
 
-    @awaitable(load)
-    async def load(self):
-        raise NotImplementedError('subclasses of SessionBase must provide a load() method')
+    # @awaitable(load)
+    async def aload(self):
+        raise NotImplementedError('subclasses of SessionBase must provide a aload() method')
 
 
 class SchemaSession(BaseSession):
     DEFAULT_ENGINE = BaseSessionSchema
+    schema = BaseSessionSchema
     engine: Type[BaseSessionSchema]
+
+    def __init__(self, engine=None, **kwargs):
+        super().__init__(engine=engine, **kwargs)
+
+        @self
+        class schema(self.engine or self.DEFAULT_ENGINE): pass
+        schema._config = self
+        self.schema = schema
 
     def get_engine(self, field):
         engine = type(None)
@@ -447,10 +467,10 @@ class SchemaSession(BaseSession):
         user_id = session.get(key)
         if user_id is None:
             if self.cycle_key_at_login:
-                await session.cycle_key()
+                await session.acycle_key()
         else:
             if str(user_id) != str(new_user_id):
-                await session.flush()
+                await session.aflush()
         session[key] = new_user_id
         if expiry_age is not None:
             session.expiry = time_now() + timedelta(seconds=expiry_age)
@@ -497,7 +517,7 @@ class SchemaSession(BaseSession):
                     expires = http_time(expiry)
                 # Save the session data and refresh the client cookie.
                 # Skip session save for 500 responses, refs #3881.
-                await session.save()
+                await session.asave()
                 self._set_cookie(
                     response,
                     session_key=session.session_key,

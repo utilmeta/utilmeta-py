@@ -9,6 +9,9 @@ API requests can carry parameter information in a number of ways, such as
 
 We will show you how to handle the various parameters of the request in UtilMeta.
 
+!!! tip
+	Request parameters declaration in UtilMeta is based on Python type annotation (type hints) stardard and [utype](https://utype.io), if you are not familiar with Python type annotation, you can read [utype - Types in Python](https://utype.io/guide/type/) first
+
 ## Path parameters
 
 It is a common way to pass data in the request URL path. For example, by `GET/article/3` getting the article data with ID 3, the parameter of ID is provided in the URL path. The way to declare the path parameter in UtilMeta is as follows

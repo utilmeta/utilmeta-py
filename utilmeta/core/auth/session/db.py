@@ -1,6 +1,8 @@
-from .schema import BaseSessionSchema, SchemaSession, SessionCreateError, SessionUpdateError
-from typing import ClassVar, Type, TYPE_CHECKING
-from utilmeta.utils import awaitable, time_now
+import inspect
+
+from .schema import BaseSessionSchema, SchemaSession, SessionCreateError
+from typing import Type, TYPE_CHECKING
+from utilmeta.utils import time_now
 from datetime import timedelta
 from utype import Field
 
@@ -18,16 +20,23 @@ class DBSessionSchema(BaseSessionSchema):
     def _model_cls(self):
         return self._config.session_model
 
-    def exists(self, session_key: str) -> bool:
+    def db_exists(self, session_key: str) -> bool:
         if not session_key:
             return False
         return self._model_cls.objects.filter(session_key=session_key).exists()
 
-    @awaitable(exists)
-    async def exists(self, session_key: str) -> bool:
+    # @awaitable(exists)
+    async def adb_exists(self, session_key: str) -> bool:
         if not session_key:
             return False
-        return self._model_cls.objects.filter(session_key=session_key).aexists()
+        return await self._model_cls.objects.filter(session_key=session_key).aexists()
+
+    def exists(self, session_key: str) -> bool:
+        return self.db_exists(session_key)
+
+    # @awaitable(exists)
+    async def aexists(self, session_key: str) -> bool:
+        return await self.adb_exists(session_key)
 
     def create(self):
         self._session_key = self._get_new_session_key()
@@ -38,11 +47,11 @@ class DBSessionSchema(BaseSessionSchema):
         self._modified = True
         return
 
-    @awaitable(create)
-    async def create(self):
-        self._session_key = await self._get_new_session_key()
+    # @awaitable(create)
+    async def acreate(self):
+        self._session_key = await self._aget_new_session_key()
         try:
-            await self.save(must_create=True)
+            await self.asave(must_create=True)
         except SessionCreateError:
             return
         self._modified = True
@@ -84,34 +93,37 @@ class DBSessionSchema(BaseSessionSchema):
         """
         session_id = None
         if not self.session_key:
-            self._session_key = await self._get_new_session_key()
+            self._session_key = await self._aget_new_session_key()
         elif not must_create:
             obj = await self._model_cls.objects.filter(session_key=self.session_key).afirst()
             session_id = obj.pk if obj else None
+        data = self.get_session_data()
+        if inspect.isawaitable(data):
+            data = await data
         return self._model_cls(
             id=session_id,
-            **self.get_session_data()
+            **data
         )
 
-    def db_save(self, must_create=False, force: bool = True) -> bool:
+    def db_save(self, must_create=False, force: bool = True):
         if self.session_key is None:
             return self.create()
         obj = self.load_object(must_create)
         obj.save(force_insert=must_create, force_update=not must_create and force)
 
-    @awaitable(db_save)
-    async def db_save(self, must_create=False, force: bool = True) -> bool:
+    # @awaitable(db_save)
+    async def adb_save(self, must_create=False, force: bool = True):
         if self.session_key is None:
-            return await self.create()
+            return await self.acreate()
         obj = await self.aload_object(must_create)
         await obj.asave(force_insert=must_create, force_update=not must_create and force)
 
     def save(self, must_create: bool = False):
         return self.db_save(must_create)
 
-    @awaitable(save)
-    async def save(self, must_create: bool = False):
-        return await self.db_save(must_create)
+    # @awaitable(save)
+    async def asave(self, must_create: bool = False):
+        return await self.adb_save(must_create)
 
     def db_delete(self, session_key=None):
         if session_key is None:
@@ -121,8 +133,8 @@ class DBSessionSchema(BaseSessionSchema):
         self._model_cls.objects.filter(
             session_key=session_key, deleted_time=None).update(deleted_time=time_now())
 
-    @awaitable(db_delete)
-    async def db_delete(self, session_key=None):
+    # @awaitable(db_delete)
+    async def adb_delete(self, session_key=None):
         if session_key is None:
             if self.session_key is None:
                 return
@@ -133,9 +145,9 @@ class DBSessionSchema(BaseSessionSchema):
     def delete(self, session_key: str = None):
         return self.db_delete(session_key)
 
-    @awaitable(delete)
-    async def delete(self, session_key: str = None):
-        return await self.db_delete(session_key)
+    # @awaitable(delete)
+    async def adelete(self, session_key: str = None):
+        return await self.adb_delete(session_key)
 
     def load(self):
         if not self._session_key:
@@ -151,6 +163,7 @@ class DBSessionSchema(BaseSessionSchema):
 
 class DBSession(SchemaSession):
     DEFAULT_ENGINE = DBSessionSchema
+    schema = DBSessionSchema
 
     def __init__(self, session_model: Type['AbstractSession'], **kwargs):
         super().__init__(**kwargs)

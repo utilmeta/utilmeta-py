@@ -14,3 +14,7 @@ class ArticleSchema(orm.Schema[Article]):
 class ArticleAPI(api.API):
     async def get(self, id: int) -> ArticleSchema:
         return await ArticleSchema.ainit(id)
+
+    # @api.get
+    # async def exists(self, id: int) -> bool:
+    #     return await Article.objects.filter(id=id).aexists()

@@ -2,13 +2,13 @@
 
 In this case, we will use UtilMeta to build an API to provide user registration, login, query and modify information, which is the standard of most applications. We will also learn how to use UtilMeta to handle database query and authentication.
 
-!!! Abstract “Tech Stack”
+!!! abstract "Tech Stack"
 
 	* Using Django as an HTTP and ORM backend
 	* Use SQLite as the database
 	* Use Session to handle the user’s login status
 
-## 1. Create a project
+## 1. Create project
 
 We use the `meta setup` command to create a new project.
 ```shell
@@ -65,7 +65,7 @@ service.use(DjangoSettings(
 
 So far, we have completed the configuration and initialization of the project.
 
-## 2. Write the user model
+## 2. Write user model
 
 The user’s login registration API, of course, revolves around the “user”. Before developing the API, we first write the user’s data model. We open `user/models.py` and write
 ```python
@@ -89,7 +89,7 @@ It can be seen that in addition to the User model, we have also written a Sessio
 
 !!! tip “PasswordField”
 
-### Initialize the database
+### Connect database
 
 After we write the data model, we can use the migration command provided by Django to easily create the corresponding data table. Since we use SQLite, we do not need to install the database software in advance. We only need to run the following two commands to complete the creation of the database.
 
@@ -108,7 +108,7 @@ Running migrations:
 
 The database migration command creates a `db` SQLite database named in the project folder according to `server.py` the database configuration in, in which the User and Session models have been tabulated
 
-## 3. Configure Session and user authentication
+## 3. Session and Authentication
 
 After writing the model related to user authentication, we can start to develop the logic related to authentication. We create a `auth.py` new file in the user folder and write the configuration of Session and user authentication.
 ```python
@@ -156,9 +156,9 @@ In addition, we also declare the `user_config` user authentication configuration
 *  `login_fields`: Fields that can be used for login, such as user ID, mailbox, etc., need to be unique.
 *  `password_field`: The user’s password field. Declaring these allows UtilMeta to automatically handle the login verification logic for you.
 
-## 4. Write the user API
+## 4. Write user API
 
-### Register the interface
+### Signup API
 
 First, we will write the user registration interface. The registration interface should receive the user name and password fields, complete the registration after verifying that the user name is not occupied, and return the newly registered user data.
 
@@ -204,7 +204,7 @@ The logic in the registration interface I
 
 In addition, we find that this decorator plug-in is applied `@auth.session_config.plugin` to the UserAPI class. This is the way the Session configuration is applied to the API. This plug-in can save and process the Session data updated by the request after each request.
 
-### Login Logout Interface
+### Login & Logout API
 
 Next, we write the user’s login and logout interfaces.
 
@@ -250,7 +250,7 @@ For the logout interface, we just need to get the current session and empty the 
 
 !!! tip
 
-### Acquisition and update of user information
+### Get & Update user data
 
 When we understand the usage of Schema Query, it is very simple to write the interface for obtaining and updating user information, as follows
 ```python
@@ -295,7 +295,7 @@ Since we can’t allow the requesting user to arbitrarily specify the user ID to
 !!! Naming and Routing of tip “API Functions
 
 At this point, our API is all developed.
-### Integration API
+### Mount API
 
 In order for the User API we developed to provide access, we need to mount it on the root API of the service. Let’s go back `server.py` and modify the declaration of the Root API.
 ```python
@@ -333,6 +333,3 @@ Quit the server with CTRL-BREAK.
 ```
 
 !!! tip
-
-### Debug API
-

@@ -264,11 +264,16 @@ class DjangoSettings(Config):
             'LANGUAGE_CODE': self.language,
             'USE_I18N': self.use_i18n,
             'DEFAULT_AUTO_FIELD': self.default_autofield or DEFAULT_AUTO_FIELD,
-            'DATABASES': databases,
-            'CACHES': caches,
+            # 'DATABASES': databases,
+            # 'CACHES': caches,
             ROOT_URLCONF: self.root_urlconf or service.module_name,
             WSGI_APPLICATION: self.wsgi_application or f'{service.module_name}.app',
         }
+
+        if databases:
+            settings.update({'DATABASES': databases})
+        if caches:
+            settings.update({'CACHES': caches})
 
         time_config = Time.config()
         if time_config:

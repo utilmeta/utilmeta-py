@@ -19,15 +19,15 @@ class UtilMeta:
         self,
         module_name: Optional[str], *,
         backend,
-        name: str = None,
+        name: str,
         title: str = None,
         description: str = None,
         production: bool = None,
         host: str = None,
         port: int = None,
         scheme: str = 'http',
-        version: tuple = None,
-        application=None,
+        version: Union[str, tuple] = None,
+        # application=None,
         info: dict = None,
         # for document generation
         background: bool = False,
@@ -62,7 +62,11 @@ class UtilMeta:
         self.background = background
         self.asynchronous = asynchronous
 
-        self.name = name or module_name
+        # print('MODULE NAME:', module_name)
+        if not name:
+            raise ValueError('UtilMeta service detect empty <name>')
+        self.name = name
+
         self.title = title
         self.description = description
         self.module_name = module_name
@@ -77,7 +81,7 @@ class UtilMeta:
         self.document = None
         # generated API document will be here
 
-        self._application = application
+        self._application = None
         self._ready = False
 
         import utilmeta
@@ -97,6 +101,8 @@ class UtilMeta:
         self.set_backend(backend)
 
         self.routes = {}
+
+        self._pool = None
 
     def set_backend(self, backend):
         if not backend:
@@ -148,6 +154,22 @@ class UtilMeta:
 
     def __str__(self):
         return self.__repr__()
+
+    @property
+    def version_str(self):
+        if isinstance(self.version, str):
+            return self.version
+        if not isinstance(self.version, tuple):
+            return '1.0'
+        parts = []
+        for i, v in enumerate(self.version):
+            parts.append(str(v))
+            if i < len(self.version) - 1:
+                if isinstance(self.version[i + 1], int):
+                    parts.append('.')
+                else:
+                    parts.append('-')
+        return ''.join(parts)
 
     def register_command(self, command_cls, name: str = None):
         from utilmeta.bin.base import BaseCommand
@@ -211,7 +233,7 @@ class UtilMeta:
     def shutdown(self):
         for cls, config in self.configs.items():
             if isinstance(config, Config):
-                config.on_startup(self)
+                config.on_shutdown(self)
         for func in self.events.get('shutdown', []):
             func()
 
@@ -309,6 +331,15 @@ class UtilMeta:
         if self.root_url:
             return self.origin + '/' + self.root_url
         return self.origin
+
+    @property
+    def pool(self):
+        from utilmeta.conf.pool import ThreadPool
+        pool = self.get_config(ThreadPool)
+        if not pool:
+            pool = ThreadPool()
+        self._pool = pool
+        return pool
 
     # def generate(self, spec: Union[str, Type['BaseAPISpec']] = DEFAULT_API_SPEC):
     #     if self.document:

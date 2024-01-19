@@ -43,7 +43,7 @@ class SanicServerAdaptor(ServerAdaptor):
         async def startup(*_):
             await self.config.startup()
 
-        @self.app.before_server_stop
+        @self.app.after_server_stop
         async def shutdown(*_):
             await self.config.shutdown()
 

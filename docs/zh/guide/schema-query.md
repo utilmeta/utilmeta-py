@@ -237,6 +237,49 @@ class ArticleSchema(orm.Schema[Article]):
 
 由一个 `orm.Schema` **实例** 调用，将其中的数据批量更新到查询集覆盖的所有记录
 
+### 调用异步方法
+
+当你调用 `orm.Schema` 的异步方法时，如 `ainit`，`asave`, `aserialize` 时，UtilMeta 底层将会实现异步的查询，一般来说，在异步 API 函数中，你应该使用 `orm.Schema` 的异步方法，比如
+
+```python hl_lines="3"
+class ArticleAPI(api.API):
+    async def get(self, id: int) -> ArticleSchema:
+        return await ArticleSchema.ainit(id)
+```
+
+但即使你在异步函数中调用了  `orm.Schema`  的同步方法，比如
+
+```python hl_lines="3"
+class ArticleAPI(api.API):
+    async def get(self, id: int) -> ArticleSchema:
+        return ArticleSchema.init(id)
+```
+
+例子中的接口仍然可以正常处理请求，但由于 Django 原生的查询引擎不支持直接在异步环境中执行，所以异步接口中的同步查询在 Django 实现上使用了线程池中的一个线程来处理
+
+虽然 UtilMeta 的声明式 ORM 会根据运行的异步环境与 ORM 引擎自动调整执行策略，但是如果你在异步函数中直接使用 Django 的同步方法查询则会出现错误，比如
+
+```python hl_lines="4"
+class ArticleAPI(api.API):
+    @api.get
+    async def exists(self, id: int) -> bool:
+        return Article.objects.filter(id=id).exists()
+```
+
+在调用时往往会得到错误
+```
+SynchronousOnlyOperation: You cannot call this from an async context 
+- use a thread or sync_to_async.
+```
+
+因为 Django 的同步查询方法使用的查询引擎是严格依赖当前线程的，你应该使用它们的异步变体（在方法名称前加上 `a`）
+```python hl_lines="4"
+class ArticleAPI(api.API):
+    @api.get
+    async def exists(self, id: int) -> bool:
+        return await Article.objects.filter(id=id).aexists()
+```
+
 ## 关系查询
 
 在查询时返回关系对象的信息是非常常见的 Web 开发需求，如返回文章时需要对应的作者信息，返回订单时需要对应的商品信息等等，这些可以统称为关系查询，UtilMeta 的声明式 ORM 可以很简洁地处理这样的查询，下面详细介绍对应的用法

@@ -235,7 +235,7 @@ def from_coroutine(level=2, _cache={}):
             return False
 
 
-def awaitable(syncfunc):
+def awaitable(syncfunc, bind_service: bool = False):
     '''
     Decorator that allows an asynchronous function to be paired with a
     synchronous function in a single function call.  The selection of
@@ -275,6 +275,15 @@ def awaitable(syncfunc):
             if from_coroutine():
                 return asyncfunc(*args, **kwargs)
             else:
+                if bind_service:
+                    try:
+                        from utilmeta import service
+                    except ImportError:
+                        pass
+                    else:
+                        if service.asynchronous:
+                            return service.pool.get_result(sync_func, *args, **kwargs)
+
                 return sync_func(*args, **kwargs)
         wrapper._syncfunc = sync_func
         wrapper._asyncfunc = asyncfunc

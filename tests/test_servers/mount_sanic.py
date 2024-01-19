@@ -24,7 +24,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
-    name='test',
+    name='mount_sanic',
     backend=sanic_app,
     api=RootAPI,
     route='/api'

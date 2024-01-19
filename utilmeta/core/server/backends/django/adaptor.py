@@ -124,6 +124,7 @@ class DjangoServerAdaptor(ServerAdaptor):
     def run(self):
         self.setup()
         if not self.background:
+            self.config.startup()
             if self.asynchronous:
                 try:
                     from daphne.server import Server
@@ -131,11 +132,15 @@ class DjangoServerAdaptor(ServerAdaptor):
                     pass
                 else:
                     print('using [daphne] as asgi server')
-                    Server(
-                        application=self.application(),
-                        endpoints=[self.daphne_endpoint],
-                        server_name=self.config.name,
-                    ).run()
+                    try:
+                        Server(
+                            application=self.application(),
+                            endpoints=[self.daphne_endpoint],
+                            server_name=self.config.name,
+                        ).run()
+                    finally:
+                        self.config.shutdown()
+                    return
 
                 try:
                     import uvicorn
@@ -143,11 +148,15 @@ class DjangoServerAdaptor(ServerAdaptor):
                     pass
                 else:
                     print('using [uvicorn] as asgi server')
-                    uvicorn.run(
-                        self.application(),
-                        host=self.config.host or self.DEFAULT_HOST,
-                        port=self.config.port or self.DEFAULT_PORT,
-                    )
+                    try:
+                        uvicorn.run(
+                            self.application(),
+                            host=self.config.host or self.DEFAULT_HOST,
+                            port=self.config.port or self.DEFAULT_PORT,
+                        )
+                    finally:
+                        self.config.shutdown()
+                        return
 
             if self.config.production:
                 server = 'asgi (like uvicorn/daphne)' if self.asynchronous else 'wsgi (like uwsgi/gunicorn)'
@@ -155,7 +164,11 @@ class DjangoServerAdaptor(ServerAdaptor):
             else:
                 if self.asynchronous:
                     raise ValueError(f'django debug runserver does not support asgi, please use an asgi server')
-                self.runserver()
+                try:
+                    self.runserver()
+                finally:
+                    self.config.shutdown()
+                    return
         else:
             pass
 
@@ -173,4 +186,5 @@ class DjangoServerAdaptor(ServerAdaptor):
         if 'runserver' in argv:
             if not self.config.auto_reload:
                 argv.append('--noreload')
+
         execute_from_command_line(argv)

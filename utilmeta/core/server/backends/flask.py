@@ -51,12 +51,16 @@ class FlaskServerAdaptor(ServerAdaptor):
 
     def run(self, **kwargs):
         self.setup()
-        self.app.run(
-            host=self.config.host or self.DEFAULT_HOST,
-            port=self.config.port,
-            debug=not self.config.production,
-            **kwargs
-        )
+        self.config.startup()
+        try:
+            self.app.run(
+                host=self.config.host or self.DEFAULT_HOST,
+                port=self.config.port,
+                debug=not self.config.production,
+                **kwargs
+            )
+        finally:
+            self.config.shutdown()
 
     def add_api(self, app: Flask, utilmeta_api_class, route: str = '', asynchronous: bool = False):
         """

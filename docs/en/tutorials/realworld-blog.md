@@ -9,7 +9,7 @@ Don’t worry, the UtilMeta code that does all of the above is less than 600 lin
 
 !!! tip
 	We will implement the APIs based on [Realworld API Docs](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints), The code of this tutorial is in [this Github repo](https://github.com/utilmeta/utilmeta-py-realworld-example-app)
-## 1. Create a project
+## 1. Create project
 
 ### Installation dependency
 
@@ -24,7 +24,7 @@ pip install utilmeta starlette django databases[aiosqlite]
 	* Use `SQLite` as the database
 	* User authentication using `JWT`
 
-### Create a project
+### setup project
 
 Create a new UtilMeta project using the following command
 
@@ -71,9 +71,9 @@ Of these, we propose to organize the
 
 ## 2. Write the data model
 
-For an API system like blog, which focuses on the addition, deletion, modification and query of data, we often start to develop from the data model. Through the [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints) analysis, we can conclude that we need to write user, article, comment and other models.
+For an API system like blog, which focuses on the addition, deletion, modification and query of data, we often start to develop from the data model. In the [API Specs](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints), we can conclude that we need to write user, article, comment and other models.
 
-### Create a domain application
+### Create an application
 
 Since we use Django as the underlying ORM implementation, we organize our project the way Django organizes apps, and we can simply divide the blog project into two domain applications: [user] and [post].
 
@@ -121,7 +121,7 @@ class User(AwaitableModel):
 
 !!! tip
 
-### Article and Review Model
+### Article & Comment Model
 
 We follow the [ API Documentation: Article](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format/#single-article) model of writing articles and comments, open `domain/article/models.py` and write.
 ```python
@@ -159,7 +159,7 @@ class Comment(BaseContent):
 
 !!! Tip “Model Inheritance”
 
-### Add a relationship model
+### Add m2m model
 
 The blog project needs to record the following relationship between users and the liking relationship between users and articles, so we need to add `Favorite` and `Follow` intermediate table model to record the relationship between users, and articles.
 
@@ -214,7 +214,7 @@ At the same time, the corresponding many-to-many relationship fields `followers`
 
 !!! tip
 
-### Access the database
+### Migrate to database
 
 After writing the data model, we can use the migration command provided by Django to easily create the corresponding data table. Since we are using SQLite, we do not need to install the database software in advance. We only need to run the following two commands in the project directory to complete the creation of the database.
 
@@ -252,10 +252,10 @@ service.use(DatabaseConnections({
 
 This code is used to declare the connection configuration of the database.
 
-## 3. Develop user interface and authentication
+## 3. User APIs and Authentication
 
 The Realworld blog project needs to use JWT as a means of request authentication, handling user login and identifying the user of the current request.
-### Implement JWT authentication
+### JWT authentication
 
 The built-in authentication component of UtilMeta already has the implementation of JWT authentication. We only need to declare the corresponding parameters to obtain the JWT authentication capability. We create a file named `auth.py` in the `config` folder and write the configuration related to authentication.
 
@@ -292,7 +292,7 @@ For any interface that requires a user login to access, you can declare `user: U
 
 !!! tip
 
-#### Environment variable management
+#### Environment variables
 
 Important keys like `JWT_SECRET_KEY` this are generally not hard-coded into the code, but defined using environment variables. UtilMeta provides a set of environment variable definition templates that we can open `config/env.py` and write.
 
@@ -309,11 +309,11 @@ env = ServiceEnvironment(sys_env='CONDUIT_')
 
 In this way, we can define the key of JWT in the variable of the `CONDUIT_JWT_SECRET_KEY` runtime environment and use `env.JWT_SECRET_KEY` access.
 
-### User authentication API
+### User API
 
 For users, we need to implement the user’s registration, login, query and update the current user data interface, which is actually consistent with the method of the previous tutorial [ Write user login registration API ](tutorials/user-auth), and we will directly show the corresponding code.
 
-=== “domain/user/api.py”
+=== "domain/user/api.py"
 	```python
 	from utilmeta.core import response, request, api, orm
 	from config.auth import API
@@ -361,7 +361,7 @@ For users, we need to implement the user’s registration, login, query and upda
 	        return await UserSchema.ainit(user_inst)
 	```
 	
-=== “domain/user/schema.py”
+=== "domain/user/schema.py"
 	```python
 	from utilmeta.core import orm
 	from .models import User, Follow
@@ -391,7 +391,7 @@ For users, we need to implement the user’s registration, login, query and upda
 
 The Authentication API we wrote inherits from the API class defined earlier `config/auth.py` in, and in the user-registered `post` interface, After the user is registered, the method is used `self.user_config.login_user` to directly log the user into the current request (that is, generate the corresponding JWT Token and then update the user `token`’s field).
 
-In addition, due to [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#users-for-authentication) the requirement of the request and response body structure in, we declare that the request body parameter is `request.BodyParam` used, so that the parameter name `user` will be used as the corresponding template key. Our response also uses the template key specified `'user'` as the result in `result_key` the response template, so the structure of the request and response of the user interface is consistent with the document.
+In addition, due to [API Specs](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#users-for-authentication) the requirement of the request and response body structure in, we declare that the request body parameter is `request.BodyParam` used, so that the parameter name `user` will be used as the corresponding template key. Our response also uses the template key specified `'user'` as the result in `result_key` the response template, so the structure of the request and response of the user interface is consistent with the document.
 
 ```json
 {
@@ -406,9 +406,9 @@ In addition, due to [API 文档](https://realworld-docs.netlify.app/docs/specs/b
 ```
 
 ### Profile API
-According to [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#get-profile), the Realworld blog project also needs to develop a Profile interface to get user details, follow and unfollow
+According to [API Specs](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#get-profile), the Realworld blog project also needs to develop a Profile interface to get user details, follow and unfollow
 
-=== “domain/user/api.py”
+=== "domain/user/api.py"
 	```python
 	# new +++
 	from .schema import ProfileSchema
@@ -448,7 +448,7 @@ According to [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-
 	            raise exceptions.NotFound(f'profile({repr(self.username)}) not found')
 	        self.profile = profile
 	```
-=== “domain/user/schema.py”
+=== "domain/user/schema.py"
 	```python
 	class ProfileSchema(UserBase):
 		following: bool = False
@@ -474,7 +474,7 @@ First `domain/user/api.py`, In, the Profile API reuses the path parameter `usern
 
 !!! Tip “hook function”
 
-In addition, for the Profile object [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#profile) to be returned by the interface, it needs to return a dynamic field `following` that is not a user model. This field should return whether **The user of the current request** followed the target user, so its query expression cannot be written directly in the Schema class
+In addition, for the Profile object [API Specs](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#profile) to be returned by the interface, it needs to return a dynamic field `following` that is not a user model. This field should return whether **The user of the current request** followed the target user, so its query expression cannot be written directly in the Schema class
 
 Therefore `domain/user/schema.py`, in, we `ProfileSchema` define a dynamic query function `get_runtime`, pass in the user of the current request, generate the corresponding query expression according to the requesting user, and then return a new class
 
@@ -487,9 +487,9 @@ class ProfileAPI(API):
         return await ProfileSchema.get_runtime(user).ainit(self.profile)
 ```
 
-## 4. Develop article and comment interface
+## 4. Article & Comment APIs
 
-### Article interface structure
+### Article API structure
 
 Based on [ API Documentation | Article Interface ](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#get-article) the definition of the section, we can first develop the basic structure of the interface.
 ```python
@@ -551,7 +551,7 @@ class ArticleAPI(API):
 
 !!! tip
 
-### Write the article Schema
+### Write Article Schema
 
 The article interface we write needs to add, delete, modify and query around the article data. At this time, we can use the Schema query of UtilMeta to complete it easily. You only need to write a simple class to declare the template you need and use it directly. Let’s take the article as an example.
 ```python
@@ -584,22 +584,22 @@ class ArticleSchema(orm.Schema[Article]):
 
 In the Schema class we wrote, there are many kinds of fields, and we will explain them one by one.
 
-*  `author`: ** Relational Schema field **, it is a foreign key field, and uses a type declaration to specify another Schema class. When querying, `author` it will query out the information of the author and user of the article according to the declaration of ProfileSchema.
+*  `author`: **Relational object**, it is a foreign key field, and uses a type declaration to specify another Schema class. When querying, `author` it will query out the information of the author and user of the article according to the declaration of ProfileSchema.
 
 !!! Tip “Relational Query Field”
 
-* ** Multi-level relation query field ** `tag_list` Sometimes you just need to query out a field in a relational table, and you can use this usage. This field declares `orm.Field('tags.name')` that it will query along `tags` the path of- `name`. The final query is the name list of the tag corresponding to the article.
+* `tag_list`：**Multi-level relation field**，Sometimes you just need to query out a field in a relational table, and you can use this usage. This field declares `orm.Field('tags.name')` that it will query along `tags` the path of- `name`. The final query is the name list of the tag corresponding to the article.
 
-*  `favorites_count`: ** Expression field **: Remember the `favorites = models.ManyToManyField('article.Article', related_name='favorited_bys')` fields you declared in the User model? You can flexibly use these relation names or inverse relations to create expression fields `favorites_count` using `models.Count('favorited_bys')` the query [number of users who liked the article].
+*  `favorites_count`: **Expression field**: Remember the `favorites = models.ManyToManyField('article.Article', related_name='favorited_bys')` fields you declared in the User model? You can flexibly use these relation names or inverse relations to create expression fields `favorites_count` using `models.Count('favorited_bys')` the query [number of users who liked the article].
 
 Also for the `tag_list` and `favorites_count` fields, we use `alias` parameters to give them real names for input and output.
 
 #### Field mode
 You can see that in the above example, many fields specify `mode` this parameter. `mode` The parameter can be used to declare the applicable mode (scenario) of a field, so that it can show different behaviors in different scenarios. The commonly used scenarios in the addition, deletion, modification and query of data are
 
-*  `'r'`: **Inquire**: returned as the result of a database query
-*  `'w'`: ** Update **: An existing record in the database needs to be updated as requested data
-*  `'a'`: ** Create **: As the requested data, a new record needs to be created in the database
+*  `'r'`: **Read/Retrieve**: returned as the result of a database query
+*  `'w'`: **Write/Update**: An existing record in the database needs to be updated as requested data
+*  `'a'`: **Add/Create**: As the requested data, a new record needs to be created in the database
 
 You can combine pattern letters to indicate that a field supports multiple patterns. By default, UtilMeta will automatically assign a pattern based on the nature of the model field.
 
@@ -656,9 +656,9 @@ class ArticleSchema(orm.Schema[Article]):
 
 We write a `get_runtime` class function that takes the user’s ID as input to generate the corresponding query field, so that we can use `ArticleSchema.get_runtime(user_id)` this way to dynamically obtain the Schema class in the API function.
 
-### Article query interface
+### Article Query API
 
-We can [查询文章列表 API](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints/#list-articles) use UtilMeta as an example of how to write a query interface.
+We can [Article list API](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints/#list-articles) use UtilMeta as an example of how to write a query interface.
 ```python
 class MultiArticlesResponse(response.Response):
     result_key = 'articles'
@@ -709,7 +709,7 @@ Because the interface needs to return the total number of articles queried, in t
 }
 ```
 
-#### Using hooks to multiplex interface logic
+#### Using hooks to reuse logic
 
 Reading the API interface documentation in the article section, we can see that there are many interfaces with repetitive logic, such as
 
@@ -782,7 +782,7 @@ We defined several hook functions in our example.
 * A preprocessing hook that is executed before the article interface is `gen_tags` created or updated. A series of tag instances are generated by parsing the fields of the ArticleSchema `tag_list` and stored in a `self.tags` property.
 *  `handle_response`: a response processing hook defined with `@api.after` a decorator, executed after manipulating or creating an interface for a single article object, where the article object is relationally assigned if an instance of `tags` hook generation is detected `gen_tags`, And the `self.article` instance is serialized using dynamic subclasses of ArticleSchema and returned
 
-### Comment interface
+### Comment API
 
 Next, we develop the comment interface, from [ API documentation for the comment interface](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#add-comments-to-an-article) which we can see that the comment interface starts with `/api/articles/:slug/comments` the path, and the path is located in the subdirectory of the article interface, that is to say, the API class of the comment interface needs to be mounted on the API class of the article interface. We `domain/article/api.py` add the code for the comment interface in the
 
@@ -864,8 +864,8 @@ The path parameter in `{slug}` the comment interface path is the path parameter 
 
 !!! Tip “API Public Parameters”
 
-You can [这里](https://github.com/utilmeta/utilmeta-py-realworld-example-app/blob/master/conduit/domain/article/api.py) browse the complete sample code of the post and comment interface.
-## 5. Interface integration and error handling
+You can [this](https://github.com/utilmeta/utilmeta-py-realworld-example-app/blob/master/conduit/domain/article/api.py) browse the complete sample code of the post and comment interface.
+## 5. Mount API and handle errors
 
 We have written all the interfaces, and then we just need to integrate them according to the documentation. We use the API class mounting method to give the path to the written API interface, and open `service/api.py` the root API code.
 ```python
@@ -1047,7 +1047,7 @@ configure(service)
 	('127.0.0.1', 8000): 通常每个套接字地址(协议/网络地址/端口)只允许使用一次。
 	```
 
-### Blog front end
+### Blog frontend
 Front-end development and deployment of blogs does not fall into the category of UtilMeta, but the tutorial here simply demonstrates how to install and run the front-end code of the blog project in the case locally, so that you can use and debug your API directly.
 
 !!! tip

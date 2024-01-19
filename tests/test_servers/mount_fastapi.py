@@ -23,6 +23,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
+    name='mount_fastapi',
     backend=fastapi_app,
     api=RootAPI
 )

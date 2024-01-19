@@ -1,4 +1,4 @@
-# Handle request parameters
+# Request Parameters
 
 API requests can carry parameter information in a number of ways, such as
 

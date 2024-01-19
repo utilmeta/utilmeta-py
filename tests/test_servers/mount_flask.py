@@ -17,6 +17,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
+    name='mount_flask',
     backend=flask_app,
     api=RootAPI,
     route='/api'

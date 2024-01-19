@@ -130,8 +130,10 @@ class TornadoServerAdaptor(ServerAdaptor):
         app = self.setup()
         app.listen(self.config.port or self.DEFAULT_PORT)
         await self.config.startup()
-        await asyncio.Event().wait()
-        await self.config.shutdown()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            await self.config.shutdown()
 
     def setup(self):
         if self.app:

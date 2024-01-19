@@ -119,7 +119,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         self.clear_pks()
         return self.values
 
-    @awaitable(get_values)
+    @awaitable(get_values, bind_service=True)
     async def get_values(self):
         if self.queryset.query.is_empty():
             return []
@@ -636,7 +636,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             self.queryset.update(**data)
         return self.queryset
 
-    @awaitable(commit_data)
+    @awaitable(commit_data, bind_service=True)
     async def commit_data(self, data: dict):
         data = self.process_data(data)
         for p in {PK, ID, *self.parser.pk_names}:
@@ -644,7 +644,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             if pk is not None:
                 self.queryset = self.queryset.filter(pk=pk)
         if data:
-            await self.queryset.update(**data)
+            await self.queryset.aupdate(**data)
         return self.queryset
 
     def save_data(self, data, must_create: bool = False, must_update: bool = False):
@@ -687,7 +687,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     pk = obj.pk
             return pk
 
-    @awaitable(save_data)
+    @awaitable(save_data, bind_service=True)
     async def save_data(self, data, must_create: bool = False, must_update: bool = False):
         if multi(data):
             # TODO: implement bulk create/update

@@ -145,6 +145,22 @@ class TestSchemaQuery:
         assert user.top_articles[0].views == 103
 
     @pytest.mark.asyncio
+    async def test_async_init_users_with_sync_query(self):
+        # for django, it requires bind_service=True in @awaitable
+        from app.schema import UserSchema
+        from app.models import User
+        user = UserSchema.init(
+            User.objects.filter(
+                username='alice',
+            )
+        )
+        assert user.pk == 1
+        assert user.followers_num == 2
+        assert user.sum_views == 103
+        assert user.top_articles[0].author_tag["name"] == "alice"
+        assert user.top_articles[0].views == 103
+
+    @pytest.mark.asyncio
     async def test_async_serialize_articles(self):
         from app.schema import ArticleSchema
         from app.models import Article

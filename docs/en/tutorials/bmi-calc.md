@@ -17,7 +17,7 @@ Then you will be prompted to enter the description of the project, URL and other
     meta.ini
 ```
 
-## 2. Write the basic API implementation
+## 2. Basic implementation
 
 When we open it `server.py`, we can see that there is already a class named `RootAPI`
 
@@ -62,7 +62,7 @@ This example is simple enough, but it also has some areas that can be optimized,
 * The size of the requested parameter value was not verified. An error will occur if the parameter `height` is 0. There is no meaning if the parameter is negative.
 * The number is returned directly as a result, and the normal practice is to use a JSON to return it.
 
-## 3. Optimize request processing and respond
+## 3. Add params & response
 
 Combined with the optimizations mentioned above, let’s make some improvements to the API.
 
@@ -113,7 +113,7 @@ When we restart the project and visit [http://127.0.0.1:8000/api/bmi?weight=70&h
 {"value": 20.45, "level": 1}
 ```
 
-### View the automatically generated API documentation
+### Auto-generated OpenAPI docs
 
 UtilMeta can automatically generate API documentation for you based on the interface declaration you write. We just need to mount the API that generates the documentation on the RootAPI to access it.
 

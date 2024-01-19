@@ -59,7 +59,9 @@ class Env(Schema):
             except ValueError as e:
                 raise ValueError(f'{self.__class__}: file: {repr(self._file)} invalid line: {repr(line)}, '
                                  f'should be <KEY>=<VALUE>') from e
-            if key and value:
+            key = str(key).strip()
+            value = str(value).strip()
+            if key:
                 data[key] = value
         return data
 

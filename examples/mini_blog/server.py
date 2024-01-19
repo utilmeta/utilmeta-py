@@ -1,12 +1,13 @@
 from utilmeta import UtilMeta
 from utilmeta.core import api
 from config import configure
-import starlette
+import fastapi
 
 service = UtilMeta(
     __name__,
     name='blog',
-    backend=starlette,
+    backend=fastapi,
+    asynchronous=True,
     port=8002
 )
 configure(service)

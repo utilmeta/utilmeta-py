@@ -1,6 +1,6 @@
 # Migrate from current project
 
-UtilMeta is a ** Progressive ** meta-framework, which means that it can be accessed incrementally from existing Python projects, and can also integrate interfaces from other Python framework projects. This document will introduce the corresponding usage.
+UtilMeta is a **Progressive** meta-framework, which means that it can be accessed incrementally from existing Python projects, and can also integrate interfaces from other Python framework projects. This document will introduce the corresponding usage.
 
 ## Integrate UtilMeta to current project
 

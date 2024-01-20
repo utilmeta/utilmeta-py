@@ -74,6 +74,8 @@ Press CTRL+C to quit
 首先我们使用 `utype.Param` 增加对输入参数校验规则的声明，如
 
 ```python
+import utype
+
 class RootAPI(api.API):
     @api.get
     def bmi(self,

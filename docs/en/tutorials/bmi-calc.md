@@ -3,13 +3,13 @@
 Our introductory tutorial is to write a simple BMI calculation API, which calculates the corresponding BMI value according to the input height and weight.
 ## 1. Create project
 
-Create our project directly using `meta setup` the command
+We can create a project directly using
 
 ```
 meta setup demo-bmi
 ```
 
-Then you will be prompted to enter the description of the project, URL and other information, you can choose to skip, after completion, you will get the following file structure
+Then you will be prompted to enter the description, host and other information, you can choose to skip, after that, you will get the following file structure
 
 ```
 /bmi
@@ -17,9 +17,13 @@ Then you will be prompted to enter the description of the project, URL and other
     meta.ini
 ```
 
+!!! abstract ""
+	`server.py` is your file with backend code, while `meta.ini` is a config file to store the project meta-data
+
+
 ## 2. Basic implementation
 
-When we open it `server.py`, we can see that there is already a class named `RootAPI`
+Open `server.py`, we can see that there is already a class named `RootAPI`
 
 ```python
 class RootAPI(api.API):
@@ -28,7 +32,7 @@ class RootAPI(api.API):
         return 'world'
 ```
 
-Here you can see the simplest UtilMeta API, which uses a `@api.get` decorator to indicate that it is a GET method. The decorator does not specify a path, so the path to the interface is the name of the function.
+Here you can see the simplest UtilMeta API, which uses a `@api.get` decorator to indicate that it is a GET method. The decorator does not specify a path, so the path of the API is the name of the function (`/hello`).
 
 We write the BMI calculation API as follows
 ```python
@@ -38,37 +42,38 @@ class RootAPI(api.API):
          return round(weight / height ** 2, 1)
 ```
 
-The parameters `weight` and `height` that we add in the `bmi` function will be processed as query parameters by default, which can be calculated in the function and returned directly. UtilMeta will process the wrapping and return of the HTTP response.
+The parameters `weight` and `height` in the `bmi` function will become query parameters by default, which can be calculated in the function and returned directly. UtilMeta will wrap the return value to a HTTP response
 
 We can run this file directly to start the API service.
 ```shell
 python server.py
 ```
 
-When you see the following prompt, it means that the startup is successful
+When you see the following info, it means that the startup is successful
 ```
 Running on http://127.0.0.1:8000
 Press CTRL+C to quit
 ```
 
-Then we can directly use the browser access [http://127.0.0.1:8000/api/bmi?weight=70&height=1.85](http://127.0.0.1:8000/api/bmi?weight=70&height=1.85) to call the API, and we can see that the API returns.
+Then we can use our browser to open [http://127.0.0.1:8000/api/bmi?weight=70&height=1.85](http://127.0.0.1:8000/api/bmi?weight=70&height=1.85) to call the API, and we can see that the API returns
 ```json
 20.5
 ```
 
-
 This example is simple enough, but it also has some areas that can be optimized, such as
 
-* The size of the requested parameter value was not verified. An error will occur if the parameter `height` is 0. There is no meaning if the parameter is negative.
+* The limitation of the requested parameter value was not verified. An error will occur if the parameter `height` is 0. and there is no meaning if the parameter is negative.
 * The number is returned directly as a result, and the normal practice is to use a JSON to return it.
 
 ## 3. Add params & response
 
 Combined with the optimizations mentioned above, let’s make some improvements to the API.
 
-First, we `utype.Param` add a declaration of validation rules for input parameters, as shown in
+First, we use `utype.Param` to add a declaration of validation rules for input parameters, as shown in
 
 ```python
+import utype
+
 class RootAPI(api.API):
     @api.get
     def bmi(self,
@@ -82,7 +87,7 @@ In the above function, we declared that the `weight` parameter needs to be great
 !!! abstract "utype"
 	UtilMeta is based on `utype` to declare and parse params, you can discover more usage of validation ruls in [this doc](https://utype.io/references/rule/)
 
-In addition, for the return result, we can use a JSON to return the value of BMI and the corresponding rating. In order to make the response also integrated into the API document, we can use `utype.Schema` to define the format of the response, such as
+For the return result, we can use a JSON to return the BMI value and classification. In order to make the response also integrated into the API document, we can use `utype.Schema` to define the format of the response, such as
 ```python
 from utilmeta.core import api
 import utype
@@ -106,7 +111,7 @@ class RootAPI(api.API):
         return BMISchema(value=weight / height ** 2)
 ```
 
-In BMISchema, we declare an `level` additional attribute `value` to calculate the corresponding BMI level, which `level` will also be output as a field. The BMISchema instance returned by the interface will be directly processed by UtilMeta into a JSON format response to the client.
+In `BMISchema`, we declare the `level` property, using `value` to calculate the corresponding BMI level, which will also be output as a field. The `BMISchema` instance returned by the API will be directly processed by UtilMeta into a JSON format response to the client.
 
 When we restart the project and visit [http://127.0.0.1:8000/api/bmi?weight=70&height=1.85](http://127.0.0.1:8000/api/bmi?weight=70&height=1.85) again, we can see the following return result
 ```json
@@ -117,7 +122,7 @@ When we restart the project and visit [http://127.0.0.1:8000/api/bmi?weight=70&h
 
 UtilMeta can automatically generate API documentation for you based on the interface declaration you write. We just need to mount the API that generates the documentation on the RootAPI to access it.
 
-We chose the most widely used OpenAPI specification document to mount on the Root API using the following method
+you can mount an API to return the OpenAPI docs in json format, like
 ```python
 from utilmeta.core.api.specs.openapi import OpenAPI
 

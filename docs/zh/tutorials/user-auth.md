@@ -148,7 +148,7 @@ user_config = auth.User(
 在这段代码中，SessionSchema 是处理和存储 Session 数据的核心引擎，`session_config` 是声明 Session 配置的组件，定义了我们刚编写的 Session 模型以及引擎，并且配置了相应的 Cookie 策略
 
 !!! tip
-	为了简化案例，我们选择了基于数据库的 Session 实现（DBSession），实际开发中，我们常常使用 Redis 等缓存作为 Session 的存储实现，或者使用 缓存+数据库 的方式，这些实现方式 UtilMeta 都支持
+	为了简化案例，我们选择了基于数据库的 Session 实现（DBSession），实际开发中，我们常常使用 Redis 等缓存作为 Session 的存储实现，或者使用 缓存+数据库 的方式，这些实现方式 UtilMeta 都支持，你可以在 [Session 鉴权文档](../../guide/auth/#session) 中找到更多的使用方式
 
 
 另外在代码中我们也声明了 `user_config` 用户鉴权配置，其中的参数
@@ -203,10 +203,10 @@ class UserAPI(api.API):
 3. 为当前请求使用 `login_user` 方法登录新注册的用户
 4. 使用 `UserSchema.init(data.pk)` 将新用户的数据初始化为 UserSchema 实例后返回
 
-!!! abstract "Schema Query"
-	UtilMeta 开发了一套高效的声明式 ORM 查询体系，可以称为 Schema Query, 我们在声明 Schema 类时便使用 `orm.Schema[User]` 绑定了模型，这样我们就可以通过  Schema 类的方法来实现数据的增删改查了
+!!! abstract "声明式 ORM"
+	UtilMeta 开发了一套高效的声明式 ORM 查询体系，也可以称为 Schema Query, 我们在声明 Schema 类时便使用 `orm.Schema[User]` 绑定了模型，这样我们就可以通过  Schema 类的方法来实现数据的增删改查了，你可以在 [数据查询与 ORM 文档](../../guide/schema-query) 中查看它的更多用法
 
-另外我们发现在 UserAPI 类被施加了 `@auth.session_config.plugin` 这一装饰器插件，这是 Session 配置应用到 API 上的方式，这个插件能在每次请求结束后对请求所更新的 Session 数据进行保存处理
+另外我们发现在 UserAPI 类被施加了 `@auth.session_config.plugin` 这一装饰器插件，这是 Session 配置应用到 API 上的方式，这个插件能在每次请求结束后对请求所更新的 Session 数据进行保存，并返回对应的 `Set-Cookie`
 
 ### 登录登出接口
 
@@ -246,7 +246,7 @@ class UserAPI(api.API):
         session.flush()
 ```
 
-在登录接口中，我们直接调用了鉴权配置中的 `login()` 方法来完成登录，由于我们已经配置好了登录字段与密码字段，UtilMeta 可以字段帮我们完成密码校验与登录，如果成功登录，便返回相应的用户实例
+在登录接口中，我们直接调用了鉴权配置中的 `login()` 方法来完成登录，由于我们已经配置好了登录字段与密码字段，UtilMeta 可以自动帮我们完成密码校验与登录，如果成功登录，便返回相应的用户实例
 所以当返回为空时，我们便抛出错误返回登录失败，而成功登录后，我们调用 `UserSchema.init` 放将登录的用户数据返回给客户端
 
 !!! tip
@@ -255,7 +255,7 @@ class UserAPI(api.API):
 而对于登出接口，我们只需拿到当前的 session，并将其中的数据清空即可，我们这里调用的是 `session.flush()` 清空数据 
 
 !!! tip
-	在配置 Session 后，你在任意接口都可以使用代码中 `logout` 接口的方式拿到当前的 Session 数据，你得到的就是你声明的 SessionSchema 实例，你可以像操作其他 Schema 实例或者字典一样操作它
+	在配置 Session 后，你在任意接口都可以使用类似示例中的 `logout` 接口的方式拿到当前的 Session 数据，你得到的就是你声明的 SessionSchema 实例，你可以像操作其他 Schema 实例或者字典一样操作它
 
 ### 用户信息的获取与更新
 
@@ -296,18 +296,18 @@ class UserAPI(api.API):
 当我们声明了用户鉴权配置后，在任何一个需要用户登录才能访问的接口，我们都可以在接口参数中声明 `user: User = auth.user_config` 从而拿到当前请求用户的实例，如果请求没有登录，则 UtilMeta 会自动处理并返回 `401 Unauthorized`
 
 在 `get` 接口中，我们直接将当前的请求用户的数据用 `UserSchema` 初始化并返回给客户端
-在 `put` 接口中，我们将接收到 UserUpdateSchema 实例的 `id` 字段赋值当前用户的 ID，然后保存后，返回更新后的用户数据
+在 `put` 接口中，我们将当前用户的 ID 赋值给接收到 UserUpdateSchema 实例的 `id` 字段，然后保存并返回更新后的用户数据
 
 由于我们不能允许请求用户任意指定要更新的用户 ID，所以对于请求数据的 `id` 字段我们使用了 `no_input=True` 的选项，这其实也是一种常见的权限策略，即一个用户只能更新自己的信息
 
-!!! tip "API 函数的命名与路由"
+!!! tip "API 核心方法"
 	当你的函数直接使用 get/put/patch/post/delete 等 HTTP 动词进行命名时，它们就会自动绑定对应的方法，路径与 API 类的路径保持一致，这些方法称为这个 API 类的核心方法
 
 至此我们的 API 就全部开发完成了
 ### 整合 API
 
 为了使我们开发的 UserAPI 能够提供访问，我们需要把它 挂载 到服务的根 API 上，我们回到 `server.py`，修改 RootAPI 的声明
-```python
+```python  hl_lines="6"
 # new +++
 service.setup()
 from user.api import UserAPI
@@ -345,5 +345,4 @@ Quit the server with CTRL-BREAK.
 !!! tip
 	你可以通过调整 `server.py` 中的 UtilMeta 服务声明里的 `host` 和 `port` 参数来改变 API 服务监听的地址
 
-### 调试 API
 

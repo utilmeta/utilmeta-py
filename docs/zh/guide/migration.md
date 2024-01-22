@@ -209,7 +209,7 @@ if __name__ == "__main__":
 
 ## UtilMeta 项目接入其他框架接口
 
-当你的项目使用 starlette (或 FastAPI) 作为底层实现时，也可以同时接入以下框架的接口
+你的 UtilMeta 项目也可以接入其他框架开发好的接口，比如
 ### Django
 
 你可以将你编写的 Django 视图 URL 直接接入 UtilMeta 项目中，有两种方式
@@ -309,7 +309,7 @@ from settings import application as django_wsgi
 service.mount(django_wsgi, '/v1')
 ```
 
-当请求访问 `/v1/xxx` 时就会定向到 Django 的路由函数
+当请求访问 `/v1/xxx` 时就会定向到 Django 的路由视图函数
 
 ### Flask
 
@@ -357,7 +357,7 @@ if __name__ == '__main__':
 
 **使用 `starlette` (fastapi) 作为服务 `backend`**
 
-你也可以使用 `starlette` 作为 `backend` 并接入 flask 接口，只需要把 `Flask(__name__)` 的应用使用 `mount` 方法挂载即可
+你也可以使用 `starlette` 作为 `backend` 并挂载 flask 应用，只需要把 `Flask(__name__)` 的应用使用 `mount` 方法挂载即可
 
 ```python  hl_lines="13"
 import starlette

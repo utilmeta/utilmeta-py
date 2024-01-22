@@ -27,7 +27,7 @@ class RootAPI(api.API):
 我们在 `@api` 装饰器的第一个参数传入路径的模板字符串，如例子中的 `'article/{id}'`，使用花括号定义路径参数，并且在函数中声明一个同名的参数用来接收，并且可以声明期望的类型与规则
 
 定义多个路径参数的用法类似
-```python
+```python hl_lines="6"
 from utilmeta.core import api
 import utype
 from typing import Literal
@@ -63,7 +63,7 @@ class RootAPI(api.API):
 ### 路径正则表达式
 
 我们有时需要路径参数满足一定的规则，这时我们可以通过声明正则表达式轻松做到这一点，使用方式如下
-```python
+```python hl_lines="5"
 from utilmeta.core import api, request
 
 class RootAPI(API):
@@ -79,7 +79,7 @@ class RootAPI(API):
 * `request.SlugPathParam`：匹配类似 `how-to-guide` 这样由字母数据连接线组成的字符串，尝用于文章的 URL 编码中
 
 以下是一个例子
-```python
+```python hl_lines="5"
 from utilmeta.core import api, request
 
 class RootAPI(API):
@@ -192,7 +192,7 @@ class RootAPI(API):
 
 ## 请求体数据
 
-请求体数据常用于在 POST / PUT / PATCH 方法传递对象，表单或文件等数据
+请求体数据常用于在 POST / PUT / PATCH 方法传递 JSON 对象，表单或文件等数据
 
 通常在 UtilMeta 中，你可以使用 Schema 类来声明 JSON 或表单格式的请求体数据，用法如下
 ```python  hl_lines="11"
@@ -209,7 +209,7 @@ class UserAPI(api.API):
     def login(self, data: LoginSchema = request.Body):
 		pass
 ```
-我们声明了一个名为 LoginSchema 的 Schema 类，作为请求体参数的类型提示，再使用 `Request.Body` 作为参数的默认值标记这个参数是请求体参数
+我们声明了一个名为 LoginSchema 的 Schema 类，作为请求体参数的类型提示，再使用 `request.Body` 作为参数的默认值标记这个参数是请求体参数
 
 当你使用一个 Schema 类声明请求体，这个接口便拥有了处理  JSOM / XML 和表单数据的能力，比如你可以传递这样的 JSON 请求体
 ```json
@@ -225,9 +225,13 @@ class UserAPI(api.API):
 username=alice&password=123abc&remember=true
 ```
 
-* `request.Body`：基础请求体类型，只需请求体中的数据能够解析到声明的类型即可
+如果你需要限定请求体的类型（`Content-Type`），你可以使用 `request` 包提供的更多的请求体参数
+
 * `request.Json`：请求体 Content-Type 需要为 `application/json`
 * `request.Form`：请求体 Content-Type 需要为  `multipart/form-data` 或 `application/x-www-form-urlencoded`
+
+!!! tip
+	你也可以使用 `request.Body` 中的 `content_type` 字段，例如 `request.Body(content_type='application/json')`
 
 ### 列表数据
 一些如批量创建与更新等场景需要上传列表类型的请求体数据，其声明方式就是在对应的 Schema 类外加上 `List[]` ，如
@@ -246,9 +250,7 @@ class UserAPI(api.API):
 			user.save()
 ```
 
-如果客户端需要传递列表数据，需要使用 JSON （`application/json`）类型的请求体，如果客户端只传递了一个 JSON 对象或表单，那么将会被自动转化为只有这一个元素的列表
-
-在定义例子中的接口后，可以请求 `POST /api/user/batch`，传递请求体
+客户端需要使用 JSON （`application/json`）类型的请求体传递列表数据，例如
 ```json
 [{
 	"username": "alice",
@@ -258,6 +260,9 @@ class UserAPI(api.API):
 	"password": "XYZ789"
 }]
 ```
+
+!!! tip
+	如果客户端只传递了一个 JSON 对象或表单，那么将会被自动转化为只有这一个元素的列表
 
 ### 处理文件上传
 
@@ -333,7 +338,7 @@ class FileAPI(api.API):
 ```
 
 ### 字符串与其他类型数据
-如果你希望接口接受字符串等形式的请求体，也只需要将对应参数指定请求体即可，如
+如果你希望接口接受字符串等形式的请求体，也只需要为请求体指定对应的类型和 `content_type` 即可，如
 ```python
 from utilmeta.core import api, request
 
@@ -349,12 +354,12 @@ class ArticleAPI(api.API):
 
 ## 请求头参数
 
-API 请求通常会携带请求头（HTTP Headers）来传递请求的元信息，如权限凭据，协商缓存，会话 Cookie 等，除了默认的请求头外，你也可以自定义请求头，声明请求头的属性有两种
+API 请求通常会携带请求头（HTTP Headers）来传递请求的元信息，如权限凭据，缓存协商，会话 Cookie 等，除了默认的请求头外，你也使用以下两种类自定义请求头
 
 * `request.HeaderParam`：声明单个请求头参数
 * `request.Headers`：声明完整的请求头 Schema
 
-```python
+```python hl_lines="10"
 from utilmeta.core import api, request
 import utype
 
@@ -368,13 +373,13 @@ class RootAPI(api.API):
 		return [headers.auth_token, headers.meta]
 ```
 
-一般来说自定义的请求头都以 `X-` 开头，并且使用连字符 `-` 连接单词，我们使用 `alias`  参数来指定请求体参数的名称，如示例中声明的请求头参数为
+一般来说自定义的请求头都以 `X-` 开头，并且使用连字符 `-` 连接单词，我们使用 `alias`  参数来指定请求头参数的名称，如示例中声明的请求头为
 
 * `auth_token`：目标请求头名称为 `X-Auth-Token`，长度为 12 的字符串
 * `meta`：目标请求头的名称为 `X-Meta-Data`，一个能被解析为字典的对象
 
 !!! tip
-	请求头是大小写不敏感的，所以你使用  `alias='X-Auth-Token'` 或 `alias='x-auth-token'` 声明的是一样的请求头
+	请求头是 **大小写不敏感** 的，所以你使用  `alias='X-Auth-Token'` 或 `alias='x-auth-token'` 声明的是一样的请求头
 
 当请求
 ```http
@@ -390,8 +395,8 @@ X-Meta-Data: {"version":1.2}
 
 ### 通用参数
 
-常见的情况是，某个请求头需要在多个接口间复用，比如鉴权凭据，此时除了在每个接口中声明同样的参数外，UtilMeta 的 API 类提供了一种更简洁的方式：在 API 类中声明通用参数，用法如下
-```python
+常见的情况是，某个请求头需要在多个接口间复用，比如鉴权凭据，此时 UtilMeta 的 API 类提供了一种更简洁的方式：在 API 类中声明通用参数，用法如下
+```python hl_lines="5"
 from utilmeta.core import api, request
 import utype
 

@@ -1,6 +1,6 @@
 # Request Parameters
 
-API requests can carry parameter information in a number of ways, such as
+API requests can carry parameters in many ways, such as
 
 * Path parameters
 * Query parameters
@@ -10,12 +10,12 @@ API requests can carry parameter information in a number of ways, such as
 We will show you how to handle the various parameters of the request in UtilMeta.
 
 !!! tip
-	Request parameters declaration in UtilMeta is based on Python type annotation (type hints) stardard and [utype](https://utype.io), if you are not familiar with Python type annotation, you can read [utype - Types in Python](https://utype.io/guide/type/) first
+	Request parameters declaration in UtilMeta is based on Python type annotation (type hints) stardard with [utype](https://utype.io), if you are not familiar with Python type annotation, you can read [utype - Types in Python](https://utype.io/guide/type/) first
 
 ## Path parameters
 
-It is a common way to pass data in the request URL path. For example, by `GET/article/3` getting the article data with ID 3, the parameter of ID is provided in the URL path. The way to declare the path parameter in UtilMeta is as follows
-```python
+It is a common way to pass data in the request URL path. For example, use `GET/article/3` to get the article data with ID 3, the parameter of ID is provided in the URL path. The way to declare the path parameter in UtilMeta is as follows
+```python hl_lines="4"
 from utilmeta.core import api
 
 class RootAPI(api.API):
@@ -24,10 +24,10 @@ class RootAPI(api.API):
 		return {"id": id}
 ```
 
-We pass the template string of the path in `@api` the first parameter of the decorator, as in `'article/{id}'` the example, use curly braces to define the path parameter, and declare a parameter of the same name in the function to receive, and can declare the expected type and rule.
+The first parameter of the  `@api` decorator is path template string, as `'article/{id}'` in the example, use the same syntax as Python string template, and declare a parameter of the same name in the function to receive with the expected type and rules.
 
 Defining multiple path parameters is similar in usage
-```python
+```python hl_lines="6"
 from utilmeta.core import api
 import utype
 from typing import Literal
@@ -41,10 +41,10 @@ class RootAPI(api.API):
 ```
 In this example, we declare two path parameters:
 
-*  `lang`: Can only take values in `'en'` and `'zh'`
-*  `page`: is a parameter greater than or equal to 1 and defaults to 1
+*  `lang`:  take values in `'en'` and `'zh'`
+*  `page`:  is a parameter greater than or equal to 1 and defaults to 1
  
-Parameters with default values are passed in directly if they are not provided in the path, so we get the output when we request it `GET/doc/en`.
+Parameters with default values are passed in directly if they are not provided in the path, so we get the following output when we request `GET/doc/en`.
 ```json
 {"lang": "en", "page": 1}
 ```
@@ -62,7 +62,7 @@ If the request parameter does not meet the declared rules or cannot be converted
 ### Path regex
 
 Sometimes we need the path parameter to satisfy certain rules, and we can easily do this by declaring a regular expression, which is used as follows
-```python
+```python hl_lines="5"
 from utilmeta.core import api, request
 
 class RootAPI(API):
@@ -71,14 +71,14 @@ class RootAPI(API):
         return code
 ```
 
-Some common path parameter configurations are built in the UtilMeta `request` module.
+Some common path regex are built in the UtilMeta `request` module.
 
-* The `request.PathParam` default path argument rule, that is `'[^/]+'`, matches all characters except the underscore of the path
-*  `request.FilePathParam`: Matches all strings, including the path underscore. Commonly used when the path parameter needs to pass the file path, URL path, etc.
-*  `request.SlugPathParam` Matches a string such as `how-to-guide` this consisting of an alphabetic data line to be used in the URL encoding of the article.
+* `request.PathParam`: default path argument rule, that is `'[^/]+'`, matches all characters except the underscore of the path
+* `request.FilePathParam`:  Matches all strings `(.*)`, including the path underscore. Commonly used when the path parameter needs to pass the file path, URL path, etc.
+* `request.SlugPathParam`:  Matches a slug string such as `how-to-guide` to be used in the URL
 
 Here is an example.
-```python
+```python hl_lines="5"
 from utilmeta.core import api, request
 
 class RootAPI(API):
@@ -91,15 +91,15 @@ In this example, the `path` parameter gets `'path/to/README.md'` this path when 
 
 ### Declare the request path
 
-The examples above show how the UtilMeta declaration uses a template string to declare the request path, but this is not the only way.
+The examples above show how to use a template string to declare the request path, but this is not the only way.
 
-In UtilMeta, the declaration rule of the API interface request path is
+In UtilMeta, the declaration rule of the API path is
 
-* Pass the path string in `@api` the decorator as a template for the interface request path.
+* The path template string in `@api` the decorator as the request path.
 * When there is no path string, the name of the function is used as the requested path
-* When the name of a function is an HTTP verb, its path is automatically set to `'/'` and cannot be overridden
+* When the name of a function is an HTTP method, its path is automatically set to `'/'` and cannot be overridden
 
-!!! Tip “API functions”
+!!! tip "API functions"
 	`@api.<METHOD>` decorated method, or function with a HTTP-method-name (get/post/put/patch/delete) in the API classes is an API function, which provides HTTP access
 
 The following examples cover the above cases and provide a clear illustration of the path declaration rule
@@ -160,11 +160,11 @@ class RootAPI(API):
         return {cls_name: page}
 ```
 
-When you visit `GET/api/doc?class=tech&@page=3`, you will get
+When you visit `GET/api/doc?class=tech&@page=3`, you will get  `{"tech": 3}`
 
 ### Use the Schema class
 
-In addition to declaring query parameters in a function, you can also define all query parameters as a Schema class for better combination and reuse. The usage is as follows
+You can also define all query parameters as a Schema class for better combination and reuse. The usage is as follows
 ```python
 from utilmeta.core import api, request
 import utype
@@ -180,17 +180,18 @@ class RootAPI(API):
         return {"lang": query.lang, "page": query.page}
 ```
 
-In the example, we defined the query parameters `lang` `page` in `QuerySchema` and then injected them into the API function using `query: QuerySchema = request.Query`.
+In the example, we defined the query parameters `lang`  and `page` in `QuerySchema` and then injected them into the API function using `query: QuerySchema = request.Query`.
 
-In this way, you can easily reuse query parameters between interfaces using class inheritance and composition.
+In this way, you can easily reuse query parameters between APIs using class inheritance and composition.
 
 !!! warning
+	Using Schema class as query params requires to specify `request.Query` as the default value, otherwise this param will be treated as a single param in the query
 
 ## Request body
 
-Request body data is often used to pass data such as objects, forms, or files in POST/PUT/PATCH methods
+Request body data is often used to pass data such as JSON, forms, or files in POST/PUT/PATCH methods
 
-Typically in UtilMeta, you can use the Schema class to declare request body data in JSON or form format, using
+In UtilMeta, you can use the Schema class to declare request body data in JSON or form format, using
 ```python
 from utilmeta.core import api, request
 import utype
@@ -205,9 +206,9 @@ class UserAPI(api.API):
     def login(self, data: LoginSchema = request.Body):
 		pass
 ```
-We declare a Schema class called LoginSchema as a type hint for the request body parameter, and `Request.Body` mark the parameter as a request body parameter with a default value for the parameter.
+We declare a `LoginSchema` as a type annotation for the `data` param, and use `request.Body` as a default value  to mark the parameter as a request body parameter.
 
-When you use a Schema class to declare the request body, the interface has the ability to handle JSOM/XML and form data, for example, you can pass such a JSON request body.
+When you use a Schema class to declare the request body, the API has the ability to handle JSOM/XML and form data, for example, you can pass such a JSON request body.
 ```json
 {
 	"username": "alice",
@@ -216,18 +217,22 @@ When you use a Schema class to declare the request body, the interface has the a
 }
 ```
 
-You can also use `application/x-www-form-urlencode` the request body in a format similar in syntax to query parameters, such as
+You can also use the request body in `application/x-www-form-urlencode`  similar in syntax to query parameters, such as
 ```
 username=alice&password=123abc&remember=true
 ```
 
-*  `request.Body`: The underlying request body type, as long as the data in the request body can be resolved to the declared type.
+If you need to constrain `Content-Type` of the request body, you can use more request body class provided by `request`, such as 
+
 *  `request.Json`: request body Content-Type needs to be
 *  `request.Form`: request body Content-Type needs to be or
 
+!!! tip
+	You can also use the `content_type` in the `request.Body`, such as `request.Body(content_type='application/json')`
+
 ### List data
-Some scenarios, such as batch creation and update, need to upload the request body data of list type, and the declaration method is to add `List[]` it outside the corresponding Schema class, such as
-```python
+Scenarios like batch creation and update need to upload the request body data of list type, and the declaration method is to add `List[]` outside the corresponding Schema class, such as
+```python hl_lines="10"
 from utilmeta.core import api, orm, request
 from .models import User
 
@@ -242,9 +247,7 @@ class UserAPI(api.API):
 			user.save()
 ```
 
-If the client needs to pass list data, it needs to use the request body of JSON ( `application/json`) type. If the client only passes a JSON object or form, it will be automatically converted to a list with only this element.
-
-After defining the interface in the example, you can request `POST/api/user/batch` and pass the body of the request.
+Client needs to pass a list of JSON ( `application/json`) type in the request body. such as
 ```json
 [{
 	"username": "alice",
@@ -255,10 +258,13 @@ After defining the interface in the example, you can request `POST/api/user/batc
 }]
 ```
 
-### Handle file uploads
+!!! tip
+	 If the client only passes a single JSON object or form, it will be automatically converted to a list with only this element.
 
-If you need to support file upload, you just need to declare the type hint of the file field as a file. The usage is as follows
-```python
+### File uploads
+
+If you need to support file upload, you just need to declare the file param's type as a file. The usage is as follows
+```python hl_lines="7"
 from utilmeta.core import api, request, file
 import utype
 
@@ -272,19 +278,20 @@ class FileAPI(api.API):
 		pass
 ```
 
-Several common file types are provided in the `utilmeta.core.file` file that you can use to declare file parameters.
+Several common file types are provided in the `utilmeta.core.file` that you can use to declare file parameters.
 
 *  `File`: Receive files of any type
 *  `Image`: Receive picture files ( `image/*`)
 *  `Audio`: Receive audio files ( `audio/*`)
 *  `Video`: Receive video files ( `video/*`)
 
-In addition, you can use the `max_length` rule parameter to limit the size of the file. In the example, we `avatar` only accept files below 10 M.
+In addition, you can use the `max_length` parameter to limit the size of the file. In the example, we only accept `avatar` file below 10 M.
 
 !!! tip
+	For forms with files, client need to pass request body with `multipart/form-data`  content type
 
 If you need to support uploading multiple files, just add the type declaration `List[]` for the file parameter, as shown in
-```python
+```python hl_lines="8"
 from utilmeta.core import api, request, file
 import utype
 from typing import List
@@ -300,8 +307,8 @@ class FileAPI(api.API):
             f.save(f'/data/{data.name}-{i}')
 ```
 
-#### Upload the file separately
-If you want the client to use the entire binary file directly as the request body, instead of using the form nested in the form, you only need to specify the file parameter as `request.Body`, such as
+#### Upload the file only
+If you want the client to use the entire binary file directly as the request body, instead of using in the form, you only need to specify the file parameter as `request.Body`, such as
 
 ```python
 from utilmeta.core import api, request, file
@@ -314,7 +321,7 @@ class FileAPI(api.API):
         image.save(path='/data/image', name=name)
 ```
 
-### Request body parameter
+### Body parameter
 
 In addition to supporting the declaration of a complete request body Schema, you can also use `request.BodyParam` a separate declaration of fields in the request body.
 ```python
@@ -328,7 +335,7 @@ class FileAPI(api.API):
 ```
 
 ### Strings and other types of data
-If you want the interface to accept a request body in the form of a string, you only need to specify the corresponding parameter as the request body, as shown in
+If you want API to accept a request body in the form of a string, you only need to specify the corresponding type and `content_type` of the request body param, such as
 ```python
 from utilmeta.core import api, request
 
@@ -340,16 +347,16 @@ class ArticleAPI(api.API):
 	)):
 		pass
 ```
-In this function, we use `html` to specify and receive `'text/html'` the type of request body, and limit the maximum length of the upload text of the request body to 10000.
+In this function, we use `html` to specify and receive `'text/html'` request body, and limit the maximum length of the upload text to 10000.
 
-## Request header parameters
+## Request headers
 
-API requests usually carry request headers (HTTP Headers) to pass the meta-information of the request, such as permission credentials, negotiation cache, session cookies, etc. In addition to the default request headers, you can also customize the request headers. There are two kinds of attributes to declare the request headers.
+API requests usually carry request headers (HTTP Headers) to pass the meta-information of the request, such as credentials, cache negotiation , session cookies, etc. In addition to the default request headers, you can also customize the request headers in the following classes
 
 *  `request.HeaderParam`: Declare a single request header parameter
 *  `request.Headers`: Declare the complete request header Schema
 
-```python
+```python hl_lines="10"
 from utilmeta.core import api, request
 import utype
 
@@ -363,14 +370,15 @@ class RootAPI(api.API):
 		return [headers.auth_token, headers.meta]
 ```
 
-Generally speaking, the customized request header begins with `X-` and uses hyphens `-` to connect words. We use `alias` parameters to specify the name of the request body parameter. For example, the request header parameter declared in the example is
+In practice, customized header usually begins with `X-` and uses hyphens `-` to connect words. We use `alias` to specify the name of the header. For example, the request headers declared in the example is
 
-*  `auth_token`: Target request header name is `X-Auth-Token` a string of length 12
-*  `meta`: The name of the target request header is `X-Meta-Data`, an object that can be resolved to a dictionary.
+*  `auth_token`: Target request header name is `X-Auth-Token`,  a string of length 12
+*  `meta`: Target request header is `X-Meta-Data`, an object that can be resolved to a dictionary.
 
 !!! tip
+	Request headers is **case-insensitive**, so `alias='X-Auth-Token'` is same as  `alias='x-auth-token'`
 
-When the request
+When we request
 ```http
 POST /api/operation HTTP/1.1
 
@@ -380,11 +388,12 @@ X-Meta-Data: {"version":1.2}
 You’ll get `["OZ3tPOl6", {"version": 1.2}]` a response.
 
 !!! note
+	Before sending a request with a custom request header, browser will also send an `OPTIONS` request to check if the custom request header is within the range allowed by the `Access-Control-Allow-Headers` in the response. However, there is no need to worry, UtilMeta will automatically place your declared request headers in the `OPTIONS` response
 
 ### General parameters
 
-The common situation is that a request header needs to be reused among multiple interfaces, such as authentication credentials. In this case, in addition to declaring the same parameters in each interface, the API class of UtilMeta provides a more concise way: declare common parameters in the API class. The usage is as follows
-```python
+A common case is that a header needs to be reused among multiple APIs, such as authentication credentials. In this case, the API class of UtilMeta provides a concise way: declare common parameters in the API class property. The usage is as follows
+```python hl_lines="5"
 from utilmeta.core import api, request
 import utype
 
@@ -396,7 +405,7 @@ class RootAPI(api.API):
 		return self.auth_token
 ```
 
-In this way, all interfaces defined in the API class need to provide `X-Auth-Token` this request header parameter, and you can also get the corresponding value `self.auth_token` directly.
+In this way, all APIs defined in the API class need to provide `X-Auth-Token` header and you can also get the corresponding value through `self.auth_token`.
 
 ### Parse cookies
 

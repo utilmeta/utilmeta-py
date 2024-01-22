@@ -2,7 +2,7 @@
 
 ## Define the API
 
-We saw UtilMeta’s simplest API interface in Hello World.
+We learned UtilMeta’s simplest API in Hello World.
 ```python
 from utilmeta.core import api
 
@@ -12,14 +12,14 @@ class RootAPI(api.API):
         return 'world'
 ```
 
-This simple example shows two ways to declare and organize interfaces for UtilMeta.
+This simple example shows two ways to declare and organize APIs in UtilMeta.
 
-* **API Class**: Inheritance `utilmeta.core.api.API`, in which you can declare a series of API functions as interfaces, or mount other API classes to define tree-like routes.
-* **API function**: in API functions, functions decorated with `@api` decorators are treated as API endpoint interfaces.
+* **API Class**: Inherit `utilmeta.core.api.API`, in which you can declare a series of functions as APIs, or mount other API classes to define tree-like routes.
+* **API function**: functions in API class decoratefd with `@api` decorators are discovered as API endpoint.
 
-###  `@api` Decorator
+### `@api` Decorator
 
-Several decorator functions are built into the `api` module to define API functions
+Decorator functions are built into the `api` module to define API endpoint functions
 
 *  `@api.get`: Declare the API interface for the GET method
 *  `@api.put`: Declare the API interface for PUT methods
@@ -27,16 +27,16 @@ Several decorator functions are built into the `api` module to define API functi
 *  `@api.patch`: Declares the API interface for the PATCH method
 *  `@api.delete`: API interface to declare DELETE method
 
-All `@api` decorators support passing in parameters to specify specific interface configurations, including
+All `@api` decorators support passing in parameters to specify configurations, including
 
-*  `<route>`: The first parameter. You can pass in a path string to specify the path or path template of the API. Please refer to the specific usage.
-* Introduction to the `summary` API, `summary` properties that will be integrated into the OpenAPI documentation interface
-*  `deprecated`: Is the API deprecated
-*  `idempotent`: Whether the API is idempotent (multiple invocations of the same parameter have the same effect as a single invocation, which is important for writing a client-side retry mechanism)
-*  `private`: Whether the API is private. Private interfaces do not provide public calls and do not appear in the generated API documentation.
+* `<route>`: The first parameter. You can pass in a path template string to specify the path of the API. more specific usage can refer to [Path Parameters](../handle-request/#path-parameters).
+* `summary`: API description, will be integrated into the OpenAPI documentation
+* `deprecated`: Whether the API is deprecated (not recommended to use)
+* `idempotent`: Whether the API is **idempotent** (multiple requests of the same params have the same effect as a single request, which is important for writing a client-side retry mechanism)
+* `private`: Whether the API is private. Private API do not provide public access and do not appear in the generated API documentation.
 
 !!! tip
-	The `"""doc_string"""` of your API class of function will be integrated to the `description` field of the generated OpenAPI docs
+	The `"""doc_string"""` of your API class of function will be integrated to the `description` field of the generated OpenAPI docs, such as
 	```python
 	class UserAPI(api.API):
 		"""This is the user API"""
@@ -45,9 +45,9 @@ All `@api` decorators support passing in parameters to specify specific interfac
 			"""This is the login API"""
 	```
 
-If `@api` the decorator does not specify a path string with the first argument, it uses the name of the decorated function as the path to the API interface, as in Hello World `hello`
+If `@api` the decorator does not specify a path template string with the first argument, it uses the name of the decorated function as the path to the API
 
-!!! tip
+!!! warning
 	If you need to define the path with the name of a HTTP method, you need to put that path in the path template string, like
 	```python
 	class RootAPI(api.API):
@@ -57,7 +57,7 @@ If `@api` the decorator does not specify a path string with the first argument, 
 
 ### Core methods
 
-In addition to API functions declared with `@api` decorators, functions named HTTP methods (get/put/post/patch/delete) in the API class are automatically treated as API functions, and the path is consistent with the path of the API class. They are called core methods of the API class, such as
+Functions named HTTP methods (get/put/post/patch/delete) in the API class are automatically discovered as API endpoint functions (even without `@api` decorator), and the path is consistent with the path of the API class. They are called **core methods** of the API class, such as
 
 ```python
 from utilmeta.core import api
@@ -70,16 +70,16 @@ class ArticleAPI(api.API):
         data.save()
 ```
 
-The Article API in the example declares `get` two core method functions, and `post`, if the Article API is mounted to the `/article` path, Then the call `GET/article` will execute `get` the logic of the function, and similarly the call `POST/article` will execute the `post` function
+The `ArticleAPI` in the example declares two core method functions, `get` and `post`, if the ArticleAPI is mounted to the `/article` path, calling `GET/article` will execute the `get` function, and similarly calling `POST/article` will execute the `post` function
 
-!!! tip “HEAD and OPTIONS method“
-	When you declare a `GET` API, the path of the iAPI automatically has the ability to respond to the `HEAD` method request. (by return a response that is consistent with the headers and status code of the GET API, but with empty body)
+!!! tip "HEAD and OPTIONS method"
+	When you declare a `GET` endpoint, the path of the API automatically has the ability to respond to the `HEAD` method request. (by return a response that is consistent with the headers and status code of the GET API, but with empty body)
 	For any method's API path, it will have the ability to respond to `OPTIONS` method requests, and will return headers such as allowed origin, methods, headers.
 	So you don't need to declare the  `HEAD` or `OPTIONS` API
 
 ## API Mount and Routing
 
-In addition to defining the interface in the API class, we can also mount an API class to another API class by means of API mounting, so as to define the tree-like routing. The usage of API mounting is as follows
+In addition to defining the endpoints in the API class, we can also mount an API class to another API class by means of API mounting, so as to define the tree-like routing. The usage of API mounting is as follows
 ```python
 from utilmeta.core import api
 
@@ -96,7 +96,7 @@ class RootAPI(api.API):
 	user: UserAPI
 ```
 
-The API is mounted by declaring the type. In this example, we mount the Article API on the RootAPI `article` path and the User API on `user` the path, thus forming the following URL path
+The API is mounted by declaring the type annotation. In this example, we mount the `ArticleAPI` on the RootAPI's `article` path and the `UserAPI` on the `user` path, thus forming the following routes
 
 ```
 / ------------------ RootAPI
@@ -108,7 +108,7 @@ The API is mounted by declaring the type. In this example, we mount the Article 
 
 ### Configure routing using `@api.route`
 
-We know that `@api` the following method decorator can declare the API interface through the decorator function. In addition, there is a `@api.route` decorator used to configure the route for the API class. The usage is as follows
+There is a `@api.route` decorator used to configure the route for the entire API class. The usage is as follows
 
 ```python
 from utilmeta.core import api, request
@@ -124,27 +124,27 @@ class RootAPI(api.API):
 	article: ArticleAPI
 ```
 
-Using `@api.route` the defined route path overrides the mounted attribute path, so the route declared in the example is as follows
+The route defined in `@api.route` will overrides the mounted attribute, so the route declared in the example is as follows
 ```
 / ------------------------- RootAPI
 /article ------------------ ArticleAPI
 /article/{slug}/comments -- CommentAPI
 ```
 
-Where all interfaces of the CommentAPI will have a path parameter named `slug`
+Where all endpoints of the CommentAPI will have a path parameter named `slug`
 
- `@api.route` As with other API decorators, you can define the following parameters in addition to the path string
+ `@api.route` is similar to other API decorators, you can define the following parameters in addition to the path string
 
-* Introduction to the `summary` API, `summary` properties that will be integrated into the OpenAPI documentation interface
-*  `deprecated`: Is the API deprecated
-*  `private`: Whether the API is private. Private interfaces do not provide public calls and do not appear in the generated API documentation.
+* `summary`: API description, will be integrated into the OpenAPI documentation
+* `deprecated`: Whether the API is deprecated (not recommended to use)
+* `private`: Whether the API is private. Private API do not provide public access and do not appear in the generated API documentation.
 
-### Mounting of the root API
+### Mounting the root API
 
-In UtilMeta, all API classes need to be eventually mounted on an API class to provide access, which is **root API** (usually named RootAPI), and the root API also needs to be mounted on the service to provide access.
+In UtilMeta, all API classes need to be eventually mounted on an API class to provide access, which is **root API** (usually named RootAPI), and the root API also needs to be mounted on the service.
 
 In Hello World, we have seen a way to mount the root API.
-```python
+```python hl_lines="14"
 from utilmeta import UtilMeta
 from utilmeta.core import api
 import django
@@ -163,16 +163,16 @@ service = UtilMeta(
 )
 ```
 
-There are two parameters in the initialization parameters of the UtllMeta service to mount the root API
+There are two parameters in the initialization of UtllMeta service to mount the root API
 
-*  `api`: Pass in the root API class or its reference string.
-*  `route`: The path of the root API mount, which is empty by default, namely
+* `api`: Pass in the root API class or its reference string.
+* `route`: The path of the root API, which is empty by default
 
-For example, when your service runs at the `127.0.0.1:8000` address, the address of the root API is at `127.0.0.1:8000/api`, and the address of the interface whose path is `hello` defined on it is at.
+For example, when your service runs at the `127.0.0.1:8000` address, the url of the root API is at `127.0.0.1:8000/api`, and the url of the `hello` endpoint is `127.0.0.1:8000/api/hello`
 
-Alternatively, you can use ** Reference string ** the mount root API in the following way
+Alternatively, you can use **Reference string** to mount root API in the following way
 
-=== “main.py”
+=== "main.py"
 	```python
 	from utilmeta import UtilMeta
 	import django
@@ -185,7 +185,7 @@ Alternatively, you can use ** Reference string ** the mount root API in the foll
 		route='/api',
 	)
 	```
-=== "service/api.py”
+=== "service/api.py"
 	```python
 	from utilmeta.core import api
 	
@@ -195,14 +195,16 @@ Alternatively, you can use ** Reference string ** the mount root API in the foll
 	        return 'world'
 	```
 
-This approach, also known as **Lazy loading**, is often used to solve problems such as circular dependencies, where the root API is loaded before the service is started.
+This approach is also known as **Lazy loading**, is often used to handle circular dependencies, where the root API is loaded before the service is started.
 
 !!! Tip “Reference string”
+	Reference string stand for the import path in the current project, including the package, module and class name, for instance, if you can import the class in the following way
 	```python
 	from service.api import RootAPI
 	```
+	The reference string of the RootAPI is `'service.api.RootAPI'`
 
-In addition, a `mount` method named in the UtilMeta service instance can also be used to mount the root API.
+In addition, the `mount` method of UtilMeta service can also be used to mount the root API.
 ```python
 from utilmeta import UtilMeta
 
@@ -217,7 +219,8 @@ class RootAPI(api.API):
 
 It is important to note that a service can only mount one root API, regardless of the method used
 
-!!! The mount policy for the warning “Django.
+!!! warning "Django mount strategy"
+	If you are using Django as a backend or ORM, you need to mount the root API using the **reference string** method, because Django needs to be setup before loading the models. This process will be automatically completed by the built-in `DjangoSettings` in UtilMeta before the service starts. However, if you import the API class and Django models before that, the following error will occur
 	```python
 	django.core.exceptions.ImproperlyConfigured: 
 	Requested setting INSTALLED_APPS, but settings are not configured, ...	
@@ -225,17 +228,17 @@ It is important to note that a service can only mount one root API, regardless o
 
 ## Use API class
 
-### Access the current request
+### Get the current request
 
-In the API function, you can access the current request data through `self.request`. The commonly used attributes are
+In the API function, you can get the current request object through `self.request`. The commonly used attributes are
 
-*  `method`: HTTP method of the current request
-*  `url`: Full URL path of the request (including protocol, domain name, path, query string)
-*  `query`: The dictionary obtained by parsing the query string of the request
-*  `headers`: Request Header Dictionary
-*  `body`: Request body data
-*  `time`: The requested time, returning an `datetime` object
-*  `ip_address`: IP address of the request, return one or
+* `method`: HTTP method of the current request
+* `url`: Full URL path of the request (including protocol, domain name, path and query string)
+* `query`: A query string `dict` of the request
+* `headers`: A headers `dict` of the request
+* `body`: body data of the request
+* `time`: The requested time, returning an `datetime`
+* `ip_address`: IP address of the request, return one of  `ipaddress.IPv4Address` or `ipaddress.IPv6Address`
 
 Here is a simple usage example, returning the IP address of the current request
 ```python
@@ -251,11 +254,11 @@ class RootAPI(api.API):
 !!! note
 	You can use `self.request.adaptor` to get the Adaptor object of the request which contains the original request of the runtime backend you used, For instance, if you are using `starlette` as runtime backend, `self.request.adaptor.request` will give you the  `starlette.requests.Request` object
 
-### Public parameters
+### General parameters
 
-If all interfaces in an API need to carry a certain parameter, the parameter can be declared as a public parameter of the API. The declaration method is very simple, that is, it is defined as a variable in the API class. We modify the CommentAPI in the above example.
+If all endpoints in an API class need to carry a certain parameter, the parameter can be declared as a general parameter of the API class. By define it as a property in the API class. We modify the CommentAPI in the above example.
 
-```python
+```python hl_lines="5"
 from utilmeta.core import api, request
 
 @api.route('{slug}/comments')
@@ -278,25 +281,25 @@ class CommentAPI(api.API):
         await comment.save()
 ```
 
-The CommentAPI uses `@api.route` to specify a path template string for the entire API class, so you can declare this parameter directly as a class property of the API, so that each interface can access it directly without repeating the declaration
+CommentAPI uses `@api.route` to specify a path template string for the entire API class, so you can declare the `slug` parameter directly as a class property of the API, so that all the endpoints can access it directly without repeating the declaration
 
-We directly access `slug` the parameters and query the corresponding article instance in the initialization function of the CommentAPI, so that we can directly use the article instance in the interface. Here you can also see the convenience of using the API class.
+We directly access `slug` and query the corresponding article instance in the initialization function of the CommentAPI, so that we can directly use the article instance in the API functions. Here you can also see the convenience of using the API class.
 
-All public parameters need to specify a `utilmeta.core.request` parameter type as the value of the attribute. You can learn all request attributes in [Handle request](../handle-request) . The commonly used ones are
+All general parameters need to specify a `utilmeta.core.request` class as the value of the property. You can learn all request attributes in [Handle request](../handle-request) . The commonly used ones are
 
-*  `request.PathParam`: Define path parameters
-*  `request.QueryParam`: Define query parameters
-*  `request.HeaderParam`: Define request header parameters
-*  `request.CookieParam`: Define Cookie parameters
+*  `request.PathParam`: Define path parameter
+*  `request.QueryParam`: Define query parameter
+*  `request.HeaderParam`: Define request header parameter
+*  `request.CookieParam`: Define Cookie parameter
 
 ### Call API at runtime
 
-To better reuse API logic, you may need to call other API interfaces in an API function, which is very simple to implement in UtilMeta.
+To better reuse API logic, you may need to call other API endpoints in an API function, which is very simple to implement in UtilMeta.
 
-All interfaces in UtilMeta are an instance function of the API class, so you need to initialize the corresponding API class before calling the interface. There are two methods.
+All API endpoints in UtilMeta are an instance function of the API class, so you need to initialize the corresponding API class before calling the endpoint function. There are two methods.
 #### Initialization by mount
-If you call the API mounted by the current API class, the API you access directly by using the instance attribute is an automatically initialized API class instance. You can directly call the method in it by passing in the corresponding function parameter, as shown in
-```python
+If you call the mounted API of the current API class, you can get a automatically-initialized API instance by access using `self`. You can directly call the method in it by passing the parameters, as shown in
+```python hl_lines="15"
 from utilmeta.core import api, request
 
 @api.route('{slug}/comments')
@@ -315,13 +318,15 @@ class ArticleAPI(api.API):
         return data
 ```
 
-In this example, we `self.comments` call the mounted CommentAPI in the get interface of ArticleAPI, and access the initialized instance of CommentAPI. So you can directly call the get access to get all the comments on the current post.
+In this example, we called the initialized instance of CommentAPI by `self.comments`, you can directly call the `get` function of CommentAPI to get all the comments on the current post.
 
 !!! note
 	Using the type-annotation syntax to mount API, you will find that when you calling them in the API methods, you can fully gain the IDE's type hinting and attributes autocompletion ability
 #### Custom-initializing
-In addition to automatically initializing the API class by mounting, you can also initialize and call the API class by yourself. The initialization parameter of the API class is one **Request object**, and the current request object can be accessed through `self.request`. So you can get the API instance directly through `CommentAPI(self.request)`
-```python
+You can also initialize and call the API class by yourself. The initialization parameter of the API class is a **Request object**, and the current request object can be accessed through `self.request`. So you can get the API instance directly through `CommentAPI(self.request)`
+```python hl_lines="12"
+from utilmeta.core import api, request
+
 class CommentAPI(api.API):
     def get(self, slug: str = request.PathParam) -> List[CommentSchema]:
         return CommentSchema.serialize(
@@ -336,8 +341,8 @@ class ArticleAPI(api.API):
 ```
 
 ### Inheritance and composition
-In addition to API mounting, you can also define multiple API classes to a path by inheritance or multiple inheritance. Examples are as follows
-```python
+You can also mount multiple API classes to a path by inheritance. Examples are as follows
+```python hl_lines="12"
 from utilmeta import UtilMeta
 from utilmeta.core import api
 
@@ -367,7 +372,7 @@ The defined path is to combine the interfaces of the inherited API classes.
 	You can't have conflicted path in composition APIs
 ## Generate response
 
-For a simple interface, you can directly return the result data, and UtilMeta will automatically process it as a 200 HTTP response, but UtilMeta still has a perfect response template and generation system, and you can define the response code, response header and response structure by yourself.
+For a simple API, you can return the result data directly, and UtilMeta will automatically process it as a 200 HTTP response, but UtilMeta still has a sound response template and generation system, where you can define the status code, headers and data structure by yourself.
 
 Let’s look at a simple example of a response template.
 ```python
@@ -385,7 +390,7 @@ class RootAPI(api.API):
 		return 'world'
 ```
 
-All interface responses of UtilMeta are inherited from `utilmeta.core.response.Response`. In this example, a certain template structure is specified for the response, and the return data of the API function is wrapped as a JSON object, in which `result_key` the specified key corresponds to the return result data. The error message corresponding to the `message_key` specified key is injected into the API class through the `response` attribute slot of the API class
+All API responses of UtilMeta are inherited from `utilmeta.core.response.Response`. The example specified a template for the response, so the return data of the API function is wrapped as a JSON object, in which `result_key` specified key corresponds to the result data. The `message_key` specified key corresponds to the error message, injected into the API class through the `response` attribute slot.
 
 So when we access `hello` the interface, we get
 ```json
@@ -397,8 +402,8 @@ When you access a path that doesn’t exist, you can also see that the error mes
 {"data": null, "msg": "NotFound: not found"}
 ```
 
-If you only want the response template application to interface with an API, you can directly declare it as the return type of the API function, such as
-```python
+If you only want the response template applied in a single endpoint, you can directly declare it as the return type of the API function, such as
+```python hl_lines="9"
 from utilmeta.core import api, response
 
 class WrapResponse(response.Response):
@@ -412,25 +417,29 @@ class RootAPI(api.API):
 ```
 
 !!! tip
+	Usually along with the return type annotation, you should use `return WrapResponse('world')` to return, but even if you forget to do so, UtilMeta will generate the right response based on your declaration
 
 ### Template fields
-A class that inherits Response can specify the following properties to adjust the response template
+A class that inherits `Response` can specify the following properties to define the response template
 
-*  `name`: The name of the response template, which will be incorporated into the API documentation.
-*  `description`: The description of the response template will be integrated into the API documentation.
-*  `status`: The default response code of the response template
+* `name`: The name of the response template, which will be integrated into the API documentation.
+* `description`: The description of the response template, will be integrated into the API documentation.
+* `status`: The default status code of the response template
 
 You can also specify the following template parameters to wrap the result of the API function as a JSON object as the response body
 
-*  `result_key`: Key name of the corresponding returned result data
-*  `message_key`: The key name of the corresponding error message
-*  `count_key`: The key name of the corresponding total number of results, often used for paged queries.
-* Key name of `state_key` business user-defined status code
+* `result_key`: Key name of the corresponding returned result data
+* `message_key`: Key name of the corresponding error message
+* `count_key`: Key name of the corresponding total number of results, often used for paged queries.
+* `state_key`: Key name of user-defined action state code.
 
-There are also two special fields for which you can specify a type hint to generate the corresponding API response document
+There are also two special fields for which you can specify a type annotation to generate the corresponding API response document
 
-*  `result`: Specify the type and structure of the response result. If the response template is `result_key` defined, the result here refers to the data corresponding to the `result_key` key. Otherwise, it refers to the entire response body data.
-*  `headers`: Specifies the structure of the response header, which needs to be a Schema class
+* `result`: Specify the type and structure of the response data.
+* `headers`: Specifies the structure of the response headers
+
+!!! tip
+	If the response template defined `result_key`, the `result` here refers to the data corresponding to the `result_key` key. Otherwise, it refers to the entire response body data
 
 The following is an example of a response template
 
@@ -443,24 +452,26 @@ class MultiArticlesResponse(response.Response):
     result: List[ArticleSchema]
 ```
 
-
 !!! tip
-
+	By default, the result and headers schema defined in the response template is only used in template generation with no validation, but you can define the `strict = True` in the Response class to perform the strict validation.
 ### Response parameters
 
-All response templates can be instantiated into response instances
+All response templates can be instantiated into response instances with the following params
 
-*  `result`: The first parameter is the returned result data. If the response template is `result_key` defined, the result here refers to the data corresponding to the `result_key` key. Otherwise, it refers to the entire response body data.
-*  `status`: Incoming response code
-*  `headers`: The incoming response header should be a dictionary.
-*  `cookies`: The dictionary of the incoming response Set-Cookie
-*  `error`: a Python Exception object is passed in and processed as the corresponding response.
-*  `state`: Incoming business status code, valid only when the template is specified `state_key`
-*  `message`: Incoming message, valid only when the template is `message_key` specified
-*  `count`: The number of results passed in, valid only when the template is `count_key` specified
+* `result`:  The first parameter is the returned result data
+* `status`:   Status code of the response.
+* `headers`:  A `dict` for the response headers.
+* `cookies`:  A `dict` for response `Set-Cookie` pairs.
+* `error`:  Pass a Python Exception object, will be processed as the corresponding response.
+* `state`: Incoming business status code, valid only when the template is specified `state_key`
+* `message`: Incoming message, valid only when the template is `message_key` specified
+* `count`: The number of results passed in, valid only when the template is `count_key` specified
+
+!!! tip
+	If the response template defined `result_key`, the `result` is the data corresponding to the `result_key` key. Otherwise, it will be to the entire response body data.
 
 Here is an example of constructing a response
-```python
+```python hl_lines="14-17"
 from utilmeta.core import api, request, orm, response
 
 class MultiArticlesResponse(response.Response):
@@ -480,7 +491,7 @@ class ArticleAPI(api.API):
         )
 ```
 
-We use MultiArticles Response to construct the corresponding response when the list interface returns, and the returned response body structure should be
+We use `MultiArticlesResponse` to construct the corresponding response in the get `list` endpoint, and the returned response body structure should be
 
 ```json
 {
@@ -491,19 +502,19 @@ We use MultiArticles Response to construct the corresponding response when the l
 
 
 !!! tip
-
+	Even if you didn't defined a `response` property in the API class, you can still access `self.request` in API function and get a Response class, so in any endpoints, you can use  `return self.response(...)` to construct response
 ## Hook mechanism
 
-In the API class, you can also define a special function called ** Hook function ** hook function, which can act on one or more interfaces and sub-routes of the API class to perform operations such as custom verification, data preprocessing, response processing, and error processing. The types of hook functions in the API class are
+In the API class, you can also define a special function called **Hook**, which can applied on one or more endpoints and sub-routes of the API class to perform operations such as custom verification, data preprocessing, response processing, and error handling. The types of hook functions in the API class are
 
-* ** Pretreatment hook **: is called before the interface function is executed, using `@api.before` the definition
-* ** Respond to processing hooks **: is called after the interface function is executed when the definition is used `@api.after`
-* ** Error handling hook **: Used by `@api.handle` definition, called when an interface function or hook throws an error
+* **Before hook**: is called before the API function is executed, using `@api.before` to define
+* **After hook**: is called after the API function is executed, using `@api.after` to define
+* **Error hook**: is called when an API function or hooks throws an error, using `@api.handle` to define
 
-###  `@api.before` pre-process hook
-The preprocessing hook is executed before the target function is executed. It is mostly used for operations such as custom verification and data preprocessing. The preprocessing hook is defined by a `@api.before` decorator, such as
+### `@api.before` hook
+The `@api.before` hook is called before the target function is executed. It is mostly used for operations such as custom verification and data preprocessing, such as
 
-```python
+```python hl_lines="20"
 from utilmeta.core import api, request, orm, response
 
 @api.route('{slug}/comments')
@@ -531,17 +542,18 @@ class CommentAPI(api.API):
         self.article = article
 ```
 
- `@api.before` The decorator can pass in multiple API functions or API classes, and the hook function will be executed before the corresponding API function or API class is called, so you can write reusable logic before processing the request.
+ `@api.before` decorator can pass in multiple API functions or API classes, and the hook function will be executed before the corresponding endpoints or routes is called, so you can write reusable logic before processing the request.
 
-In this example, the `handle_article_slug` hook function we defined will be called before the get and post methods are executed, thus processing `slug` the path parameter to get the corresponding article object.
+In this example, the `handle_article_slug` hook function we defined will be called before the `get` and `post` methods are executed, thus processing the path parameter `slug` to get the corresponding article object.
 
 In addition, if you need hook functions to work on all interfaces within the API class, you can use the
 
-!!! Tip “Async Functions”
+!!! tip "Async hooks"
+	If you are wring sync API functions, the logic before executing **All** APIs can be placed in the `__init__` function, but if those logic contains asynchronous (`async` / `await`), you should declare an asynchronous before hook
 
-###  `@api.after` post-process hooks
-The response processing hook is executed after the target function is executed. Using `@api.after` the decorator definition, the hook function can receive the response body generated by the target interface function, process it and return it, such as
-```python
+### `@api.after` hook
+The `@api.after` hook is called after the target function is executed, the hook function can receive the response generated by the target API function, process and return, such as
+```python hl_lines="7"
 from utilmeta.core import api
 
 class RootAPI(api.API):
@@ -554,10 +566,13 @@ class RootAPI(api.API):
         return resp
 ```
 
-The first parameter of the response processing hook function will pass in the response object returned by the interface, which is a Response instance. In this example, `add_timestamp` the hook will process the responses of all interfaces in the RootAPI and add `'Server-Timestamp'` fields to their response headers.
+The first parameter of the after hook function will pass in the response object returned by the API, which is a `Response` instance. In this example, `add_timestamp` hook will process the responses of all endpoints in the RootAPI and add `'Server-Timestamp'` fields to their headers.
 
-In addition, using the response processing hook, you can also generate responses for the interface in batches, and the return result of the response processing hook will replace the return result of the API function as the response, such as
-```python
+!!! tip
+	In all the hook decorators, `'*'` means to hook all the endpoints and sub-routes of the current API class
+
+In addition, you can also generate responses for the endpoints in batches using after hook, and the return value of the after hook will replace the return value of the API function as the response, such as
+```python hl_lines="28-29"
 from utilmeta.core import api, orm, request
 
 class SingleArticleResponse(response.Response):
@@ -592,43 +607,44 @@ class ArticleAPI(api.API):
         )
 ```
 
-In this example, `get_article` `update_article` the interface requires the same request processing and result generation logic, so we define a preprocessing hook and a response processing hook to reuse the logic.
+In this example, `get_article` and `update_article` requires the same request processing and result generation logic, so we define a before hook and a after hook to reuse the logic.
 
-The preprocessing hook parses the `slug` path parameter query to get the article instance `self.article`, and the response processing hook serializes the article instance and returns it.
+The before hook parses the `slug` path parameter to get the article instance and assigned to `self.article`, and the after hook serializes the article instance then returns it.
 
 !!! tip
+	 The example above shows that you can pass infomation among endpoints and hooks through the instance attribute defined in `__init__` method, that is also a convenience of using API class
 
-#### Rules for generating responses
+#### Response generation rules
 In UtilMeta, there are three ways to declare a Response template
 
-* Declared in the return prompt of the API interface function
+* Declared in the return annotation of the API function
 ```python
 class RootAPI(api.API):
     def get(self) -> WrapResponse: pass
 ```
-* Declared in the return prompt in the response processing hook
+* Declared in the return annotation of the after hook.
 ```python
 class RootAPI(api.API):
     @api.after('*')
     def handle_response(self) -> WrapResponse: pass
 ```
-* Declared in an attribute of the `response` API class
+* Declared in `response` attribute of the API class
 ```python
 class RootAPI(api.API):
     response = WrapResponse
 ```
 
-If a function declares a Response response template, it will get the response of the corresponding template after calling. If an API class declares an `response` attribute, it will also get the response of the corresponding template after calling.
+If a function declares a `Response` template, the return value will be processed through the template. If an API class declares an `response` attribute, it will also get the response of the corresponding template after calling.
 
-If the API interface function or API class does not have a corresponding response template declaration, the result data returned by the function will be returned all the way until the API class declaring `response` the attribute or the response processing hook declaring the return type is encountered.
+If the API function or API class does not have a response template, the result data will be returned all the way until any API class of after hooks with the response template
 
-When a Response instance is formed, the subsequent response template will not process it. That is to say, the generation of response follows the ** The nearest priority ** principle.
+When a `Response` instance is formed, the subsequent response template will not applied to it. Thus the generation of response follows the **The nearest priority** principle.
 
-###  `@api.handle` Error handling hook
-A variety of errors can occur in API functions, and sometimes you need to actively throw errors when a failure condition is detected. By default, UtilMeta catches all errors thrown by the API interface and returns a response based on the type of error and the message.
+### `@api.handle` hook
+A variety of errors can occur in API functions, and sometimes you need to actively throw errors when a failure condition is detected. By default, UtilMeta catches all errors thrown by the API functions and returns a response withe status code and message based on the exception
 
-But in addition, you can also use the error handling hook `@api.handle` to customize the error handling logic. The parameters of the hook decorator are the target interface function or interface class, and the type of error to be handled. The way to use it is as follows
-```python
+But in addition, you can also use the `@api.handle` hook to customize the error handling logic. The parameters of the hook decorator are the target API functions or API class, and the type of exception to be handled. The way to use it is as follows
+```python hl_lines="18 22"
 from utilmeta.core import api, response
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import Error
@@ -655,39 +671,47 @@ class RootAPI(api.API):
         return self.response(state=State.NOT_FOUND, error=e)
 ```
 
-In this example, we have declared two error handling hooks that specify different business status codes for different types of errors
+In this example, we have declared two error handling hooks that specify different action state codes for different types of errors
 
-*  `handle_user_auth`: Handle the errors and `exc.PermissionDenied` errors occurring `exc.Unauthorized` in the UserAPI, and specify them as the `State.AUTH_FAILED` business status code (input `state` parameters). The error message and the corresponding response code (incoming `error` parameters) are used.
-*  `handle_not_found`: Process all `exc.Notfound` errors, specify them as the `State.NOT_FOUND` business status code, and continue to use the error information and the corresponding response code
+* `handle_user_auth`: Handle the `exc.PermissionDenied` and `exc.Unauthorized` errors in the UserAPI, and specify them as the `State.AUTH_FAILED` state code (in `state` parameters). 
+* `handle_not_found`: Handle all `exc.Notfound` errors, specify them as the `State.NOT_FOUND` state code
 
-The first parameter in the error handling hook passes an Error instance, which is a wrapper around a Python Exception to get the error information in it. The properties are
+!!! tip
+	By passing exception to `error` param, response can use it's error message and default status code
 
-* Python Exception instance wrapped in `exception`:
-* The type of an `type` error instance, such as ValueError, TypeError, etc., is a subclass of Exception
-*  `traceback`: bad call stack string
-*  `message`: a string containing the exception type, exception information, and exception call stack, similar to the format of Python’s automatic error message output.
-*  `status`: Response code corresponding to the error by default. For example `exc.BadRequest`, the error corresponds to 400 by default, and `exc.Notfound` 404 by default.
+The first parameter in the error handling hook passes an `Error` instance, which is a wrapper around a Python Exception to get the error information in it. The properties are
+
+* `exception`: the wrapped Python Exception instance.
+* `type`: the type of the error instance, such as ValueError, TypeError, etc., is a subclass of Exception
+* `traceback`: the stack trace of the exception
+* `message`: a string containing the exception type, exception information, and exception call stack, similar to the format of Python’s automatic error message output.
+* `status`: Response status code corresponding to the error by default. For example 400 for `exc.BadRequest` by default, and 404 for `exc.Notfound` by default.
 
 #### Default error handling
-The default error handling logic for UtilMeta is
+The default error handling logic in UtilMeta is
 
-* The error message will be processed in `message` the response construction parameter, and if the template is `message_key` declared, the corresponding error message will be processed.
-* Obtain the corresponding response code `status` according to the type of error. If the corresponding type is not identified, a 500 response will be returned
+* The error message will be processed as `message` in response construction parameter, and will be the `message_key` corresponding value if declared.
+* Generate `status` code according to the type of error. If the corresponding type is not identified, a 500 response will be returned
 
-Common error types in development include ** HTTP Standard Error ** `utilmeta.utils.exceptions` many HTTP standard errors defined in, which will be automatically identified with corresponding response codes. Common HTTP standard errors are as follows
+Common error types in development include 
 
-*  `BadRequest`: Thrown when the request parameter verification fails. The default is to return a response of 400.
-*  `Unauthorized`: Thrown when the authentication component detects that the request does not carry authentication credentials, and the default is to return a 401 response
-*  `PermissionDenied`: Thrown when the requesting user does not meet the permissions required by the API interface. The default is to return a 403 response.
-*  `Notfound`: Thrown when the requested path does not exist, and the 404 response is returned by default
-* Thrown `MethodNotAllowed` when the requested method is not in the method supported by the request path. The default is to return a 405 response.
+**HTTP Standard Error** 
 
-** Python standard error ** Some Python standard errors also recognize response codes.
+`utilmeta.utils.exceptions` defined many HTTP standard errors, which will be automatically identified with corresponding response codes. Common HTTP standard errors are as follows
 
-*  `PermissionError`: Thrown when the system command and other operation permissions are insufficient, and the 403 response is returned by default.
-*  `FileNotFoundError`: Thrown when the file path does not exist, and the 404 response is returned by default
-*  `NotImplementedError`: The interface has not been implemented. The default is to return a 501 response.
-*  `TimeoutError`: Thrown when the timeout condition of the interface is not met, the default is to return 503 response.
+* `BadRequest`: Thrown when the request parameter verification fails. The default is to return a **400** response.
+* `Unauthorized`: Thrown when the authentication component detects that the request does not carry authentication credentials, and the default is to return a **401** response
+* `PermissionDenied`: Thrown when the requesting user does not meet the permissions required by the API. The default is to return a **403** response.
+* `Notfound`: Thrown when the requested path does not exist, and the default is to return a **404** response.
+* `MethodNotAllowed`: Thrown when the requested method is not in the method supported by the request path. The default is to return a **405** response.
 
-When writing API functions, you can follow the principle of short-circuit priority, handle the failure in the function logic as early as possible and throw errors. The errors you throw can be properly handled and the corresponding response can be generated without causing service problems. You can handle errors by defining error handling hooks in the upper layer. Or the top-level default error handling logic generates a response based on the type of error.
+**Python standard error**
 
+Some Python standard errors also recognize response codes.
+
+* `PermissionError`: Thrown when the system command and other operation permissions are insufficient, and the default is to return a **403** response.
+* `FileNotFoundError`: Thrown when the file path does not exist, and the default is to return a **404** response.
+* `NotImplementedError`: The interface has not been implemented, and the default is to return a **501** response.
+* `TimeoutError`: Thrown when the timeout condition of the interface is not met, the default is to return a **503** response.
+
+When writing API functions, you can follow short-circuit priority strategy, handle the failure in the function logic as early as possible and throw errors. The errors you throw can be properly handled and the corresponding response can be generated without causing service problems. You can also handle errors by defining error handling hooks in the upper layer.

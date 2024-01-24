@@ -96,6 +96,8 @@ class UtilMeta:
 
         self.backend = None
         self.backend_name = None
+        self.backend_version = None
+
         from utilmeta.core.server.backends.base import ServerAdaptor
         self.adaptor: Optional[ServerAdaptor] = None
         self.set_backend(backend)
@@ -110,11 +112,13 @@ class UtilMeta:
 
         from utilmeta.core.server.backends.base import ServerAdaptor
 
+        backend_version = None
         application = None
         # backend_name = None
 
         if isinstance(backend, str):
             backend_name = backend
+            backend = import_obj(backend_name)
         elif isinstance(backend, type) and issubclass(backend, ServerAdaptor):
             self.adaptor = backend(self)
             backend = backend.backend
@@ -133,8 +137,15 @@ class UtilMeta:
                 raise TypeError(f'Invalid service backend: {repr(backend)}, '
                                 f'must be a supported module or application')
 
+        if backend:
+            backend_version = getattr(backend, '__version__', None)
+            if backend_version is None:
+                from importlib.metadata import version
+                backend_version = version(backend_name)
+
         self.backend = backend
         self.backend_name = backend_name
+        self.backend_version = backend_version
 
         if application:
             self._application = application
@@ -300,9 +311,21 @@ class UtilMeta:
             raise ValueError(f'utilMeta: api not mount')
         return self.root_api
 
+    def print_info(self):
+        from utilmeta import __version__
+        from utilmeta.bin.constant import BLUE, GREEN, DOT
+        print(BLUE % '|', f'UtilMeta v{__version__} starting service [%s]' % (BLUE % self.name))
+        print(BLUE % '|', '    version:', self.version_str)
+        print(BLUE % '|', '      stage:', (BLUE % f'{DOT} production') if self.production else (GREEN % f'{DOT} debug'))
+        print(BLUE % '|', '    backend:', f'{self.backend_name} ({self.backend_version})',
+              (BLUE % f'| asynchronous') if self.asynchronous else '')
+        print(BLUE % '|', '   base url:', f'{self.base_url}')
+        print('')
+
     def run(self, **kwargs):
         if not self.adaptor:
             raise NotImplementedError('UtilMeta: service backend not specified')
+        self.print_info()
         self.setup()
         return self.adaptor.run(**kwargs)
 

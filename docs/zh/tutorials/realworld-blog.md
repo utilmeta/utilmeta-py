@@ -26,7 +26,7 @@ pip install utilmeta starlette django databases[aiosqlite]
 	* 使用 SQLite 作为数据库
 	* 使用 JWT 进行用户鉴权
 
-### 创建项目
+### 创建命令
 
 使用如下命令创建一个新的 UtilMeta 项目
 
@@ -86,9 +86,9 @@ meta add user
 ```
 命令运行后你可以看到在 `domain` 文件夹下创建了一个新的文件夹，结构如下
 
-```
+```  hl_lines="2"
 /domain
-	/user       # new folder
+	/user
 		/migrations
 		api.py
 		models.py
@@ -100,7 +100,7 @@ meta add user
 !!! tip
 	即使你不熟悉 Django 的 app 用法也没有关系，你可以简单理解为一个分领域组织代码的文件夹，领域的划分标准由你来确定
 
-我们再添加一个名为 article 的文章应用
+我们再添加一个名为 article 的文章应用，将会用于存放文章与评论的模型和接口
 ```shell
 meta add article
 ```
@@ -122,10 +122,7 @@ class User(AwaitableModel):
 ```
 
 !!! abstract "AwaitableModel"
-	`AwaitableModel` 是 UtilMeta 为 Django 查询在异步环境执行所编写的模型基类，它的底层使用 `encode/databases` 集成了各个数据库的异步引擎，能够使得 Django 真正发挥出异步查询的性能
-
-!!! tip
-	我们使用 Django ORM 来处理对象与数据表的映射， 你可以在 [Django ORM 文档](https://docs.djangoproject.com/zh-hans/5.0/topics/db/queries/) 中参考它的详细用法
+	`AwaitableModel` 是 UtilMeta 为 Django 查询在异步环境执行所编写的模型基类，它的底层使用 [encode/databases](https://github.com/encode/databases) 集成了各个数据库的异步引擎，能够使得 Django 真正发挥出异步查询的性能
 
 ### 文章与评论模型
 
@@ -214,8 +211,8 @@ class Follow(AwaitableModel):
 
 我们新增了两个模型
 
-* `Favorite`：文章的喜欢模型
-* `Follow`：用户之间的关注关注模型
+* `Favorite`：文章的喜欢关系模型
+* `Follow`：用户之间的关注关系模型
 
 同时也在 User 模型中添加了对应的多对多关系字段 `followers` 和 `favorites`，将会用于接下来的查询接口的编写
 
@@ -279,7 +276,7 @@ class API(api.API):
     user_config = auth.User(
         User,
         authentication=jwt.JsonWebToken(
-            key=env.JWT_SECRET_KEY,
+            secret_key=env.JWT_SECRET_KEY,
             user_token_field=User.token
         ),
         login_fields=User.email,
@@ -293,18 +290,16 @@ class API(api.API):
         return await var.user_id.get(self.request)
 ```
 
-我们通过创建一个新的 API 基类来声明鉴权相关的配置，这样需要鉴权的 API 类都可以直接继承这个新的 API 基类
-
-之后我们编写的需要鉴权的接口类都可以继承这个 API 类，这样接口函数可以通过 `await self.get_user()` 获取当前的请求用户
+我们通过创建一个新的 API 基类来声明鉴权相关的配置，这样需要鉴权的 API 类都可以直接继承这个新的 API 基类，在它们的接口函数中可以通过 `await self.get_user()` 获取当前的请求用户
 
 任何一个需要用户登录才能访问的接口，你都可以直接在接口参数中声明 `user: User = API.user_config`，这样你就可以通过 `user` 直接拿到当前请求用户的实例
 
 !!! tip
-	关于鉴权方面的详细说明可以参考 [接口与用户鉴权](guide/auth) 这篇文档
+	关于鉴权方面的详细说明可以参考 [接口与用户鉴权](../../guide/auth) 这篇文档
 
 #### 环境变量管理
 
-类似 `JWT_SECRET_KEY` 这样重要的密钥我们一般不会将它硬编码到代码中，而是使用环境变量的方式定义，UtilMeta 提供了一套环境变量定义模板，我们可以打开 `config/env.py` 编写
+类似 `JWT_SECRET_KEY` 这样重要的密钥我们一般不会将它硬编码到代码中，而是使用环境变量的方式定义，UtilMeta 提供了一套环境变量声明模板，我们可以打开 `config/env.py` 编写
 
 ```python
 from utilmeta.conf import Env
@@ -365,7 +360,7 @@ env = ServiceEnvironment(sys_env='CONDUIT_')
 	    @api.post
 	    async def login(self, user: UserLogin = request.BodyParam):
 	        user_inst = await self.user_config.login(
-	            self.request, token=user.email, password=user.password)
+	            self.request, ident=user.email, password=user.password)
 	        if not user_inst:
 	            raise exceptions.PermissionDenied('email or password wrong')
 	        return await UserSchema.ainit(user_inst)
@@ -480,18 +475,18 @@ env = ServiceEnvironment(sys_env='CONDUIT_')
 	```
 
 
-首先在 `domain/user/api.py` 中，ProfileAPI 使用 API 类公共参数复用了路径参数 `username` ，并在 `handle_profile` 预处理钩子中将其查询得到目标用户实例在 API 接口函数 `get`, `follow`, `unfollow` 中只需要使用 `self.profile` 访问目标用户实例即可完成对应的逻辑，另外 `follow` 与 `unfollow` 接口还在返回时复用了 `get` 接口的序列化逻辑
+首先在 `domain/user/api.py` 中，ProfileAPI 使用 API 类公共参数复用了路径参数 `username` ，并在 `handle_profile` 预处理钩子中将其查询得到目标用户实例赋值给 `self.profile`，在 API 接口函数 `get`, `follow`, `unfollow` 中只需要使用 `self.profile` 访问目标用户实例即可完成对应的逻辑，另外 `follow` 与 `unfollow` 接口还在返回时复用了 `get` 接口的序列化逻辑
 
 !!! tip "钩子函数"
 	钩子函数是 UtilMeta API 类中的特殊函数，可以在给定的 API 接口执行前/后/出错时调用，从而更好的复用逻辑，具体用法可以参考 [APi 类与路由](guide/api-route) 中的【钩子机制】
 
-另外对于接口需要返回的 Profile 对象，[API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#profile) 中需要返回一个并非用户模型的动态字段 `following`，这个字段应该返回【**当前请求的用户**】是否关注了目标用户，所以它的查询表达式无法在 Schema 类中直接编写
+另外对于接口需要返回的 Profile 对象，[API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#profile) 中需要返回一个并非来着用户模型的动态字段 `following`，这个字段应该返回【**当前请求的用户**】是否关注了目标用户，所以它的查询表达式无法在 Schema 类中直接编写
 
 所以在 `domain/user/schema.py` 中，我们为 `ProfileSchema` 定义一个动态查询函数 `get_runtime`，传入当前请求的用户，根据请求用户生成对应的查询表达式，再返回新的类即可
 
 在 ProfileAPI 的 get 接口中，你可看到动态查询函数的调用方式
 
-```python
+```python hl_lines="4"
 class ProfileAPI(API):
     @api.get
     async def get(self, user: Optional[User] = API.user_config):
@@ -605,7 +600,7 @@ class ArticleSchema(orm.Schema[Article]):
 
 * `favorites_count`: **表达式字段**：还记得你在 User 模型中声明的 `favorites = models.ManyToManyField('article.Article', related_name='favorited_bys')` 字段吗？你可以灵活地使用这些关系名称或反向关系来创建表达式字段，`favorites_count` 字段就使用 `models.Count('favorited_bys')` 查询【喜欢这个文章的用户的数量】
 
-另外对于 `tag_list` 和 `favorites_count` 字段，我们使用 `alias` 参数为它们指定了用于输入输出的真实名称
+另外对于 `tag_list` 和 `favorites_count` 字段，我们使用 `alias` 参数为它们指定了用于输入输出的真实名称（符合 API 文档中要求的驼峰命名）
 
 #### 字段模式
 你可以看到在上面的例子中，很多字段都指定了 `mode` 这一参数，`mode` 参数可以用来声明一个字段适用的模式（场景），从而可以在不同的场景中表现出不同的行为，在数据的增删改查中常用的场景有
@@ -617,8 +612,7 @@ class ArticleSchema(orm.Schema[Article]):
 你可以组合模式字母来表示字段支持多种模式，默认 UtilMeta 会根据模型字段的性质自动赋予模式
 
 !!! tip ”自动模式赋予“
-	即使你没有声明模式，UtilMeta 也会根据 ORM 模型的特性自动为字段赋予模式，比如类似 `created_at` 这样被自动创建的字段就无法被修改，也无需在创建中提供，其模式会自动被赋予为 `'r'`（只读），你可以通过显式声明 `mode` 参数来覆盖默认的模式赋予
-	另外所有的响应数据 Schema 类也都会被默认处理为 `'r'` 模式
+	即使你没有声明模式，UtilMeta 也会根据模型字段的特性自动为字段赋予模式，比如类似 `created_at` 这样被自动创建的字段就无法被修改，也无需在创建中提供，其模式会自动被赋予为 `'r'`（只读），你可以通过显式声明 `mode` 参数来覆盖默认的模式赋予
 
 举例来说，字段
 ```python
@@ -629,7 +623,7 @@ author_id: int = orm.Field(mode='a', no_input=True)
 * 这个字段只适用于模式 `'a'` (创建数据) 
 * 这个字段无需输入
 
-从实际开发角度来理解，一个文章的作者字段应该在文章创建时传入当前请求的用户，而忽略客户端可能提供的其他值，并且也不应该允许被修改，实际在接口开发中，会在数据保存前对该字段进行赋值，如
+从实际开发角度来理解，一个文章的作者字段应该指定为当前请求的用户，而忽略客户端可能提供的其他值，并且也不应该允许被修改，所以我们会在数据保存前对该字段进行赋值，如
 ```python
 class ArticleAPI(API):
     @api.post
@@ -642,6 +636,7 @@ class ArticleAPI(API):
 	`no_input=True` 参数会忽略该字段在 Schema 初始化中提供的数据，即客户端传递的数据，但是仍然允许开发者在函数逻辑中自行赋值
 
 **模式生成**
+
 你可以直接使用 `YourSchema['<mode>']` 来快速生成对应模式的 Schema 类，UtilMeta 的 `orm` 模块提供了几个常用的模式
 
 * `orm.A`：即 `'a'` 模式，常用于 POST 方法创建新的对象
@@ -676,7 +671,7 @@ class ArticleSchema(orm.Schema[Article]):
 
 ### 文章查询接口
 
-我们可以以 [查询文章列表 API](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints/#list-articles) 为例了解如何使用 UtilMeta 编写查询接口
+我们以查询文章列表的接口为例了解如何使用 UtilMeta 编写查询接口，参考 [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints/#list-articles) 
 ```python
 class MultiArticlesResponse(response.Response):
     result_key = 'articles'
@@ -713,11 +708,11 @@ class ArticleAPI(API):
 !!! tip “分片控制参数”
 	`offset` 和 `limit` 是 API 开发中常用的结果分片控制参数，当请求同时提供 `offset` 和 `limit` 时，最后生成的查询集用 Python 切片的方式可以表示为 `queryset[offset: offset + limit]`，这样客户端可以一次只查询结果中的一小部分，并且根据结果的数量调整下一次查询的 `offset`
 
-`orm.Query` 模板类作为 API 函数参数默认将解析请求的查询参数，它有几个常用方法
+`orm.Query` 模板类作为 API 函数参数的类型声明默认将自动解析请求的查询参数，它有几个常用方法
 
 * `get_queryset()`：根据查询参数生成对应的查询集，如果你使用 Django 作为 ORM 库，那么得到的就是 Django QuerySet，这个查询集将会应用所有的过滤与分页参数，你可以直接把它作为序列化方法的输入得到对应的数据
 
-* `count`：忽略分页参数获取查询的总数，这个方法在分页查询时很有用，因为客户端不仅需要得到当前请求的数据，还需要得到查询对应的结果总数，这样客户端才可以正确显示分页的页数，或者知道有没有查询完毕，这个方法的异步实现为 `acount`
+* `count()`：忽略分页参数获取查询的总数，这个方法在分页查询时很有用，因为客户端不仅需要得到当前请求的数据，还需要得到查询对应的结果总数，这样客户端才可以正确显示分页的页数，或者知道有没有查询完毕，这个方法的异步实现为 `acount`
 
 由于接口需要返回查询的文章总数，所以在 `get` 方法中，我们不仅调用 `schema.aserialize` 将生成的目标查询集进行序列化，还调用了 `query.acount()` 返回文章的总数，再结合 MultiArticlesResponse 中定义的响应体结构，我们就可以得到文档要求的如下响应
 
@@ -797,9 +792,9 @@ class ArticleAPI(API):
 
 我们在例子中定义了几个钩子函数
 
-* `handle_slug`：使用 `@api.before` 装饰器定义的预处理钩子，在使用了 `slug` 路径参数的接口执行前调用，查询出对应的文章并赋值给 `self.article`，对应的接口函数可以使用这个实例属性直接进行访问
+* `handle_slug`：使用 `@api.before` 装饰器定义的预处理钩子，在使用了 `slug` 路径参数的接口执行前调用，查询出对应的文章并赋值给 `self.article`，对应的接口函数可以使用这个实例属性对目标文章直接进行访问
 * `gen_tags`：在创建或更新文章接口前执行的预处理钩子，通过解析 ArticleSchema 的 `tag_list` 字段生成一系列的 tag 实例并存储在 `self.tags` 属性中
-* `handle_response`：使用 `@api.after` 装饰器定义的响应处理钩子，在操作或创建了单个文章对象的接口后执行，其中如果检测到 `gen_tags` 钩子生成的 `tags` 实例，则会对文章对象进行关系赋值，并且会将 `self.article` 实例使用 ArticleSchema 的动态子类进行序列化并返回
+* `handle_response`：使用 `@api.after` 装饰器定义的响应处理钩子，在获取/更新/创建了单个文章对象的接口后执行，其中如果检测到 `gen_tags` 钩子生成的 `tags` 实例，则会对文章对象进行关系赋值，并且会将 `self.article` 实例使用 ArticleSchema 的动态子类进行序列化并返回
 
 ### 评论接口
 
@@ -879,7 +874,7 @@ class ArticleAPI(API):
 
 我们需要将评论 API 的路径配置到 `articles/{slug}/comments`，所以我们直接使用装饰器 `@api.route('{slug}/comments')` 来装饰 CommentAPI，这样当我们把 CommentAPI 挂载到 ArticleAPI 上时，就会直接将 ArticleAPI 的路径延申 `{slug}/comments` 作为 CommentAPI 的路径
 
-评论接口路径中的 `{slug}` 为标识文章的路径参数，我们在 CommentAPI 中实现了名为 `handle_article_slug` 的预处理钩子，在接口函数执行前统一将对应的文章查询出来
+评论接口路径中的 `{slug}` 是标识文章的路径参数，我们在 CommentAPI 中实现了名为 `handle_article_slug` 的预处理钩子，在接口函数执行前统一将对应的文章查询出来
 
 !!! tip "API 公共参数"
 	由于在评论 API 中，所有的接口都需要接收 `{slug}` 路径参数，我们就可以将这个参数直接声明到 API 类中，在函数中直接使用 `self.slug` 获取，这样的参数称为 API 公共参数，它们同样会被整合到生成的 API 文档中
@@ -965,7 +960,7 @@ class RootAPI(api.API):
 
 ### 时间配置
 由于 API 文档给出的输出时间是类似 `"2016-02-18T03:22:56.637Z"` 的格式，我们打开 `config/conf.py`，添加时间配置的代码
-```python
+```python hl_lines="19-23"
 from utilmeta import UtilMeta
 from config.env import env
 
@@ -984,7 +979,6 @@ def configure(service: UtilMeta):
             engine='sqlite3',
         )
     }))
-    # new +++
     service.use(Time(
         time_zone='UTC',
         use_tz=True,
@@ -1064,10 +1058,10 @@ service = UtilMeta(
 configure(service)
 ```
 
-!!! tip "端口冲突"
+!!! warning "端口冲突"
 	如果你正在本地运行多个项目都使用了同一端口，你可能会看到端口冲突的报错信息
 	```
-	ERROR:    [Errno 10048] error while attempting to bind on address 
+	[Errno 10048] error while attempting to bind on address 
 	('127.0.0.1', 8000): 通常每个套接字地址(协议/网络地址/端口)只允许使用一次。
 	```
 	此时你只需要调整一下你的服务端口再重启项目即可

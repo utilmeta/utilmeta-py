@@ -119,7 +119,7 @@ class UserAPI(api.API):
 	    async def login(self, data: LoginSchema = request.Body):
 	        user = await user_config.alogin(
 	            request=self.request,
-	            token=data.username,
+	            ident=data.username,
 	            password=data.password
 	        )
 	        if not user:
@@ -149,7 +149,7 @@ class UserAPI(api.API):
 	    def login(self, data: LoginSchema = request.Body):
 	        user = user_config.login(
 	            request=self.request,
-	            token=data.username,
+	            ident=data.username,
 	            password=data.password
 	        )
 	        if not user:
@@ -160,10 +160,10 @@ class UserAPI(api.API):
 登录函数 `login` （异步方法为 `alogin`）接收的参数如下
 
 * `request`：接收当前的请求对象，即 `self.request`
-* `token`：接收用于登录的用户标识，比如用户名，邮箱等，登录字段取决于 `auth.User` 中配置的 `login_fields` 参数
+* `ident`：接收用于登录的用户标识，比如用户名，邮箱等，登录字段取决于 `auth.User` 中配置的 `login_fields` 参数
 * `password`：接收用户的密码（未加密）
 
-登录函数会从你的用户表中寻找与 `token` 匹配的用户记录，并将用户输入的密码（加密后）与用户记录中的密码进行比对，如果用户存在且密码比对通过，则会将匹配的用户对象登录当前请求并返回，否则会返回 None，所以你如果检测到 `login` 函数返回的结果为 None，就可以返回 “用户名或密码错误” 的响应了
+登录函数会从你的用户表中寻找与 `ident` 匹配的用户记录，并将用户输入的密码（加密后）与用户记录中的密码进行比对，如果用户存在且密码比对通过，则会将匹配的用户对象登录当前请求并返回，否则会返回 None，所以你如果检测到 `login` 函数返回的结果为 None，就可以返回 “用户名或密码错误” 的响应了
 
 !!! tip
 	对于登录接口，在请求登录失败时不建议返回详细的具体信息，比如 “用户名不存在”， “密码错误”，因为这会给暴力破解密码的攻击者提供可用的信息
@@ -384,7 +384,7 @@ class AbstractSession(AwaitableModel):
     created_time = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(default=None, null=True)
     expiry_time = models.DateTimeField(default=None, null=True)
-    deleted_time = models.DateTimeField(default=None, null=True)    # already expired
+    deleted_time = models.DateTimeField(default=None, null=True)
 
     class Meta:
         abstract = True
@@ -424,7 +424,7 @@ class SessionSchema(CachedDBSessionSchema):
         data = super().get_session_data()
         data.update(
             user_id=self.get('_user_id'),
-            ip=str(self._request.ip_address),
+            ip=str(self.request.ip_address),
         )
         return data
 
@@ -435,7 +435,7 @@ session_config = CachedDBSession(
 )
 ```
 
-对于所有的 XXSession 配置都有一个对应的 XXSessionSchema 实现了对应的存储引擎，通过继承其中的 `get_session_data` 你就可以添加自定义的字段数据，比如例子中我们演示了如何添加【当前请求用户 ID】与 【当前请求 IP】的字段，在这个方法中，你可以使用 `self._request` 获取运行时的请求对象
+对于所有的 XXSession 配置都有一个对应的 XXSessionSchema 实现了对应的存储引擎，通过继承其中的 `get_session_data` 你就可以添加自定义的字段数据，比如例子中我们演示了如何添加【当前请求用户 ID】与 【当前请求 IP】的字段，在这个方法中，你可以使用 `self.request` 获取运行时的请求对象
 
 在继承了 SessionSchema 类后，要记得把新的类传递给 Session 配置的 `engine` 参数
 
@@ -508,7 +508,7 @@ from domain.user.models import User
 user_config = auth.User(
 	User,
 	authentication=jwt.JsonWebToken(
-		key=env.JWT_SECRET_KEY,
+		secret_key=env.JWT_SECRET_KEY,
 		user_token_field=User.token
 	),
 )
@@ -516,13 +516,13 @@ user_config = auth.User(
 
 我们使用 `utilmeta.core.auth.jwt.JsonWebToken` 来配置 JWT 鉴权，支持的参数有
 
-* `key`：必填项，传入一个 JWT 密钥，用于数据的加密和解密，这个密钥很重要，应当慎重管理，理论上如果泄露的话客户端可以构造任意权限的请求
+* `secret_key`：必填项，传入一个 JWT 密钥，用于数据的加密和解密，这个密钥很重要，应当慎重管理，理论上如果泄露的话客户端可以构造任意权限的请求
 * `algorithm`：JWT 加密算法，默认为 `'HS256'`
 * `audience`：JWT 的受众字符串，如果指定则会写入 JWT 的 `'aud'` 字段，并在解密时进行校验，如果 `audience`不符合 JWT 的要求，则会返回 403 响应
 * `user_token_field`：你可以指定一个用户模型中的字段，每当为用户生成新的 JWT 时，都将会更新到用户的对应字段
 
 !!! tip
-	合理指定 `audience` 可以避免在 JWT 用于不属于它权限访问的接口
+	合理指定 `audience` 可以避免 JWT 用于不属于它权限访问的接口
 
 
 **教程参考**
@@ -541,14 +541,25 @@ user_config = auth.User(
 
 如果你不满足于 UtilMeta 提供的标准鉴权方式，也可以自行定义鉴权方式，用法如下
 
-```python
-from utilmeta.core.auth.base import BaseAuthentication
-from utilmeta.core.request import Request
+=== "异步 API"
+	```python
+	from utilmeta.core.auth.base import BaseAuthentication
+	from utilmeta.core.request import Request
+	
+	class CustomAuth(BaseAuthentication):
+	    async def getter(self, request: Request):
+	        pass
+	```
+=== "同步 API"
+	```python
+	from utilmeta.core.auth.base import BaseAuthentication
+	from utilmeta.core.request import Request
+	
+	class CustomAuth(BaseAuthentication):
+	    def getter(self, request: Request):
+	        pass
+	```
 
-class CustomAuth(BaseAuthentication):
-    def getter(self, request: Request):
-        pass
-```
 
 其中 `getter` 函数只需要接收当前请求对象作为参数，然后返回当前用户 ID 的值即可，其中可以实现你自行定义的鉴权逻辑
 

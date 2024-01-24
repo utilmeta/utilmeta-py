@@ -39,7 +39,7 @@ class UserAPI(api.API):
     def login(self, data: LoginSchema):
         user = user_config.login(
             request=self.request,
-            token=data.username,
+            ident=data.username,
             password=data.password
         )
         if not user:
@@ -66,5 +66,5 @@ class UserAPI(api.API):
         return UserSchema.init(data.pk)
 
     @api.post
-    def logout(self, session: SessionSchema):
+    def logout(self, session: SessionSchema = session_config):
         session.flush()

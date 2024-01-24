@@ -147,3 +147,8 @@ class RootAPI(api.API):
 我们可以使用任意实现了 OpenAPI 标准的 API 调试器（如 [Swagger Editor](https://editor.swagger.io/)）加载这个 JSON 文档即可看到我们编写的 API 的输入与响应参数都已被完整的记录到了 API 文档中
 
 ![ BMI API Doc ](https://utilmeta.com/assets/image/bmi-api-doc.png)
+
+
+## 案例源码
+
+本案例的源码可以参考 [github](https://github.com/utilmeta/utilmeta-py/blob/main/examples/bmi_calc/server.py)

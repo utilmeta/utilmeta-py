@@ -173,7 +173,7 @@ For example, when your service runs at the `127.0.0.1:8000` address, the url of 
 Alternatively, you can use **Reference string** to mount root API in the following way
 
 === "main.py"
-	```python
+	```python hl_lines="8"
 	from utilmeta import UtilMeta
 	import django
 	
@@ -205,7 +205,7 @@ This approach is also known as **Lazy loading**, is often used to handle circula
 	The reference string of the RootAPI is `'service.api.RootAPI'`
 
 In addition, the `mount` method of UtilMeta service can also be used to mount the root API.
-```python
+```python hl_lines="5"
 from utilmeta import UtilMeta
 
 service = UtilMeta(...)

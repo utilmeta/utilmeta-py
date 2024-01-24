@@ -68,10 +68,14 @@ class BaseSession(BaseAuthentication):
                 self.session = session
 
             def process_response(self, response: Response, api=None):
+                if not isinstance(response, Response):
+                    response = Response(response, request=api.request if api else None)
                 return self.session.process_response(response)
 
             @awaitable(process_response)
             async def process_response(self, response: Response, api=None):
+                if not isinstance(response, Response):
+                    response = Response(response, request=api.request if api else None)
                 r = self.session.process_response(response)
                 if inspect.isawaitable(r):
                     r = await r

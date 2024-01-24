@@ -30,6 +30,7 @@ theme:
     - navigation.tracking
     - navigation.top
     - announce.dismiss
+    - content.code.copy
 
 repo_name: utilmeta/utilmeta-py
 repo_url: https://github.com/utilmeta/utilmeta-py
@@ -53,7 +54,7 @@ nav:
       - tutorials/realworld-blog.md
   - Languages:
       - English: /py/en/
-      - 中文: /py/zh
+      - 中文: /py/zh/
 
 extra_css:
   - css/extra.css

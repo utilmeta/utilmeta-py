@@ -2,7 +2,7 @@
 
 <img src="https://utilmeta.com/img/zh.py-intro.png" href="https://utilmeta.com/zh/py" target="_blank"  alt="drawing" width="600"/>
 
-UtilMeta 是一个面向服务端应用的渐进式元框架，基于 Python 类型注解标准高效构建声明式接口，支持使用主流 Python 框架作为运行时实现或渐进式整合
+**UtilMeta** 是一个面向服务端应用的渐进式元框架，基于 Python 类型注解标准高效构建声明式接口，支持使用主流 Python 框架作为运行时实现或渐进式整合
 
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/v/utilmeta" alt="">

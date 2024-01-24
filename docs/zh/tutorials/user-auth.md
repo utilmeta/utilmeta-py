@@ -234,7 +234,7 @@ class UserAPI(api.API):
     def login(self, data: LoginSchema = request.Body) -> UserSchema:
         user = auth.user_config.login(
             request=self.request,
-            token=data.username,
+            ident=data.username,
             password=data.password
         )
         if not user:
@@ -313,7 +313,7 @@ service.setup()
 from user.api import UserAPI
 
 class RootAPI(api.API):
-    user: UserAPI    # new
+    user: UserAPI
 	
 service.mount(RootAPI, route='/api')
 ```
@@ -346,3 +346,6 @@ Quit the server with CTRL-BREAK.
 	你可以通过调整 `server.py` 中的 UtilMeta 服务声明里的 `host` 和 `port` 参数来改变 API 服务监听的地址
 
 
+## 案例源码
+
+本案例的源码可以参考 [github](https://github.com/utilmeta/utilmeta-py/tree/main/examples/user_auth)

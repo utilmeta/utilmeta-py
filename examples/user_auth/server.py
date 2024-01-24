@@ -17,15 +17,17 @@ from utilmeta.core.orm import DatabaseConnections, Database
 
 service.use(DjangoSettings(
     secret_key='YOUR_SECRET_KEY',
-    apps=['auth']
+    apps=['user']
 ))
 
 service.use(DatabaseConnections({
     'default': Database(
-        name='user',
+        name='db',
         engine='sqlite3',
     )
 }))
+
+service.setup()
 
 from user.api import UserAPI
 

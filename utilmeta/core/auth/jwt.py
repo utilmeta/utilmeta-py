@@ -41,7 +41,7 @@ class JsonWebToken(BaseAuthentication):
         return jwt_params
 
     def __init__(self,
-                 key: Union[str, Any],
+                 secret_key: Union[str, Any],
                  algorithm: str = 'HS256',
                  # jwk: Union[str, dict] = None,
                  # jwk json string / dict
@@ -52,10 +52,10 @@ class JsonWebToken(BaseAuthentication):
                  user_token_field: str = None
                  ):
         super().__init__(required=required)
-        if not key:
-            raise ValueError('Authentication config error: JWT key is required')
+        if not secret_key:
+            raise ValueError('Authentication config error: JWT secret key is required')
         self.algorithm = algorithm
-        self.secret_key = key
+        self.secret_key = secret_key
         # self.jwk = jwk
         self.audience = audience
         self.user_token_field = user_token_field

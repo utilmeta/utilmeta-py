@@ -310,7 +310,7 @@ class FileAPI(api.API):
 #### Upload the file only
 If you want the client to use the entire binary file directly as the request body, instead of using in the form, you only need to specify the file parameter as `request.Body`, such as
 
-```python
+```python hl_lines="6"
 from utilmeta.core import api, request, file
 import utype
 
@@ -324,7 +324,7 @@ class FileAPI(api.API):
 ### Body parameter
 
 In addition to supporting the declaration of a complete request body Schema, you can also use `request.BodyParam` a separate declaration of fields in the request body.
-```python
+```python hl_lines="5-6"
 from utilmeta.core import api, request, file
 
 class FileAPI(api.API):

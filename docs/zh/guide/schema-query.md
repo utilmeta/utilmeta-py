@@ -32,7 +32,7 @@ class Article(models.Model):
 !!! tip
 	关于 Django ORM 的详细用法可以参考 [Django ORM 文档](https://docs.djangoproject.com/zh-hans/5.0/topics/db/queries/)，但即使你不了解相关用法，也可以直接继续学习 UtilMeta 的声明式 ORM
 
-本篇文档接下来的 ORM 用法都将基本围绕着 [Realworld 博客项目](../../tutorials/realworld-blog) 中的 Django 模型进行演示，如用户，文章，评论，关注等
+本篇文档接下来的声明式 ORM 用法都将基本围绕着 [Realworld 博客项目](../../tutorials/realworld-blog) 中的 Django 模型进行演示，如用户，文章，评论，关注等
 ## UtilMeta ORM 声明方式
 
 UtilMeta 的声明式 ORM 可以让你预先把期望查询结果的数据结构使用 Schema 类声明出来，然后就可以直接调用这个 Schema 类的方法查询得到你需要的数据了。我们还是使用上面声明的模型示例简单的声明式 ORM 用法
@@ -51,7 +51,7 @@ class ArticleSchema(orm.Schema[Article]):
     content: str
 ```
 
-我在声明 ORM Schema 类时需要使用了 `orm.Schema[<model_class>]` 的方式将对应的 ORM 模型类注入进去，我们在例子中定义的有
+我们在声明 ORM Schema 类时需要使用了 `orm.Schema[<model_class>]` 的方式将对应的 ORM 模型类注入进去，我们在例子中定义的有
 
 **UserSchema**：注入了 User 模型，其中定义的字段有
 
@@ -67,7 +67,7 @@ class ArticleSchema(orm.Schema[Article]):
 如果你在 Schema 类中声明与模型字段同名的属性，那么就会按照声明的类型序列化出对应的字段，对于外键等关系字段，你可以选择只序列化出对应的外键值，也可以指定一个 Schema 类序列化出整个关系对象，还有其他的字段用法我们将在下文逐一介绍
 
 !!! tip
-	我们在编写模型对应的 ORM Schema 时，其实思考的是对于这个模型的查询需要得到什么样的结果，或者客户端需要什么样的数据结构，比如对于文章这种 UGC 内容，经常需要把它的作者一同序列化出来返回，好让客户端直接显示出来（而不是再用 ID 查询一次用户接口），所以例子中的 `author` 字段返回的是整个用户对象
+	我们在编写模型对应的 ORM Schema 时，其实思考的是对于这个模型的查询需要得到什么样的结果，或者客户端需要什么样的数据结构，比如对于文章这种 UGC 内容，经常需要把它的作者一起序列化出来并返回，好让客户端直接显示出来（而不是再用 ID 查询一次用户接口），所以例子中的 `author` 字段返回的是整个用户对象
 
 ## `orm.Schema` 的方法
 
@@ -84,23 +84,22 @@ class ArticleSchema(orm.Schema[Article]):
 在 [UtilMeta 框架主页](https://utilmeta.com/zh/py) 中的第一段示例代码就包含了对 `init` 方法或它的异步变体 `ainit` 的调用
 
 === "异步 API"
-	```python
+	```python hl_lines="3"
 	class ArticleAPI(api.API):
 	    async def get(self, id: int) -> ArticleSchema:
 	        return await ArticleSchema.ainit(id)
 	```
 === "同步 API"
-	```python
+	```python hl_lines="3"
 	class ArticleAPI(api.API):
 	    def get(self, id: int) -> ArticleSchema:
 	        return ArticleSchema.init(id)
 	```
 
-
 例子中的 `get` 方法直接把请求的 ID 参数传递给 ArticleSchema 的 `ainit` 方法，就可以直接序列化出 ID 为 1 的文章实例
 
 !!! tip "异步查询方法"
-	`orm.Schema` 的所有方法都有对应的异步方法，只需在方法名前加 `a` 即可，如 `ainit`, `aserialize`, `asave` ，异步方法只能在 `async def` （异步函数）中调用，需要使用 `await` 等待执行完毕
+	`orm.Schema` 的所有查询方法都有对应的异步方法，只需在方法名前加 `a` 即可，如 `ainit`, `aserialize`, `asave` ，异步方法只能在 `async def` （异步函数）中调用，需要使用 `await` 等待执行完毕
 
 所以如果 ArticleAPI 的路径为 `/article`，当我们访问 `GET /article?id=1` 我们就会得到类似如下的 JSON 数据结果
 ```json
@@ -123,7 +122,7 @@ class ArticleSchema(orm.Schema[Article]):
 当你使用 Django ORM 时，`serialize` 接受的参数就是一个模型一致的 Django QuerySet，比如对于 ArticleSchema，接受的应该是 Article 模型的 QuerySet，下面是一个示例
 
 === "异步 API"
-	```python
+	```python hl_lines="5"
 	class ArticleAPI(API):
 	    @api.get
 	    async def feed(self, user: User = API.user_config, 
@@ -133,7 +132,7 @@ class ArticleSchema(orm.Schema[Article]):
 			)
 	```
 === "同步 API"
-	```python
+	```python hl_lines="5"
 	class ArticleAPI(API):
 	    @api.get
 	    def feed(self, user: User = API.user_config, 
@@ -146,7 +145,7 @@ class ArticleSchema(orm.Schema[Article]):
 例子中的 `feed` 接口会返回当前用户关注的作者发布的文章，我们只需将构造好的 QuerySet 传递给 `ArticleSchema.serialize` 方法，就会得到一个以 ArticleSchema 实例为元素的列表，最后被 API 接口处理为 JSON 响应给客户端
 
 !!! tip
-	例子中如何鉴权与获取当前请求的用户并不是本篇文档的重点，但你可以在 [接口与用户鉴权](guide/auth) 找到详细的说明
+	例子中如何鉴权与获取当前请求的用户并不是本篇文档的重点，但你可以在 [接口与用户鉴权](../auth) 找到详细的说明
 ### `save`  - 保存数据
 
 由一个 `orm.Schema` **实例**调用，将其中的数据保存到模型对应的数据表中，如果 Schema 实例中包含着存在于数据表中的主键，那么会更新对应的表记录，否则会创建一个新的表记录
@@ -197,7 +196,7 @@ class ArticleSchema(orm.Schema[Article]):
 
 ### `bulk_save`  - 批量保存数据
 
-`Schema.bulk_save(data)`   会将一个**列表**数据批量保存，列表中每个元素都应该是一个 Schema 实例或者符合 Schema 声明的字典数据，这个方法会根据其中每个元素的数据分组执行批量创建或批量更新
+`Schema.bulk_save(data)` 会将一个**列表**数据批量保存，列表中每个元素都应该是一个 Schema 实例或者符合 Schema 声明的字典数据，这个方法会根据其中每个元素的数据分组执行批量创建或批量更新
 
 下面是一个批量创建用户的接口示例
 
@@ -297,7 +296,6 @@ class ArticleSchema(orm.Schema[Article]):
 
 除了外键外，你还可以查询多对关系中的单个字段，但是需要使用列表类型作为该字段的类型提示，如
 ```python
-
 class ArticleSchema(orm.Schema[Article]):
     tag_list: List[str] = orm.Field('tags.name')
 ```
@@ -360,8 +358,6 @@ UserSchema 中的 `articles` 字段指定了 `List[ArticleSchema]` 作为类型�
 
 ### 关系查询函数
 
-如果我们需要查询一个文章列表，每个文章对象还需要返回赞同数最高的两条评论，这样的需求还可以用声明式 ORM 实现吗？答案是可以的，只需要使用关系查询函数即可
-
 关系查询函数提供了一个可以自定义的函数钩子，你可以为关系查询编写任意的条件，比如添加过滤和排序条件，控制数量等，关系查询函数有以下几种声明方式
 
 #### 单个主键查询函数
@@ -385,7 +381,8 @@ class UserSchema(orm.Schema[User]):
 这个例子中 UserSchema 的 `top_2_articles` 字段指定了一个关系查询函数，接受目标用户的一个主键值，并返回对应的文章查询集，之后 UtilMeta 会按照字段的类型声明（`List[ArticleSchema]`）完成序列化以及结果分发
 
 **单条关系对象的优化压缩**
-观察上面的例子我们可以明显得出，要想得到目标的条件关系值，函数中的查询需要运行 N 次，N 是目标查询集的长度，那么什么情况可以压缩为单条查询呢？答案是当你只需要查询 **1 个** 目标关系对象时，这时你可以直接把查询集声明出来，UtilMeta 会将其处理成一条 subquery 从而压缩到单条查询，比如
+
+观察上面的例子我们可以明显得出，要想得到目标的条件关系值，函数中的查询需要运行 N 次，N 是目标查询集的长度，那么什么情况可以压缩为单条查询呢？答案是当你只需要查询 **1 个** 目标关系对象时，这时你可以直接把查询集声明出来，UtilMeta 会将其处理成一条 **subquery 子查询** 从而压缩到单条查询，比如
 
 ```python
 class ArticleSchema(orm.Schema[Article]):
@@ -404,12 +401,12 @@ class UserSchema(orm.Schema[User]):
 ```
 
 !!! tip "OuterRef"
-	`OuterRef` 是 Django 中用于引用外部查询的主键值的用法，在例子中实际上引用的目标 User 模型查询集的主键值
+	`OuterRef` 是 Django 中用于引用外部查询的字段的用法，在例子中实际上引用的目标 User 模型查询集的主键值
 
 #### 主键列表查询函数
 我们以另外一个需求作为例子，假设我们需要查询一个用户列表，其中每个用户都需要附带 “当前请求用户的关注者中有哪些关注了目标用户”，这在微博，Twitter(X) 等社交媒体中是常见的需求，在前端大概会展示为 “你关注的 A, B 也关注了他” 或 “Followers you known”，这样的需求就可以使用主键列表函数简单高效地实现
 
-```python
+```python hl_lines="16"
 class UserSchema(orm.Schema[User]):
     username: str
     
@@ -425,9 +422,8 @@ class UserSchema(orm.Schema[User]):
 			return mp
 
 		class user_schema(cls):
-			followers_you_known: List[cls] = orm.Field(
-				get_followers_you_known
-			)
+			followers_you_known: List[cls] = orm.Field(get_followers_you_known)
+			
 		return user_schema
 ```
 
@@ -471,7 +467,7 @@ UserSchema 的 `articles_num` 字段使用 `models.Count('articles')` 表示查�
 #### `Exists`
 有时你需要返回一个条件查询集是否存在的字段，比如查询一个用户时返回【当前请求的用户是否已经关注了该用户】，你就可以使用 `Exists` 表达式
 
-```python
+```python hl_lines="11"
 from utilmeta.core import orm
 from django.db import models
 
@@ -491,9 +487,9 @@ class UserSchema(orm.Schema[User]):
         return user_schema
 ```
 #### `SubqueryCount`
-对于一些关系计数你可能需要增加一些条件，比如查询一篇文章时需要返回【当前用户的关注者中有多少人喜欢该文章】，这时你可以使用 `SubqueryCount` 表达式
+对于一些关系计数你可能需要增加一些条件，比如查询一篇文章时需要返回【当前用户的关注用户中有多少人喜欢该文章】，这时你可以使用 `SubqueryCount` 表达式
 
-```python
+```python hl_lines="10"
 from utilmeta.core.orm.backends.django import expressions as exp
 
 class ArticleSchema(orm.Schema[Article]):
@@ -506,7 +502,7 @@ class ArticleSchema(orm.Schema[Article]):
             following_likes: int = exp.SubqueryCount(
                 User.objects.filter(
                     followers=user_id,
-                    likes=exp.OuterRef('pk')
+                    favorites=exp.OuterRef('pk')
                 )
             )
         return article_schema
@@ -531,7 +527,7 @@ class ArticleSchema(orm.Schema[Article]):
 
 * `no_input`：设为 True 可以忽略字段输入，例如在创建文章时 `author_id` 字段不应该由请求数据提供，而是应该在 API 函数中赋值为当前请求的用户 ID，所以需要声明 `no_input=True`
 * `no_output`：设为 True 可以忽略字段输出，例如在创建文章时可以要求请求数据包含一个标签列表，但并不需要保存在文章模型实例中，而是在 API 函数里自行处理标签的创建与赋值，此时就可以声明 `no_output=True`
-* `mode`：你可以为字段指定一个模式，让字段只在对应的模式中起作用，这样你可以使用一个 Schema 类处理查询，创建，更新等多种场景，在 [Realworld 博客项目](tutorials/realworld-blog) 中由对字段模式使用的详细示例
+* `mode`：你可以为字段指定一个模式，让字段只在对应的模式中起作用，这样你可以使用一个 Schema 类处理查询，创建，更新等多种场景，在 [Realworld 博客项目](../../tutorials/realworld-blog) 中有对字段模式使用的详细示例
 
 !!! tip "字段参数配置"
 	`orm.Field` 继承自 `utype.Field`，所以其中详细的字段参数用法可以参考 [utype - 字段配置文档](https://utype.io/zh/references/field)
@@ -539,7 +535,7 @@ class ArticleSchema(orm.Schema[Article]):
 ### `@property` 属性字段
 你可以巧妙利用 Schema 类的 `@property` 属性字段快速开发基于查询结果数据计算的字段，比如
 
-```python
+```python hl_lines="7-9"
 from datetime import datetime
 
 class UserSchema(orm.Schema[User]):
@@ -555,7 +551,7 @@ class UserSchema(orm.Schema[User]):
 
 ### 继承与组合
 `orm.Schema` 类同样可以使用类的继承，组合等方式复用声明的字段，例如
-```python
+```python hl_lines="15"
 from utilmeta.core import orm
 from .models import User
 
@@ -576,7 +572,7 @@ class UserRegister(UserLogin, UsernameMixin): pass
 在例子中我们定义了
 
 * `UsernameMixin`：只包含 `username` 一个字段，可以被其他 Schema 类复用
-* `UserBase`：继承 UsernameMixin，返回用户的基本信息
+* `UserBase`：继承 UsernameMixin，定义用户的基本信息
 * `UserLogin`：用户登录所需的参数
 * `UserRegister`：用户注册所需的参数，就是把登录参数 UserLogin 与包含用户名参数的 UsernameMixin 进行组合
 
@@ -608,7 +604,7 @@ class Comment(BaseContent):
 ```
 
 上面例子中就把 Article 文章模型和 Comment 评论模型中重复的字段整合到 `BaseContent` 抽象模型中，在 ORM Schema 类中也可以使用类似的技巧复用字段，对于 Schema 基类，你可以不指定模型，在继承时再注入，比如
-```python
+```python hl_lines="13 17"
 from utype.types import *
 from utilmeta.core import orm
 from domain.user.schema import UserSchema
@@ -670,7 +666,7 @@ UtilMeta 的声明式 ORM 还支持声明模型的查询参数，如过滤条件
 
 ### 过滤参数
 
-在 `orm.Query` 类中声明的字段，如果在模型中有着同名字段的话，都会被自动处理为一个过滤参数，当请求提供了这个过滤参数时，就会为目标查询增加对应的条件：比如当请求 `GET /article?author_id=1` 时，就会得到 `author_id=1` 的文章查询集
+在 `orm.Query` 类中声明的字段，如果在模型中有着同名字段的话，都会被自动处理为一个 **过滤参数**，当请求提供了这个过滤参数时，就会为目标查询增加对应的条件：比如当请求 `GET /article?author_id=1` 时，就会得到 `author_id=1` 的文章查询集
 
 当你需要定义更复杂的查询参数时，就需要使用到 `orm.Filter` 组件了，下面示例一下过滤参数的常见用法
 
@@ -712,7 +708,7 @@ class ArticleAPI(api.API):
 ### 排序参数
 
 `orm.Query` 类中还可以声明用于控制查询结果排序的字段，你可以把支持的排序字段和对应的配置声明出来，示例如下
-```python
+```python hl_lines="6-10"
 from utilmeta.core import orm
 from django.db import models
 from .models import Article
@@ -731,7 +727,7 @@ class ArticleAPI(api.API):
 
 首先排序参数需要使用 `orm.OrderBy` 字段声明，其中定义一个字典来声明排序选项，字典的键是排序选项的名称，值是排序的配置
 
-声明了排序参数后，客户端可以传入一个排序选项的列表，排序选项从排序参数的声明中选择，可以在选项前添加 `-` （负号）表示按照这个选项的倒序排列，比如对于上文的例子，当客户端请求 `GET /article?order=-favorited_num,created_at` 时，检测到的排序选项为
+声明了排序参数后，客户端可以传入一个排序选项的列表，排序选项从排序参数的声明中选择，可以在选项前添加 `-` （负号）表示按照这个选项的 **倒序** 排列，比如对于上文的例子，当客户端请求 `GET /article?order=-favorited_num,created_at` 时，检测到的排序选项为
 
 1. `-favorited_num`：按照喜欢人数的倒序排序，人数越多越靠前
 2. `created_at`：按照创建时间正序排序，越早越靠前
@@ -743,7 +739,7 @@ class ArticleAPI(api.API):
 * `desc`：是否支持倒序排列，默认为 True，如果设为 False 则表示不提供倒序排列
 * `document`：为排序字段指定一个文档字符串，会被整合到 API 文档中
 
-在排序中，有一类值是比较难处理，就是 null 值，在查询时，字段值为 null 的结果应该排列在最前，最后，还是将其过滤掉，由下面几个参数确定
+在排序中，有一类值是比较难处理，就是 **null** 值，在查询时，字段值为 null 的结果应该排列在最前，最后，还是将其过滤掉，由下面几个参数确定
 
 * `notnull`：是否需要将该字段为 null 值的实例过滤掉，默认为 False
 * `nulls_first`：将该排序字段为 null 值的实例排列在最前（正序为最前，倒序为最后）
@@ -755,7 +751,7 @@ class ArticleAPI(api.API):
 
 在实际开发中，我们不太可能会把查询命中的成百上千条记录一次性返回，而是会需要提供 **分页控制** 的机制，`orm.Query` 类中也支持定义几种被预设好的分页参数让你快速实现分页查询接口，下面是一个例子
 
-```python
+```python hl_lines="6-7"
 from utilmeta.core import orm
 from django.db import models
 from .models import Article
@@ -772,13 +768,13 @@ class ArticleAPI(api.API):
 例子中定义的两个分页控制参数如下
 
 * `offset`：指定一个 `orm.Offset` 字段，控制查询的起始偏移量，比如客户端已经查询了 30 条结果，下一个请求将会发送 `?offset=30` 来查询 30 条后的结果
-* `limit`：指定一个 `orm.Limit` 字段，用于控制查询的返回结果数量限制，其中指定了默认值为 20，也就是当参数没有提供时最多返回 20 条结果，并指定了最大值为 100，请求的参数不能大于这个值
+* `limit`：指定一个 `orm.Limit` 字段，用于控制查询的返回结果数量限制，其中指定了默认值为 20，也就是当这个参数没有提供时最多返回 20 条结果，并指定了最大值为 100，请求的参数不能大于这个值
 
 比如当客户端请求 `GET /article?offset=10&limit=30` 就会返回查询结果中的 10~40 条
 
 除了 offset / limit 模式，还有一种方式是客户端直接传递分页的 ”页数“，比如
 
-```python
+```python hl_lines="6-7"
 from utilmeta.core import orm
 from django.db import models
 from .models import Article
@@ -796,7 +792,7 @@ class ArticleAPI(api.API):
 
 #### `count()` 获取结果总数
 
-为了能够让客户端显示查询的总页数，我们往往页需要返回查询的结果总数（忽略分页参数），为了应对这一需求，`orm.Query` 实例提供了一个 `count()` 方法（异步变体为 `acount()）
+为了能够让客户端显示查询的总页数，我们往往页需要返回查询的结果总数（忽略分页参数），为了应对这一需求，`orm.Query` 实例提供了一个 `count()` 方法（异步变体为 `acount()`）
 
 下面演示了一个博客项目的文章分页接口是如何处理的
 
@@ -847,14 +843,14 @@ class ArticleAPI(api.API):
 
 这样当客户端收到了 `count` 数据后，就可以计算出显示的总页数
 ```js
-let pages = Math.ceil(count / rows)
+let pages = Math.ceil(count / rows_per_page)
 ```
 
 ### 字段控制参数
 
 UtilMeta 还提供了一种类似 GraphQL 的结果字段控制机制，能够让客户端选择返回哪些字段或者排除哪些字段，进一步优化接口的查询效率，示例如下
 
-```python hl_lines="18"
+```python hl_lines="18-19"
 from utilmeta.core import orm
 from .models import User, Article
 from django.db import models
@@ -884,7 +880,7 @@ class ArticleAPI(api.API):
 
 另外一个 `exclude` 参数也使用了 `orm.Scope`，但在其中指定了 `excluded=True`，也就是说会排除参数中给出的字段，当请求 `GET /article?exclude=author` 就会返回不包含 `author` 字段的结果数据 
 
-!!! tip
+!!! note
 	客户端合理使用字段控制参数不仅可以降低带宽资源消耗，也能降低对应的查询压力，因为 UtilMeta 框架会根据 scope 参数中指定的字段对生成的查询语句进行剪裁，只会查询需要包含在结果中的字段，这样如果某些字段的查询消耗较大（如复杂的嵌套多对关系对象或表达式查询），当这些字段不包含在期望结果字段中时便不会进行查询处理
 
 ### `get_queryset` 获取查询集
@@ -893,7 +889,7 @@ class ArticleAPI(api.API):
 
 `get_queryset` 方法还可以接受一个 base_queryset 参数，可以在这个查询集的基础上增加查询参数中包含的过滤，排序，分页效果`
 
-```python  hl_lines="11"
+```python  hl_lines="11-13"
 class ArticleAPI(API):
     class ListArticleQuery(orm.Query[Article]):
         author: str = orm.Filter('author.username', required=True)
@@ -1019,7 +1015,7 @@ meta setup blog --temp=full
 当你需要使用 PostgreSQL 或 MySQL 这种需要提供数据库密码的连接时，我们建议你使用环境变量来管理这些敏感信息，示例如下
 
 === "config/conf.py"
-	```python
+	```python hl_lines="16-19"
 	from utilmeta import UtilMeta
 	from config.env import env
 	
@@ -1112,7 +1108,7 @@ UtilMeta ORM 完成了 Django ORM 中所有方法的纯异步实现，使用  [e
 from utilmeta.core.orm.backends.django.models import AwaitableModel
 ```
 
-如果你的 Django 模型集成自 `AwaitableModel`，那么它的所有 ORM 方法都会是完全异步实现的
+如果你的 Django 模型继承自 `AwaitableModel`，那么它的所有 ORM 方法都会是完全异步实现的
 
 !!! warning "ACASCADE"
 	需要注意的是，当你使用 `AwaitableModel` 对于外键的 `on_delete` 选项，如果需要选择 **级联删除** 时，应该使用 `utilmeta.core.orm.backends.django.models.ACASCADE`，这个函数是 `django.db.models.CASCADE` 的异步实现

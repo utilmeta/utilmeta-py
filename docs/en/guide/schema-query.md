@@ -1,6 +1,6 @@
 # Query and ORM operations
 
-UtilMeta implements a unique and efficient declarative Schema query mechanism to quickly implement add, delete, modify and query operations and develop RESTful interfaces. We can see the concise case code of declarative ORM and API in  [UtilMeta Framework Homepage ](https://utilmeta.com/py).
+UtilMeta implements a unique and efficient declarative Schema query mechanism to quickly develop CRUD RESTful APIs. We can see the concise case code of declarative ORM and API in  [UtilMeta Framework Homepage ](https://utilmeta.com/py)
 
 ![img](https://utilmeta.com/img/py.section1.png)
 
@@ -8,9 +8,9 @@ In this document, we will explain the corresponding usage in detail.
 
 ## Overview of ORM
 
-One of the most common requirements in Web development is to provide RESTful interfaces to add, delete, modify and query data, and ORM (Object Relational Mapping, object-relational mapping) is a common way to map tables in relational databases to object-oriented programming (such as classes in Python). It is convenient for us to develop the interface of adding, deleting, modifying and querying to a great extent, and it also eliminates the hidden danger of SQL injection compared with SQL splicing.
+One of the most common requirements in backend development is to provide RESTful APIs to create, delete, update and retrieve data, and **ORM** (Object Relational Mapping, object-relational mapping) is a common way to map tables in relational databases to object-oriented programming (such as classes in Python). It is convenient for us to develop the CRUD API, and also eliminates the problems of SQL injection compared with SQL splicing.
 
-We use Django ORM, which is common in Python Web, as an example of how to define a user model and a post model in a simple blog application.
+We use Django ORM (which is common in Python Web) as an example of how to define a user model and a article model in a simple blog application.
 
 ```python
 from django.db import models
@@ -26,12 +26,13 @@ class Article(models.Model):
     content = models.TextField()
 ```
 
-* A field of `username` type is declared `VARCHAR(20)` in the User model, and the value of the field cannot be repeated ( `unique=True`)
-* A foreign key named `author` pointing to the User model is declared in the Article model to represent the author of the article. Its reverse relationship is `"articles"`, that is, it represents [all articles] of a user. When the corresponding author user is deleted, the article will be deleted in cascade ( `CASCADE`).
+* A field `username` of type `VARCHAR(20)` is declared in the User model, and the value of the field is unique ( `unique=True`)
+* A foreign key named `author` pointing to the User model is declared in the Article model to represent the author of the article. Its reverse relationship is `"articles"`, which represents "**all articles**" of a user. When the corresponding author user is deleted, the article will be deleted cascadely ( `CASCADE`).
 
 !!! tip
+	Detailed usage of Django ORM can refer to [Django Queries](https://docs.djangoproject.com/en/5.0/topics/db/queries/), but even if you are not familiar with that, you can still continue to learn UtilMeta's declarative ORM
 
-The rest of the ORM usage in this document will basically revolve around [ The Realworld Blog Project ](../../tutorials/realworld-blog) the Django model in, such as users, articles, comments, follow, etc.
+this document will basically revolve around the Django model in [The Realworld Blog Project](../../tutorials/realworld-blog) , such as users, articles, comments, follows, etc.
 ## UtilMeta Declarative ORM
 
 UtilMeta’s declarative ORM allows you to use the Schema class to declare the data structure of the expected query result in advance, and then you can directly call the method of the Schema class to query the data you need. Let’s still use the model example declared above for simple declarative ORM usage.
@@ -50,56 +51,57 @@ class ArticleSchema(orm.Schema[Article]):
     content: str
 ```
 
-When I declare the ORM Schema class, I need to `orm.Schema[<model_class>]` inject the corresponding ORM Schema class in the way we defined in the example.
+We use `orm.Schema[<model_class>]` to inject the model into the ORM Schema, which are
 
-**UserSchema**: The User model is injected, where the fields defined are
+**UserSchema**: injected User model with fields
 
 *  `username`: corresponds to the same-name field of the user model and serializes it to the `str` type
-*  `articles_num`: An expression field that queries the number of articles for a user, using the `Count` inverse relationship of the expression query article author field.
+* `articles_num`: An expression field that queries the number of articles for a user, using  `Count` to query the reverse relationship ("articles") of the author field.
 
-**ArticleSchema**: The Article model is injected, in which the defined fields are
+**ArticleSchema**: injected Article model with fields
 
-* A table has a primary key, `id` whether defined in the model or not, and the default name of the primary key field is
-* The `author` author field, which use that previously defined UserSchema as a type declaration, indicate that the author information corresponding to the article will be directly serialized using UserSchema as the value of the entire field
-*  `content`: Content field
+* `id`: instance's primary key, whether defined in the model or not, the default name of the primary key field is `id`
+* `author`: the author field, which use `UserSchema` as the type annotation, to serialize the corresponding author of the article using UserSchema.
+* `content`: the content field
 
-If you declare an attribute with the same name as a model field in the Schema class, the corresponding field will be serialized according to the declared type. For a relationship field such as a foreign key, you can choose to serialize only the corresponding foreign key value, or specify a Schema class to serialize the entire relationship object. There are other field uses that we’ll look at below.
+If you declare an attribute with the same name as a model field in the Schema class, the corresponding field will be serialized to the declared type. For a relationship field such as a foreign key, you can choose to serialize only the foreign key value, or specify a Schema class to serialize the entire relationship object. There are other field usages that we’ll look at below.
 
 !!! tip
+	When writing the ORM schema for the model, we actually think about what kind of data structure the client needs. For example, for UGC content like articles, we often need to sequence the authors together and return them, so that the client can directly display them (instead of using ID to query the user API once), So the `author` field in the example returns the entire user object
 
 ## `orm.Schema` methods
 
-Now that we know `orm.Schema` the basic declaration methods, let’s introduce `orm.Schema` the important methods of classes or instances. By calling these methods, you can query, create, update, and save data in batches.
+Now that we know the basic declaration methods of `orm.Schema`, let’s introduce the important methods of classes or instances. By calling these methods, you can query, create, update, and save data in batches.
 
 ### `init` -  Single object
 
- `Schema.init(obj)` Method serializes the passed object parameters to ** A single Schema instance **, where the object parameters can be passed in
+ The `Schema.init(obj)` method will serializes the passed object parameters to **A single Schema instance**, where the object parameters can be passed in as
 
-* The ID value, for example `ArticleSchema.init(1)`, serializes the article object with ID 1 into an ArticleSchema instance
-* Incoming Model Object Instance
-* Pass in a QuerySet, which serializes the objects in ** The first ** the QuerySet into a Schema instance
+* The ID value, for example `ArticleSchema.init(1)` will serializes the article object with ID 1 into an `ArticleSchema` instance
+* A Model instance
+* A QuerySet, which will serializes the **first** object of the QuerySet into a Schema instance
 
-The first piece [ UtilMeta Framework Home Page](https://utilmeta.com/zh/py) of sample code in contains a call to `init` a method or its asynchronous variant `ainit`.
+The first snippet of [UtilMeta Framework Homepage](https://utilmeta.com/zh/py) contains a call to `init` a method or its asynchronous variant `ainit`.
 
 === "Async API"
-	```python
+	```python hl_lines="3"
 	class ArticleAPI(api.API):
 	    async def get(self, id: int) -> ArticleSchema:
 	        return await ArticleSchema.ainit(id)
 	```
 === "Sync API"
-	```python
+	```python hl_lines="3"
 	class ArticleAPI(api.API):
 	    def get(self, id: int) -> ArticleSchema:
 	        return ArticleSchema.init(id)
 	```
 
+The method `get` in the example directly passes the ID parameter of the request to the `ainit` method of ArticleSchema, which can directly serialize the article instance with ID 1.
 
-The method in `get` the example directly passes the ID parameter of the request to the `ainit` method of ArticleSchema, which can directly serialize the article instance with ID 1.
+!!! tip “Asynchronous query method”
+	Every query methods in `orm.Schema` has its async variant, only need to prepend an `a` to the method name, such as `ainit`, `aserialize`, `asave`, async methods can only be called in the `async def` functions, and need to use `await` for the result
 
-!!! Tip “Asynchronous query method”
-
-So if the path to the Article API is `/article`, when we access `GET/article?id=1` it, we get something like the following JSON data result
+So if the path to the ArticleAPI is `/article`, when we request `GET /article?id=1`, we'll get something like the following JSON data result
 ```json
 {
   "id": 1,
@@ -111,16 +113,16 @@ So if the path to the Article API is `/article`, when we access `GET/article?id=
 }
 ```
 
-This result is completely consistent with the declaration of ArticleSchema, so the core idea of declarative ORM is **What you define is what you get**
+This result is completely consistent with the declaration of ArticleSchema, which shows the core idea of declarative ORM: **What you define is what you get**
 
 ### `serialize` - List of objects
 
- `Schema.serialize(queryset)` It serializes a QuerySet into ** List of Schema instances **, which is a very common serialization method that is used when the API needs to return list data
+`Schema.serialize(queryset)` serializes a QuerySet into a **list of Schema instances**, which is a very common method that used when the API needs to return list data
 
-When you use Django ORM, `serialize` the accepted parameter is a model-consistent Django QuerySet. For example, for ArticleSchema, the accepted parameter should be a QuerySet of the Article model. Here is an example.
+When you use Django ORM, `serialize` accept a Django QuerySet (of the consistent ORM model). For example, for `ArticleSchema`, the accepted parameter should be a Article QuerySet. Here is an example.
 
 === "Async API"
-	```python
+	```python hl_lines="5"
 	class ArticleAPI(API):
 	    @api.get
 	    async def feed(self, user: User = API.user_config, 
@@ -130,7 +132,7 @@ When you use Django ORM, `serialize` the accepted parameter is a model-consisten
 			)
 	```
 === "Sync API"
-	```python
+	```python hl_lines="5"
 	class ArticleAPI(API):
 	    @api.get
 	    def feed(self, user: User = API.user_config, 
@@ -140,17 +142,19 @@ When you use Django ORM, `serialize` the accepted parameter is a model-consisten
 			)
 	```
 
-The interface in `feed` the example will return the articles published by the author that the current user follows. We just need to pass the constructed QuerySet to the `ArticleSchema.serialize` method, and we will get a list with the ArticleSchema instance as the element. Finally, it is processed by the API interface as a JSON response to the client.
+The `feed` endpoint in example will return the articles published by the author that the current user follows. We just need to pass the constructed QuerySet to the `ArticleSchema.serialize` method, and we will get a list of `ArticleSchema` instances. which will be processed as a JSON response to the client.
 
 !!! tip
+	It is not this document's focus on how to get the user of current request, you can find detailed usage in [Request Authentication](../auth)
+
 ### `save` - Save to database
 
-A `orm.Schema` ** Instance ** call is made to save the data in the data table corresponding to the model. If the Schema instance contains a primary key in the data table, the corresponding table record will be updated. Otherwise, a new table record will be created.
+`orm.Schema` **instance** can call `save()` to save the contained data to the corresponding table. If the Schema instance contains a primary key in the data table, the corresponding table record will be updated. Otherwise, a new table record will be created.
 
-In addition to the default behavior based on the primary key, you can adjust `save` the behavior of the method through two parameters
+In addition to the default behavior based on the primary key, you can adjust the behavior of `save` through two parameters
 
-*  `must_create`: If set to True, the method is forced to be processed as a creation method, although an error is thrown if the data contains a primary key that has already been created.
-*  `must_update`: If set to True, the method is forced to be processed as an update method, and an error is thrown when the update cannot be completed, such as when the primary key is missing or does not exist.
+* `must_create`: If set to True, the method is forced to be processed as a creation method, although an error is thrown if the data contains a primary key that has already been created.
+* `must_update`: If set to True, the method is forced to be processed as an update method, and an error is thrown when the update cannot be completed, such as when the primary key is missing or does not exist.
 
 The following example shows `save` the use of the method in the interface by writing and creating the article API.
 
@@ -187,15 +191,15 @@ The following example shows `save` the use of the method in the interface by wri
 	        return article.pk
 	```
 
-In this example, we first define the ArticleCreation class, which includes a content field `content` and an author field `author_id`, where the author field is `no_input=True` configured not to accept input from the client, because typically for this content-authoring interface, The Current Requesting User is directly used as the Author field of the new content, so there is no need for the client to provide
+In this example, we defined the `ArticleCreation` class first, which includes a  `content` field and an author field `author_id`, where the author field has `no_input=True` configured to ignores input from the client, because typically for this content creation API, The **current requesting user** is directly used as the author field of the new content, so there is no need for the client to provide
 
-In the `post` method, we also assign the primary key of the current user to the field requesting data `author_id` through attribute assignment, and then call the save method of the Schema instance, which will save the data in the database. And assign the primary key value of the new record to the attribute of the Schema instance `pk`
+In the `post` method, we also assign the primary key of the current user to the `author_id` field of requesting data through attribute assignment, and then call the save method of the Schema instance, which will save the data to the database. And assign the primary key value of the new record to the `pk` attribute of the Schema instance 
 
 ### `bulk_save` - Save data in batch
 
-A ** List ** data `Schema.bulk_save(data)` will be saved in batch. Each element in the list should be a Schema instance or dictionary data conforming to the Schema declaration. This method will perform batch creation or batch update according to the data group of each element.
+`Schema.bulk_save(data)` will save a **list** of objects in batch. Each element in the list should be a Schema instance or dictionary data conforming to the Schema declaration. This method will perform batch creation or batch update according to the data.
 
-The following is an example of an interface for creating users in bulk
+The following is an example of an API for creating users in bulk
 
 === "Async API"
 	```python  hl_lines="10"
@@ -224,17 +228,18 @@ The following is an example of an interface for creating users in bulk
 	        UserSchema.bulk_save(data)
 	```
 
-The method in the example uses `List[UserSchema]` the type declaration as the body of the request, indicating that it accepts a list of JSON data. The interface will automatically parse and convert it into a list of UserSchema instances. You only need to call `UserSchema.bulk_save` the method to create or update the data in this list in batches.
+The method in the example uses `List[UserSchema]` to annotate the body of the request, indicating that it accepts a list of JSON data. The API will automatically parse and convert it into a list of `UserSchema` instances. You only need to call the `UserSchema.bulk_save` method to create or update the data in this list in batches.
 
 !!! tip
- 
+	whether an object of the list be updated or created depends on the existence of the primary key field, you can still use `must_create` or `must_update` to restrain the behaviour
+
 ### `commit` - Update the queryset
 
-A `orm.Schema` ** Instance ** call to batch update the data in it to all records covered by the query set
+A `orm.Schema` **Instance**  can call `commit(queryset)` to batch update the data in it to all records covered by the queryset
 
 ### Asynchronous methods
 
-When you call `orm.Schema` the asynchronous method of, for example `ainit` `asave` `aserialize`, UtilMeta, the underlying UtilMeta will implement the asynchronous query. Generally speaking, in the asynchronous API function, The asynchronous methods you should use `orm.Schema`, such as
+When you call the asynchronous method of `orm.Schema`, for example `ainit` `asave` `aserialize`, UtilMeta will implement the asynchronous query. Generally speaking, in the asynchronous API function, you should use `orm.Schema`'s async method, such as
 
 ```python hl_lines="3"
 class ArticleAPI(api.API):
@@ -242,7 +247,7 @@ class ArticleAPI(api.API):
         return await ArticleSchema.ainit(id)
 ```
 
-But even if you call a `orm.Schema` synchronous method in an asynchronous function, such as
+But even if you call a synchronous method in an asynchronous function, such as
 
 ```python hl_lines="3"
 class ArticleAPI(api.API):
@@ -250,9 +255,9 @@ class ArticleAPI(api.API):
         return ArticleSchema.init(id)
 ```
 
-The interface in the example can still process requests normally, but because Django’s native query engine does not support direct execution in an asynchronous environment, synchronous queries in the asynchronous interface are processed by a thread in the thread pool on the Django implementation
+The endpoint in the example can still process requests normally, but because Django’s native query engine does not support direct execution in an asynchronous environment, synchronous queries in the asynchronous API are processed by a **thread** in the threadpool.
 
-Although UtilMeta’s declarative ORM will automatically adjust the execution strategy based on the asynchronous environment and ORM engine running, if you use Django’s synchronous method query directly in the asynchronous function, there will be errors, such as
+Although UtilMeta’s declarative ORM will automatically adjust the execution strategy based on the asynchronous environment and ORM engine, if you use Django’s synchronous method query directly in the asynchronous function, there will be errors, such as
 
 ```python hl_lines="4"
 class ArticleAPI(api.API):
@@ -277,35 +282,34 @@ class ArticleAPI(api.API):
 
 ## Relational query
 
-It is a very common Web development requirement to return the information of relational objects when querying. For example, the corresponding author information is required when returning articles, and the corresponding product information is required when returning orders. These can be collectively referred to as relational queries. UtilMeta’s declarative ORM can handle such queries very concisely. The corresponding usage is described in detail below.
+It is a very common API requirement to return the data of relational objects when querying. For example, the corresponding author data is required when returning articles, and the corresponding product information is required when returning purchase orders. These can be collectively referred to as relational queries. UtilMeta’s declarative ORM can handle such queries very concisely. The corresponding usage is described in detail below.
 
 ### Relation field
 
-You can query only one field of a relational object, and the way to declare it is very simple, as follows.
+You can query only a single field of a relational object, and the way to declare it is very simple, as follows.
 
 ```python
 class ArticleSchema(orm.Schema[Article]):
     author_name: str = orm.Field('author.username')
 ```
 
-In the `author_name` example, the field is declared `'author.username'` as the value of the query field to query `author` the field of `username` the user corresponding to the foreign key.
+In the example, `author_name` declared `'author.username'` as the value of the query field to query the `username` field of the `author` field of the aritlce
 
-In addition to foreign keys, you can also query a single field in a multi-pair relationship, but you need to use a list type as the type hint for the field, as shown in
+In addition to foreign keys, you can also query a single field in a multi relationship, but you need to use a list type to wrap the element type, as shown in
 ```python
-
 class ArticleSchema(orm.Schema[Article]):
     tag_list: List[str] = orm.Field('tags.name')
 ```
 
-The Article model has a `'tags'` many-to-many relationship named pointing to a Tag model with `name` fields, so you can use `'tags.name'` to serialize the fields of `name` all the tags associated with the article into a list of strings.
+The Article model has a many-to-many relationship named  `'tags'` pointing to a Tag model with `name` fields, so you can use `'tags.name'` to serialize the `name` fields of all the tags related to the article into a list of strings.
 
-Of course, if you use it `orm.Field('tags')`, it will query the primary key value list of all the associated tags.
+Of course, if you use `orm.Field('tags')` to query the primary keys of all the related tags.
 
 ### Relation object
 
-The common way of relational query is to serialize the whole associated object according to a certain structure, such as the article-author ( `author`) field in the above example. The way to query the relational object is very simple, that is, to declare the expected query structure `orm.Schema` as the type of the relational field.
+The common way of relational query is to serialize the entire related object according to a certain structure, such as the article-author ( `author`) field in the above example. The way to query the relational object is very simple, just annotate the expected query structure in `orm.Schema` as the type of the relational field.
 
-For a ** Foreign key ** field, there is only one relationship object, so you can specify the Schema class directly, such as
+For a **foreign key** field, there is only one relationship object, so you can specify the Schema class directly, such as
 
 ```python  hl_lines="11"
 from utilmeta.core import orm
@@ -321,11 +325,12 @@ class ArticleSchema(orm.Schema[Article]):
     author: UserSchema
     content: str
 ```
-The field of `author` ArticleSchema directly specifies UserSchema as the type declaration, and the field will get the corresponding UserSchema instance when `author` serialized.
+The `author` field of ArticleSchema directly specifies UserSchema as the type annotation, which will serialize the `author` user object into a UserSchema instance.
 
-!!! Warning “Use Optional”
+!!! warning "Use `Optional`"
+	If the relation object you are querying may be `None`, (if the field declared `null=True`), you should use `Optional[Schema]` as its corresponding type annotation
 
-For ** Many-to-many/one-to-many ** fields such as may contain multiple relational objects, you should use `List[Schema]` as the type declaration, such as
+For **Many-to-many/one-to-many** fields that may contain multiple relational objects, you should use `List[Schema]` as the type annotation, such as
 
 ```python hl_lines="12"
 from utilmeta.core import api, orm
@@ -342,22 +347,23 @@ class UserSchema(orm.Schema[User]):
     articles: List[ArticleSchema]
 ```
 
-The `articles` field in UserSchema is `List[ArticleSchema]` specified as a type declaration, and when serialized, the `articles` field gets a list of all articles authored by the user (if not, an empty list).
+The `articles` field in UserSchema specified `List[ArticleSchema]` as a type annotation, and when serialized, the `articles` field will gets a list of all articles authored by the user (or an empty list if there is no articles).
 
-!!! Note “Automatically optimize execution to avoid N + 1 problems”
+!!! note "Prevent N + 1 problems automatically"
+	The N+1 problem is that when you use loops for querying relationships, without special optimization, you may make database queries equivalent to the number of loops (length of queryset) +1, which will greatly affect performance, such as the following code
 	```python
 	for user in user_queryset:
 		articles = Article.objects.filter(author=user).values()
 	```
+	The relation queries in UtilMeta ORM have already been optimized during execution. which will aggregates the relation keys first, and then performs a single query using the aggregate list. The total number of database queries is a constant (depending on the number of relation fields, regardless of the length of the target queryset), which efficiently avoided N+1 issues, In asynchronous queries, all independent relation queries are also processed in parallel to compress execution time
 
 ### Relational query function
 
-If we need to query a list of articles, each article object also needs to return the two comments with the highest number of likes. Can such a requirement be implemented by declarative ORM? The answer is yes, just use the relational query function
-
-The relational query function provides a function hook that can be customized. You can write any condition for the relational query, such as adding filtering and sorting conditions, controlling the quantity, etc. The relational query function can be declared in the following ways
+Relational query function provides a hook that can be customized. You can write any condition for the relational query, such as adding filter and sort conditions, controlling the quantity, etc. The relational query function can be declared in the following ways
 
 #### Single primary-key function
-The function accepts a single primary key in the target query set as input, and returns the query set of a relational model. Let’s take a requirement as an example: we need to query a list of users, each of whom needs to be attached ** 2 articles with the most likes **. The code example for implementation is as follows
+The function accepts a single primary key of the target queryset as input, and returns the related queryset. Let’s take a requirement as an example: we need to query a list of users, each user needs to attach **two most liked articles**. The code example for implementation is as follows
+
 ```python
 class ArticleSchema(orm.Schema[Article]):
     id: int
@@ -374,9 +380,12 @@ class UserSchema(orm.Schema[User]):
 	)
 ```
 
-In this example, the field of `top_2_articles` UserSchema specifies a relational query function, which accepts a primary key value of the target user and returns the corresponding article query set. After that, UtilMeta will complete the serialization and result distribution according to the type declaration ( `List[ArticleSchema]`) of the field
+In this example, the `top_2_articles` field of UserSchema specifies a relational query function, which accepts a primary key value of the target user and returns the corresponding article queryset. UtilMeta will complete the serialization and result distribution according to the type annotation ( `List[ArticleSchema]`) of the field
 
-** Optimized compression of a single relationship object ** Looking at the above example, we can clearly see that in order to get the conditional relation value of the target, the query in the function needs to run N times, N is the length of the target query set, so what can be compressed into a single query? The answer is that when you only need to query ** 1 ** the target relational object, you can directly declare the query set, and UtilMeta will process it into a subquery to compress it into a single query, such as
+**Optimized compression of a single relationship object** 
+
+Looking at the above example, we can clearly see that in order to get the conditional relation value of the target, the query in the function needs to run N times, N is the length of the target queryset, so what can be compressed into a single query? 
+The answer is that when you only need to query **1** of the target relational object, you can directly declare the queryset, and UtilMeta will process it into a **subquery** to compress it into a single query, such as
 
 ```python
 class ArticleSchema(orm.Schema[Article]):
@@ -394,12 +403,13 @@ class UserSchema(orm.Schema[User]):
 	)
 ```
 
-!!! tip “OuterRef”
+!!! tip "OuterRef"
+	Django uses `OuterRef` to reference the outer fields, in the example, we referenced the primary key of the target User model
 
 #### Primary-Key List Function
-Let’s take another requirement as an example. Suppose we need to query a list of users, in which each user needs to attach “which followers of the current requesting user follow the target user”, which is a common requirement in social media such as Weibo and Twitter (X). In the front end, it will probably be displayed as “you follow A, B also follows him” or “Followers you known” ”, so the requirement can be simply and efficiently implemented by using the primary key list function.
+Let’s take another requirement as an example. Suppose we need to query a list of users, in which each user needs to attach “**Followers the current request user knows**”, which is a common requirement in social media such as Twitter (X). so the requirement can be simply and efficiently implemented by using the primary key list function.
 
-```python
+```python hl_lines="16"
 class UserSchema(orm.Schema[User]):
     username: str
     
@@ -415,15 +425,15 @@ class UserSchema(orm.Schema[User]):
 			return mp
 
 		class user_schema(cls):
-			followers_you_known: List[cls] = orm.Field(
-				get_followers_you_known
-			)
+			followers_you_known: List[cls] = orm.Field(get_followers_you_known)
+			
 		return user_schema
 ```
 
-In the example, UserSchema defines a class function that can generate different queries for different requesting users, in which we define a `get_followers_you_known` query function that accepts a list of primary keys and constructs a dictionary whose key is a primary key from the list of primary keys passed in. The corresponding value is the primary key list of the target relationship (Followers you known) user. After this dictionary is returned, UtilMeta will complete the subsequent aggregate query and result distribution. Finally, the field of each user Schema instance `followers_you_known` will contain the query results that meet the condition requirement
+In the example, `UserSchema` defines a class function that generate different queries for different requesting users, in which we define a `get_followers_you_known` query function that accepts a list of primary keys and constructs a dictionary whose key is a from the passed in list. and the corresponding value is the primary key list of the target relationship (**Followers you known**) user. After this dictionary is returned, UtilMeta will complete the subsequent aggregate query and result distribution. Finally, the `followers_you_known` field of each user Schema instance will contain the query results that meet the condition requirement
 
-!!! Tip “Dynamic Schema Query”
+!!! tip "Dynamic Schema Query"
+	For the above example, you can call `UserSchema.get_runtime_schema(request_user_id)` in the API function to get the dynamic generated Schema class based on the user id of the current request, we often call it **Dynamic Schema Query**
 
 ### Query Expression
 
@@ -431,9 +441,9 @@ Aggregation or calculation of a relational field is also a common development re
 
 * Query how many followers or followed people a user has
 * Find out how many people liked, viewed and commented on the article
-* Inquire how many orders there are for the product
+* Get how many orders there are for the product
 
-Almost all models with relational fields require a query for the number of correspondences. For Django ORM, you can use `models.Count('<relation_name>')` to query the number of correspondences, such as in the example above.
+Almost all models with relational fields require a query for the number of related objects. For Django ORM, you can use `models.Count('<relation_name>')` to query the number of relations, such as in the example above.
 ```python
 from utilmeta.core import orm
 from .models import User
@@ -444,22 +454,23 @@ class UserSchema(orm.Schema[User]):
     articles_num: int = models.Count('articles')
 ```
 
-The `articles_num` UserSchema field is used `models.Count('articles')` to indicate the number of query `'articles'` relationships, that is, how many articles a user has created.
+The `articles_num` field of UserSchema is using `models.Count('articles')` to indicate the number of `'articles'` relationships, which is how many articles a user has created.
 
-In addition to quantities, expression queries can be used for some common data calculations, such as
+Beside quantities, expression queries can be used for some common data calculations, such as
 
-*  `models.Avg` Average calculation, such as calculating the average rating of a store or product
-*  `models.Sum` Summation calculation, such as calculating the total sales of a commodity.
+*  `models.Avg`: Average calculation, such as calculating the average rating of a store or product
+*  `models.Sum`: Summation calculation, such as calculating the total sales of a commodity.
 *  `models.Max`: Maximum value calculation
 *  `models.Min`: Minimum value calculation
 
 !!! tip
+	More usage of django query expressions can refer to [Django aggregations](https://docs.djangoproject.com/en/5.0/topics/db/aggregation/)
 
-Here are some expression types that are commonly used in real-world development
+Here are some expressions that are commonly used in real-world development
 #### `Exists`
-Sometimes you need to return the field of whether a conditional query set exists, for example, when querying a user, you can use `Exists` an expression to return [whether the user currently requested has followed the user].
+Sometimes you need to return the field of whether a conditional queryset exists, for example, when querying a user, you can use `Exists` an expression to return "**whether the current request user has followed**".
 
-```python
+```python hl_lines="11"
 from utilmeta.core import orm
 from django.db import models
 
@@ -479,9 +490,9 @@ class UserSchema(orm.Schema[User]):
         return user_schema
 ```
 #### `SubqueryCount`
-For some relation counts you may need to add some conditions, for example, when querying an article, you need to return [how many of the current user’s followers like the article], in which case you can use `SubqueryCount` expressions.
+For some relation counts you may need to add some conditions, for example, when querying an article, you need to return "**how many of the current user’s followings liked the article**", in which case you can use `SubqueryCount` expressions.
 
-```python
+```python hl_lines="10"
 from utilmeta.core.orm.backends.django import expressions as exp
 
 class ArticleSchema(orm.Schema[Article]):
@@ -494,7 +505,7 @@ class ArticleSchema(orm.Schema[Article]):
             following_likes: int = exp.SubqueryCount(
                 User.objects.filter(
                     followers=user_id,
-                    likes=exp.OuterRef('pk')
+                    favorites=exp.OuterRef('pk')
                 )
             )
         return article_schema
@@ -502,31 +513,31 @@ class ArticleSchema(orm.Schema[Article]):
 
 ## `orm.Schema` usage
 
-This section will introduce `orm.Schema` common usage and application techniques.
-
+This section will introduce more usages of `orm.Schema`
 ### `orm.Field` parameters
 
-Each field `orm.Schema` declared in can be specified `orm.Field(...)` as a property value to configure the behavior of the field. Common field configuration parameters are
+Each field declared in `orm.Schema` can specifies `orm.Field(...)` as a property value to configure the behavior of the field. Common field configuration parameters are
 
-The first is the first parameter `field`. When the field you want to query is not in the current model (cannot be directly represented as the attribute name of Schema class), you can use this parameter to specify the field value you want to query. The above example has shown the relevant usage, such as
+The first parameter `field`. When the field you want to query is not in the current model (cannot be directly represented as the attribute name of Schema class), you can use this parameter to specify the field value you want to query. The above example has shown the relevant usage, such as
 
-* Pass in a relational query field, such as
-* Pass in a relational query function, such as
-* Pass in a query set
-* Pass in a query expression, such as
+* Pass in a relational query field, such as  `orm.Field('author.username')`
+* Pass in a relational query function, such as `orm.Field(get_top_comments)`
+* Pass in a queryset
+* Pass in a query expression, such as `orm.Field(models.Count('articles'))`
 
 In addition to the first parameter, you can use the following parameters to implement more field behaviors
 
-*  `no_input`: Set to True to ignore the field input. For example, when creating an article `author_id`, the field should not be provided by the request data, but should be assigned to the user ID of the current request in the API function, so it needs to be declared.
-*  `no_output`: Set to True to ignore the field output. For example, when creating an article, the request data can be required to contain a list of tags, but it does not need to be saved in the article model instance. Instead, the creation and assignment of tags are handled in the API function. At this time, it can be declared.
-*  `mode` You can specify a schema for a field so that the field only works in the corresponding schema. In this way, you can use a Schema class to handle various scenarios [ The Realworld Blog Project ](tutorials/realworld-blog) such as query, create, update, etc. Detailed examples of the use of the field schema are given in.
+* `no_input`:  Set to True to ignore the field input. For example, when creating an article, the field `author_id` should not be provided by the request data, but should be assigned to the user ID of the current request in the API function, so it needs to be declared.
+* `no_output`:  Set to True to discard the field output. For example, when creating an article, the request data can be required to contain a list of tags, but it does not need to be saved in the article model instance, so it can be declared.
+* `mode`: You can specify a mode for a field so that the field only works in the corresponding mode. In this way, you can use a single Schema class to handle various scenarios like query, create, update, etc.  [The Realworld Blog Project](../../tutorials/realworld-blog) shows the detailed examples of this usage.
 
-!!! Tip “field parameter configuration”
+!!! tip "field parameter configuration"
+	`orm.Field` inherits from `utype.Field`, so the detailed usage can refer to [utype- Field configuration](https://utype.io/references/field/)
 
-###  `@property` field
-You can use the attribute fields of the Schema class `@property` to quickly develop fields that are calculated based on the query result data, such as
+### `@property` field
+You can use the `@property` of Schema class to quickly develop fields that are calculated based on the query result data, such as
 
-```python
+```python hl_lines="7-9"
 from datetime import datetime
 
 class UserSchema(orm.Schema[User]):
@@ -538,11 +549,10 @@ class UserSchema(orm.Schema[User]):
 	    return int((datetime.now() - self.signup_time).total_seconds() / (3600 * 24))
 ```
 
-In the `joined_days` example, the attribute calculates the number of days the user has registered through the user’s registration time and outputs it as the value of the field.
-
+In the example, the `joined_days` property calculates the number of days the user has registered through the user’s signup time and outputs it as the value of the field.
 ### Schema Inheritance
- `orm.Schema` Classes can also reuse declared fields using class inheritance, composition, etc. For example,
-```python
+`orm.Schema` Classes can also reuse declared fields using class inheritance, for example,
+```python hl_lines="15"
 from utilmeta.core import orm
 from .models import User
 
@@ -562,10 +572,10 @@ class UserRegister(UserLogin, UsernameMixin): pass
 
 In the example we defined
 
-*  `UsernameMixin`: contains `username` only one field, which can be reused by other Schema classes
-*  `UserBase`: Inherit UsernameMixin and return the basic information of the user
-*  `UserLogin`: Parameters required for user login
-*  `UserRegister`: The parameter required for user registration is the combination of the login parameter UserLogin and the UsernameMixin containing the username parameter.
+* `UsernameMixin`: contains only `username` field, which can be reused by other Schema classes
+* `UserBase`: Inherit UsernameMixin and defines the basic information of the user
+* `UserLogin`: Parameters required for user login
+* `UserRegister`: Parameters required for user registration, which is the combination of the `UserLogin` and `UsernameMixin`.
 
 All of the above Schema classes can be used and queried independently
 #### Model inheritance
@@ -594,8 +604,8 @@ class Comment(BaseContent):
     author = models.ForeignKey('user.User', on_delete=models.CASCADE, related_name='comments')
 ```
 
-In the above example, the repeated fields in the Article model and Comment model are integrated into the `BaseContent` abstract model. Similar techniques can be used to reuse fields in the ORM Schema class. For the Schema base class, you can not specify the model. Inject at inheritance time, such as
-```python
+In the above example, the repeated fields in the Article and Comment model are integrated into the `BaseContent` abstract model. Similar techniques can be used to reuse fields in the ORM Schema class. For the Schema base class, you can declare without the model. Inject at inheritance time, such as
+```python hl_lines="13 17"
 from utype.types import *
 from utilmeta.core import orm
 from domain.user.schema import UserSchema
@@ -619,15 +629,16 @@ class ArticleSchema(ContentSchema[Article]):
     description: str = orm.Field(default='', defer_default=True)
 ```
 
-In the example, we define the ContentSchema base class, which hosts the common data structure in articles and comments, but does not inject the model. CommentS chema and ArticleSchema declared later inherit from it and inject the corresponding model.
+In the example, we defined the `ContentSchema` base class, which hosts the common data structure in articles and comments, but does not inject the model. CommentSchema and ArticleSchema declared later inherit from it and inject the corresponding model.
 
 !!! warning
+	`orm.Schema` without models cannot be used in queries, such as ContentSchema in the example
 
 ## `orm.Query` parameters
 
-UtilMeta’s declarative ORM also supports query parameters of the declarative model, such as filter conditions, sorting, quantity control, etc. The following is a simple example. You can directly add ID and author filter parameters to the query interface of the article.
+UtilMeta’s declarative ORM also supports parsing query parameters to generate queryset, such as filter conditions, sorting, quantity control, etc. The following is a simple example. You can directly add ID and author filter to the query API of the article.
 
-= = = “Async API”
+=== "Async API"
 	```python
 	from utilmeta.core import orm
 	
@@ -639,7 +650,7 @@ UtilMeta’s declarative ORM also supports query parameters of the declarative m
 		async def get(self, query: ArticleQuery) -> List[ArticleSchema]:
 			return await ArticleSchema.aserialize(query)
 	```
-= = = “Sync API”
+=== "Sync API"
 	```python
 	from utilmeta.core import orm
 	
@@ -652,13 +663,13 @@ UtilMeta’s declarative ORM also supports query parameters of the declarative m
 			return ArticleSchema.serialize(query)
 	```
 
-We use a similar `orm.Schema` syntax to `orm.Query[<model>]` declare the query parameters of a model, and the declared Query class will be automatically processed as the query parameters of the request ( `request.Query`) when it is used in the type declaration of API function parameters. You can pass an instance of it directly to `orm.Schema` a `serialize` method in a function to serialize the corresponding query result.
+We use `orm.Query[<model>]` to declare the query parameters of a model, and the declared Query class will be automatically processed as the query parameters of the request ( `request.Query`) when it is used in the type annotation of API function parameters. You can pass an instance of it directly to `orm.Schema`'s `serialize` method in a function to serialize the corresponding query result.
 
 ### Filter params
 
-The field declared in `orm.Query` the class, if it has the same name in the model, will be automatically processed as a filter parameter. When the request provides this filter parameter, the corresponding condition will be added to the target query. For example, when the request is made `GET/article?author_id=1`, You’ll get `author_id=1` a set of article queries.
+if the field declared in `orm.Query` has the same name in the model, will be automatically processed as a **filter** parameter. When the request provides this filter parameter, the corresponding condition will be added to the target query. For example, when request `GET /article?author_id=1`, You’ll get a set of article queries with `author_id=1` condition.
 
-When you need to define more complex query parameters, you need to use `orm.Filter` components. Here is an example of the common use of filter parameters.
+When you need to define more complex query parameters, you need to use `orm.Filter` component. Here is an example of its common usage.
 
 ```python
 from utilmeta.core import orm
@@ -678,26 +689,27 @@ class ArticleAPI(api.API):
 		return ArticleSchema.serialize(query)
 ```
 
-The `orm.Filter` first parameter can specify the name of the query field, and several types are shown in the example.
+The first parameter of  `orm.Filter`  can specify the name of the query field, and several kinds are shown in the example.
 
-*  `author`: Query the relationship field `'author.username'`, which is the user name of the author user
-*  `keyword`: The query field `content` case-insensitively contains ( `icontains`) the target parameter, i.e., a simple search
-*  `favorites_num`: The query field is a relational count expression `models.Count('favorited_bys')`, that is, the number of likes.
+* `author`:  Query the relation field `'author.username'`, which is the username of the author user
+* `keyword`:  Query the field `content` that case-insensitively contains ( `icontains`) the target parameter, thus be a simple search feature
+* `favorites_num`:  Query a relational count expression `models.Count('favorited_bys')`, which is the number of likes.
 
-In addition, `orm.Filter` you can specify a query expression with `query` a parameter, receive a parameter (that is, the corresponding query parameter value in the request), and return a query expression, which should be an `models.Q` expression in Django. It can contain custom query conditions, such as the `within_days` query in the example of articles within a few days of creation.
+In addition,  you can specify a query expression with the `query` parameter of `orm.Filter` , receive a parameter (which is the corresponding query parameter value in the request), and return a query expression, which should be an `models.Q` expression in Django. It can contain custom query conditions, such as the `within_days` query in the example of articles within a few days of creation.
 
 !!! tip
+	For more lookups (to construct `WHERE` of SQL) in Django, you can refer to [Django Field Lookups](https://docs.djangoproject.com/en/5.0/ref/models/querysets/#field-lookups)
 
-Inherits from the `utype.Field` `orm.Field` `orm.Filter` same as, so other field configurations are still valid, such as
+`orm.Filter` also inherits from `utype.Field`, so other field configurations are still valid, such as
 
-*  `required`: Required. The default `orm.Filter` is `required=False` yes, which means it is a non-required parameter. The corresponding query condition will be applied only when it is requested to be provided.
-*  `default`: Specify default values for query parameters
-*  `alias`: Specify an alias for the query parameter
+* `required`:  Required. The default for `orm.Filter` is `required=False`, which means it is a optional parameter. The corresponding query condition will be applied only when it is provided.
+* `default`:  Specify default values for query parameter
+* `alias`:  Specify an alias for the query parameter
 
 ### Sorting params
 
-Fields used to control the sorting of query results can also be declared in the `orm.Query` class. You can declare the supported sorting fields and the corresponding configuration. Examples are as follows
-```python
+You can also declare sorting parameter in `orm.Query` class. with the supported sorting fields and the corresponding configuration. Examples are as follows
+```python hl_lines="6-10"
 from utilmeta.core import orm
 from django.db import models
 from .models import Article
@@ -714,33 +726,33 @@ class ArticleAPI(api.API):
 		return ArticleSchema.serialize(query)
 ```
 
-First, the sort parameter needs to use a `orm.OrderBy` field declaration, in which a dictionary is defined to declare the sort option. The key of the dictionary is the name of the sort option, and the value is the configuration of the sort.
+The sort parameter use `orm.OrderBy` to define, in which a dictionary that declares the sort option. The key of the dictionary is the name of the sort option, and the value is the configuration.
 
-After the sort parameter is declared, the client can pass in a list of sort options. The sort options are selected from the declaration of the sort parameter. You can add `-` a (minus sign) before the options to indicate that they are sorted in reverse order. For example, for the above example, when the client requests `GET/article?order=-favorited_num,created_at`, the detected sort options are
+After the sort parameter is declared, the client can pass in a list of sort options. The sort options are selected from the declaration of the sort parameter. You can add `-` a (minus) before the options to indicate that they are sorted in **descending** order. for the above example, when the client requests `GET /article?order=-favorited_num,created_at`, the detected sort options are
 
-1.  `-favorited_num`: Sort in reverse order of the number of people you like. The more people you like, the higher you are.
-2.  `created_at`: Sorted in positive order of creation time, the earlier, the higher
+1.  `-favorited_num`:  Sort in reverse order of the number of likes. the more likes an article got, the prior it rank
+2.  `created_at`: Sorted in the order of creation time, the earlier, the prior
 
-Each of the sort options supported by the sort parameter can be configured by `orm.Order`. The supported parameters are
+Each of the sort options can configure using `orm.Order`. The supported parameters are
 
-*  `field`: The sorting target field or expression can be specified. If the name of the corresponding sorting option is the name of the model field, it can not be specified (such as in `created_at` the example).
-*  `asc`: Whether positive sequence is supported. The default value is True. If it is set to False, positive sequence is not provided.
-*  `desc`: Whether reverse order is supported. The default value is True. If it is set to False, reverse order is not supported.
-* Specify a documentation string `document` for the sort field that will be incorporated into the API documentation.
+* `field`: The sorting target field or expression can be specified. If the name of the corresponding sorting option is the name of the model field, it can left empty (such as in `created_at` the example).
+* `asc`: Whether ascending order is supported. The default value is True. If it is set to False, ascending order is not supported.
+* `desc`: Whether descending order is supported. The default value is True. If it is set to False, descending order is not supported.
+* `document`: Specify a documentation string for the sort field that will be integrated into the API documentation.
 
-In sorting, there is a kind of value that is more difficult to handle, that is, null value. When querying, the result of null field value should be arranged at the top, and at the end, it should be filtered out, which is determined by the following parameters
+In sorting, there is a kind of value that is more difficult to handle, the **null** value. The behaviour of null value if sorting is determined by the following parameters
 
-*  `notnull`: Whether to filter out the null instances of this field. The default is False.
-*  `nulls_first`: sort the instances with null values in the sort field first (first in forward order, last in reverse order)
-*  `nulls_last`: sort the instances with null values in the sort field last (forward last, reverse first)
+* `notnull`: Whether to filter out the null value instances of this field. The default is False.
+* `nulls_first`: sort the null value instances to be the first (first in ascending order, last in descending order)
+* `nulls_last`: sort the null value instances to be the last (last in ascending order, first in descending order)
 
-If none of these parameters are specified, the sorting of instances with null sort fields will be determined by the database
+If none of these parameters are specified, the sorting of null value instances will be determined by the database
 
 ### Paging params
 
-In actual development, we are unlikely to return hundreds of records hit by the query at one time. Instead, we need to provide ** Paging control ** a mechanism. `orm.Query` The class also supports defining several preset paging parameters so that you can quickly implement the paging query interface. The following is an example.
+In actual development, we are unlikely to return hundreds of records by the query at one time. Instead, we need to provide **Paging control** mechanism. `orm.Query` class also supports defining several preset paging parameters so that you can quickly implement the paging query API. The following is an example.
 
-```python
+```python hl_lines="6-7"
 from utilmeta.core import orm
 from django.db import models
 from .models import Article
@@ -756,14 +768,14 @@ class ArticleAPI(api.API):
 
 The two paging control parameters defined in the example are as follow
 
-*  `offset`: Specify a `orm.Offset` field to control the starting offset of the query. For example, if the client has queried 30 results, the next request will be sent `?offset=30` to query the results after 30.
-*  `limit`: Specify a `orm.Limit` field to control the limit of the number of results returned by the query. The default value is 20, that is, the maximum number of results returned is 20 when no parameter is provided. The maximum value is 100. The requested parameter cannot be greater than this value.
+* `offset`:  Specify a `orm.Offset` field to control the starting offset of the query. For example, if the client has queried 30 results, the next request will be sent `?offset=30` to query the results after 30.
+* `limit`:  Specify a `orm.Limit` field to control the limit of the number of results returned by the query. The default value is 20, thus the number of results returned is limited to 20 when this parameter is not provided, and the maximum value is 100, so the parameter cannot be greater than this value.
 
-For example, when the client requests `GET/article?offset=10&limit=30`, it will return 10 to 40 of the query results.
+For example, when the client requests `GET /article?offset=10&limit=30`, it will return 10 to 40 of the query results.
 
-In addition to the offset/limit mode, there is another way for the client to pass the “number of pages” of the page directly, such as
+In addition to the offset / limit mode, there is another way for the client to pass the “**number of pages**” of the page directly, such as
 
-```python
+```python hl_lines="6-7"
 from utilmeta.core import orm
 from django.db import models
 from .models import Article
@@ -777,15 +789,15 @@ class ArticleAPI(api.API):
 		return ArticleSchema.serialize(query)
 ```
 
-The parameter in `page` the example specifies a `orm.Page` field, which exactly corresponds to the concept of the number of pages in the front end and starts counting from 1. For example, when the client requests `GET/article?page=2&rows=10`, it will return 10 to 20 items in the query results, that is, “Page 2“ in the client data.
+The `page` parameter in the example specifies a `orm.Page` field, which exactly corresponds to the concept of the number of pages in the frontend, and starts counting from 1. For example, when the client requests `GET /article?page=2&rows=10`, it will return 10 to 20 items in the query results, which is “Page 2“ in the client data.
 
 #### `count()` Total number of results
 
-In order to enable the client to display the total number of pages queried, we often need to return the total number of results queried (ignoring the paging parameter). To address this requirement, `orm.Query` the instance provides a `count()` method (asynchronous variant is `acount ())
+In order for the client to display the total number of pages queried, we often need to return the total number of results queried (while ignoring the paging parameter). To implement this requirement, `orm.Query` instance provides a `count()` method, with the asynchronous variant `acount()`
 
-The following demonstrates how the post pagination interface for a blog project is handled
+The following demonstrates how the article pagination API for a blog project is handled
 
-= = = “Async API”
+=== "Async API"
 	```python hl_lines="17"
 	from utilmeta.core import orm, api, response
 	
@@ -806,7 +818,7 @@ The following demonstrates how the post pagination interface for a blog project 
 	            count=await query.acount()
 	        )
 	```
-= = = “Sync API”
+=== "Sync API"
 	```python  hl_lines="17"
 	from utilmeta.core import orm, api, response
 	
@@ -828,17 +840,17 @@ The following demonstrates how the post pagination interface for a blog project 
 	        )
 	```
 
-In the example, we use the response template to define a nested response structure, including the query result ( `result`) and the total number of queries ( `count`), and the corresponding list data serialized using ArticleSchema is also passed in the function. Total number of results from the and calls `query.count()`
+In the example, we use the response template to define a nested data structure, including the query result ( `result`) and the total number of queries ( `count` ), the list data serialized using ArticleSchema are passed to the `result`, while the total number of results from  `query.count()` passed to the `count`
 
-When the client receives the `count` data, it can calculate the total number of pages displayed.
+When the client receives the `count` value, it can calculate the total number of pages displayed.
 ```js
-let pages = Math.ceil(count / rows)
+let pages = Math.ceil(count / rows_per_page)
 ```
 
 ### Field Control Params
-UtilMeta also provides a result field control mechanism similar to GraphQL, which allows the client to select which fields to return or which fields to exclude, so as to further optimize the query efficiency of the interface. Examples are as follows
+UtilMeta also provides a result field control mechanism similar to GraphQL, which allows the client to select which fields to return or which fields to exclude, so as to further optimize the query efficiency of the API, examples are as follows
 
-```python hl_lines="18"
+```python hl_lines="18-19"
 from utilmeta.core import orm
 from .models import User, Article
 from django.db import models
@@ -864,19 +876,20 @@ class ArticleAPI(api.API):
 		return ArticleSchema.serialize(query)
 ```
 
-In ArticleQuery, we define a `scope` `orm.Scope` parameter named, which can be used by the client to specify a list of fields, so that the result only returns the fields in the list. For example, the request `GET/article?scope=id,content,created_at` will only return `id`, `content` and the `created_at` field
+In ArticleQuery, we define a `orm.Scope` parameter named  `scope`, which can be used by the client to specify a list of fields, so that the result only returns the fields in the list. For example, the request `GET /article?scope=id,content,created_at` will only return `id`, `content` and `created_at` field
 
-Another `exclude` parameter is also used `orm.Scope`, but it is specified `excluded=True` in it, which means that the field given in the parameter will be excluded, and the request `GET/article?exclude=author` will return the result data without the `author` field.
+Another `exclude` parameter is also used `orm.Scope`, but it is specified `excluded=True`, which means that the field given in the parameter will be excluded, and the request `GET/article?exclude=author` will return the result data without the `author` field.
 
-!!! tip
+!!! note
+	Reasonable usage of `orm.Scope` parameters by the client can not only reduce bandwidth consumption, but also reduce corresponding query pressure, because the UtilMeta framework will trim the generated query statements based on the fields specified in the scope parameter, only querying the fields that need to be included in the result. if the query consumption of certain fields is high (such as complex nested multi pair relationship objects or expression queries), When these fields are not included in the expected result field, query processing will not be performed
 
 ### `get_queryset`
 
-For `orm.Query` an instance, in addition to being serialized directly as `serialize` a parameter to a method such as, you can also call its `get_queryset` method to get the generated query set, such as a Django QuerySet for a Django model.
+For `orm.Query` instance, in addition to being serialized directly to a method such as `Schema.serialize`, you can also call its `get_queryset` method to get the generated queryset, such as a Django QuerySet for a Django model.
 
- `get_queryset` Method can also accept a base _ queryset parameter, and the filtering, sorting, and paging effects contained in the query parameter can be added to the query set
+`get_queryset` can also accept a base queryset parameter, and add the filtering, sorting, and paging based on the base queryset.
 
-```python  hl_lines="11"
+```python  hl_lines="11-13"
 class ArticleAPI(API):
     class ListArticleQuery(orm.Query[Article]):
         author: str = orm.Filter('author.username', required=True)
@@ -895,20 +908,21 @@ class ArticleAPI(API):
 ```
 
 
-In the example, we use the `query.get_queryset` method to get the query set generated by the query parameters, and pass in a custom base QuerySet to pass the results of the generated query set to the parameters of the serialization method `queryset`.
+In the example, we use `query.get_queryset` method to get the queryset generated by the query parameters, and pass in a custom base QuerySet, and pass the result of the generated queryset to the `queryset` parameter of the serialize method.
 
 !!! tip
+	The scope parameters are special params that won't affect queryset, but will affect the output fields, which should pass through `query.get_context()`
 
 ## Database and ORM configuration
 
-We have introduced the usage of UtilMeta declarative ORM, but if you need to access the database, you need to complete the configuration of the database and ORM.
+We have introduced the usage of UtilMeta declarative ORM, but if you need to connect to the database to use it, you need to complete the configuration of the database and ORM.
 
 As a meta-framework, UtilMeta’s declarative ORM is able to support a range of ORM engines implemented as a model layer. The current support status is
 
 * **Django ORM**：**Fully supported**
-* Tortoise-orm: support coming soon
-* Peewee: Upcoming support
-* Sqlachemy: coming soon
+* Tortoise-orm:  Upcoming support
+* Peewee:  Upcoming support
+* SQLAchemy:  Upcoming support
 
 So let’s take Django ORM as an example of how to configure database connections and models.
 
@@ -936,7 +950,7 @@ The folder structure is similar
 
 You can configure the following code in `config/conf.py`
 
-=== “config/conf.py”
+=== "config/conf.py"
 	```python
 	from utilmeta import UtilMeta
 	from config.env import env
@@ -957,7 +971,7 @@ You can configure the following code in `config/conf.py`
 	    }))
 	    service.setup()
 	```
-=== “config/sevice.py”
+=== "config/sevice.py"
 	```python
 	from utilmeta import UtilMeta
 	from config.conf import configure
@@ -973,34 +987,35 @@ You can configure the following code in `config/conf.py`
 	configure(service)
 	```
 
-We define the `configure` function in `config/conf.py` to configure the service, receive `UtilMeta` the service instance of the type, and use `use()` the method to configure it.
+We define the `configure` function in `config/conf.py` to configure the service, receive the `UtilMeta` service instance, and use `use()` method to configure it.
 
-To use Django ORM, you need to complete the configuration of Django. UtilMeta provides `DjangoSettings` an easy way to configure Django. The important parameters are
+To use Django ORM, you need to use the configuration of Django. UtilMeta provides `DjangoSettings` as an easy way to configure Django. The important parameters are
 
-*  `apps_package`: Specify a directory in which each folder will be treated as a Django App, and Django will scan the `models.py` files in it to detect all models, such as in the example.
-*  `apps` You can also specify a list of Django App references to single out all model directories, such as
-*  `secret_key` Specify a key, which you can manage using environment variables.
+* `apps_package`:  Specify a directory in which each folder will be treated as a Django App, and Django will scan the `models.py` files in it to detect all models, such as  `'domain'` folder in the example.
+* `apps`:  You can also specify a list of Django app references to list all model directories, such as `['domain.article', 'domain.user']`
+* `secret_key`:  Specify a key, which you can manage using environment variables.
 
 ### Database connection
 
-In UtilMeta, you can use `DatabaseConnections` to configure the database connection, where you can pass in a dictionary. The key of the dictionary is the name of the database connection. We follow the syntax of Django to define the database connection, and use `'default'` to represent the default connection. The corresponding value is an `Database` instance that is used to configure a specific database connection, and the parameters include
+In UtilMeta, you can use `DatabaseConnections` to configure the database connection, where you can pass in a dictionary. The key of the dictionary is the name of the database connection. We use the syntax of Django to define the database connection, and use `'default'` to represent the default connection. The corresponding value is an `Database` instance that is used to configure a specific database connection, and the parameters include
 
-*  `name`: The name of the database (in SQLite3, the name of the database file)
-*  `engine`: Database engine, Django ORM supported engines are `sqlite3`, `mysql`,
-*  `user`: Username of the database
-*  `password`: The user password for the database
-*  `host`: Host of the database, local by default ( `127.0.0.1`)
-*  `port`: The port number of the database, which is determined by the type of the database by default, such as `mysql` 3306 `postgresql` or 5432
+* `name`:  name of the database (in SQLite3, the name of the database file)
+* `engine`:  database engine, Django ORM supported engines are `sqlite3`, `mysql`, `postgresql`, `oracle`
+* `user`:  username of the database
+* `password`:  user's password for the database
+* `host`:  host of the database, localhost by default ( `127.0.0.1` )
+* `port`:  port number of the database, if not specified, will determined by the database, such as 3306 for `mysql` and 5432 for `postgresql`
 
-!!! tip “SQLite3”
+!!! tip "SQLite3"
+	The database in the example uses SQLite3 as the engine, you don't need to provide user, password and host, it will create a file named the `name` param you specified to store the data, which is suitable for quick debugging in the development stage.
 
 
 **PostgreSQL / MySQL**
 
 When you need to use PostgreSQL or MySQL connections that require a database password, we recommend that you use environment variables to manage this sensitive information. Examples are as follows
 
-=== “config/conf.py”
-	```python
+=== "config/conf.py"
+	```python hl_lines="16-19"
 	from utilmeta import UtilMeta
 	from config.env import env
 	
@@ -1024,7 +1039,7 @@ When you need to use PostgreSQL or MySQL connections that require a database pas
 	    }))
 		service.setup()
 	```
-=== “config/env.py”
+=== "config/env.py"
 	```python
 	from utilmeta.conf import Env
 	
@@ -1040,7 +1055,7 @@ When you need to use PostgreSQL or MySQL connections that require a database pas
 	```
 
 
-In `config/env.py`, we declare the key information required for the configuration and pass `sys_env='BLOG_'` it in the initialization parameter, which means that `BLOG_` the environment variable with the prefix will be picked up, so you can specify an environment variable like
+In `config/env.py`, we declare the key information required for the configuration and pass `sys_env='BLOG_'` it in the initialization parameter, which means that the system environment variable with the prefix `BLOG_`  will be collected, so you can specify an environment variable like
 
 ```env
 BLOG_PRODUCTION=true
@@ -1049,11 +1064,11 @@ BLOG_DB_USER=your_user
 BLOG_DB_PASSOWRD=your_password
 ```
 
-After initialization `env`, it will resolve the environment variables to the corresponding attributes and complete the type conversion, and you can use them directly in the configuration file.
+After initialization `env`, it will parse the environment variables to the corresponding type and attributes, and you can use them directly in the configuration file.
 
 ### Django Migration
 
-When we have written the data model, we can use the migration command provided by Django to easily create the corresponding data table. If you use SQLite, you do not need to install the database software in advance. Otherwise, you need to install PostgreSQL or MySQL database to your computer or online environment first. Then create a database with the same configuration `name` as your connection. After the database is ready, you can use the following command to complete the data migration.
+When we have written the data models, we can use the migration command provided by Django to easily create the corresponding data table. If you use SQLite, you do not need to install the database software in advance. Otherwise, you need to install PostgreSQL or MySQL database to your computer or online environment first. Then create a database with the same `name` as your connection. After the database is ready, you can use the following command to complete the data migration.
 
 ```shell
 meta makemigrations
@@ -1075,7 +1090,8 @@ Running migrations:
 
 For SQLite database, the corresponding database files and data tables will be created directly, while for other databases, the corresponding data tables will be created according to your model definition
 
-!!! Tip “Database Migration Commands”
+!!! tip "Database Migration Commands"
+	The above command is the migration commands of Django, `makemigrations` will save your migrations of models into files, while `migrate` applied the unapplied migration files to SQLs that create or alter tables.
 
 ### Asynchronous query
 
@@ -1083,18 +1099,18 @@ Asynchronous queries do not require additional configuration, but depend on how 
 
 Each method in Django ORM also has a corresponding asynchronous implementation, but in fact it only uses `sync_to_async` methods to turn the synchronous function into an asynchronous function as a whole, and its internal query logic and driver implementation are still all synchronous and blocking.
 
-
 **AwaitableModel**
 
-UtilMeta ORM completes the pure asynchronous implementation of all methods in Django ORM, and uses [ encode/databases ](https://github.com/encode/databases) the library as the asynchronous driver of each database engine to maximize the performance of asynchronous queries. The model base class hosting this implementation is located in
+UtilMeta ORM implement a pure asynchronous version of all methods in Django ORM, and uses [ encode/databases ](https://github.com/encode/databases) library as the asynchronous driver of each database engine to maximize the performance of asynchronous queries. The model base class hosting this implementation is located in
 
 ```python
 from utilmeta.core.orm.backends.django.models import AwaitableModel
 ```
 
-If your Django model is self-integrated `AwaitableModel`, all of its ORM methods will be implemented completely asynchronously.
+If your Django models inherit from `AwaitableModel`, all of its ORM methods will be implemented completely asynchronously.
 
 !!! warning “ACASCADE”
+	When you are using the `on_delete` option in `AwaitableModel`, if you choose the cascade delete feature, you should use `utilmeta.core.orm.backends.django.models.ACASCADE`, which is the async version of `django.db.models.CASCADE`
 
 In fact, encode/databases also integrates the following asynchronous query drivers respectively
 
@@ -1104,13 +1120,13 @@ In fact, encode/databases also integrates the following asynchronous query drive
 * [asyncmy](https://github.com/long2ice/asyncmy)
 * [aiosqlite](https://github.com/omnilib/aiosqlite)
 
-So if you need to specify the asynchronous query engine when you select the database, you can pass it in the `engine` parameter `sqlite3+aiosqlite`. `postgresql+asyncpg`
+So if you need to specify the asynchronous query engine when you select the database, you can pass it in the `engine` parameter like `sqlite3+aiosqlite`. `postgresql+asyncpg`
 
 ### Transaction plugin
 
-Transaction is also a very important mechanism for data query and operation, which guarantees the atomicity of a series of operations (either overall success or overall failure does not affect).
+Transaction is also a very important mechanism for data query and operations, which guarantees the atomicity of a series of operations (either overall success or overall failure with no effects).
 
-In UtilMeta, you can use `orm.Atomic` an interface decorator to enable database transactions for an interface, and we have shown the corresponding usage in the example of creating an interface in the article.
+In UtilMeta, you can use `orm.Atomic` as an API decorator to enable database transactions for an endpoint, and we have shown the corresponding usage in the example of the creation API of the article.
 
 ```python hl_lines="4"
 from utilmeta.core import orm
@@ -1130,7 +1146,6 @@ class ArticleAPI(API):
             await self.article.tags.aset(self.tags)
 ```
 
-The post interface in this example also needs to complete the creation and setting of tags when creating articles. We directly use `@orm.Atomic('default')` the decorator on the interface function to indicate that the transaction is opened for the `'default'` database (corresponding `DatabaseConnections` to the defined database connection). If this function completes successfully, the transaction is committed, and if any errors occur ( `Exception`), the transaction is rolled back
+The article API in this example needs to complete the creation and relation assignment of tags. We directly use `@orm.Atomic('default')` on the endpoint function to indicate that the transaction is enabled for the `'default'` database connection (corresponding `DatabaseConnections` to the defined database connection). If this function completes successfully, the transaction is committed, and if any exceptions occur, the transaction is rolled back
 
-So in the example, the article and tag are either created and set successfully at the same time, or the overall failure has no effect on the data in the database.
-
+So in the example, the article and tags are either created and set successfully at the same time, or failed completely and has no effect on the data of database.

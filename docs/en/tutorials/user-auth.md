@@ -150,11 +150,11 @@ In this code, `SessionSchema` is the core engine that processes and stores Sessi
 
 We also declare the user authentication configuration `user_config` with the following params
 
-*  `user_model` Specify the user model for authentication, which is the User model I wrote in the previous section.
-*  `authentication`: Specify the authentication method. We pass `session_config` in to declare that user authentication is performed using Session.
-*  `key`: Specify the key of the current user ID in the session data
-*  `login_fields`: Fields that can be used for login, such as username, email, etc., which need to be unique.
-*  `password_field`: The user’s password field. Declaring these allows UtilMeta to automatically handle the login verification logic for you.
+* `user_model` Specify the user model for authentication, which is the User model I wrote in the previous section.
+* `authentication`: Specify the authentication method. We pass `session_config` in to declare that user authentication is performed using Session.
+* `key`: Specify the key of the current user ID in the session data
+* `login_fields`: Fields that can be used for login, such as username, email, etc., which need to be unique.
+* `password_field`: The user’s password field. Declaring these allows UtilMeta to automatically handle the login verification logic for you.
 
 ## 4. Write user API
 
@@ -201,7 +201,7 @@ The logic in the signup API function is
 4. Returns after initializing the new user’s data to a UserSchema instance using `UserSchema.init(data.pk)`
 
 !!! abstract "Declarative ORM"
-	UtilMeta has developed an efficient declarative ORM mechanism, also known as Scheme Query. We use `orm.Schema[User]` to define a Schema class with the User model injected, so that we can use the methods of the schema class to create, update, and serialize data. You can find more in [Data Query and ORM Document](../../guide/schema query)
+	UtilMeta has developed an efficient declarative ORM mechanism, also known as Scheme Query. We use `orm.Schema[User]` to define a Schema class with the User model injected, so that we can use the methods of the schema class to create, update, and serialize data. You can find more in [Data Query and ORM Document](../../guide/schema-query)
 
 We can also find that a decorator named `@auth.session_config.plugin` is plug-in to the UserAPI class. This is the where the Session configuration is applied to the API. This plugin can save the Session data after each request and patch the response with corresponding `Set-Cookie` header
 
@@ -231,7 +231,7 @@ class UserAPI(api.API):
     def login(self, data: LoginSchema = request.Body) -> UserSchema:
         user = auth.user_config.login(
             request=self.request,
-            token=data.username,
+            ident=data.username,
             password=data.password
         )
         if not user:
@@ -309,7 +309,7 @@ service.setup()
 from user.api import UserAPI
 
 class RootAPI(api.API):
-    user: UserAPI    # new
+    user: UserAPI
 	
 service.mount(RootAPI, route='/api')
 ```
@@ -340,3 +340,7 @@ Quit the server with CTRL-BREAK.
 
 !!! tip
 	You can alter the `host` and `port` params of UtilMeta service in `server.py`  to change the address of the API service
+
+## Source Code
+
+the source code of this tutorial can be found at [github](https://github.com/utilmeta/utilmeta-py/tree/main/examples/user_auth)

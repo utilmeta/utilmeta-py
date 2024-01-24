@@ -100,7 +100,7 @@ class RootAPI(API):
 * 没有路径字符串时，函数的名称将作为请求的路径
 * 当函数的名称为 HTTP 动词时，其路径将自动设为 `'/'` 并无法被覆盖
 
-!!! tip “API 接口函数”
+!!! tip "API 接口函数"
 	在 API 类中使用 `@api.<METHOD>` 装饰器装饰的函数，或名称为 HTTP 动词（get/post/put/patch/delete）的函数，将会被处理为 API 接口函数，对外提供 HTTP 请求访问
 
 下面的例子覆盖了以上的几种情况，可以很清晰地说明路径的声明规则
@@ -121,7 +121,7 @@ class ArticleAPI(api.API):
     # GET /article?id=<ID>
 ```
 
-!!! tip “路径匹配优先级”
+!!! tip "路径匹配优先级"
 	类似例子中同时声明了固定路径与可变的路径参数的接口时，需要把固定路径的接口声明放在上方，这样 UtilMeta 在匹配 `/article/feed` 请求时会先匹配到 `feed` 函数，而不是作为 `slug` 参数匹配到 `get_article` 函数
 
 ## 查询参数
@@ -313,7 +313,7 @@ class FileAPI(api.API):
 #### 单独上传文件
 如果你希望客户端直接将整个二进制文件作为请求体，而不是使用嵌套在表单中的形式的话，只需要将文件参数指定为 `request.Body` 即可，如
 
-```python
+```python hl_lines="6"
 from utilmeta.core import api, request, file
 import utype
 
@@ -327,7 +327,7 @@ class FileAPI(api.API):
 ### 请求体参数
 
 除了支持声明完整的请求体 Schema 外，你还可以使用 `request.BodyParam` 单独声明请求体中的字段
-```python
+```python hl_lines="5-6"
 from utilmeta.core import api, request, file
 
 class FileAPI(api.API):

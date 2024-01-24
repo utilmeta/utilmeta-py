@@ -200,33 +200,33 @@ class User(Property):
                 return inst
         return None
 
-    def query_login_user(self, token: str):
+    def query_login_user(self, ident: str):
         if self.login_fields:
             if len(self.login_fields) == 1:
-                return self.query_user(**{self.login_fields[0]: token})
+                return self.query_user(**{self.login_fields[0]: ident})
             from utilmeta.core.orm.backends.django.expressions import Q
             q = Q()
             for f in self.login_fields:
-                q |= Q(**{f: token})
+                q |= Q(**{f: ident})
             return self.query_user(q)
         else:
             return None
 
     # @awaitable(query_login_user)
-    async def aquery_login_user(self, token: str):
+    async def aquery_login_user(self, ident: str):
         if self.login_fields:
             if len(self.login_fields) == 1:
-                return await self.query_user(**{self.login_fields[0]: token})
+                return await self.aquery_user(**{self.login_fields[0]: ident})
             from utilmeta.core.orm.backends.django.expressions import Q
             q = Q()
             for f in self.login_fields:
-                q |= Q(**{f: token})
-            return await self.query_user(q)
+                q |= Q(**{f: ident})
+            return await self.aquery_user(q)
         else:
             return None
 
-    def login(self, request: Request, token: str, password: str, expiry_age: int = None) -> Optional[Any]:
-        user = self.query_login_user(token)
+    def login(self, request: Request, ident: str, password: str, expiry_age: int = None) -> Optional[Any]:
+        user = self.query_login_user(ident)
         if not user:
             return None
         encoded_password = getattr(user, self.password_field)
@@ -236,8 +236,8 @@ class User(Property):
         return user
 
     # @awaitable(login)
-    async def alogin(self, request: Request, token: str, password: str, expiry_age: int = None) -> Optional[Any]:
-        user = await self.aquery_login_user(token)
+    async def alogin(self, request: Request, ident: str, password: str, expiry_age: int = None) -> Optional[Any]:
+        user = await self.aquery_login_user(ident)
         if not user:
             return None
         encoded_password = getattr(user, self.password_field)

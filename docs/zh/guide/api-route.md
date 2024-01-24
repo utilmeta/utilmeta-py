@@ -176,7 +176,7 @@ service = UtilMeta(
 另外可以使用 **引用字符串** 挂载根 API，使用方式如下
 
 === "main.py"  
-	```python
+	```python hl_lines="8"
 	from utilmeta import UtilMeta
 	import django
 	
@@ -209,7 +209,7 @@ service = UtilMeta(
 
 
 另外 UtilMeta 服务实例中有一个名为 `mount` 的方法也可以用于挂载根 API
-```python
+```python hl_lines="5"
 from utilmeta import UtilMeta
 
 service = UtilMeta(...)

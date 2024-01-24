@@ -15,7 +15,7 @@ UtilMeta 服务的第一个参数接收当前模块的名称（`__name__`），�
 * `backend`：传入运行时框架的模块或者名称，如 `backend='flask'`
 * `name`：服务的名称，应该反映着服务的领域和业务，之后会用户服务的注册，发现与检测等功能
 * `description`：服务的描述
-* `production`：是否处于生产状态，默认为 False，在部署的生产环境中应该置为 True，找个参数会影响底层框架的运行配置，比如 `django` 的 `PRODUCTION` 设置，与 flask / starlette / fastapi / sanic 的 `debug` 参数
+* `production`：是否处于生产状态，默认为 False，在部署的生产环境中应该置为 True，这个参数会影响底层框架的运行配置，比如 `django` 的 `PRODUCTION` 设置，与 flask / starlette / fastapi / sanic 的 `debug` 参数
 
 * `host`：服务运行时监听的主机 IP，默认为 `127.0.0.1`，也可以设置为运行主机的 IP 或者 `0.0.0.0` (公开访问)
 * `port`：服务运行时监听的端口号，默认取决于运行时框架，比如 flask 使用的是 `5000`，其他框架一般使用的是 `8000`
@@ -111,7 +111,7 @@ service = UtilMeta(
 ```
 
 !!! tip
-	你还可以使用这种方式在 UtilMeta 框架项目中接入其他运行时框架的接口，详细的用法可以参考 [从现有项目迁移](../migration) 这篇文档
+	你还可以使用这种方式在 UtilMeta 框架项目中接入你选择的运行时框架的原生接口，详细的用法可以参考 [从现有项目迁移](../migration) 这篇文档
 
 ### 异步服务
 
@@ -176,13 +176,14 @@ UtilMeta 内置的常用配置有
 
 一些服务的配置项需要在服务启动前进行安装与准备，比如对于使用 Django 模型的服务，`setup()` 会调用 `django.setup` 函数完成模型的发现，你需要在调用这个方法之后才能导入你定义的  Django 模型以及依赖这些模型的接口与 Schema 类，比如
 
-```python
+```python hl_lines="8"
 from utilmeta import UtilMeta
 from config.conf import configure 
 import django
 
-service = UtilMeta(..., backend=django)
+service = UtilMeta(__name__, name='demo', backend=django)
 configure(service)
+
 service.setup()
 
 from user.models import *
@@ -197,7 +198,7 @@ Requested setting INSTALLED_APPS, but settings are not configured, ...
 当然对于使用 Django 的项目，最佳实践是使用引用字符串来指定根 API，这样在服务配置文件中就不需要包含对 Django 模型的导入了，例如
 
 === "main.py"  
-	```python
+	```python hl_lines="8"
 	from utilmeta import UtilMeta
 	import django
 	
@@ -380,7 +381,7 @@ env = ServiceEnvironment(file='/path/to/config.json')
 	DB_PASSWORD=my_password
 	```
 
-!!! tip
+!!! warning
 	如果你使用的是配置文件，请把配置文件放在项目目录之外，或者在 `.gitignore` 中把它从版本管理中排除
 
 ## 运行服务
@@ -547,7 +548,7 @@ gunicorn -c /path/to/gunicorn.py
 
 ### Nginx
 
-对于使用 uWSGI 的 API 服务，假设运行在 8000 端口，Nginx 的配置大致为
+对于使用 uWSGI 的 API 服务，假设运行并监听 8000 端口，Nginx 的配置大致为
 
 ```nginx
 server{
@@ -598,7 +599,7 @@ nginx -s reload
 
 ## 监控与管理
 
-UtilMeta 即将支持全周期的 API 管理能力，包括
+UtilMeta 即将支持全周期的 API 观测与管理能力，包括
 
 * API 文档与调试
 * 日志查询

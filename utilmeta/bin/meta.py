@@ -28,18 +28,30 @@ class MetaCommand(BaseServiceCommand):
     @classmethod
     @command('')
     def intro(cls):
-        cls.version(with_help=True)
+        print(f'UtilMeta v{__version__} Management Command Line Tool')
+        print('use meta -h for help')
         cls.help()
 
-    @classmethod
     @command('-v', 'version')
-    def version(cls, with_help=False):
+    def version(self):
         """
-        display the current UtilMeta version
+        display the current UtilMeta version and service meta-info
         """
-        print(f'UtilMeta v{__version__} Management Command Line Tool')
-        if with_help:
-            print('use meta -h for help')
+        import platform
+        import sys
+        from utilmeta.bin.constant import BLUE, GREEN, DOT
+        print(f'     UtilMeta: v{ __version__}')
+        try:
+            self.check_service()
+        except RuntimeError:
+            # service not detect
+            print(f'      service:', 'not detected')
+        else:
+            print(f'      service:', BLUE % self.service.name, f'({self.service.version_str})')
+            print(f'        stage:', (BLUE % f'{DOT} production') if self.service.production else (GREEN % f'{DOT} debug'))
+            print(f'      backend:', f'{self.service.backend_name} ({self.service.backend_version})',
+                  f'| asynchronous' if self.service.asynchronous else '')
+        print(f'  environment:', sys.version, platform.platform())
 
     @command
     def run(self):

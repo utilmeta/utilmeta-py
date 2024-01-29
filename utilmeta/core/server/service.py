@@ -70,7 +70,7 @@ class UtilMeta:
         self.title = title
         self.description = description
         self.module_name = module_name
-        self.host = host
+        self.host = host or '127.0.0.1'
         self.port = port
         self.scheme = scheme
         self.auto_reload = auto_reload
@@ -152,6 +152,7 @@ class UtilMeta:
 
         if not self.adaptor:
             self.adaptor = ServerAdaptor.dispatch(self)
+            self.port = self.port or self.adaptor.DEFAULT_PORT
 
         if self._application and self.adaptor.application_cls:
             if not isinstance(self._application, self.adaptor.application_cls):
@@ -213,6 +214,10 @@ class UtilMeta:
             if issubclass(cls, config_class):
                 return config
         return None
+
+    def get_client(self, live: bool = False, backend=None):
+        from utilmeta.core.cli.base import Client
+        return Client(service=self, internal=not live, backend=backend)
 
     def setup(self):
         if self._ready:

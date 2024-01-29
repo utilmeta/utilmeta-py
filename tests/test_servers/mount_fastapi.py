@@ -28,5 +28,22 @@ service = UtilMeta(
     api=RootAPI
 )
 
+from tests.config import make_live
+server_thread = make_live(service)
+
+# fixme: Invalid HTTP request received
+# def test_fastapi(server_thread):
+#     with service.get_client(live=True) as client:
+#         r1 = client.get('/items/3')
+#         r1.print()
+#         assert r1.status == 200
+#         assert r1.data == {"item_id": 3}
+#
+#         r2 = client.get('/hello')
+#         assert r2.status == 200
+#         assert isinstance(r2.data, dict)
+#         assert r2.data.get('data') == 'Hello, UtilMeta!'
+
+
 if __name__ == '__main__':
     service.run()

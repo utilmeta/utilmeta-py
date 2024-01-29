@@ -26,10 +26,6 @@ class RequestsResponseAdaptor(ResponseAdaptor):
     def body(self) -> bytes:
         return self.response.content
 
-    @property
-    def cookies(self):
-        return self.response.cookies
-
     def get_text(self) -> str:
         return self.response.text
 

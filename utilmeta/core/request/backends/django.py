@@ -5,6 +5,7 @@ from utilmeta.utils import parse_query_dict, cached_property, Header, LOCAL_IP
 from ipaddress import ip_address
 from utilmeta.core.file.backends.django import DjangoFileAdaptor
 from utilmeta.core.file.base import File
+import django
 
 
 def get_request_ip(meta: dict):
@@ -24,6 +25,7 @@ def get_request_ip(meta: dict):
 
 class DjangoRequestAdaptor(RequestAdaptor):
     file_adaptor_cls = DjangoFileAdaptor
+    backend = django
 
     def gen_csrf_token(self):
         return get_token(self.request)

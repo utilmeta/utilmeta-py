@@ -3,11 +3,13 @@ from tornado.httpserver import HTTPRequest as ServerRequest
 from ..base import RequestAdaptor
 from utilmeta.core.file.backends.tornado import TornadoFileAdaptor
 from utilmeta.core.file.base import File
+import tornado
 
 
 class TornadoServerRequestAdaptor(RequestAdaptor):
     request: ServerRequest
     file_adaptor_cls = TornadoFileAdaptor
+    backend = tornado
 
     @classmethod
     def reconstruct(cls, adaptor: 'RequestAdaptor') -> ServerRequest:

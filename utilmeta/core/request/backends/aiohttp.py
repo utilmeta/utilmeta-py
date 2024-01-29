@@ -1,10 +1,13 @@
 from aiohttp.web_request import Request
-from ..base import RequestAdaptor
+from .base import RequestAdaptor
 from utilmeta.utils import async_to_sync
 from utilmeta.utils import exceptions as exc
+import aiohttp
 
 
 class AiohttpRequestAdaptor(RequestAdaptor):
+    backend = aiohttp
+
     @property
     def request_method(self):
         return self.request.method

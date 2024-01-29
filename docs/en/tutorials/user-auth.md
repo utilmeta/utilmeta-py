@@ -341,6 +341,114 @@ Quit the server with CTRL-BREAK.
 !!! tip
 	You can alter the `host` and `port` params of UtilMeta service in `server.py`  to change the address of the API service
 
+## 6. Debug API
+
+After starting our API service, we can debug the APIs using the client in UtilMeta, let's create a new file named `test.py` in the project directory and write
+```python
+from server import service
+
+if __name__ == '__main__':
+    with service.get_client(live=True) as client:
+        r1 = client.post('user/signup', data={
+            'username': 'user1',
+            'password': '123123'
+        })
+        r1.print()
+        r2 = client.get('user')
+        r2.print()
+```
+
+It contains the debug code for the signup and get APIs, we we started the service and run `test.py`, we can see the following output like
+```json
+Response [200 OK] "POST /api/user/signup"
+application/json (76)
+{'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T12:29:33.684594'}
+
+Response [200 OK] "GET /api/user"
+application/json (76)
+{'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T12:29:33.684594'}
+```
+
+It means our signup and get APIs worked,
+
+!!! tip
+	In the `with` code block, client will store the  `Set-Cookie` in the response the send in the following requests, so we can see the session works just like the browser
+
+The `get_client` method of UtilMeta's service instance returns a Client, you can call the methods like `get`, `post` of the Client to start a HTTP request, and getting a `utilmeta.core.response.Response` response, which is identical to the API's response, the commonly used properties are
+
+* `status`: Status code
+* `data`:  Loaded data, if the response is JSON, you will get a `dict` or `list` data
+* `headers`: Response headers
+* `request`: The request object of the response, contains the method, url and other request info
+
+!!! tip
+	If the  `live` param is False in the `get_client` method, it will calls the API functions internally without having to start the service
+
+So you can use this client to write unit tests, like
+```python
+from server import service
+
+def test_signup():
+    with service.get_client(live=True) as client:
+        r1 = client.post('user/signup', data={
+            'username': 'user1',
+            'password': '123123'
+        })
+        assert r1.status == 200
+        assert isinstance(r1.data, dict)
+        assert r1.data.get('username') == 'user1'
+```
+
+We can also test the login, logout and update APIs, the complete examples is as follows
+```python
+from server import service
+
+if __name__ == '__main__':
+    with service.get_client(live=True) as client:
+        r1 = client.post('user/signup', data={
+            'username': 'user1',
+            'password': '123123'
+        })
+        r1.print()
+        # Response [200 OK] "POST /api/user/signup"
+        # application/json (75)
+        # {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T13:29:03.336134'}
+        r2 = client.get('user')
+        r2.print()
+        # Response [200 OK] "GET /api/user"
+        # application/json (75)
+        # {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T13:29:03.336134'}
+        r3 = client.post('user/logout')
+        r3.print()
+        # Response [200 OK] "POST /api/user/logout"
+        # text/html (0)
+        r4 = client.get('user')
+        r4.print()
+        # Response [401 Unauthorized] "GET /api/user"
+        # text/html (0)
+        r5 = client.post('user/login', data={
+            'username': 'user1',
+            'password': '123123'
+        })
+        # Response [200 OK] "POST /api/user/login"
+        # application/json (75)
+        # {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T13:29:03.336134'}
+        r5.print()
+        r6 = client.get('user')
+        r6.print()
+        # Response [200 OK] "GET /api/user"
+        # application/json (75)
+        # {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T13:29:03.336134'}
+        r7 = client.put('user', data={
+            'username': 'user-updated',
+            'password': '123456'
+        })
+        r7.print()
+        # Response [200 OK] "PUT /api/user"
+        # application/json (82)
+        # {'username': 'user-updated', 'id': 1, 'signup_time': '2024-01-29T13:44:30.095711'}
+```
+
 ## Source Code
 
 the source code of this tutorial can be found at [github](https://github.com/utilmeta/utilmeta-py/tree/main/examples/user_auth)

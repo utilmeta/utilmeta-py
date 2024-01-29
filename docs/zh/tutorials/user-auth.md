@@ -345,6 +345,115 @@ Quit the server with CTRL-BREAK.
 !!! tip
 	你可以通过调整 `server.py` 中的 UtilMeta 服务声明里的 `host` 和 `port` 参数来改变 API 服务监听的地址
 
+## 6. 调试 API
+
+启动好 API 服务后我们就可以调试我们的接口了，我们可以使用 UtilMeta 自带的客户端测试工具方便地调试接口，我们在项目目录中新建一个 `test.py` 文件，写入调试 API 的代码
+
+```python
+from server import service
+
+if __name__ == '__main__':
+    with service.get_client(live=True) as client:
+        r1 = client.post('user/signup', data={
+            'username': 'user1',
+            'password': '123123'
+        })
+        r1.print()
+        r2 = client.get('user')
+        r2.print()
+```
+
+其中编写了用户注册接口和获取当前用户接口的调试代码，当我们启动服务并运行 `test.py` 时，我们可以看到的输出类似
+
+```json
+Response [200 OK] "POST /api/user/signup"
+application/json (76)
+{'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T12:29:33.684594'}
+
+Response [200 OK] "GET /api/user"
+application/json (76)
+{'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T12:29:33.684594'}
+```
+
+这说明我们的注册接口和获取用户的接口开发成功，首先注册接口返回了正确的结果，然后注册接口登录了新注册的用户，所以之后访问用户获取接口也得到了同样的结果
+
+!!! tip
+	在 `with` 代码块中，客户端会记忆响应中 `Set-Cookie` 所存储的 cookies 并发送到接下来的请求中，所以我们可以看到与真实的浏览器类似的会话效果
+
+UtilMeta 服务实例的 `get_client` 方法用于获取一个服务的客户端实例，你可以直接调用这个实例的 `get`, `post` 等方法发起 HTTP 请求，将会得到一个 `utilmeta.core.response.Response` 响应，这与我们在 API 服务中生成的响应类型一致，其中常用的属性有
+
+* `status`：响应的状态码
+* `data`：解析后的响应数据，如果是 JSON 响应体，则会得到一个 `dict` 或 `list` 类型的数据
+* `headers`：响应头
+* `request`：响应对应的请求对象，有请求的方法，路径等参数信息
+
+!!! tip
+	`get_client` 方法中的 `live` 参数如果没有开启，则是直接调用对应的接口函数进行调试，无需启动服务
+
+所以你也可以使用这个客户端编写单元测试，比如
+```python
+from server import service
+
+def test_signup():
+    with service.get_client(live=True) as client:
+        r1 = client.post('user/signup', data={
+            'username': 'user1',
+            'password': '123123'
+        })
+        assert r1.status == 200
+        assert isinstance(r1.data, dict)
+        assert r1.data.get('username') == 'user1'
+```
+
+我们还可以测试登录，登出与更新接口，比如在登出后 cookies 应该被清空，之后获取当前用户也应该返回空，最后完整的调试代码与对应的输出如下
+```python
+from server import service
+
+if __name__ == '__main__':
+    with service.get_client(live=True) as client:
+        r1 = client.post('user/signup', data={
+            'username': 'user1',
+            'password': '123123'
+        })
+        r1.print()
+        # Response [200 OK] "POST /api/user/signup"
+        # application/json (75)
+        # {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T13:29:03.336134'}
+        r2 = client.get('user')
+        r2.print()
+        # Response [200 OK] "GET /api/user"
+        # application/json (75)
+        # {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T13:29:03.336134'}
+        r3 = client.post('user/logout')
+        r3.print()
+        # Response [200 OK] "POST /api/user/logout"
+        # text/html (0)
+        r4 = client.get('user')
+        r4.print()
+        # Response [401 Unauthorized] "GET /api/user"
+        # text/html (0)
+        r5 = client.post('user/login', data={
+            'username': 'user1',
+            'password': '123123'
+        })
+        # Response [200 OK] "POST /api/user/login"
+        # application/json (75)
+        # {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T13:29:03.336134'}
+        r5.print()
+        r6 = client.get('user')
+        r6.print()
+        # Response [200 OK] "GET /api/user"
+        # application/json (75)
+        # {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T13:29:03.336134'}
+        r7 = client.put('user', data={
+            'username': 'user-updated',
+            'password': '123456'
+        })
+        r7.print()
+        # Response [200 OK] "PUT /api/user"
+        # application/json (82)
+        # {'username': 'user-updated', 'id': 1, 'signup_time': '2024-01-29T13:44:30.095711'}
+```
 
 ## 案例源码
 

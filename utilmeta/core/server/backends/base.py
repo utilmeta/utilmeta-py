@@ -26,13 +26,9 @@ class ServerAdaptor(BaseAdaptor):
 
     @classmethod
     def qualify(cls, obj: 'UtilMeta'):
-        if not cls.backend:
+        if not cls.backend or not obj.backend:
             return False
-        if inspect.ismodule(obj):
-            return obj == cls.backend or cls.backend.__name__.lower() == obj.__name__.lower()
-        if isinstance(obj.backend, str):
-            return cls.backend.__name__.lower() == obj.backend.lower()
-        return cls.backend == obj.backend
+        return cls.get_module_name(obj.backend).lower() == cls.get_module_name(cls.backend).lower()
 
     backend = None
     default_asynchronous = False
@@ -41,6 +37,7 @@ class ServerAdaptor(BaseAdaptor):
     response_adaptor_cls = None
     sync_db_adaptor_cls = None
     async_db_adaptor_cls = None
+    DEFAULT_PORT = 8000
 
     def __init__(self, config: 'UtilMeta'):
         self.root = None

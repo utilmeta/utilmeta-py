@@ -132,7 +132,9 @@ class Request:
                  url: str = None,
                  query: dict = None,
                  data=None,
-                 headers: Union[Mapping, Dict[str, str]] = None):
+                 headers: Union[Mapping, Dict[str, str]] = None,
+                 backend=None,
+                 ):
         request = request or DummyRequest(
             method=method,
             url=url,
@@ -141,12 +143,13 @@ class Request:
             headers=headers
         )
         self.adaptor = RequestAdaptor.dispatch(request)
-        self.timeout = None
+        self.backend = self.adaptor.backend or backend
+        # self.timeout = None
 
-    def set_timeout(self, timeout: Union[int, float, timedelta, datetime, None]):
-        if isinstance(timeout, datetime):
-            timeout = time_now() - timeout
-        self.timeout = get_interval(timeout, null=True)
+    # def set_timeout(self, timeout: Union[int, float, timedelta, datetime, None]):
+    #     if isinstance(timeout, datetime):
+    #         timeout = time_now() - timeout
+    #     self.timeout = get_interval(timeout, null=True)
 
     @property
     def url(self):
@@ -160,25 +163,9 @@ class Request:
     def is_options(self):
         return self.adaptor.request_method.lower() == MetaMethod.OPTIONS
 
-    # @property
-    # def unmatched_route(self):
-    #     return self.adaptor.get_context('_unmatched_route', self.adaptor.route)
-    #
-    # @unmatched_route.setter
-    # def unmatched_route(self, val):
-    #     self.adaptor['_unmatched_route'] = val
-
     @property
     def path(self) -> str:
         return self.adaptor.path
-
-    # @property
-    # def path_params(self) -> dict:
-    #     pass
-
-    # @property
-    # def hostname(self) -> str:
-    #     pass
 
     @property
     def encoded_path(self) -> str:
@@ -244,22 +231,6 @@ class Request:
             return data.get()
         return None
 
-    # @property
-    # def user(self):
-    #     return self.adaptor.get_context('_user')
-    #
-    # @property
-    # def user_id(self):
-    #     return self.adaptor.get_context('_user_id')
-    #
-    # @property
-    # def scopes(self):
-    #     # come from
-    #     # 1. user.scopes_field
-    #     # 2. access.scopes_field
-    #     # 3. oauth token.scope
-    #     return self.adaptor.get_context('_scopes') or []
-
     @property
     def time(self) -> datetime:
         return self.adaptor.time
@@ -267,24 +238,3 @@ class Request:
     @property
     def ip_address(self):
         return self.adaptor.address
-
-    # def send(self):
-    #     pass
-
-    # def send(
-    #     self,
-    #     connect_timeout: Optional[float] = None,
-    #     timeout: Optional[float] = None,
-    #     # if_modified_since: Optional[Union[float, datetime]] = None,
-    #     follow_redirects: Optional[bool] = None,
-    #     max_redirects: Optional[int] = None,
-    #     network_interface: Optional[str] = None,
-    #     # validate_cert: Optional[bool] = None,
-    #     ca_certs: Optional[str] = None,
-    #     # allow_ipv6: Optional[bool] = None,
-    #     client_key: Optional[str] = None,
-    #     client_cert: Optional[str] = None,
-    #     expect_100_continue: bool = False,
-    #     decompress_response: Optional[bool] = None,
-    # ):
-    #     pass

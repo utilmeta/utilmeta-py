@@ -39,7 +39,7 @@ class Schema(utype.Schema):
     )
     __parser_cls__ = SchemaClassParser
     __parser__: SchemaClassParser
-    __field__ = req.Json
+    __field__ = req.Body
     __model__ = None
 
     def __class_getitem__(cls: T, item) -> T:

@@ -1,4 +1,4 @@
-from utilmeta.core import api, orm, auth
+from utilmeta.core import api, orm, auth, request
 from utilmeta.core.auth.session.db import DBSessionSchema, DBSession
 from .models import Session, User
 from .schema import LoginSchema, UserSchema

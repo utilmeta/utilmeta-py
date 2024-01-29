@@ -426,7 +426,7 @@ class TestAPIClass:
                 )
             )()
             assert isinstance(resp, response.Response), f'invalid response: {resp}'
-            content = response.Response.get_data(resp)
+            content = resp.data
             assert resp.status == status, f"{method} {path} failed with {content}"
             if result is not ...:
                 if callable(result):

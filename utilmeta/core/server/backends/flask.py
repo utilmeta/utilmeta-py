@@ -15,6 +15,7 @@ class FlaskServerAdaptor(ServerAdaptor):
     default_asynchronous = False
     HANDLED_METHODS = ("DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT")
     DEFAULT_HOST = '127.0.0.1'
+    DEFAULT_PORT = 5000
 
     def __init__(self, config):
         super().__init__(config)

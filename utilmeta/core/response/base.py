@@ -159,7 +159,7 @@ class Response:
         self.count = count
 
         self.init_headers(headers)
-        self.cookies = cookies or SimpleCookie()
+        self.cookies = SimpleCookie(cookies or {})
 
         self._cached = cached
         self._mocked = mocked
@@ -192,8 +192,20 @@ class Response:
         # build content at last
         self.build_content()
 
+        # represent the loaded data
+        self._data = None
+
     def __contains__(self, item):
         return item in self.headers
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        return self.adaptor.close()
 
     def parse_content(self):
         if self.result is not None:
@@ -349,17 +361,51 @@ class Response:
         elif isinstance(self._content, bytes) or file_like(self._content):
             self.content_type = OCTET_STREAM
 
-    @classmethod
-    def get_data(cls, resp: 'Response'):
-        body = resp.body
-        if not body:
+    @property
+    def data(self):
+        if self._data:
+            return self._data
+        data = self.body
+        if not data:
             return None
-        if resp.content_type:
-            if resp.content_type.startswith(JSON):
-                return json.loads(body)
-            elif resp.content_type.startswith('text/'):
-                return body.decode(errors='ignore')
-        return body
+        if self.content_type:
+            if self.content_type.startswith(JSON):
+                data = json.loads(data)
+            elif self.content_type.startswith('text/'):
+                data = data.decode(errors='ignore')
+        self._data = data
+        return data
+
+    # @classmethod
+    # def get_data(cls, resp: 'Response'):
+    #     body = resp.body
+    #     if not body:
+    #         return None
+    #     if resp.content_type:
+    #         if resp.content_type.startswith(JSON):
+    #             return json.loads(body)
+    #         elif resp.content_type.startswith('text/'):
+    #             return body.decode(errors='ignore')
+    #     return body
+
+    def __str__(self):
+        reason = f' {self.reason}' if self.reason else ''
+        return f'{self.__class__.__name__} [{self.status}{reason}] ' \
+               f'"{self.request.method.upper()} /%s"' % self.request.encoded_path.strip('/') if self.request else ''
+
+    def __repr__(self):
+        return self.__str__()
+
+    def print(self):
+        print(str(self))
+        content_type = self.content_type or self.headers.get('content-type')
+        content_length = self.content_length
+        if content_type:
+            print(f'{content_type} ({content_length or 0})')
+            data = self.data
+            if data:
+                print(data)
+        print('')
 
     def dump_json(self, encoder=None, ensure_ascii: bool = False, **kwargs):
         import json
@@ -580,6 +626,9 @@ class Response:
             return self.dump_json()
         # this content might not be bytes, leave the encoding to the adaptor
         return self._content
+
+    async def load(self):
+        await self.adaptor.async_load()
 
     @property
     def body(self) -> bytes:

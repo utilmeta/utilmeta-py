@@ -2,6 +2,7 @@ from typing import Union, List
 import pytest
 import sys
 import os
+import time
 from utilmeta.utils import multi
 from utilmeta import conf
 # from django import VERSION as DJANGO_VERSION
@@ -52,3 +53,28 @@ def setup_service(name, backends: list = (), orm: str = None):
 
     sys.modules[name or __name__].__dict__['fixture_service'] = service
     return service
+
+
+def make_live(service):
+    @pytest.fixture(scope="session")
+    def server_thread():
+        def run_service():
+            service.run()
+
+        from threading import Thread
+        thread = Thread(target=run_service)
+        thread.daemon = True
+        thread.start()
+        import socket
+        cnt = 0
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            while True:
+                if s.connect_ex((service.host, service.port)) == 0:
+                    break
+                time.sleep(0.1)
+                cnt += 1
+                if cnt > 3:
+                    return
+        yield thread
+        thread.join(timeout=0)
+    return server_thread

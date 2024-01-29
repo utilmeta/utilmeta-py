@@ -36,7 +36,7 @@ Using the declarative power from UtilMeta, you can easily write APIs with auto r
 UtilMeta developed a standard that support all major Python web framework like **django**, **flask**, **fastapi** (starlette), **sanic**, **tornado** as runtime backend, and support current projects using these frameworks to develop new API using UtilMeta progressively
 <img src="https://utilmeta.com/img/py.section2.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
 ### Highly Flexible & Extensible
-UtilMeta is highly flexible with a series of plugins includes authentication (Session/JWT), cross origin, rate limit, retry, and can be extended to support more features.
+UtilMeta is highly flexible with a series of plugins includes authentication (Session/JWT), CORS, rate limit, retry, and can be extended to support more features.
 
 ### Full-lifecycle DevOps Solution
 The [UtilMeta Platform](https://utilmeta.com/) provided the full-lifecycle DevOps solution for this framework, the API Docs, Debug, Logs, Monitoring, Alerts, Analytics will all been taken care of in the platform
@@ -84,6 +84,90 @@ Then we can use our browser to open [http://127.0.0.1:8000/api/hello](http://127
 world
 ```
 It means this API works
+## Examples
+
+### Declarative RESTful API
+
+Declarative ORM in UtilMeta can handle relational queries concisely without N+1 problem, both sync and async queries are supported
+```python
+from utilmeta.core import api, orm
+from django.db import models
+
+class User(models.Model):
+    username = models.CharField(max_length=20, unique=True)
+
+class Article(models.Model):
+    author = models.ForeignKey(User, related_name="articles", on_delete=models.CASCADE)
+    content = models.TextField()
+
+class UserSchema(orm.Schema[User]):
+    username: str
+    articles_num: int = models.Count('articles')
+
+class ArticleSchema(orm.Schema[Article]):
+    id: int
+    author: UserSchema
+    content: str
+
+class ArticleAPI(api.API):
+    async def get(self, id: int) -> ArticleSchema:
+        return await ArticleSchema.ainit(id)
+```
+
+if you request the ArticleAPI like `GET /article?id=1`, you will get the result like
+
+```python
+{
+  "id": 1,
+  "author": {
+    "username": "alice",
+    "articles_num": 3
+  },
+  "content": "hello world"
+}
+```
+This is conform to what you declared, and the OpenAPI docs will be generated automatically
+### Migrate
+
+Integrate current django/flask/fastapi/... project with UtilMeta API is as easy as follows 
+```python
+import django
+from django.urls import re_path
+from django.http.response import HttpResponse
+from utilmeta.core import api, response
+
+class CalcAPI(api.API):
+    @api.get
+    def add(self, a: int, b: int) -> int:
+        return a + b
+
+def django_test(request, route: str):
+    return HttpResponse(route)
+
+urlpatterns = [
+    re_path('test/(.*)', django_test),
+    CalcAPI.__as__(django, route='/calc'),
+]
+```
+
+Integrate with Flask example
+```python
+from flask import Flask
+from utilmeta.core import api, response
+
+app = Flask(__name__)
+
+@app.route("/")
+def hello_world():
+    return "<p>Hello, World!</p>"
+
+class CalcAPI(api.API):
+    @api.get
+    def add(self, a: int, b: int) -> int:
+        return a + b
+
+CalcAPI.__as__(app, route='/calc')
+```
 
 ## Quick Guide
 We have several introductory case tutorials from easy to complex, covering most usage of the framework. You can read and learn in the following order.
@@ -116,3 +200,8 @@ The UtilMeta team is providing custom solutions and enterprise-level support at
 * [https://utilmeta.com/solutions](https://utilmeta.com/solutions)
 
 You can also contact us in [this page](https://utilmeta.com/about#contact)
+
+### Wechat
+
+Contact the creator's wechat for support or join the developers wechat groyp
+<img src="https://utilmeta.com/img/wx_zxl.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="240"/>

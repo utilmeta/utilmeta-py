@@ -291,7 +291,7 @@ class RootAPI(api.API):
     pass
 ```
 
-Simply use `@session_config.plugin` to decorate an API class and the Session will be applied to all endpoints and routes in it, so if you need to enable sessions for all APIs in the service, you can inject them directly into the  **root API** **.
+Simply use `@session_config.plugin` to decorate an API class and the Session will be applied to all endpoints and routes in it, so if you need to enable sessions for all APIs in the service, you can inject them directly into the  **root API**.
 
 !!! tip
 	UtilMeta use plugin instead of global settings to bring extra features (such as Session), so you can specify different configuration for different APIs

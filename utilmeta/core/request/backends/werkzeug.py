@@ -2,11 +2,13 @@ from .base import RequestAdaptor
 from werkzeug.wrappers import Request
 from utilmeta.core.file.backends.werkzeug import WerkzeugFileAdaptor
 from utilmeta.core.file.base import File
+import werkzeug
 
 
 class WerkzeugRequestAdaptor(RequestAdaptor):
     request: Request
     file_adaptor_cls = WerkzeugFileAdaptor
+    backend = werkzeug
 
     @property
     def request_method(self):

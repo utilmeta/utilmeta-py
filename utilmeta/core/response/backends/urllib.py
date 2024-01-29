@@ -21,17 +21,20 @@ class UrllibResponseAdaptor(ResponseAdaptor):
 
     @property
     def headers(self):
-        return self.response.headers
+        return dict(self.response.headers)
 
     @property
     def body(self):
-        return self.response.read()
+        if self._body is not None:
+            return self._body
+        self._body = self.response.read()
+        return self._body
 
     @property
     def cookies(self):
         from http.cookies import SimpleCookie
         cookies = SimpleCookie()
-        for cookie in self.headers.get_all('Set-Cookie') or []:
+        for cookie in self.response.headers.get_all('Set-Cookie') or []:
             # use get_all, cause Set-Cookie can be multiple
             cookies.load(cookie)
         return cookies

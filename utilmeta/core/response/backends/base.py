@@ -2,6 +2,7 @@ from utilmeta import utils
 from utype.types import *
 from utilmeta.utils.adaptor import BaseAdaptor
 import json
+from http.cookies import SimpleCookie
 
 
 class ResponseAdaptor(BaseAdaptor):
@@ -9,7 +10,9 @@ class ResponseAdaptor(BaseAdaptor):
 
     def __init__(self, response):
         self.response = response
+        # self.request = request
         self._context = {}
+        self._body = None
 
     @classmethod
     def reconstruct(cls, adaptor):
@@ -31,7 +34,7 @@ class ResponseAdaptor(BaseAdaptor):
 
     @property
     def cookies(self):
-        raise NotImplementedError
+        return SimpleCookie(self.headers.get('set-cookie'))
 
     @property
     def body(self) -> bytes:
@@ -65,21 +68,29 @@ class ResponseAdaptor(BaseAdaptor):
     @property
     def json_type(self):
         content_type = self.content_type
+        if not content_type:
+            return False
         return content_type == utils.RequestType.JSON
 
     @property
     def xml_type(self):
         content_type = self.content_type
+        if not content_type:
+            return False
         return content_type in (utils.RequestType.XML, utils.RequestType.APP_XML)
 
     @property
     def text_type(self):
         content_type = self.content_type
+        if not content_type:
+            return False
         return content_type.startswith('text')
 
     @property
     def file_type(self):
         content_type = self.content_type
+        if not content_type:
+            return False
         maj, sec = content_type.split('/')
         if maj in ('video', 'audio', 'image'):
             return True

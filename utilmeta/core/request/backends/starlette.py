@@ -6,6 +6,7 @@ from utilmeta.core.file.base import File
 from starlette.datastructures import UploadFile, FormData
 from .base import RequestAdaptor, get_request_ip
 from ipaddress import ip_address
+import starlette
 
 
 class StarletteRequestAdaptor(RequestAdaptor):
@@ -15,6 +16,7 @@ class StarletteRequestAdaptor(RequestAdaptor):
     """
     request: Request
     file_adaptor_cls = StarletteFileAdaptor
+    backend = starlette
 
     @classmethod
     def reconstruct(cls, adaptor: 'RequestAdaptor'):

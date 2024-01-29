@@ -1,8 +1,11 @@
 from sanic.request import Request
 from .base import RequestAdaptor
+import sanic
 
 
 class SanicRequestAdaptor(RequestAdaptor):
+    backend = sanic
+
     def gen_csrf_token(self):
         pass
 

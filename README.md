@@ -203,5 +203,7 @@ You can also contact us in [this page](https://utilmeta.com/about#contact)
 
 ### Wechat
 
-Contact the creator's wechat for support or join the developers wechat groyp
+Contact the creator's wechat for support or join the developers wechat group
+
+
 <img src="https://utilmeta.com/img/wx_zxl.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="240"/>

@@ -1,13 +1,10 @@
 import inspect
-
-import utype
-
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import awaitable
 from .base import Request
 from utilmeta.utils.context import Property
-from utype.types import *
-from utype import Schema
+from typing import Union, Optional, List, Mapping, Any
+from datetime import datetime
 from utype.parser.field import ParserField, Field
 from utype.utils.datastructures import unprovided
 from . import var

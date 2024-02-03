@@ -4,6 +4,7 @@ from .models import User, Article, Comment, BaseContent
 from utype import Field
 from utilmeta.core.orm.backends.django import expressions as exp
 from utilmeta.utils import awaitable
+import sys
 
 
 __all__ = ["UserSchema", "ArticleSchema", "CommentSchema",
@@ -80,8 +81,9 @@ class ArticleSchema(ContentSchema[Article]):
     # slug: str = orm.Field(readonly=True, allow_creation=True, no_input=True)
     slug: str = orm.Field(no_input='wa')
     title: str
-    tags: List[str] = orm.Field(default_factory=list)
-    # tags_plus: List[str] = orm.Field("tags", operator="+")
+
+    # if sys.version_info >= (3, 9):
+    #     tags: List[str] = orm.Field(default_factory=list)
 
     views: int = orm.Field(mode='ra')  # test allow_creation
     # views_min: int = orm.Field("views", operator="-", alias="views-")

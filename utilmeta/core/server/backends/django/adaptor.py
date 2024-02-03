@@ -1,5 +1,6 @@
-import inspect
+# import inspect
 # import re
+import warnings
 
 import django
 import sys
@@ -57,7 +58,42 @@ class DjangoServerAdaptor(ServerAdaptor):
             route='(.*)',
             asynchronous=self.asynchronous
         )
+        # check wsgi application
         self._ready = True
+
+    def check_application(self):
+        wsgi_app = self.settings.wsgi_app
+        if not wsgi_app:
+            if self.config.production:
+                raise ValueError(f'Django wsgi application not specified, you should use '
+                                 f'{self.settings.wsgi_app_attr or "app"} = service.application() '
+                                 f'in {self.settings.wsgi_module_ref or "your service file"}')
+            else:
+                wsgi_module = self.settings.wsgi_module
+                if not wsgi_module:
+                    raise ValueError('Django WSGI_APPLICATION not specified or invalid')
+                if not self.settings.wsgi_app_attr:
+                    raise ValueError('Django WSGI_APPLICATION not specified or invalid')
+                warnings.warn('Django application not specified, auto-assigning, you should use '
+                              f'{self.settings.wsgi_app_attr or "app"} = service.application() '
+                              f'in {self.settings.wsgi_module_ref or "your service file"} at production')
+                setattr(wsgi_module, self.settings.wsgi_app_attr, self.application())
+
+    def mount(self, app, route: str):
+        from django.urls import path, include, URLPattern
+        urls_attr = getattr(app, 'urls', None)
+        if not urls_attr or not isinstance(urls_attr, (list, tuple)):
+            raise TypeError('Invalid application to mount to django, anyone with "urls" attribute is supported, '
+                            'such as NinjaAPI in django-ninja or DefaultRouter in django-rest-framework')
+        if all(isinstance(pattern, URLPattern) for pattern in urls_attr):
+            urls_attr = include((urls_attr, route.strip('/')))
+
+        # to mount django-ninja app or django-rest-framework router
+        urls = getattr(self.settings.url_conf, self.URLPATTERNS, [])
+        urls.append(
+            path(route.strip('/') + '/', urls_attr)
+        )
+        setattr(self.settings.url_conf, self.URLPATTERNS, urls)
 
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:
@@ -72,6 +108,7 @@ class DjangoServerAdaptor(ServerAdaptor):
         urls = getattr(self.settings.url_conf, self.URLPATTERNS, [])
         if api_path not in urls:
             urls.append(api_path)
+        print('URLS:', urls)
         setattr(self.settings.url_conf, self.URLPATTERNS, urls)
 
     def _get_api(self, utilmeta_api_class, asynchronous: bool = False):
@@ -123,6 +160,7 @@ class DjangoServerAdaptor(ServerAdaptor):
 
     def run(self):
         self.setup()
+        self.check_application()
         if not self.background:
             self.config.startup()
             if self.asynchronous:

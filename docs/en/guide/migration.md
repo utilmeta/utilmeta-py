@@ -206,14 +206,14 @@ When integrate UtilMeta to other existing projects, you should only integrate **
 
 Because the service is not controlled by UtilMeta when the UtilMeta API integrate other projects,  so `API.__as__` will create a hidden UtilMeta service for control, in order to avoid service conflicts, you can only call the `API.__as__` function once.
 
-## Integrate other frameworks to UtilMeta
+## Integrate other frameworks
 
 Your UtilMeta project can also integrate other framework's APIs
 ### Django
 
 You can mount the Django view URL directly into the UtilMeta project in two ways.
 
-**Use `django` as a service `backend`**
+**Use `django` as backend**
 
 If your UtilMeta service is used `django` as `backend` a, it has a file structure similar to the following
 ```python
@@ -226,7 +226,7 @@ If your UtilMeta service is used `django` as `backend` a, it has a file structur
 
 Django view urls is defined in `urls.py`, so you just need to pass a reference to this file into the `root_urlconf` param of DjangoSettings 
 
-=== “service.py”
+=== "service.py"
 	```python  hl_lines="14"
 	from utilmeta import UtilMeta
 	import django
@@ -265,7 +265,7 @@ Django view urls is defined in `urls.py`, so you just need to pass a reference t
 	    service.run()
 	```
 
-=== “urls.py”
+=== "urls.py"
 	```python
 	from app.models import Article
 	from django.urls import path
@@ -284,7 +284,7 @@ Django view urls is defined in `urls.py`, so you just need to pass a reference t
 
 When you request `GET /article`, it will hit Django’s route view function.
 
-**Use `starlette` (fastapi) as a service**
+**Use `starlette` (fastapi) as backend**
 
 You can also use `starlette` as `backend` mount Django view functions. In the configuration of your Django project `settings.py`, there should be a `application` property
 
@@ -296,11 +296,11 @@ application = get_wsgi_application()
 
 You just need to import this `application` and mount it using the `mount()` method of UtilMeta service, such as
 
-```python  hl_lines="8"
+```python hl_lines="8"
 import starlette
 from utilmeta import UtilMeta
 
-service = UtilMeta(__name__, backend=starlette)
+service = UtilMeta(__name__, backend=starlette, name='demo')
 
 from settings import application as django_wsgi
 
@@ -309,13 +309,94 @@ service.mount(django_wsgi, '/v1')
 
 When `/v1/xxx` is requested, it will be directed to Django’s view functions.
 
+#### Django Ninja
+to integrate **Django Ninja**, you must use `django` as service backend, the integration is as simple as follows
+
+```python hl_lines="17"
+import django
+from utilmeta import UtilMeta
+
+service = UtilMeta(__name__, backend=django, name='demo')
+
+from utilmeta.core.server.backends.django import DjangoSettings
+service.use(DjangoSettings())
+service.setup()
+
+from ninja import NinjaAPI
+ninja_api = NinjaAPI()
+
+@ninja_api.get("/add")
+def add(request, a: int, b: int):
+    return {"result": a + b}
+
+service.mount(ninja_api, '/v1')
+
+app = service.application()
+```
+
+!!! warning
+	`ninja` should import after the django settings setup, otherwise a `django.core.exceptions.ImproperlyConfigured` exception will be raised
+
+#### DRF
+to Integrate **Django REST framework**, you must use `django` as service backend, the integration is as simple as follows
+
+```python hl_lines="42"
+from utilmeta import UtilMeta
+import django
+
+service = UtilMeta(
+    __name__,
+    name='demo',
+    backend=django
+)
+
+from utilmeta.core.server.backends.django import DjangoSettings
+from utilmeta.core.orm import DatabaseConnections, Database
+service.use(DjangoSettings(
+    apps=['app', 'rest_framework', 'django.contrib.auth'],
+    extra=dict(
+        REST_FRAMEWORK={
+            'DEFAULT_RENDERER_CLASSES': [
+                'rest_framework.renderers.JSONRenderer',
+            ]
+        }
+    )
+))
+service.setup()
+
+from app.models import User
+from rest_framework import routers, serializers, viewsets
+
+# Serializers define the API representation.
+class UserSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'signup_time', 'admin']
+
+# ViewSets define the view behavior.
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+# Routers provide an easy way of automatically determining the URL conf.
+drf_router = routers.DefaultRouter()
+drf_router.register(r'users', UserViewSet)
+
+service.mount(drf_router, route='/v1')
+
+app = service.application()
+```
+
+!!! tip
+	You can configure DRF in the `extra` param of DjangoSettings, and remember to include `'rest_framework'` in your `apps` param 
+
 ### Flask
 
-**Use `flask` as a service `backend`**
+**Use `flask` as backend**
 
 If you are using `flask` as the UtilMeta service `backend`, simply pass the Flask application as `backend` of the UtilMeta service.
 
-```python  hl_lines="18"
+```python  hl_lines="19"
 from flask import Flask
 from utilmeta import UtilMeta
 from utilmeta.core import api, response
@@ -333,6 +414,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
+    name='demo',
     backend=flask_app,
     api=RootAPI,
     route='/api'
@@ -353,7 +435,7 @@ In this way, when you request [http://127.0.0.1:5000/v1/hello](http://127.0.0.1:
 ```
 
 
-**Use `starlette` (fastapi) as a service**
+**Use `starlette` (fastapi) as backend**
 
 You can also use `starlette` as `backend` and mount the flask application, just mount the `Flask(__name__)` application using `mount`.
 
@@ -369,7 +451,7 @@ def hello_flask():
 
 from utilmeta import UtilMeta
 
-service = UtilMeta(__name__, backend=starlette)
+service = UtilMeta(__name__, backend=starlette, name='demo')
 service.mount(flask_app, '/v1')
 ```
 
@@ -377,9 +459,9 @@ So when you request `GET /v1/hello`, it will still be processed by `hello_flask`
 
 ### Starlette (FastAPI)
 
-Similar to Flask, integrate Starlette (Fast API) only needs to mount the core application using `mount`.
+Similar to Flask, integrate Starlette (FastAPI) only needs to mount the core application using `mount`.
 
-```python  hl_lines="22"
+```python  hl_lines="24"
 from fastapi import FastAPI
 
 fastapi_app = FastAPI()
@@ -402,6 +484,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
+    name='demo',
     backend=fastapi_app,
     api=RootAPI
 )
@@ -419,11 +502,12 @@ When you request [http://127.0.0.1:8000/items/1](http://127.0.0.1:8000/items/1),
 
 !!! tip
 	When integrating Starlette (FastAPI) application, your `backend` of UtilMeta service must be `starlette` or `fastapi`
+
 ### Sanic
 
 Integrate Sanic is similar to Flask, but you can only use `sanic` as the `backend` of UtilMeta service
 
-```python  hl_lines="22"
+```python  hl_lines="24"
 from sanic import Sanic, text
 
 sanic_app = Sanic('demo')
@@ -446,7 +530,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
-    name='test',
+    name='demo',
     backend=sanic_app,
     api=RootAPI,
     route='/api'

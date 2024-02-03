@@ -273,7 +273,7 @@ class UtilMeta:
         if callable(f):
             self.events.setdefault('shutdown', []).append(f)
 
-    def mount(self, api: Union[str, Callable, Type[API]] = None, route: str = ''):
+    def mount(self, api=None, route: str = ''):
         if not api:
             def deco(_api):
                 return self.mount(_api, route=route)

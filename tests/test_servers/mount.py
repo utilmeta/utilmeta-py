@@ -3,10 +3,13 @@ from server import service
 from flask import Flask
 from sanic import Sanic
 from fastapi import FastAPI
+from ninja import NinjaAPI
+from ninja import Schema
 import tornado
 
 flask_app = Flask(__name__)
 sanic_app = Sanic(__name__)
+ninja_app = NinjaAPI()
 fastapi_app = FastAPI()
 
 
@@ -25,12 +28,18 @@ async def read_item(item_id):
     return {"item_id": item_id}
 
 
+@ninja_app.get("/hello")
+def hello(request, name):
+    return f"Hello {name}"
+
+
 import starlette
 service.set_backend(starlette)
 
 service.mount(flask_app, '/flask')
 service.mount(sanic_app, '/sanic')      # fixme
 service.mount(fastapi_app, '/fastapi')
+service.mount(ninja_app, '/ninja')
 
 import django_settings
 from django.http.response import HttpResponse

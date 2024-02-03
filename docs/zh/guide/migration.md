@@ -207,7 +207,7 @@ if __name__ == "__main__":
 
 因为在 UtilMeta 接口接入其他项目的时候，服务不是由 UtilMeta 控制的，所以 `API.__as__` 函数会创建一个 隐藏的 UtilMeta 服务进行调控，所以为了避免服务冲突，你只能调用一次 `API.__as__` 函数
 
-## UtilMeta 项目接入其他框架接口
+## 接入其他框架接口
 
 你的 UtilMeta 项目也可以接入其他框架开发好的接口，比如
 ### Django
@@ -286,7 +286,7 @@ if __name__ == "__main__":
 当你访问 `GET /article` 时，就会命中 Django 的路由视图函数 `get_article`
 
 
-**使用 `starlette` (fastapi) 作为服务 `backend`**
+**使用 `starlette` (fastapi) 作为 backend**
 
 你也可以使用 `starlette` 作为 `backend` 并接入 django 视图函数。在你的 Django 项目的 `settings.py` 配置中，应该会有一个 `application` 属性
 
@@ -302,7 +302,7 @@ application = get_wsgi_application()
 import starlette
 from utilmeta import UtilMeta
 
-service = UtilMeta(__name__, backend=starlette)
+service = UtilMeta(__name__, backend=starlette, name='demo')
 
 from settings import application as django_wsgi
 
@@ -311,13 +311,95 @@ service.mount(django_wsgi, '/v1')
 
 当请求访问 `/v1/xxx` 时就会定向到 Django 的路由视图函数
 
+#### Django Ninja
+如果你需要集成 **Django Ninja** 的接口，你必须使用  `django` 作为服务 backend，集成挂载的示例如下
+
+```python hl_lines="17"
+import django
+from utilmeta import UtilMeta
+
+service = UtilMeta(__name__, backend=django, name='demo')
+
+from utilmeta.core.server.backends.django import DjangoSettings
+service.use(DjangoSettings())
+service.setup()
+
+from ninja import NinjaAPI
+ninja_api = NinjaAPI()
+
+@ninja_api.get("/add")
+def add(request, a: int, b: int):
+    return {"result": a + b}
+
+service.mount(ninja_api, '/v1')
+
+app = service.application()
+```
+
+!!! warning
+	你需要在导入 `ninja`  之前完成服务的 setup（即 django 的 setup），否则将会出现 `django.core.exceptions.ImproperlyConfigured` 错误
+
+#### DRF
+如果你需要集成 **Django REST framework** 的接口，你必须使用  `django` 作为服务的 backend，集成挂载的示例如下
+
+```python hl_lines="42"
+from utilmeta import UtilMeta
+import django
+
+service = UtilMeta(
+    __name__,
+    name='demo',
+    backend=django
+)
+
+from utilmeta.core.server.backends.django import DjangoSettings
+from utilmeta.core.orm import DatabaseConnections, Database
+service.use(DjangoSettings(
+    apps=['app', 'rest_framework', 'django.contrib.auth'],
+    extra=dict(
+        REST_FRAMEWORK={
+            'DEFAULT_RENDERER_CLASSES': [
+                'rest_framework.renderers.JSONRenderer',
+            ]
+        }
+    )
+))
+service.setup()
+
+from app.models import User
+from rest_framework import routers, serializers, viewsets
+
+# Serializers define the API representation.
+class UserSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'signup_time', 'admin']
+
+# ViewSets define the view behavior.
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+# Routers provide an easy way of automatically determining the URL conf.
+drf_router = routers.DefaultRouter()
+drf_router.register(r'users', UserViewSet)
+
+service.mount(drf_router, route='/v1')
+
+app = service.application()
+```
+
+!!! tip
+	你可以使用 DjangoSettings 中的 `extra` 参数配置包括 DRF 在内的其他 Django 设置，并且需要把 `'rest_framework'` 添加到你的 `apps` 参数中
+
+
 ### Flask
 
-**使用 `flask` 作为服务 `backend`**
+**使用 `flask` 作为 backend**
 
 如果你使用 `flask` 作为 UtilMeta 服务 `backend`，那么只需要把 flask 应用作为 `backend` 传入 UtilMeta 服务即可
 
-```python  hl_lines="18"
+```python  hl_lines="19"
 from flask import Flask
 from utilmeta import UtilMeta
 from utilmeta.core import api, response
@@ -335,6 +417,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
+    name='demo',
     backend=flask_app,
     api=RootAPI,
     route='/api'
@@ -355,7 +438,7 @@ if __name__ == '__main__':
 ```
 
 
-**使用 `starlette` (fastapi) 作为服务 `backend`**
+**使用 `starlette` (fastapi) 作为 backend**
 
 你也可以使用 `starlette` 作为 `backend` 并挂载 flask 应用，只需要把 `Flask(__name__)` 的应用使用 `mount` 方法挂载即可
 
@@ -371,7 +454,7 @@ def hello_flask():
 
 from utilmeta import UtilMeta
 
-service = UtilMeta(__name__, backend=starlette)
+service = UtilMeta(__name__, backend=starlette, name='demo')
 service.mount(flask_app, '/v1')
 ```
 
@@ -381,7 +464,7 @@ service.mount(flask_app, '/v1')
 
 类似 Flask，接入 Starlette (FastAPI) 只需要把核心应用使用 `mount` 方法挂载即可
 
-```python  hl_lines="22"
+```python  hl_lines="24"
 from fastapi import FastAPI
 
 fastapi_app = FastAPI()
@@ -404,6 +487,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
+    name='demo',
     backend=fastapi_app,
     api=RootAPI
 )
@@ -426,7 +510,7 @@ if __name__ == '__main__':
 
 接入 Sanic 接口只能使用 `sanic` 作为 UtilMeta 服务的 `backend`，用法与 Flask 类似
 
-```python  hl_lines="22"
+```python  hl_lines="24"
 from sanic import Sanic, text
 
 sanic_app = Sanic('demo')
@@ -449,7 +533,7 @@ class RootAPI(api.API):
 
 service = UtilMeta(
     __name__,
-    name='test',
+    name='demo',
     backend=sanic_app,
     api=RootAPI,
     route='/api'

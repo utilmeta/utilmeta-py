@@ -71,7 +71,6 @@ class Migration(migrations.Migration):
                 ("description", models.TextField(default="")),
                 ("slug", models.SlugField(unique=True)),
                 ("views", models.PositiveIntegerField(default=0)),
-                ("tags", models.JSONField(default=list)),
             ],
             options={
                 "db_table": "article",

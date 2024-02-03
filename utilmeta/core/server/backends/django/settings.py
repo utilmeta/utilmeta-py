@@ -35,6 +35,7 @@ DEFAULT_DB_ENGINE = {
     'postgres': 'django.db.backends.postgresql'
 }
 WSGI_APPLICATION = "WSGI_APPLICATION"
+ASGI_APPLICATION = "ASGI_APPLICATION"
 ROOT_URLCONF = "ROOT_URLCONF"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SETTINGS_MODULE = 'DJANGO_SETTINGS_MODULE'
@@ -81,6 +82,7 @@ class DjangoSettings(Config):
             user_i18n: bool = None,
             language: str = None,
             append_slash: bool = False,
+            extra: dict = None,
             # urlpatterns: list = None,
     ):
         super().__init__(**locals())
@@ -102,6 +104,7 @@ class DjangoSettings(Config):
         self.url_conf = None
         # self.urlpatterns = urlpatterns
         self._settings = {}
+        self._extra_settings = extra
         self._plugin_settings = {}
 
     def register(self, plugin):
@@ -280,22 +283,25 @@ class DjangoSettings(Config):
             settings.update({
                 'DATETIME_FORMAT': time_config.datetime_format,
                 'DATE_FORMAT': time_config.date_format,
-                'TIME_ZONE': time_config.time_zone,
+                'TIME_ZONE': time_config.time_zone or DEFAULT_TIME_ZONE,
                 'USE_TZ': time_config.use_tz,
             })
         else:
             # mandatory
             settings.update({
-                'TIME_ZONE': None,
-                'USE_TZ': None,
+                'TIME_ZONE': DEFAULT_TIME_ZONE,
+                'USE_TZ': True,
             })
 
         if self._plugin_settings:
             settings.update(self._plugin_settings)
+        if isinstance(self._extra_settings, dict):
+            settings.update(self._extra_settings)
 
         self._settings = settings
         for attr, value in settings.items():
             setattr(module, attr, value)
+
         os.environ[SETTINGS_MODULE] = self.module_name or service.module_name
         # not using setdefault to prevent IDE set the wrong value by default
         django.setup(set_prefix=False)
@@ -310,3 +316,39 @@ class DjangoSettings(Config):
         # if self.urlpatterns:
         #     urlpatterns = urlpatterns + self.urlpatterns
         setattr(self.url_conf, 'urlpatterns', urlpatterns or [])
+
+    @property
+    def wsgi_module_ref(self):
+        wsgi_app_ref = self._settings.get(WSGI_APPLICATION)
+        if isinstance(wsgi_app_ref, str) and '.' in wsgi_app_ref:
+            return '.'.join(wsgi_app_ref.split('.')[:-1])
+        return None
+
+    @property
+    def wsgi_app_attr(self):
+        wsgi_app_ref = self._settings.get(WSGI_APPLICATION)
+        if isinstance(wsgi_app_ref, str) and '.' in wsgi_app_ref:
+            return wsgi_app_ref.split('.')[-1]
+        return None
+
+    @property
+    def wsgi_module(self):
+        wsgi_module_ref = self.wsgi_module_ref
+        if wsgi_module_ref:
+            # if module_ref == self.module_name:
+            #     return self.module
+            try:
+                return import_obj(wsgi_module_ref)
+            except (ModuleNotFoundError, ImportError):
+                return None
+        return None
+
+    @property
+    def wsgi_app(self):
+        wsgi_app_ref = self._settings.get(WSGI_APPLICATION)
+        if wsgi_app_ref:
+            try:
+                return import_obj(wsgi_app_ref)
+            except (ModuleNotFoundError, ImportError):
+                return None
+        return None

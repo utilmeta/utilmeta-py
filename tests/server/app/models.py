@@ -1,7 +1,7 @@
 from django.db.models import Manager
 from django.db import models
 from utilmeta.core.orm.backends.django.models import PasswordField, AwaitableModel
-
+import sys
 
 class User(AwaitableModel):
     # test abstract inherit with some field set None
@@ -57,7 +57,10 @@ class Article(BaseContent):
     description = models.TextField(default="")
     slug = models.SlugField(db_index=True, unique=True)
     views = models.PositiveIntegerField(default=0)
-    tags = models.JSONField(default=list)
+
+    # in Windows under 3.9, JSON field cannot be processed by SQLite
+    # if sys.version_info >= (3, 9):
+    #     tags = models.JSONField(default=list)
 
     class Meta:
         db_table = "article"

@@ -11,5 +11,5 @@ def get_article(request):
 
 
 urlpatterns = [
-    path('article', get_article)
+    path('article', get_article),
 ]

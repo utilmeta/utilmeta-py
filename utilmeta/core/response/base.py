@@ -661,8 +661,8 @@ class Response:
         if err:
             raise err.throw()
 
-    def valid(self, *_, **__):
-        return self.success
+    # def valid(self, *_, **__):
+    #     return self.success
 
     @classmethod
     def mock(cls):

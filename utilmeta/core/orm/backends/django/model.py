@@ -26,6 +26,15 @@ class DjangoModelAdaptor(ModelAdaptor):
     model_cls = models.Model
     model: Type[models.Model]
 
+    @property
+    def ident(self):
+        meta = self.meta
+        if not meta:
+            return ''
+        app_label = meta.app_label
+        tag = '.'.join((app_label, self.model.__name__))
+        return tag.lower()
+
     @classmethod
     def qualify(cls, obj):
         return isinstance(obj, ModelBase)

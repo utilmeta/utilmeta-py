@@ -103,6 +103,10 @@ class DummyRequestAdaptor(RequestAdaptor):
     def body(self) -> bytes:
         return self.request.data
 
+    @body.setter
+    def body(self, data):
+        self.request.data = data
+
     async def async_read(self):
         return self.request.data
 
@@ -221,15 +225,24 @@ class Request:
     def body(self) -> bytes:
         return self.adaptor.body
 
+    @body.setter
+    def body(self, data):
+        self.adaptor.body = data
+
     async def aread(self) -> bytes:
         return await self.adaptor.async_read()
 
     @property
     def data(self):
-        data = var.data.init(self)
+        data = var.data.setup(self)
         if data.contains():
             return data.get()
         return None
+
+    @data.setter
+    def data(self, data):
+        data_var = var.data.setup(self)
+        data_var.set(data)
 
     @property
     def time(self) -> datetime:

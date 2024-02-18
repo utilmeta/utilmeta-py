@@ -108,7 +108,7 @@ class CORSPlugin(Plugin):
             response.update_headers(**{
                 Header.ALLOW_ORIGIN: request.origin or '*',
                 Header.ALLOW_CREDENTIALS: 'true',
-                Header.ALLOW_METHODS: ','.join(set([m.upper() for m in var.allow_methods.get(request)])),
+                Header.ALLOW_METHODS: ','.join(set([m.upper() for m in var.allow_methods.getter(request)])),
             })
             if request.is_options:
                 if self.allow_headers == '*':
@@ -117,7 +117,7 @@ class CORSPlugin(Plugin):
                     # request_headers = [h.strip().lower() for h in
                     #                    request.headers.get(Header.OPTIONS_HEADERS, '').split(',')]
                     allow_headers = list(self.allow_headers or [])
-                    allow_headers.extend([h.lower() for h in var.allow_headers.get(request)])
+                    allow_headers.extend([h.lower() for h in var.allow_headers.getter(request)])
                     if allow_headers:
                         response.set_header(Header.ALLOW_HEADERS, ','.join(allow_headers))
 

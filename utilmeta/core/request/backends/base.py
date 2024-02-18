@@ -282,6 +282,10 @@ class RequestAdaptor(BaseAdaptor):
     def body(self) -> bytes:
         raise NotImplementedError
 
+    @body.setter
+    def body(self, data):
+        raise NotImplementedError
+
     async def async_load(self):
         self.__dict__['body'] = await self.async_read()
         try:

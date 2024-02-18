@@ -444,9 +444,9 @@ class API(PluginTarget):
                 # first match is 1st priority
                 method_routes.setdefault(route.method, route)
         if method_routes:
-            allow_methods = var.allow_methods.init(self.request)
-            allow_headers = var.allow_headers.init(self.request)
-            route_var = var.unmatched_route.init(self.request)
+            allow_methods = var.allow_methods.setup(self.request)
+            allow_headers = var.allow_headers.setup(self.request)
+            route_var = var.unmatched_route.setup(self.request)
             allow_methods.set(list(method_routes))
             headers = []
             for route in method_routes.values():
@@ -495,7 +495,7 @@ class API(PluginTarget):
 
     def options(self):
         return Response(headers={
-            Header.ALLOW: ','.join(set([m.upper() for m in var.allow_methods.get(self.request)])),
+            Header.ALLOW: ','.join(set([m.upper() for m in var.allow_methods.getter(self.request)])),
             Header.LENGTH: '0'
         })
 

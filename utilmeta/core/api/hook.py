@@ -122,7 +122,7 @@ class BeforeHook(Hook):
 
     def parse_request(self, request: Request):
         try:
-            kwargs = dict(var.path_params.get(request))
+            kwargs = dict(var.path_params.getter(request))
             kwargs.update(self.wrapper.parse_context(request))
             return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
         except utype.exc.ParseError as e:
@@ -131,7 +131,7 @@ class BeforeHook(Hook):
     @utils.awaitable(parse_request)
     async def parse_request(self, request: Request):
         try:
-            kwargs = dict(await var.path_params.get(request))
+            kwargs = dict(await var.path_params.getter(request))
             kwargs.update(await self.wrapper.parse_context(request))
             return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
             # in base Endpoint, args is not supported

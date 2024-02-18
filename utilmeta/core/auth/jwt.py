@@ -65,7 +65,7 @@ class JsonWebToken(BaseAuthentication):
             self.user_token_field = user_model.field_adaptor_cls(self.user_token_field).name
 
     def login(self, request: Request, key: str = 'uid', expiry_age: int = None):
-        user = var.user.get(request)
+        user = var.user.getter(request)
         if not user:
             return
         import time
@@ -96,7 +96,7 @@ class JsonWebToken(BaseAuthentication):
                 token_dict, self.secret_key,
                 algorithm=self.algorithm
             ).decode('ascii')
-        self.jwt_var.set(request, jwt_token)
+        self.jwt_var.setter(request, jwt_token)
         return {self.user_token_field: jwt_token} if isinstance(self.user_token_field, str) else None
         # if conf.jwt_token_field:
         #     setattr(user, conf.jwt_token_field, jwt_token)

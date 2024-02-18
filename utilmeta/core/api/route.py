@@ -236,8 +236,8 @@ class APIRoute:
         # /doc/{page}
         # /user/* -> UserAPI
         # /http/bin/* -> HttpBinAPI
-        route_attr = var.unmatched_route.init(request)
-        path_params_attr = var.path_params.init(request)
+        route_attr = var.unmatched_route.setup(request)
+        path_params_attr = var.path_params.setup(request)
         route = route_attr.get()
         path_params: dict = path_params_attr.get()
         for regex in self.regex_list:

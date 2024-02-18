@@ -30,7 +30,7 @@ class BaseSession(BaseAuthentication):
         return (engine or self.engine)(session_key)
 
     def getter(self, request: Request, field: ParserField = None):
-        cvar = self.context_var.init(request)
+        cvar = self.context_var.setup(request)
         if cvar.contains():
             return cvar.get()
         engine = None
@@ -118,7 +118,7 @@ class BaseSession(BaseAuthentication):
         you can override
         """
         request = response.request
-        cvar = self.context_var.init(request)
+        cvar = self.context_var.setup(request)
         if not cvar.contains():
             # no session initialized
             return response
@@ -139,7 +139,7 @@ class BaseSession(BaseAuthentication):
     @awaitable(process_response)
     async def process_response(self, response: Response):
         request = response.request
-        cvar = self.context_var.init(request)
+        cvar = self.context_var.setup(request)
         if not cvar.contains():
             # no session initialized
             return response

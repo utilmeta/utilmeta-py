@@ -39,7 +39,7 @@ class User(Property):
             if inst is not None:
                 # user.set(inst)
                 if self.scopes_field:
-                    self.scopes_context_var.set(request, getattr(inst, self.scopes_field, []))
+                    self.scopes_context_var.setter(request, getattr(inst, self.scopes_field, []))
                 return inst
         return None
 
@@ -51,12 +51,12 @@ class User(Property):
             if inst is not None:
                 # user.set(inst)
                 if self.scopes_field:
-                    self.scopes_context_var.set(request, getattr(inst, self.scopes_field, []))
+                    self.scopes_context_var.setter(request, getattr(inst, self.scopes_field, []))
                 return inst
         return None
 
     def getter(self, request: Request, field: ParserField = None):
-        user_var = self.context_var.init(request)
+        user_var = self.context_var.setup(request)
         # even if we registered factory
         # we still need to cache here
         # because parse_context will directly call getter
@@ -75,7 +75,7 @@ class User(Property):
 
     @awaitable(getter)
     async def getter(self, request: Request, field: ParserField = None):
-        user_var = self.context_var.init(request)
+        user_var = self.context_var.setup(request)
         if user_var.contains():
             # already cached
             # use await in async context
@@ -247,8 +247,8 @@ class User(Property):
         return user
 
     def login_user(self, request: Request, user, expiry_age: int = None, ignore_updates: bool = False) -> None:
-        self.context_var.set(request, user)
-        self.id_context_var.set(request, getattr(user, 'pk', None) or getattr(user, 'id', None))
+        self.context_var.setter(request, user)
+        self.id_context_var.setter(request, getattr(user, 'pk', None) or getattr(user, 'id', None))
         try:
             data = self.authentication.login(request, self.key, expiry_age)
         except NotImplementedError:
@@ -260,8 +260,8 @@ class User(Property):
 
     # @awaitable(login_user)
     async def alogin_user(self, request: Request, user, expiry_age: int = None, ignore_updates: bool = False) -> None:
-        self.context_var.set(request, user)
-        self.id_context_var.set(request, getattr(user, 'pk', None) or getattr(user, 'id', None))
+        self.context_var.setter(request, user)
+        self.id_context_var.setter(request, getattr(user, 'pk', None) or getattr(user, 'id', None))
         try:
             data = self.authentication.login(request, self.key, expiry_age)
             if inspect.isawaitable(data):

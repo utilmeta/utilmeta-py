@@ -1,7 +1,7 @@
 from typing import Union, Callable, Type, TypeVar, Optional
 import sys
 import os
-from utilmeta.utils import import_obj, awaitable, search_file
+from utilmeta.utils import import_obj, awaitable, search_file, cached_property
 from utilmeta.conf.base import Config
 import inspect
 from utilmeta.core.api import API
@@ -26,6 +26,7 @@ class UtilMeta:
         host: str = None,
         port: int = None,
         scheme: str = 'http',
+        origin: str = None,
         version: Union[str, tuple] = None,
         # application=None,
         info: dict = None,
@@ -81,6 +82,7 @@ class UtilMeta:
         self.document = None
         # generated API document will be here
 
+        self._origin = origin
         self._application = None
         self._ready = False
 
@@ -344,6 +346,8 @@ class UtilMeta:
 
     @property
     def origin(self):
+        if self._origin:
+            return self._origin
         host = self.host or '127.0.0.1'
         port = self.port
         if port == 80 and self.scheme == 'http':
@@ -369,6 +373,7 @@ class UtilMeta:
         self._pool = pool
         return pool
 
-    # def generate(self, spec: Union[str, Type['BaseAPISpec']] = DEFAULT_API_SPEC):
-    #     if self.document:
-    #         return self.document
+    @cached_property
+    def ip(self):
+        from utilmeta.utils import get_server_ip
+        return get_server_ip()

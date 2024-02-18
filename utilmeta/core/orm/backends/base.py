@@ -68,6 +68,14 @@ class ModelFieldAdaptor(BaseAdaptor):
     def column_name(self) -> str:
         raise NotImplementedError
 
+    @property
+    def to_field(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def relate_name(self) -> str:
+        raise NotImplementedError
+
     def get_supported_operators(self):
         pass
 
@@ -159,6 +167,10 @@ class ModelAdaptor(BaseAdaptor):
         self.model = model
 
     @property
+    def ident(self):
+        return f'{self.model.__module__}.{self.model.__name__}'
+
+    @property
     def pk_field(self) -> field_adaptor_cls:
         raise NotImplementedError
 
@@ -243,8 +255,8 @@ class ModelAdaptor(BaseAdaptor):
     def get_last_many_relates(self, lookup: str):
         raise NotImplementedError
 
-    def get_fields(self) -> List[ModelFieldAdaptor]:
-        pass
+    def get_fields(self, many=False, no_inherit=False) -> List[ModelFieldAdaptor]:
+        raise NotImplementedError
 
     def get_related_adaptor(self, field):
         return self.__class__(field.related_model) if field.related_model else None

@@ -4,8 +4,8 @@ service: 'UtilMeta'     # current service in this process
 
 __website__ = 'https://utilmeta.com'
 __homepage__ = 'https://utilmeta.com/py'
-__author__ = 'Xulin Zhou (voidZXL)'
-__version__ = '2.4.1'
+__author__ = 'Xulin Zhou (@voidZXL)'
+__version__ = '2.4.2'
 
 
 def version_info() -> str:

@@ -98,7 +98,7 @@ class BaseSessionSchema(Schema):
         # for developer to directly call
         if not isinstance(config, SchemaSession):
             raise TypeError(f'Invalid session config: {config}')
-        cvar = config.context_var.init(request)
+        cvar = config.context_var.setup(request)
         if cvar.contains():
             data: BaseSessionSchema = cvar.get()
             if not isinstance(data, cls):
@@ -123,7 +123,7 @@ class BaseSessionSchema(Schema):
     async def ainit(cls: Type[T], request: Request, config: 'SchemaSession') -> T:
         if not isinstance(config, SchemaSession):
             raise TypeError(f'Invalid session config: {config}')
-        cvar = config.context_var.init(request)
+        cvar = config.context_var.setup(request)
         if cvar.contains():
             data: BaseSessionSchema = await cvar.get()
             if not isinstance(data, cls):
@@ -390,7 +390,7 @@ class SchemaSession(BaseSession):
         return session
 
     def getter(self, request: Request, field=None):
-        cvar = self.context_var.init(request)
+        cvar = self.context_var.setup(request)
         engine = None
         if field:
             # maybe a field has its own session schema as engine
@@ -413,7 +413,7 @@ class SchemaSession(BaseSession):
 
     @awaitable(getter)
     async def getter(self, request: Request, field=None):
-        cvar = self.context_var.init(request)
+        cvar = self.context_var.setup(request)
         engine = None
         if field:
             # maybe a field has its own session schema as engine
@@ -435,7 +435,7 @@ class SchemaSession(BaseSession):
         return session
 
     def login(self, request, key: str, expiry_age: int = None, user_id_var=var.user_id):
-        new_user_id = user_id_var.get(request)
+        new_user_id = user_id_var.getter(request)
         if new_user_id is None:
             return
         session: BaseSessionSchema = self.getter(request)
@@ -456,7 +456,7 @@ class SchemaSession(BaseSession):
 
     @awaitable(login)
     async def login(self, request, key: str, expiry_age: int = None, user_id_var=var.user_id):
-        new_user_id = await user_id_var.get(request)
+        new_user_id = await user_id_var.getter(request)
         if new_user_id is None:
             return
         session: BaseSessionSchema = await self.getter(request)

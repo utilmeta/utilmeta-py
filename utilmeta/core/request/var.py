@@ -3,6 +3,7 @@ import warnings
 
 from typing import Callable
 from utilmeta.utils import awaitable
+from utilmeta.utils.context import Property
 from utype.utils.datastructures import unprovided
 import inspect
 from typing import TYPE_CHECKING
@@ -11,15 +12,20 @@ if TYPE_CHECKING:
     from .base import Request
 
 
-class RequestContextVar:
-    def __init__(self, key: str, cached: bool = False, static: bool = False, default=None, factory: Callable = None):
+class RequestContextVar(Property):
+    def __init__(self, key: str, cached: bool = False, static: bool = False,
+                 default=None, factory: Callable = None):
+        super().__init__(
+            default_factory=default if callable(default) else None,
+            default=default if not callable(default) else unprovided
+        )
         self.key = key
         self.default = default
         self.factory = factory
         self.cached = cached
         self.static = static
 
-    def init(self, request: 'Request'):
+    def setup(self, request: 'Request'):
         class c:
             @staticmethod
             def contains():
@@ -27,22 +33,27 @@ class RequestContextVar:
 
             @staticmethod
             def get():
-                return self.get(request)
+                return self.getter(request)
 
             @staticmethod
             @awaitable(get)
             async def get():
-                return await self.get(request)
+                return await self.getter(request)
 
             @staticmethod
             def set(v):
-                return self.set(request, value=v)
+                return self.setter(request, value=v)
+
+            @staticmethod
+            def delete():
+                return self.deleter(request)
+
         return c
 
     def contains(self, request: 'Request'):
         return request.adaptor.in_context(self.key)
 
-    def get(self, request: 'Request'):
+    def getter(self, request: 'Request', field=None):
         r = unprovided
         if self.contains(request):
             r = request.adaptor.get_context(self.key)
@@ -55,11 +66,11 @@ class RequestContextVar:
                 else:
                     r = self.default
         if self.cached:
-            self.set(request, r)
+            self.setter(request, r)
         return r
 
-    @awaitable(get)
-    async def get(self, request: 'Request'):
+    @awaitable(getter)
+    async def getter(self, request: 'Request', field=None):
         r = unprovided
         if self.contains(request):
             r = request.adaptor.get_context(self.key)
@@ -71,18 +82,24 @@ class RequestContextVar:
             if unprovided(r):
                 if callable(self.default):
                     r = self.default()
+                    if inspect.isawaitable(r):
+                        r = await r
                 else:
                     r = self.default
             # else:
             #     raise KeyError(f'context: {repr(self.key)} missing')
         if self.cached:
-            self.set(request, r)
+            self.setter(request, r)
         return r
 
-    def set(self, request: 'Request', value):
+    def setter(self, request: 'Request', value, field=None):
+        if self.static and self.contains(request):
+            return
         request.adaptor.update_context(**{self.key: value})
 
-    def clear(self, request: 'Request'):
+    def deleter(self, request: 'Request', field=None):
+        if self.static and self.contains(request):
+            return
         request.adaptor.delete_context(self.key)
 
     def register_factory(self, func, force: bool = False):

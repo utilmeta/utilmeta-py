@@ -31,6 +31,7 @@ class AuthValidatorPlugin(Plugin):
             self.functions = [self.login]
             name = name or 'login'
         self.name = name
+        # self.readonly = readonly
         # self.login = login
 
     def enter_endpoint(self, api: 'API', *args, **kwargs):

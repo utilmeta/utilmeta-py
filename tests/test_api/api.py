@@ -3,6 +3,8 @@ from utype.types import *
 import utype
 from utilmeta.utils import exceptions
 
+test_var = request.var.RequestContextVar('test-id', cached=True)
+
 
 class HookResponse(response.Response):
     result: str
@@ -32,6 +34,9 @@ class Test1Response(response.Response):
 
 
 class SubAPI(api.API):
+    # test context var
+    test_id: int = test_var
+
     @api.get
     def hello(self):
         return 'world'
@@ -42,15 +47,15 @@ class SubAPI(api.API):
 
     @api.get
     def test1(self):
-        return 1
+        return self.test_id
 
     @api.after(test1)
     def after_test1(self, r) -> Test1Response:
         return r
 
     @api.get
-    def resp(self):
-        return self.response({'resp': 1})
+    def resp(self, test_id: int = test_id):
+        return self.response({'resp': test_id})
 
 
 class ParentAPI(api.API):
@@ -60,6 +65,10 @@ class ParentAPI(api.API):
     @api.get
     def hello(self):
         return 'world'
+
+    @api.before(SubAPI)
+    def assign_var(self, x_test_id: int = request.HeaderParam('X-Test-Id')):
+        test_var.setter(self.request, x_test_id)
 
 
 @api.route('the/api')

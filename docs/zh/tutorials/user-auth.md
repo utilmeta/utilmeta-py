@@ -57,10 +57,10 @@ meta add user
 
 应用创建完成后，我们将 `server.py` 的 Django 设置中插入一行代码来指定 app 
 
-```python
+```python hl_lines="3"
 service.use(DjangoSettings(
     secret_key='YOUR_SECRET_KEY',
-    apps=['user']     # new
+    apps=['user']
 ))
 ```
 
@@ -247,7 +247,7 @@ class UserAPI(api.API):
 ```
 
 在登录接口中，我们直接调用了鉴权配置中的 `login()` 方法来完成登录，由于我们已经配置好了登录字段与密码字段，UtilMeta 可以自动帮我们完成密码校验与登录，如果成功登录，便返回相应的用户实例
-所以当返回为空时，我们便抛出错误返回登录失败，而成功登录后，我们调用 `UserSchema.init` 放将登录的用户数据返回给客户端
+所以当返回为空时，我们便抛出错误返回登录失败，而成功登录后，我们调用 `UserSchema.init` 方法将登录的用户数据返回给客户端
 
 !!! tip
 	这样简化的登录方式并不是强制的，如果你希望更自由的控制登录，可以自行实现相应的逻辑

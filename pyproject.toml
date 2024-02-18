@@ -40,9 +40,11 @@ classifiers = [
 ]
 dependencies = [
     "utype>=0.4.0",
+    "django>=4.1.0",
     "databases>=0.7.0",
-    "django>=4.1.0"
+    "jwcrypto>=1.5.4"
 ]
+
 dynamic = ["version"]
 
 [project.urls]

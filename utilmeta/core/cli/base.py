@@ -29,7 +29,7 @@ class Client(PluginTarget):
                  internal: bool = False,
 
                  # session=None,      # used to pass along the sdk classes
-                 prepend_route: str = None,
+                 # prepend_route: str = None,
                  append_slash: bool = None,
 
                  default_timeout: Union[float, int, timedelta] = None,
@@ -68,7 +68,7 @@ class Client(PluginTarget):
         self._allow_redirects = allow_redirects
         self._charset = charset
 
-        self._prepend_route = prepend_route
+        # self._prepend_route = prepend_route
         self._append_slash = append_slash
 
         cookies = base_cookies
@@ -105,7 +105,9 @@ class Client(PluginTarget):
         if isinstance(query, dict):
             qs.update(query)
         base_url = self._base_url or (self._service.base_url if self._service else '')
-        base_path = url_join(base_url, self._prepend_route, parsed.path)
+        base_path = url_join(base_url, parsed.path)
+        if self._append_slash:
+            base_path = base_path.rstrip('/') + '/'
         return base_path + (('?' + urlencode(qs)) if qs else '')
 
     def _build_headers(self, headers, cookies=None):

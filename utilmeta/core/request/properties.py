@@ -85,6 +85,8 @@ class Body(Property):
 
     def getter(self, request: Request, field: ParserField = None):
         self.validate_content_type(request)
+        if var.data.contains(request):
+            return var.data.getter(request)
         body = request.body
         self.validate_max_length(body)
         return body
@@ -92,6 +94,11 @@ class Body(Property):
     @awaitable(getter)
     async def getter(self, request: Request, field: ParserField = None):
         self.validate_content_type(request)
+        if var.data.contains(request):
+            r = var.data.getter(request)
+            if inspect.isawaitable(r):
+                r = await r
+            return r
         body = await request.adaptor.async_read()
         self.validate_max_length(body)
         return body
@@ -352,7 +359,7 @@ class RequestParam(Property):
 class PathParam(RequestParam):
     @classmethod
     def get_mapping(cls, request: Request) -> Optional[Mapping]:
-        return var.path_params.get(request)
+        return var.path_params.getter(request)
 
     __in__ = Path
     __no_default__ = True
@@ -403,7 +410,7 @@ class BodyParam(RequestParam):
 
     @classmethod
     def get_mapping(cls, request: Request):
-        data = var.data.init(request)
+        data = var.data.setup(request)
         if data.contains():
             return data.get()
         if request.adaptor.json_type:
@@ -418,7 +425,7 @@ class BodyParam(RequestParam):
     @classmethod
     @awaitable(get_mapping)
     async def get_mapping(cls, request: Request):
-        data = var.data.init(request)
+        data = var.data.setup(request)
         if data.contains():
             return await data.get()
         if request.adaptor.json_type or request.adaptor.form_type:

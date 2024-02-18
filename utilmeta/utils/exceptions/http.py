@@ -78,10 +78,10 @@ class Unauthorized(RequestError):
 class PermissionDenied(RequestError):
     status = 403
 
-    def __init__(self, msg: str = None, *, scopes=None, required_scopes=None, name: str = None, **kwargs):
+    def __init__(self, msg: str = None, *, scope=None, required_scope=None, name: str = None, **kwargs):
         super().__init__(msg, **kwargs)
-        self.scopes = scopes
-        self.required_scopes = required_scopes
+        self.scope = scope
+        self.required_scope = required_scope
         self.name = name
 
 

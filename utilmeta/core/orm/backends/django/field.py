@@ -99,6 +99,8 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             return None
         rel = getattr(self.field, 'related_model')
         if rel:
+            if rel == 'self':
+                return self
             from .model import DjangoModelAdaptor
             return DjangoModelAdaptor(rel)
         return None
@@ -281,6 +283,21 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     def column_name(self) -> Optional[str]:
         if isinstance(self.field, models.Field):
             return self.field.column
+        return None
+
+    @property
+    def to_field(self) -> Optional[str]:
+        if self.is_fk:
+            try:
+                return self.field.to_fields[0]
+            except IndexError:
+                pass
+        return None
+
+    @property
+    def relate_name(self) -> Optional[str]:
+        if self.is_fk:
+            return self.field.remote_field.get_cache_name()
         return None
 
     def get_supported_operators(self):

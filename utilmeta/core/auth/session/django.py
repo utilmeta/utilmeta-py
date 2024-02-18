@@ -54,7 +54,7 @@ class DjangoSession(BaseSession):
         }
 
     def login(self, request, key: str, expiry_age: int = None, user_id_var=var.user_id):
-        new_user_id = user_id_var.get(request)
+        new_user_id = user_id_var.getter(request)
         if new_user_id is None:
             return
         session: SessionBase = self.getter(request)

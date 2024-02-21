@@ -400,10 +400,13 @@ class OpenAPI(BaseAPISpec):
                         'in': _in,
                         'name': key,
                         'required': prop.required,
-                        'description': prop.description,
-                        'deprecated': prop.deprecated,
                         'schema': generator(),
                     }
+                    if prop.description:
+                        data['description'] = prop.description
+                    if prop.deprecated:
+                        data['deprecated'] = True
+
                     if isinstance(field.field, properties.RequestParam):
                         if field.field.style:
                             data.update(style=field.field.style)
@@ -512,6 +515,8 @@ class OpenAPI(BaseAPISpec):
             operation.update(parameters=list(params.values()))
         if body and endpoint.method in HAS_BODY_METHODS:
             operation.update(requestBody=body)
+        if endpoint.ref:
+            operation.update({'x-ref': endpoint.ref})
         return operation
 
     def from_route(self, route: APIRoute,

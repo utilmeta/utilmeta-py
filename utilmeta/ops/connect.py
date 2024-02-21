@@ -50,6 +50,7 @@ def auto_select_supervisor(*supervisors: SupervisorBasic, timeout: int = 5, time
     ts_pairs.sort(key=lambda v: v[1])
     return ts_pairs[0][0]
 
+
 def connect_supervisor(
     key: str,
     base_url: str = None,
@@ -87,6 +88,7 @@ def connect_supervisor(
         ops_api=ops_api
     )
     resources = ResourcesManager(service)
+    url = None
 
     try:
         with SupervisorClient(
@@ -103,10 +105,17 @@ def connect_supervisor(
             # update after
             if not supervisor_obj.node_id or not supervisor_obj.public_key:
                 raise ValueError('supervisor failed to create')
-
+            if supervisor_obj.node_id != resp.result.node_id:
+                raise ValueError(f'supervisor failed to create: inconsistent node id: '
+                                 f'{supervisor_obj.node_id}, {resp.result.node_id}')
+            url = resp.result.url
             print(f'supervisor[{supervisor_obj.node_id}] created')
     except Exception as e:
         supervisor_obj.delete()
         raise e
 
     resources.sync_resources(supervisor_obj)
+
+    print('supervisor connected successfully!')
+    if url:
+        print(f'please visit {url} to view and manage your APIs')

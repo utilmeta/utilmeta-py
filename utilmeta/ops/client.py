@@ -1,10 +1,12 @@
+import utype
+
 from utilmeta.core.cli import Client
 from utilmeta.core import response, api
 from utilmeta.core import request
 from utype.types import *
 from .key import encrypt_data
 from .schema import NodeMetadata, SupervisorBasic, ServiceInfoSchema, SupervisorInfoSchema, \
-    SupervisorData, ResourcesSchema
+    SupervisorData, ResourcesSchema, ResourcesData
 
 
 class SupervisorResponse(response.Response):
@@ -43,6 +45,21 @@ class ServiceInfoResponse(SupervisorResponse):
         return False
 
 
+class SupervisorResourcesResponse(SupervisorResponse):
+    name = 'resources'
+    result: ResourcesData
+
+
+class NodeData(utype.Schema):
+    node_id: str
+    url: str
+
+
+class SupervisorNodeResponse(SupervisorResponse):
+    name = 'add_node'
+    result: NodeData
+
+
 # class AddNodeResponse(SupervisorResponse):
 #     name = 'info'
 #     result: InfoSchema
@@ -50,10 +67,10 @@ class ServiceInfoResponse(SupervisorResponse):
 
 class SupervisorClient(Client):
     @api.post('/')
-    def add_node(self, data: NodeMetadata = request.Body) -> SupervisorResponse: pass
+    def add_node(self, data: NodeMetadata = request.Body) -> SupervisorNodeResponse: pass
 
     @api.post('/resources')
-    def upload_resources(self, data: ResourcesSchema = request.Body) -> SupervisorResponse: pass
+    def upload_resources(self, data: ResourcesSchema = request.Body) -> SupervisorResourcesResponse: pass
 
     @api.get('/list')
     def get_supervisors(self) -> SupervisorListResponse: pass
@@ -115,4 +132,4 @@ class SupervisorClient(Client):
 
 class OperationsClient(Client):
     @api.post('/')
-    def add_supervisor(self, data: SupervisorData = request.Body) -> ServiceInfoSchema: pass
+    def add_supervisor(self, data: SupervisorData = request.Body) -> ServiceInfoResponse: pass

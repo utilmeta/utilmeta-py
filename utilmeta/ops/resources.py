@@ -3,8 +3,9 @@ from typing import Optional, List, Type
 from .models import Supervisor, Resource
 from .config import Operations
 from .schema import NodeMetadata, ResourcesSchema, \
-    InstanceSchema, ServerSchema, TableSchema, DatabaseSchema, CacheSchema
+    InstanceSchema, ServerSchema, TableSchema, DatabaseSchema, CacheSchema, ResourceData
 from utilmeta import UtilMeta
+from utilmeta.utils import fast_digest, json_dumps
 
 
 class ModelGenerator:
@@ -268,7 +269,7 @@ class ResourcesManager:
     def get_tasks(self):
         pass
 
-    def get_resources(self, node_id, etag: str = None) -> ResourcesSchema:
+    def get_resources(self, node_id, etag: str = None) -> Optional[ResourcesSchema]:
         from utilmeta.core.api.specs.openapi import OpenAPI
         from utilmeta import service
         openapi = OpenAPI(service)()
@@ -290,8 +291,63 @@ class ResourcesManager:
             caches=self.get_caches()
         )
         if etag:
-            pass
+            resources_etag = fast_digest(
+                json_dumps(data),
+                compress=True,
+                case_insensitive=False
+            )
+            if etag == resources_etag:
+                return None
         return data
+
+    def save_resources(self, resources: List[ResourceData], supervisor: Supervisor):
+        remote_pk_map = {val['remote_id']: val['pk'] for val in Resource.objects.filter(
+            node_id=supervisor.node_id,
+        ).values('pk', 'remote_id')}
+
+        remote_pks = []
+        updates = []
+        creates = []
+        for resource in resources:
+            remote_pks.append(resource.remote_id)
+            if resource.remote_id in remote_pk_map:
+                updates.append(
+                    Resource(
+                        id=remote_pk_map[resource.remote_id],
+                        service=self.service.name,
+                        node_id=supervisor.node_id,
+                        deleted=False,
+                        **resource
+                    )
+                )
+            else:
+                creates.append(
+                    Resource(
+                        service=self.service.name,
+                        node_id=supervisor.node_id,
+                        **resource
+                    )
+                )
+
+        if updates:
+            Resource.objects.bulk_update(
+                updates,
+                fields=['server_id', 'ident', 'route', 'deleted'],
+            )
+        if creates:
+            Resource.objects.bulk_create(
+                creates,
+                fields=['server_id', 'ident', 'route', 'deleted'],
+                ignore_conflicts=True
+            )
+
+        Resource.objects.filter(
+            node_id=supervisor.node_id,
+        ).exclude(
+            remote_id__in=remote_pks
+        ).update(
+            deleted=True
+        )
 
     def sync_resources(self, supervisor: Supervisor = None, force: bool = False):
         from utilmeta import service
@@ -322,6 +378,19 @@ class ResourcesManager:
                 resp = client.upload_resources(
                     data=resources
                 )
+                if resp.status == 304:
+                    continue
                 if not resp.success:
                     raise ValueError(f'sync to supervisor[{supervisor.node_id}]'
                                      f' failed with error: {resp.message}')
+
+                if resp.result.resources_etag:
+                    supervisor.resources_etag = resp.result.resources_etag
+                    supervisor.save(update_fields=['resources_etag'])
+
+                self.save_resources(
+                    resp.result.resources,
+                    supervisor=supervisor
+                )
+
+                print(f'sync resources to supervisor[{supervisor.node_id}] successfully')

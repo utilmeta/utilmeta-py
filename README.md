@@ -36,7 +36,7 @@ Using the declarative power from UtilMeta, you can easily write APIs with auto r
 UtilMeta developed a standard that support all major Python web framework like **django**, **flask**, **fastapi** (starlette), **sanic**, **tornado** as runtime backend, and support current projects using these frameworks to develop new API using UtilMeta progressively
 <img src="https://utilmeta.com/img/py.section2.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
 ### Highly Flexible & Extensible
-UtilMeta is highly flexible with a series of plugins includes authentication (Session/JWT), CORS, rate limit, retry, and can be extended to support more features.
+UtilMeta is highly flexible with a series of plugins including authentication (Session/JWT), CORS, rate limit, retry, and can be extended to support more features.
 
 ### Full-lifecycle DevOps Solution
 The [UtilMeta Platform](https://utilmeta.com/) provided the full-lifecycle DevOps solution for this framework, the API Docs, Debug, Logs, Monitoring, Alerts, Analytics will all been taken care of in the platform
@@ -126,7 +126,7 @@ if you request the ArticleAPI like `GET /article?id=1`, you will get the result 
   "content": "hello world"
 }
 ```
-This is conform to what you declared, and the OpenAPI docs will be generated automatically
+This conforms to what you declared, and the OpenAPI docs will be generated automatically
 ### Migrate
 
 Integrate current django/flask/fastapi/... project with UtilMeta API is as easy as follows 

@@ -16,7 +16,7 @@ meta setup demo-user
 ```
 Enter `django` when prompted to select backend
 
-After the project is created, we need to configure the database connection of the service, open it `server.py`, and insert the following code
+After the project is created, we need to configure the database connection of the service, open `server.py`, and insert the following code
 
 ```python
 service = UtilMeta(...)
@@ -54,7 +54,7 @@ You can see that a new folder named `user` has been created in our project folde
 
 The `migrations` folder is where Django handles the database migrations of the models
 
-Once the app is created, we insert a line into the  Django settings of  `server.py` to specify the app.
+Once the app is created, we insert a line into the  `DjangoSettings` of  `server.py` to specify the app.
 
 ```python hl_lines="3"
 service.use(DjangoSettings(
@@ -67,7 +67,7 @@ So far, we have completed the configuration and initialization of the project.
 
 ## 2. Write user model
 
-The user’s login registration API, of course, revolves around the “user”. Before developing the API, we first write the user’s data model. We open `user/models.py` and write
+The user APIs depends on the "**user**", so before developing the API, we should write the user’s data model. We open `user/models.py` and write
 ```python
 from django.db import models
 from utilmeta.core.orm.backends.django.models import AbstractSession, PasswordField
@@ -146,11 +146,11 @@ user_config = auth.User(
 In this code, `SessionSchema` is the core engine that processes and stores Session data, `session_config`  declares the Session configuration with Session model and engine we just wrote, and configures the corresponding Cookie policy
 
 !!! tip
-	We use session store based on database to simply our tutorial, in practive, we often use cache+db as the store, you can find more in [Session Authentication](../../guide/auth#session)
+	We use session store based on database to simply our tutorial, in practice, we often use cache+db as the store, you can find more in [Session Authentication](../../guide/auth#session)
 
 We also declare the user authentication configuration `user_config` with the following params
 
-* `user_model` Specify the user model for authentication, which is the User model I wrote in the previous section.
+* `user_model`: Specify the user model for authentication, which is the User model I wrote in the previous section.
 * `authentication`: Specify the authentication method. We pass `session_config` in to declare that user authentication is performed using Session.
 * `key`: Specify the key of the current user ID in the session data
 * `login_fields`: Fields that can be used for login, such as username, email, etc., which need to be unique.
@@ -203,7 +203,7 @@ The logic in the signup API function is
 !!! abstract "Declarative ORM"
 	UtilMeta has developed an efficient declarative ORM mechanism, also known as Scheme Query. We use `orm.Schema[User]` to define a Schema class with the User model injected, so that we can use the methods of the schema class to create, update, and serialize data. You can find more in [Data Query and ORM Document](../../guide/schema-query)
 
-We can also find that a decorator named `@auth.session_config.plugin` is plug-in to the UserAPI class. This is the where the Session configuration is applied to the API. This plugin can save the Session data after each request and patch the response with corresponding `Set-Cookie` header
+We can also find that a decorator named `@auth.session_config.plugin` is plugin to the UserAPI class. This is where the Session configuration is applied to the API. This plugin can save the Session data after each request and patch the response with corresponding `Set-Cookie` header
 
 ### Login & Logout API
 
@@ -243,7 +243,7 @@ class UserAPI(api.API):
         session.flush()
 ```
 
-In The login API, we call the `login()` method in our authentication configuration to complete the login simply. Since we have configured the login field and password field, the UtilMeta can help us complete the password verification and login automatically. If the login is successful, the corresponding user instance is returned. So we can throw an error if the `login()` result is None, and after a successful login, we can call `UserSchema.init` to return the login user data to the client.
+In the login API, we call the `login()` method in our authentication configuration to complete the login simply. Since we have configured the login field and password field, the UtilMeta can help us complete the password verification and login automatically. If the login is successful, the corresponding user instance is returned. So we can throw an error if the `login()` result is None, and after a successful login, we can call `UserSchema.init` to return the login user data to the client.
 
 !!! tip
 	The use of `login()` method is not mandatory, you can write your custom login logc if you need

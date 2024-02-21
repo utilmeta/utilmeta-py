@@ -3,6 +3,7 @@ from utype import Schema, Field
 from utype.types import *
 from . import __spec_version__
 import utilmeta
+from utilmeta.core.api.specs.openapi import OpenAPISchema
 
 
 class SupervisorBasic(Schema):
@@ -70,7 +71,7 @@ class TableSchema(ResourceBase):
 class ServerSchema(ResourceBase):
     ip: str
     # public_ip: Optional[str] = None
-    domain: Optional[str] = None
+    # domain: Optional[str] = None
     system: str
     platform: dict = Field(default_factory=dict)
 
@@ -80,6 +81,8 @@ class ServerSchema(ResourceBase):
     cpu_num: int
     memory_total: int
     disk_total: int
+    max_open_files: Optional[int] = None
+    max_socket_conn: Optional[int] = None
     devices: dict = Field(default_factory=dict)
 
 
@@ -121,7 +124,7 @@ class CacheSchema(ResourceBase):
 class ResourcesSchema(Schema):
     metadata: NodeMetadata
 
-    openapi: dict = Field(default_factory=None)
+    openapi: Optional[OpenAPISchema] = Field(default_factory=None)
     tables: List[TableSchema] = Field(default_factory=list)
     # model
 
@@ -129,3 +132,16 @@ class ResourcesSchema(Schema):
     databases: List[DatabaseSchema] = Field(default_factory=list)
     caches: List[CacheSchema] = Field(default_factory=list)
     tasks: list = Field(default_factory=list)
+
+
+class ResourceData(utype.Schema):
+    remote_id: str
+    server_id: Optional[str] = utype.Field(default=None, defer_default=True)
+    type: str
+    ident: str
+    route: str
+
+
+class ResourcesData(utype.Schema):
+    resources: List[ResourceData]
+    resources_etag: str

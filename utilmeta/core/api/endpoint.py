@@ -1,6 +1,6 @@
 from utilmeta import utils
 from utilmeta.utils import exceptions as exc
-from typing import Callable, Union, TYPE_CHECKING
+from typing import Callable, Union, Type, TYPE_CHECKING
 from utilmeta.utils.plugin import PluginTarget, PluginEvent
 from utilmeta.utils.error import Error
 from utilmeta.utils.context import ContextWrapper, Property
@@ -52,7 +52,7 @@ class RequestContextWrapper(ContextWrapper):
 
 class Endpoint(PluginTarget):
     @classmethod
-    def apply_for(cls, func):
+    def apply_for(cls, func: Callable, api: Type['API'] = None):
         _cls = getattr(func, 'cls', None)
         if not _cls or not issubclass(_cls, Endpoint):
             # override current class
@@ -65,12 +65,15 @@ class Endpoint(PluginTarget):
                 continue
             # func properties override the default kwargs
             kwargs[key] = v
+        if api:
+            kwargs.update(api=api)
         return _cls(func, **kwargs)
 
     parser_cls = FunctionParser
     wrapper_cls = RequestContextWrapper
 
     def __init__(self, f: Callable, *,
+                 api: Type['API'] = None,
                  method: str,
                  plugins: list = None,
                  idempotent: bool = None,
@@ -83,6 +86,7 @@ class Endpoint(PluginTarget):
             raise TypeError(f'Invalid endpoint function: {f}')
 
         self.f = f
+        self.api = api
         self.method = method
         self.idempotent = idempotent
         self.eager = eager
@@ -100,6 +104,14 @@ class Endpoint(PluginTarget):
 
     def getattr(self, name: str, default=None):
         return getattr(self.f, name, default)
+
+    @property
+    def ref(self) -> str:
+        if self.api:
+            return f'{self.api.__ref__}.{self.f.__name__}'
+        if self.module_name:
+            return f'{self.module_name}.{self.f.__name__}'
+        return self.f.__name__
 
     @property
     def module_name(self):

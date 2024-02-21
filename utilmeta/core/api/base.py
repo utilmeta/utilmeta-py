@@ -213,7 +213,7 @@ class API(PluginTarget):
                     # 2. @api.parser             (method=None)
                     # 3. def get(self):          (method='get')
                     # 4. @api(method='CUSTOM')   (method='custom')
-                    val = cls._endpoint_cls.apply_for(val)
+                    val = cls._endpoint_cls.apply_for(val, cls)
                 elif hook_type:
                     val = cls._hook_cls.dispatch_for(val, hook_type)
                 else:

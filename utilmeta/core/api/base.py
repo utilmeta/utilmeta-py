@@ -1,7 +1,8 @@
 from typing import Union, Dict, Type, List
 from utilmeta.utils.error import Error
 from utilmeta.utils.context import ParserProperty
-from utilmeta.utils import Header, EndpointAttr, COMMON_METHODS, awaitable, classonlymethod, distinct_add
+from utilmeta.utils import Header, EndpointAttr, COMMON_METHODS, awaitable, \
+    classonlymethod, distinct_add
 from utilmeta.utils import exceptions as exc
 
 import inspect

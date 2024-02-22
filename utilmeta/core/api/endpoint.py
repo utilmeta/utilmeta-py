@@ -50,30 +50,11 @@ class RequestContextWrapper(ContextWrapper):
         return prop.init(val)
 
 
-class Endpoint(PluginTarget):
-    @classmethod
-    def apply_for(cls, func: Callable, api: Type['API'] = None):
-        _cls = getattr(func, 'cls', None)
-        if not _cls or not issubclass(_cls, Endpoint):
-            # override current class
-            _cls = cls
-
-        kwargs = {}
-        for key, val in inspect.signature(_cls).parameters.items():
-            v = getattr(func, key, None)
-            if v is None:
-                continue
-            # func properties override the default kwargs
-            kwargs[key] = v
-        if api:
-            kwargs.update(api=api)
-        return _cls(func, **kwargs)
-
+class BaseEndpoint(PluginTarget):
     parser_cls = FunctionParser
     wrapper_cls = RequestContextWrapper
 
     def __init__(self, f: Callable, *,
-                 api: Type['API'] = None,
                  method: str,
                  plugins: list = None,
                  idempotent: bool = None,
@@ -86,7 +67,6 @@ class Endpoint(PluginTarget):
             raise TypeError(f'Invalid endpoint function: {f}')
 
         self.f = f
-        self.api = api
         self.method = method
         self.idempotent = idempotent
         self.eager = eager
@@ -104,14 +84,6 @@ class Endpoint(PluginTarget):
 
     def getattr(self, name: str, default=None):
         return getattr(self.f, name, default)
-
-    @property
-    def ref(self) -> str:
-        if self.api:
-            return f'{self.api.__ref__}.{self.f.__name__}'
-        if self.module_name:
-            return f'{self.module_name}.{self.f.__name__}'
-        return self.f.__name__
 
     @property
     def module_name(self):
@@ -132,77 +104,6 @@ class Endpoint(PluginTarget):
     @property
     def parser(self):
         return self.wrapper.parser
-
-    def serve(self, api: 'API'):
-        retry_index = 0
-        while True:
-            try:
-                api.request.adaptor.update_context(
-                    retry_index=retry_index,
-                    idempotent=self.idempotent
-                )
-                req = self.process_request(api.request)
-                if isinstance(req, Request):
-                    api.request = req
-                    args, kwargs = self.parse_request(api.request)
-                    enter_endpoint(self, api, *args, **kwargs)
-                    response = self(api, *args, **kwargs)
-                else:
-                    response = req
-                result = self.process_response(response)
-                if isinstance(result, Request):
-                    # need another loop
-                    api.request = result
-                else:
-                    response = result
-                    break
-            except Exception as e:
-                err = Error(e)
-                result = self.handle_error(api.request, err)
-                if isinstance(result, Request):
-                    api.request = result
-                else:
-                    response = result
-                    break
-            retry_index += 1
-        exit_endpoint(self, api)
-        return response
-
-    @utils.awaitable(serve)
-    async def serve(self, api: 'API'):
-        retry_index = 0
-        while True:
-            try:
-                api.request.adaptor.update_context(
-                    retry_index=retry_index,
-                    idempotent=self.idempotent
-                )
-                req = await self.process_request(api.request)
-                if isinstance(req, Request):
-                    api.request = req
-                    args, kwargs = await self.parse_request(api.request)
-                    await enter_endpoint(self, api, *args, **kwargs)
-                    response = await self(api, *args, **kwargs)
-                else:
-                    response = req
-                result = await self.process_response(response)
-                if isinstance(result, Request):
-                    # need another loop
-                    api.request = result
-                else:
-                    response = result
-                    break
-            except Exception as e:
-                err = Error(e)
-                result = await self.handle_error(api.request, err)
-                if isinstance(result, Request):
-                    api.request = result
-                else:
-                    response = result
-                    break
-            retry_index += 1
-        await exit_endpoint(self, api)
-        return response
 
     def process_request(self, request: Request) -> Union[Request, Response]:
         for handler in process_request.iter(self):
@@ -315,6 +216,122 @@ class Endpoint(PluginTarget):
             r = await r
         return r
 
+
+class Endpoint(BaseEndpoint):
+    @classmethod
+    def apply_for(cls, func: Callable, api: Type['API'] = None):
+        _cls = getattr(func, 'cls', None)
+        if not _cls or not issubclass(_cls, Endpoint):
+            # override current class
+            _cls = cls
+
+        kwargs = {}
+        for key, val in inspect.signature(_cls).parameters.items():
+            v = getattr(func, key, None)
+            if v is None:
+                continue
+            # func properties override the default kwargs
+            kwargs[key] = v
+        if api:
+            kwargs.update(api=api)
+        return _cls(func, **kwargs)
+
+    def __init__(self, f: Callable, *,
+                 api: Type['API'] = None,
+                 method: str,
+                 plugins: list = None,
+                 idempotent: bool = None,
+                 eager: bool = False
+                 ):
+
+        super().__init__(
+            f,
+            plugins=plugins,
+            method=method,
+            idempotent=idempotent,
+            eager=eager
+        )
+        self.api = api
+
+    @property
+    def ref(self) -> str:
+        if self.api:
+            return f'{self.api.__ref__}.{self.f.__name__}'
+        if self.module_name:
+            return f'{self.module_name}.{self.f.__name__}'
+        return self.f.__name__
+
+    def serve(self, api: 'API'):
+        retry_index = 0
+        while True:
+            try:
+                api.request.adaptor.update_context(
+                    retry_index=retry_index,
+                    idempotent=self.idempotent
+                )
+                req = self.process_request(api.request)
+                if isinstance(req, Request):
+                    api.request = req
+                    args, kwargs = self.parse_request(api.request)
+                    enter_endpoint(self, api, *args, **kwargs)
+                    response = self(api, *args, **kwargs)
+                else:
+                    response = req
+                result = self.process_response(response)
+                if isinstance(result, Request):
+                    # need another loop
+                    api.request = result
+                else:
+                    response = result
+                    break
+            except Exception as e:
+                err = Error(e)
+                result = self.handle_error(api.request, err)
+                if isinstance(result, Request):
+                    api.request = result
+                else:
+                    response = result
+                    break
+            retry_index += 1
+        exit_endpoint(self, api)
+        return response
+
+    @utils.awaitable(serve)
+    async def serve(self, api: 'API'):
+        retry_index = 0
+        while True:
+            try:
+                api.request.adaptor.update_context(
+                    retry_index=retry_index,
+                    idempotent=self.idempotent
+                )
+                req = await self.process_request(api.request)
+                if isinstance(req, Request):
+                    api.request = req
+                    args, kwargs = await self.parse_request(api.request)
+                    await enter_endpoint(self, api, *args, **kwargs)
+                    response = await self(api, *args, **kwargs)
+                else:
+                    response = req
+                result = await self.process_response(response)
+                if isinstance(result, Request):
+                    # need another loop
+                    api.request = result
+                else:
+                    response = result
+                    break
+            except Exception as e:
+                err = Error(e)
+                result = await self.handle_error(api.request, err)
+                if isinstance(result, Request):
+                    api.request = result
+                else:
+                    response = result
+                    break
+            retry_index += 1
+        await exit_endpoint(self, api)
+        return response
+
     def parse_request(self, request: Request):
         try:
             kwargs = dict(var.path_params.getter(request))
@@ -332,9 +349,6 @@ class Endpoint(PluginTarget):
             # in base Endpoint, args is not supported
         except utype.exc.ParseError as e:
             raise exc.BadRequest(str(e), detail=e.get_detail()) from e
-
-    def generate_call(self):
-        pass
 
 
 enter_endpoint.register(Endpoint)

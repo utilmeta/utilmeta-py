@@ -69,6 +69,7 @@ class ContextWrapper:
 
     def __init__(self, parser: BaseParser, excluded_names: List[str] = None):
         properties = {}
+        attrs = {}
         ident_props = {}
         for key, val in parser.fields.items():
             if excluded_names and key in excluded_names:
@@ -85,7 +86,10 @@ class ContextWrapper:
                     raise DuplicateContextProperty(ident=prop.__ident__)
                 ident_props[prop.__ident__] = prop
             properties[key] = self.init_prop(prop, val)
+            attrs[val.attname] = prop
+
         self.properties = properties
+        self.attrs = attrs
         self.parser = parser
 
     def init_prop(self, prop, val):    # noqa, to be inherit

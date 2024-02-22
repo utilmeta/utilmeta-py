@@ -15,6 +15,7 @@ from utype.utils.functional import get_obj_name
 import utype
 import re
 from ..file.base import File
+# from utype.parser.rule import LogicalType
 
 
 class ResponseClassParser(ClassParser):
@@ -134,10 +135,21 @@ class Response:
                  timeout: bool = False,
                  aborted: bool = False,
                  # when timeout set to True, raw_response is None
-                 stack: list = None
+                 stack: list = None,
+                 strict: bool = None
                  ):
 
-        self.adaptor = ResponseAdaptor.dispatch(response) if response else None
+        self.adaptor = None
+
+        if response:
+            if isinstance(response, ResponseAdaptor):
+                self.adaptor = response
+            elif isinstance(response, Response):
+                self.adaptor = response.adaptor
+                request = request or response.request
+            else:
+                self.adaptor = ResponseAdaptor.dispatch(response)
+
         self._request = request
         self._content = content
         self._extra = extra
@@ -157,6 +169,9 @@ class Response:
         self.state = state or self.state
         self.message = message
         self.count = count
+
+        if strict is not None:
+            self.strict = strict
 
         self.init_headers(headers)
         self.cookies = SimpleCookie(cookies or {})
@@ -178,11 +193,13 @@ class Response:
         self._error = None
         self._setup_time = time_now()
 
-        self.init_error(error)
-        self.init_result(result)
-        self.init_file(file)
+        if not self.adaptor:
+            self.init_error(error)
+            self.init_result(result)
+            self.init_file(file)
 
         self.parse_headers()
+
         self.status = self.status or 200
         # default status is 200
         if self.state is None:
@@ -212,7 +229,9 @@ class Response:
             return
         if isinstance(self._content, dict) and self.wrapped:
             if self.result_key:
-                self.result = self._content.get(self.result_key, self._content)
+                self.init_result(
+                    self._content.get(self.result_key, self._content)
+                )
             if self.message_key:
                 self.message = self._content.get(self.message_key)
             if self.state_key:
@@ -391,7 +410,8 @@ class Response:
     def __str__(self):
         reason = f' {self.reason}' if self.reason else ''
         return f'{self.__class__.__name__} [{self.status}{reason}] ' \
-               f'"{self.request.method.upper()} /%s"' % self.request.encoded_path.strip('/') if self.request else ''
+               f'"{self.request.method.upper()} /%s"' % self.request.encoded_path.strip('/') \
+            if self.request else f'{self.__class__.__name__} [{self.status}{reason}]'
 
     def __repr__(self):
         return self.__str__()
@@ -666,7 +686,12 @@ class Response:
 
     @classmethod
     def mock(cls):
-        pass
+        from utype.utils.example import get_example_from_parser
+        parser = getattr(cls, '__parser__', None)
+        kwargs = {}
+        if parser:
+            kwargs = get_example_from_parser(parser)
+        return cls(**kwargs)
 
     @property
     def success(self):
@@ -748,6 +773,8 @@ class Response:
 def transform_response(transformer, resp, cls):
     if isinstance(resp, ResponseAdaptor):
         resp = cls(response=resp)
-    elif not isinstance(resp, Response):
-        resp = cls(resp)
-    return resp
+    elif isinstance(resp, Response):
+        if isinstance(resp, cls):
+            return resp
+        return cls(response=resp, request=resp.request, strict=True)
+    return cls(resp)

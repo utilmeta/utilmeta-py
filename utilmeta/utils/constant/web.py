@@ -1,9 +1,11 @@
 from ..datastructure import Static
+import re
 
 SCHEME = '://'
 LOCAL = 'localhost'
 LOCAL_IP = '127.0.0.1'
 ALL_IP = '0.0.0.0'
+PATH_REGEX = re.compile("{([a-zA-Z][a-zA-Z0-9_]*)}")
 
 
 class HTTPMethod(Static):

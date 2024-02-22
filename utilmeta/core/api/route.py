@@ -1,6 +1,6 @@
 import re
 from typing import Union, Dict, Type, List, Optional, TYPE_CHECKING
-from utilmeta.utils import awaitable, get_doc, regular, duplicate, pop, distinct_add, multi
+from utilmeta.utils import awaitable, get_doc, regular, duplicate, pop, distinct_add, multi, PATH_REGEX
 
 import inspect
 from functools import partial
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class APIRoute:
-    PATH_REGEX = re.compile("{([a-zA-Z][a-zA-Z0-9_]*)}")
+    PATH_REGEX = PATH_REGEX
     DEFAULT_PATH_REGEX = '[^/]+'
 
     def __init__(self,

@@ -118,10 +118,11 @@ class RetryPlugin(Plugin):
                     if self.retry_delta_ratio:
                         timeout = timeout + (random.random() * 2 - 1) * self.retry_delta_ratio * timeout
 
-                request.set_timeout(timeout)
+                request.adaptor.update_context(timeout=timeout)
 
-            if not request.timeout or request.timeout > delta:
-                request.set_timeout(delta)
+            to = request.adaptor.get_context('timeout')
+            if not to or to > delta:
+                request.adaptor.update_context(timeout=delta)
 
     def process_response(self, response: Response, api):
         request = response.request

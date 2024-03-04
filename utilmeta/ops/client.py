@@ -50,14 +50,9 @@ class SupervisorResourcesResponse(SupervisorResponse):
     result: ResourcesData
 
 
-class NodeData(utype.Schema):
-    node_id: str
-    url: str
-
-
 class SupervisorNodeResponse(SupervisorResponse):
     name = 'add_node'
-    result: NodeData
+    result: Optional[SupervisorData] = None
 
 
 # class AddNodeResponse(SupervisorResponse):
@@ -67,16 +62,17 @@ class SupervisorNodeResponse(SupervisorResponse):
 
 class SupervisorClient(Client):
     @api.post('/')
-    def add_node(self, data: NodeMetadata = request.Body) -> SupervisorNodeResponse: pass
+    def add_node(self, data: NodeMetadata = request.Body) -> Union[SupervisorNodeResponse, SupervisorResponse]: pass
 
     @api.post('/resources')
-    def upload_resources(self, data: ResourcesSchema = request.Body) -> SupervisorResourcesResponse: pass
+    def upload_resources(self, data: ResourcesSchema = request.Body) \
+            -> Union[SupervisorResourcesResponse, SupervisorResponse]: pass
 
     @api.get('/list')
-    def get_supervisors(self) -> SupervisorListResponse: pass
+    def get_supervisors(self) -> Union[SupervisorListResponse, SupervisorResponse]: pass
 
     @api.get('/')
-    def get_info(self) -> SupervisorInfoResponse: pass
+    def get_info(self) -> Union[SupervisorInfoResponse, SupervisorResponse]: pass
     # @utype.parse
     # def get_supervisors(self) -> List[SupervisorBasic]:
     #     r = self.get('/list')
@@ -104,10 +100,18 @@ class SupervisorClient(Client):
             })
             if not node_key:
                 from .models import Supervisor
-                supervisor: Supervisor = Supervisor.filter(id=node_id).first()
+                supervisor: Supervisor = Supervisor.objects.filter(
+                    node_id=node_id,
+                ).first()
                 if not supervisor:
                     raise ValueError(f'Supervisor for node ID [{node_id}] not exists')
-                node_key = supervisor.public_key
+                if supervisor.disabled:
+                    raise ValueError('supervisor is disabled')
+                if supervisor.public_key:
+                    node_key = supervisor.public_key
+                else:
+                    if not supervisor.local:
+                        pass
 
         if node_key:
             headers.update({
@@ -132,4 +136,8 @@ class SupervisorClient(Client):
 
 class OperationsClient(Client):
     @api.post('/')
-    def add_supervisor(self, data: SupervisorData = request.Body) -> ServiceInfoResponse: pass
+    def add_supervisor(self, data: SupervisorData = request.Body) -> \
+            Union[ServiceInfoResponse, SupervisorResponse]: pass
+
+    @api.get('/')
+    def get_info(self) -> Union[ServiceInfoResponse, SupervisorResponse]: pass

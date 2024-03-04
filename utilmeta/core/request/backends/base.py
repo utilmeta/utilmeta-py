@@ -1,7 +1,7 @@
 from urllib.parse import urlsplit, urlunsplit
 from typing import Optional
 from utilmeta.utils import MetaMethod, CommonMethod, Header, \
-    RequestType, cached_property, time_now, gen_key
+    RequestType, cached_property, time_now, gen_key, parse_query_string
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import LOCAL_IP
 from ipaddress import ip_address
@@ -148,8 +148,7 @@ class RequestAdaptor(BaseAdaptor):
 
     @property
     def query_params(self):
-        from urllib.parse import parse_qs
-        return parse_qs(self.query_string)
+        return parse_query_string(self.query_string)
 
     @property
     def cookies(self):
@@ -248,7 +247,7 @@ class RequestAdaptor(BaseAdaptor):
 
     def get_content(self):
         if not self.content_type:
-            return None
+            return self.body
         if self.json_type:
             return self.get_json()
         elif self.form_type:

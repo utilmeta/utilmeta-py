@@ -224,9 +224,17 @@ class UtilMeta:
     def setup(self):
         if self._ready:
             return
+
+        # ------- EAGER ---
         for cls, config in self.configs.items():
-            if isinstance(config, Config):
+            if isinstance(config, Config) and config.__eager__:
                 config.setup(self)
+
+        # ------- COMMON ---
+        for cls, config in self.configs.items():
+            if isinstance(config, Config) and not config.__eager__:
+                config.setup(self)
+
         self._ready = True
 
     def startup(self):
@@ -294,7 +302,7 @@ class UtilMeta:
             return
 
         if self.root_api:
-            if self.root_api != api:
+            if getattr(self.root_api, '__ref__', str(self.root_api)) != getattr(api, '__ref__', str(api)):
                 raise ValueError(f'UtilMeta: root api conflicted: {api}, {self.root_api}, '
                                  f'you can only mount a service once')
             return

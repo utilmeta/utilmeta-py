@@ -96,6 +96,14 @@ class ModelFieldAdaptor(BaseAdaptor):
         raise NotImplementedError
 
     @property
+    def is_unique(self):
+        raise NotImplementedError
+
+    @property
+    def is_db_index(self):
+        raise NotImplementedError
+
+    @property
     def is_exp(self):
         raise NotImplementedError
 
@@ -191,8 +199,7 @@ class ModelAdaptor(BaseAdaptor):
     def delete(self, q=None, **filters):
         raise NotImplementedError
 
-    @awaitable(delete)
-    async def delete(self, q=None, **filters):
+    async def adelete(self, q=None, **filters):
         raise NotImplementedError
 
     # def update_queryset(self, queryset, data: dict):
@@ -211,8 +218,8 @@ class ModelAdaptor(BaseAdaptor):
     def init_instance(self, pk=None, **data):
         raise NotImplementedError
 
-    @awaitable(get_instance)
-    async def get_instance(self, q=None, **filters):
+    # @awaitable(get_instance)
+    async def aget_instance(self, q=None, **filters):
         raise NotImplementedError
 
     def check_related_queryset(self, qs):

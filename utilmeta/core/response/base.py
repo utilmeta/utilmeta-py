@@ -57,7 +57,7 @@ class Response:
     status: int = None
     reason: str = None
     charset: str = None
-    content_type: str = None
+    content_type: Optional[str] = None
     headers: Headers        # can be any inherited map, or assign to a HeadersSchema
     cookies: SimpleCookie
     name: str = None
@@ -206,11 +206,11 @@ class Response:
             self.state = 1 if self.success else 0
         # set default state after status
 
-        # build content at last
-        self.build_content()
-
         # represent the loaded data
         self._data = None
+
+        # build content at last
+        self.build_content()
 
     def __contains__(self, item):
         return item in self.headers
@@ -239,7 +239,7 @@ class Response:
             if self.count_key:
                 self.count = self._content.get(self.count_key)
         else:
-            self.result = self._content
+            self.init_result(self._content)
 
     def match(self):
         if not self.adaptor:
@@ -341,6 +341,11 @@ class Response:
             data = self.result
         return data
 
+    # async def async_load(self):
+    #     if self.adaptor:
+    #         self._content = await self.adaptor.async_load()
+    #         self.parse_content()
+
     def build_content(self):
         if self._content is not None:
             return
@@ -349,6 +354,7 @@ class Response:
             self.parse_content()
             return
         if self.status in STATUS_WITHOUT_BODY:
+            self.content_type = None
             return
         if self._file:
             self._content = self._file
@@ -628,7 +634,7 @@ class Response:
             if str(key).lower() == 'content-type':
                 with_content_type = False
             header_values.append((str(key), str(val)))
-        if with_content_type and self.content_type:
+        if with_content_type and self.content_type and self._content:       # non empty
             content_type = self.content_type
             if content_type and self.charset:
                 content_type = f'{content_type}; charset={self.charset}'
@@ -642,13 +648,12 @@ class Response:
             return self.adaptor.body
         if self._file:
             return self._file
+        if not self._content:
+            return b''
         if self.content_type and self.content_type.startswith(JSON):
             return self.dump_json()
         # this content might not be bytes, leave the encoding to the adaptor
         return self._content
-
-    async def load(self):
-        await self.adaptor.async_load()
 
     @property
     def body(self) -> bytes:

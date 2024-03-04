@@ -131,6 +131,18 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         return True
 
     @property
+    def is_unique(self):
+        if not self.is_concrete:
+            return False
+        return self.field.unique
+
+    @property
+    def is_db_index(self):
+        if not self.is_concrete:
+            return False
+        return self.field.db_index
+
+    @property
     def is_auto(self):
         if not self.is_concrete:
             return False

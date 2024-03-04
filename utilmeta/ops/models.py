@@ -19,6 +19,8 @@ class Supervisor(models.Model):
     # when local ops_api changed on proxy (including base_url/host altered)
     # action_token = models.CharField(max_length=64, unique=True)
     # platform can carry this token to identify itself
+    local = models.BooleanField(default=False)
+    # REMOTE FOR LOCAL NODE
 
     # <not> public actually
     public_key = models.TextField(default=None, null=True)  # used to decode token
@@ -32,6 +34,7 @@ class Supervisor(models.Model):
     ops_api = models.URLField()  # correlate with node.ops_api in platform
     # if ops_api is different from the new version ops api
     # will require an update
+    url = models.URLField(default=None, null=True)
 
     operation_timeout = models.DecimalField(max_digits=8, decimal_places=3, default=None, null=True)
     # open_scopes = models.JSONField(default=list)
@@ -66,7 +69,7 @@ class Supervisor(models.Model):
     # etag is generated from supervisor
 
     class Meta:
-        db_table = 'supervisor'
+        db_table = 'utilmeta_supervisor'
 
     @classmethod
     def filter(cls, *args, **kwargs) -> models.QuerySet:
@@ -280,7 +283,7 @@ class ServerMonitor(SystemMetrics):
     # task_settings = ForeignKey(TaskSettings, on_delete=SET_NULL, default=None, null=True)
     layer = models.PositiveSmallIntegerField(default=0)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
-    server = models.ForeignKey(Resource, related_name='metrics', on_delete=models.CASCADE)
+    server = models.ForeignKey(Resource, related_name='server_metrics', on_delete=models.CASCADE)
     # version = ForeignKey(VersionLog, on_delete=SET_NULL, null=True, default=None)
     load_avg_1 = models.DecimalField(max_digits=8, decimal_places=2, default=None, null=True)
     load_avg_5 = models.DecimalField(max_digits=8, decimal_places=2, default=None, null=True)
@@ -300,7 +303,7 @@ class ServerMonitor(SystemMetrics):
 class WorkerMonitor(SystemMetrics, ServiceMetrics):
     time = models.DateTimeField(default=time_now)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
-    worker = models.ForeignKey(Worker, related_name='metrics', on_delete=models.CASCADE)
+    worker = models.ForeignKey(Worker, related_name='worker_metrics', on_delete=models.CASCADE)
     memory_info = models.JSONField(default=dict)
     threads = models.PositiveIntegerField(default=0)
     metrics = models.JSONField(default=dict)  # extra metrics
@@ -319,7 +322,7 @@ class InstanceMonitor(SystemMetrics, ServiceMetrics):
     layer = models.PositiveSmallIntegerField(default=0)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
 
-    instance = models.ForeignKey(Resource, related_name='metrics', on_delete=models.CASCADE)
+    instance = models.ForeignKey(Resource, related_name='instance_metrics', on_delete=models.CASCADE)
     threads = models.PositiveIntegerField(default=0)
 
     current_workers = models.PositiveIntegerField(default=0)
@@ -634,7 +637,7 @@ class ServiceLog(WebMixin):
     volatile = models.BooleanField(default=True)
 
     class Meta:
-        db_table = 'utilmeta_request_log'
+        db_table = 'utilmeta_service_log'
 
 
 class RequestLog(WebMixin):

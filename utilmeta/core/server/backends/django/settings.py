@@ -73,6 +73,7 @@ class DjangoSettings(Config):
             apps_package: str = None,
             # package ref (such as 'domain' / 'service.applications')
             apps: Union[tuple, List[str]] = (),
+            database_routers: tuple = (),
             allowed_hosts: list = (),
             middleware: Union[tuple, List[str]] = (),
             default_autofield: str = None,
@@ -89,7 +90,7 @@ class DjangoSettings(Config):
         self.module_name = module_name
         self.secret_key = secret_key
         self.apps_package = apps_package
-        self.apps = apps
+        self.apps = list(apps)
         self.allowed_hosts = allowed_hosts
         self.middleware = middleware
         self.root_urlconf = root_urlconf
@@ -102,10 +103,13 @@ class DjangoSettings(Config):
         self.append_slash = append_slash
         self.module = None
         self.url_conf = None
+        self.database_routers = list(database_routers)
         # self.urlpatterns = urlpatterns
         self._settings = {}
         self._extra_settings = extra
         self._plugin_settings = {}
+
+        self.load_apps()
 
     def register(self, plugin):
         getter = getattr(plugin, 'as_django', None)
@@ -161,14 +165,17 @@ class DjangoSettings(Config):
 
     def load_apps(self):
         installed_apps = list(DEFAULT_APPS)
+        installed_apps.extend(self.apps)
+
         if self.apps_package:
-            # if self.apps_package == '.':
-            #     installed_apps.append(self.module.__package__)
-            # else:
             apps_path = self.apps_path
             hosted_labels = [p for p in next(os.walk(apps_path))[1] if '__' not in p]
-            installed_apps.extend([f'{self.apps_package}.{app}' for app in hosted_labels])
-        installed_apps.extend(self.apps)
+            for app in hosted_labels:
+                label = f'{self.apps_package}.{app}'
+                if label not in installed_apps:
+                    installed_apps.append(label)
+
+        self.apps = installed_apps
         return installed_apps
 
     @classmethod
@@ -230,6 +237,14 @@ class DjangoSettings(Config):
         if self._settings:
             # already configured
             return
+
+        # print('SETUP:', service.module, self.apps)
+        # from utilmeta.ops.config import Operations
+        # ops_config = service.get_config(Operations)
+        # if ops_config:
+        #     ops_config.setup(service)
+        #     return
+
         if self.module_name:
             module = sys.modules[self.module_name]
         else:
@@ -260,9 +275,9 @@ class DjangoSettings(Config):
             'SECRET_KEY': self.get_secret(service),
             'BASE_DIR': service.project_dir,
             'MIDDLEWARE': self.middleware or DEFAULT_MIDDLEWARE,
-            'INSTALLED_APPS': self.load_apps(),
+            'INSTALLED_APPS': self.apps,
             'ALLOWED_HOSTS': self.allowed_hosts,
-            # 'DATABASE_ROUTERS': self.routers,
+            'DATABASE_ROUTERS': self.database_routers,
             'APPEND_SLASH': self.append_slash,
             'LANGUAGE_CODE': self.language,
             'USE_I18N': self.use_i18n,

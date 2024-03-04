@@ -48,6 +48,9 @@ class APIRef:
 
 class API(PluginTarget):
     __options__ = Options()
+    # flags
+    __external__ = False
+    # ---
 
     _generator: decorator.APIGenerator
     _routes: List[APIRoute]
@@ -298,6 +301,10 @@ class API(PluginTarget):
         def getter(self: 'API'):
             value = inst.get(self.request)
             if unprovided(value):
+                default = field.get_default(cls.__options__, defer=None)
+                if not unprovided(default):
+                    # NOT CACHE
+                    return default
                 raise exc.BadRequest(f'{cls.__name__}: '
                                      f'{prop.__class__.__name__}({repr(field.name)}) not provided')
             self.__dict__[name] = value     # auto-cached
@@ -344,20 +351,14 @@ class API(PluginTarget):
         return cls
 
     # @classonlymethod
-    # def __adapt__(cls, vendor_router):
-    #     # adapt a vendor (other backends) router to utilmeta
-    #     # and mount to API, also can apply before/error/after hooks and plugins
-    #     # usage
-    #     # class AdaptAPI(API):
-    #     #    ad_fastapi = API.__adapt__(fastapi.routing.APIRouter())
-    #     pass
-
-    # @classonlymethod
     @classmethod
     def __as__(cls, backend, route: str, *, asynchronous: bool = None):
         from utilmeta import UtilMeta
         from utilmeta.core.server.backends.base import ServerAdaptor
-        service = UtilMeta(None, backend=backend, name=route.strip('/'))
+        if isinstance(backend, UtilMeta):
+            service = backend
+        else:
+            service = UtilMeta(None, backend=backend, name=route.strip('/'))
         # backend can be a module name or application
         adaptor = ServerAdaptor.dispatch(service)
         return adaptor.adapt(cls, route=route, asynchronous=asynchronous)
@@ -375,14 +376,16 @@ class API(PluginTarget):
         if isinstance(handler, APIRoute):
             cls._routes.append(handler)
             return
-        cls._routes.append(cls._route_cls(
+        api_route = cls._route_cls(
             handler=handler,
             route=route,
             name=route.replace('/', '_'),
             before_hooks=before_hooks,
             after_hooks=after_hooks,
             error_hooks=error_hooks
-        ))
+        )
+        api_route.compile_route()
+        cls._routes.append(api_route)
         cls._validate_routes()     # validate each time there is a new api mount
 
     def __init__(self, request):

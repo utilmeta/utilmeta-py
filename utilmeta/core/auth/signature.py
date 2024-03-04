@@ -139,7 +139,7 @@ class SignatureAccess(BaseAuthentication):
     @awaitable(get_access_instance)
     async def get_access_instance(self, access_key: str):
         for model in self.access_models:
-            access = await model.get_instance(**{self.access_key_field: access_key})
+            access = await model.aget_instance(**{self.access_key_field: access_key})
             if access:
                 return access
         return None

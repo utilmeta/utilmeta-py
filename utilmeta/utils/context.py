@@ -2,7 +2,7 @@ from utype.parser.base import BaseParser
 from utype.parser.field import ParserField
 from utype.utils.datastructures import unprovided
 from utype import Field
-from typing import List, Union, Type
+from typing import List, Union, Type, Dict
 from utilmeta.utils import awaitable
 import inspect
 from functools import partial
@@ -15,6 +15,14 @@ class ParserProperty:
         self.get = partial(self.prop.getter, field=self.field)
         self.set = partial(self.prop.setter, field=self.field)
         self.delete = partial(self.prop.deleter, field=self.field)
+
+    @property
+    def name(self):
+        return self.field.name
+
+    @property
+    def attname(self):
+        return self.field.attname
 
     # @property
     # def get(self):
@@ -85,14 +93,13 @@ class ContextWrapper:
                 if prop.__ident__ in ident_props:
                     raise DuplicateContextProperty(ident=prop.__ident__)
                 ident_props[prop.__ident__] = prop
-            properties[key] = self.init_prop(prop, val)
-            attrs[val.attname] = prop
+            properties[key] = attrs[val.attname] = self.init_prop(prop, val)
 
-        self.properties = properties
-        self.attrs = attrs
+        self.properties: Dict[str, ParserProperty] = properties
+        self.attrs: Dict[str, ParserProperty] = attrs
         self.parser = parser
 
-    def init_prop(self, prop, val):    # noqa, to be inherit
+    def init_prop(self, prop, val) -> ParserProperty:    # noqa, to be inherit
         return prop.init(val)
 
     def parse_context(self, context: object) -> dict:

@@ -255,6 +255,9 @@ class APIRoute:
         return False
 
     def match_targets(self, targets: list):
+        if self.route in targets:
+            # str
+            return True
         if isinstance(self.handler, Endpoint):
             return self.handler in targets or self.handler.f in targets
         # otherwise, we only accept the

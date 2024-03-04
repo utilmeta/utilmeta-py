@@ -36,12 +36,14 @@ class NodeMetadata(Schema):
 
 class SupervisorData(Schema):
     node_id: str
-    public_key: str
+    url: Optional[str] = None
+    public_key: Optional[str] = None
     ops_api: str
     ident: str
     base_url: Optional[str] = None
     backup_urls: List[str] = Field(default_factory=list)
     init_key: Optional[str] = None
+    local: bool = False
 
 
 class ResourceBase(Schema):
@@ -51,7 +53,7 @@ class ResourceBase(Schema):
     deprecated: bool = False
     tags: list = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
-    remote_id: Optional[str] = None
+    remote_id: Optional[str] = Field(default=None, no_output=True)
 
 
 class TableSchema(ResourceBase):
@@ -72,28 +74,28 @@ class ServerSchema(ResourceBase):
     ip: str
     # public_ip: Optional[str] = None
     # domain: Optional[str] = None
-    system: str
+    system: str = Field(required=False)
     platform: dict = Field(default_factory=dict)
 
-    utcoffset: Optional[int] = None
-    hostname: Optional[str]
+    utcoffset: Optional[int] = Field(required=False)
+    hostname: Optional[str] = Field(required=False)
 
-    cpu_num: int
-    memory_total: int
-    disk_total: int
-    max_open_files: Optional[int] = None
-    max_socket_conn: Optional[int] = None
+    cpu_num: int = Field(required=False)
+    memory_total: int = Field(required=False)
+    disk_total: int = Field(required=False)
+    max_open_files: Optional[int] = Field(required=False)
+    max_socket_conn: Optional[int] = Field(required=False)
     devices: dict = Field(default_factory=dict)
 
 
 class InstanceSchema(ResourceBase):
     server: ServerSchema
-    asynchronous: bool = False
-    production: bool = False
+    asynchronous: bool = Field(required=False)
+    production: bool = Field(required=False)
     language: str = 'python'
     utilmeta_version: str = utilmeta.__version__
-    backend: str
-    backend_version: Optional[str] = None
+    backend: str = Field(required=False)
+    backend_version: Optional[str] = Field(required=False)
 
 
 class DatabaseSchema(ResourceBase):
@@ -143,5 +145,6 @@ class ResourceData(utype.Schema):
 
 
 class ResourcesData(utype.Schema):
+    url: Optional[str] = None
     resources: List[ResourceData]
     resources_etag: str

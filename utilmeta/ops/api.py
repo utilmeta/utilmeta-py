@@ -8,6 +8,8 @@ from .key import decode_token
 from utilmeta.core.request import var
 from django.db import models, utils
 from utype.types import *
+from .connect import save_supervisor
+from utilmeta.core.api.specs.openapi import OpenAPI
 
 
 # excludes = var.RequestContextVar('_excludes', cached=True)
@@ -22,6 +24,9 @@ class opsRequire(auth.Require):
     def validate_scopes(self, api_inst: api.API):
         if config.disabled_scope and config.disabled_scope.intersection(self.scopes):
             raise exceptions.PermissionDenied(f'Operation: {self.scopes} denied by config')
+        scopes = self.scopes_var.get(api_inst.request)
+        if '*' in scopes:
+            return
         return super().validate_scopes(api_inst)
 
 
@@ -96,11 +101,14 @@ class TokenAPI(api.API):
 
 
 class OperationsAPI(api.API):
+    __external__ = True
+
     metrics: MetricsAPI
     query: QueryAPI
     log: LogAPI
 
     token: TokenAPI
+    openapi: opsRequire('api.view')(OpenAPI.as_api(private=False))
 
     class response(response.Response):
         result_key = 'result'
@@ -108,34 +116,16 @@ class OperationsAPI(api.API):
         state_key = 'state'
         count_key = 'count'
 
+    # @api.get
+    # @opsRequire('api.view')
+    # def openapi(self):
+    #     from utilmeta import service
+    #     openapi = OpenAPI(service)()
+
     @orm.Atomic(config.db_alias)
     def post(self, data: SupervisorData = request.Body):
-        if data.init_key:
-            # from command line
-            obj: Supervisor = Supervisor.objects.filter(
-                init_key=data.init_key,
-                ops_api=data.ops_api
-            ).first()
-            if not obj or obj.disabled:
-                raise exceptions.NotFound('Supervisor not found or disabled')
-            if obj.base_url != data.base_url:
-                raise exceptions.Conflict('Supervisor base_url conflicted')
-            if Supervisor.objects.filter(
-                base_url=data.base_url,
-                node_id=data.node_id
-            ).exists():
-                raise exceptions.Conflict(f'Supervisor[{data.node_id}] at {data.base_url} already exists')
-            Supervisor.objects.filter(id=obj.pk).update(
-                ident=data.ident,
-                node_id=data.node_id,
-                public_key=data.public_key,
-                backup_urls=data.backup_urls,
-                connected=True
-            )
-            return self.get()
-        else:
-            # from api calling
-            raise NotImplementedError
+        save_supervisor(data)
+        return self.get()
 
     def get(self):
         try:
@@ -154,6 +144,23 @@ class OperationsAPI(api.API):
     def handle_token(self, node_id: str = request.HeaderParam('X-Node-ID', default=None)):
         type, token = self.request.authorization
         if not token:
+            if not config.local_disabled:
+                from utilmeta import service
+                if not service.production and str(self.request.ip_address) == service.host == '127.0.0.1':
+                    # LOCAL -> LOCAL MANAGE
+                    supervisor = Supervisor.objects.filter(
+                        service=service.name,
+                        node_id=node_id,
+                        disabled=False,
+                        local=True,
+                        ops_api=config.ops_api,
+                    ).first()
+                    if not supervisor:
+                        raise exceptions.Unauthorized
+                    supervisor_var.setter(self.request, supervisor)
+                    var.scopes.setter(self.request, ['*'])
+                    return
+
             raise exceptions.Unauthorized
         node_id = node_id or self.request.query.get('node')
         # node can also be included in the query params to avoid additional headers

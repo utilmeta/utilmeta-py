@@ -636,7 +636,9 @@ class AwaitableQuerySet(QuerySet):
         async with db.async_transaction():
             # Lock the row so that a concurrent update is blocked until
             # update_or_create() has performed its save.
-            obj, created = await self.select_for_update().aget_or_create(defaults, **kwargs)
+            # obj, created = await self.select_for_update().aget_or_create(defaults, **kwargs)
+            obj, created = await self.aget_or_create(defaults, **kwargs)
+            # fixme: SELECT FOR UPDATE IN ASYNC CONTEXT
             if created:
                 return obj, created
             if obj.pk:

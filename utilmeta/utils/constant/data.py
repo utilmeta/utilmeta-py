@@ -115,6 +115,7 @@ class Attr(Static):
     TARGET = '__target__'
     CATEGORY = '__category__'
     CAUSES = '__causes__'
+    CAUSE = '__cause__'
     CLS = '__class__'
     PARSER = '__parser__'
     BUILTINS = '__builtins__'

@@ -17,4 +17,6 @@ class AiohttpClientRequestAdaptor(ClientRequestAdaptor):
                 headers=self.request.headers,
                 allow_redirects=allow_redirects,
             )
+            await resp.read()
+            # read here, not outside the session
             return AiohttpClientResponseAdaptor(resp)

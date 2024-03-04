@@ -85,30 +85,29 @@ class Body(Property):
 
     def getter(self, request: Request, field: ParserField = None):
         self.validate_content_type(request)
-        if var.data.contains(request):
-            return var.data.getter(request)
-        body = request.body
-        self.validate_max_length(body)
-        return body
+        # if var.data.contains(request):
+        #     return var.data.getter(request)
+        data = request.data
+        self.validate_max_length(request)
+        return data
 
     @awaitable(getter)
     async def getter(self, request: Request, field: ParserField = None):
         self.validate_content_type(request)
-        if var.data.contains(request):
-            r = var.data.getter(request)
-            if inspect.isawaitable(r):
-                r = await r
-            return r
-        body = await request.adaptor.async_read()
-        self.validate_max_length(body)
-        return body
+        var_data = var.data.setup(request)
+        if var_data.contains():
+            return await var_data.get()
+        data = await request.adaptor.async_load()
+        var_data.set(var_data)
+        self.validate_max_length(request)
+        return data
 
     def validate_content_type(self, request: Request):
         if self.content_type and request.content_type != self.content_type:
             raise exc.UnprocessableEntity('invalid content type')
 
-    def validate_max_length(self, body: bytes):
-        if self.max_length and len(body) > self.max_length:
+    def validate_max_length(self, request: Request):
+        if self.max_length and request.content_length and request.content_length > self.max_length:
             raise exc.RequestEntityTooLarge
 
     def __init__(self, content_type: str = None, *,

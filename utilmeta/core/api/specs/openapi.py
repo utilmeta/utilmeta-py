@@ -18,7 +18,7 @@ from utype.parser.field import ParserField
 from utype.parser.rule import LogicalType
 from utype.utils.datastructures import unprovided
 from utype.utils.functional import get_obj_name
-from typing import Type, Tuple, Dict, List, TYPE_CHECKING
+from typing import Type, Tuple, Dict, List, TYPE_CHECKING, Optional
 from .base import BaseAPISpec
 import os
 import json
@@ -230,14 +230,14 @@ class OpenAPI(BaseAPISpec):
             raise ValueError(f'format: {repr(format)} not supported')
 
     @classmethod
-    def as_api(cls, path: str = None):
+    def as_api(cls, path: str = None, private: bool = True):
         from utilmeta.core import api
 
         # if path is not specified, use local mem instead
         class OpenAPI_API(API):
             response = Response
 
-            @api.get(private=True)
+            @api.get(private=private)
             def get(self):
                 from utilmeta import service
 
@@ -604,7 +604,10 @@ class OpenAPI(BaseAPISpec):
                  params: dict = None,
                  response_cls: Type[Response] = None,
                  responses: dict = None,
-                 requires: list = None) -> dict:
+                 requires: list = None) -> Optional[dict]:
+        if api.__external__:
+            # external APIs will not participate in docs
+            return None
         core_data = None
         extra_params = dict(params or {})
         prop_params, body, prop_requires = self.parse_properties(api._properties)

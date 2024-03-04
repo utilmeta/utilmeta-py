@@ -6,6 +6,7 @@ import re
 import hashlib
 import decimal
 from collections import OrderedDict
+from collections.abc import Mapping
 from typing import List, Dict, Callable, Union, Any
 
 
@@ -154,8 +155,8 @@ def multi(f):
 
 
 def pop(data, key, default=None):
-    if isinstance(data, dict):
-        return data.pop(key) if key in data else default
+    if isinstance(data, (dict, Mapping)):
+        return data.pop(key) if key in data and hasattr(data, 'pop') else default
     elif isinstance(data, list):
         return data.pop(key) if key < len(data) else default
     return default

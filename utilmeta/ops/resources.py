@@ -31,21 +31,20 @@ class ModelGenerator:
                 relate_name = f.relate_name
 
             schema = JsonSchemaGenerator(f.rule)()
-            data = dict(
+            data = {k: v for k, v in dict(
                 schema=schema,
-                primary_key=f.primary_key,
+                primary_key=f.is_pk,
                 foreign_key=f.is_fk,
-                readonly=not f.editable,
-                unique=f.unique,
-                index=f.db_index,
-                null=f.null,
+                readonly=not f.is_writable,
+                unique=f.is_unique,
+                index=f.is_db_index,
+                null=f.is_nullable,
                 required=not f.is_optional,
-                category=f.__class__.__name__,
-                verbose_name=f.verbose_name,
+                category=f.field.__class__.__name__,
                 to_model=to_model,
                 to_field=to_field,
                 relate_name=relate_name
-            )
+            ).items() if v}
 
             fields[name] = data
         return fields
@@ -115,8 +114,7 @@ class ResourcesManager:
             production=self.service.production
         )
 
-    @classmethod
-    def get_instances(cls, node_id) -> List[InstanceSchema]:
+    def get_instances(self, node_id) -> List[InstanceSchema]:
         from .schema import InstanceSchema
         instances = []
         for val in Resource.objects.filter(
@@ -132,14 +130,30 @@ class ResourcesManager:
                 ).first()
             if not server:
                 continue
+            inst_data = dict()
+            server_data = dict(server.data)
+            server_data.update(ip=server.ident)
+            if server.ident == self.service.ip:
+                from .monitor import get_server_statics
+                inst_data.update(self.instance_data)
+                server_data.update(get_server_statics())
             instances.append(
                 InstanceSchema(
                     remote_id=val.remote_id,
-                    server=server.data,
-                    **val.data
+                    server=server_data,
+                    **inst_data
                 )
             )
         return instances
+
+    @property
+    def instance_data(self):
+        return dict(
+            asynchronous=self.service.asynchronous,
+            production=self.service.production,
+            backend=self.service.backend_name,
+            backend_version=self.service.backend_version
+        )
 
     def get_current_instance(self) -> InstanceSchema:
         from .monitor import get_server_statics
@@ -149,10 +163,7 @@ class ResourcesManager:
         )
         return InstanceSchema(
             server=server,
-            asynchronous=self.service.asynchronous,
-            production=self.service.production,
-            backend=self.service.backend_name,
-            backend_version=self.service.backend_version
+            **self.instance_data
         )
 
     @classmethod
@@ -197,6 +208,7 @@ class ResourcesManager:
                 metadata=dict(
                     app_label=label,
                 ),
+                tags=[label],
                 base=base_id,
                 name=meta.db_table,
                 fields=generator.generate_fields(),
@@ -241,6 +253,7 @@ class ResourcesManager:
                     engine=db.engine,
                     port=db.port,
                     user=db.user,
+                    name=db.name,
                     hostname=db.host,
                     server=get_ip(db.host, True),
                     ops=alias == self.ops_config.db_alias,
@@ -306,9 +319,14 @@ class ResourcesManager:
         ).values('pk', 'remote_id')}
 
         remote_pks = []
+        remote_servers = {}
         updates = []
         creates = []
         for resource in resources:
+            if resource.server_id:
+                remote_servers[resource.remote_id] = resource.server_id
+                resource.server_id = None
+
             remote_pks.append(resource.remote_id)
             if resource.remote_id in remote_pk_map:
                 updates.append(
@@ -337,7 +355,6 @@ class ResourcesManager:
         if creates:
             Resource.objects.bulk_create(
                 creates,
-                fields=['server_id', 'ident', 'route', 'deleted'],
                 ignore_conflicts=True
             )
 
@@ -349,6 +366,20 @@ class ResourcesManager:
             deleted=True
         )
 
+        for remote_id, server_id in remote_servers.items():
+            server = Resource.objects.filter(
+                type='server',
+                remote_id=server_id,
+                node_id=supervisor.node_id,
+                deleted=False
+            ).first()
+            if server:
+                Resource.objects.filter(
+                    remote_id=remote_id,
+                    node_id=supervisor.node_id,
+                    deleted=False
+                ).update(server=server)
+
     def sync_resources(self, supervisor: Supervisor = None, force: bool = False):
         from utilmeta import service
         ops_config = Operations.config()
@@ -359,9 +390,9 @@ class ResourcesManager:
             service=service.name,
             disabled=False,
             connected=True,
+            public_key__isnull=False,
+            node_id__isnull=False
         ):
-            if not supervisor.node_id or not supervisor.public_key:
-                continue
             print(f'sync resources of [{service.name}] to supervisor[{supervisor.node_id}]...')
             with SupervisorClient(
                 base_url=supervisor.base_url,
@@ -373,12 +404,14 @@ class ResourcesManager:
                     etag=supervisor.resources_etag if not force else None
                 )
                 if not resources:
+                    print('[etag] resources is identical to the remote supervisor, done')
                     continue
 
                 resp = client.upload_resources(
                     data=resources
                 )
                 if resp.status == 304:
+                    print('[304] resources is identical to the remote supervisor, done')
                     continue
                 if not resp.success:
                     raise ValueError(f'sync to supervisor[{supervisor.node_id}]'
@@ -394,3 +427,9 @@ class ResourcesManager:
                 )
 
                 print(f'sync resources to supervisor[{supervisor.node_id}] successfully')
+                if resp.result.url:
+                    if supervisor.url != resp.result.url:
+                        supervisor.url = resp.result.url
+                        supervisor.save(update_fields=['url'])
+
+                    print(f'you can visit {resp.result.url} to view the updated resources')

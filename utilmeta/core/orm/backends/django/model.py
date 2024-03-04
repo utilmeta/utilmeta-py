@@ -69,8 +69,7 @@ class DjangoModelAdaptor(ModelAdaptor):
             return
         return self.get_queryset(q, **filters).delete()
 
-    @awaitable(delete)
-    async def delete(self, q=None, **filters):
+    async def adelete(self, q=None, **filters):
         if not q and not filters:
             # no filters
             return
@@ -87,8 +86,7 @@ class DjangoModelAdaptor(ModelAdaptor):
     def get_instance(self, q=None, **filters) -> model_cls:
         return self.get_queryset(q, **filters).first()
 
-    @awaitable(get_instance)
-    async def get_instance(self, q=None, **filters) -> model_cls:
+    async def aget_instance(self, q=None, **filters) -> model_cls:
         return await self.get_queryset(q, **filters).afirst()
 
     def init_instance(self, pk=None, **data):
@@ -204,7 +202,7 @@ class DjangoModelAdaptor(ModelAdaptor):
         pk = meta.pk
         if pk:
             # abstract model meta.pk is None
-            fields.append(pk)
+            fields.append(DjangoModelFieldAdaptor(pk, model=self))
         for f in meta.get_fields() if many else meta.fields:
             if self.field_adaptor_cls(f).is_pk:
                 continue
@@ -220,7 +218,7 @@ class DjangoModelAdaptor(ModelAdaptor):
                     self.get_field(f.name)
                 except exc.FieldDoesNotExist:
                     continue
-            fields.append(f)
+            fields.append(DjangoModelFieldAdaptor(f, model=self))
         return fields
 
     def get_related_adaptor(self, field):

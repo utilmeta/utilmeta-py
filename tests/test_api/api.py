@@ -73,9 +73,12 @@ class ParentAPI(api.API):
 
 @api.route('the/api')
 class TheAPI(api.API):
+    world_header: str = request.HeaderParam('X-Hello', default='world')
+    # test default value in API properties
+
     @api.get
     def hello(self):
-        return TestResponse('world', message='hello')
+        return TestResponse(self.world_header, message='hello')
 
 
 class TestAPI(api.API):

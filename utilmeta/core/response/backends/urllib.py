@@ -2,6 +2,7 @@ from http.client import HTTPResponse
 from urllib.error import HTTPError
 from typing import Union
 from .base import ResponseAdaptor
+from utilmeta.utils import Headers
 
 
 class UrllibResponseAdaptor(ResponseAdaptor):
@@ -21,7 +22,7 @@ class UrllibResponseAdaptor(ResponseAdaptor):
 
     @property
     def headers(self):
-        return dict(self.response.headers)
+        return Headers(dict(self.response.headers))
 
     @property
     def body(self):

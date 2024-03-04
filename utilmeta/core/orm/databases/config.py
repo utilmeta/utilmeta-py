@@ -167,13 +167,18 @@ class DatabaseConnections(Config):
 
     def hook(self, service: UtilMeta):
         for name, db in self.databases.items():
-            if not db.sync_adaptor_cls:
-                if service.adaptor and service.adaptor.sync_db_adaptor_cls:
-                    db.sync_adaptor_cls = service.adaptor.sync_db_adaptor_cls
-            if not db.async_adaptor_cls:
-                if service.adaptor and service.adaptor.async_db_adaptor_cls:
-                    db.async_adaptor_cls = service.adaptor.async_db_adaptor_cls
-            db.apply(name, asynchronous=service.asynchronous)
+            self.add_database(service, alias=name, database=db)
+
+    def add_database(self, service: UtilMeta, alias: str, database: Database):
+        if not database.sync_adaptor_cls:
+            if service.adaptor and service.adaptor.sync_db_adaptor_cls:
+                database.sync_adaptor_cls = service.adaptor.sync_db_adaptor_cls
+        if not database.async_adaptor_cls:
+            if service.adaptor and service.adaptor.async_db_adaptor_cls:
+                database.async_adaptor_cls = service.adaptor.async_db_adaptor_cls
+        database.apply(alias, asynchronous=service.asynchronous)
+        if alias not in self.databases:
+            self.databases.setdefault(alias, database)
 
     @classmethod
     def get(cls, alias: str = 'default') -> Database:

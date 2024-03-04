@@ -631,13 +631,15 @@ def get_ip(host: str, ip_only: bool = False) -> Optional[str]:
     match = ip_reg.match(res.netloc)
     if match:
         return match.group()
+    if res.hostname == constant.LOCAL:
+        return constant.LOCAL_IP
     if ip_only:
         return None
     from .web import get_hostname
     try:
         return socket.gethostbyname(get_hostname(host))
     except (socket.error, OSError):
-        return constant.LOCAL_IP
+        return None
 
 
 def get_real_ip(ip: str):

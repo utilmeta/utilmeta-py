@@ -33,8 +33,17 @@ service = UtilMeta(
 
 from utilmeta.core.server.backends.django import DjangoSettings
 from utilmeta.core.orm import DatabaseConnections, Database
+from utilmeta.ops.config import Operations
+
 service.use(DjangoSettings(
     apps=['app']
+))
+service.use(Operations(
+    route='ops',
+    database=Database(
+        name='db_ops',
+        engine='sqlite3',
+    )
 ))
 service.use(DatabaseConnections({
     'default': Database(

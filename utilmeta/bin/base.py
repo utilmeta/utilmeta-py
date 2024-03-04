@@ -204,12 +204,13 @@ class BaseCommand:
                 arg = str(arg)
                 if arg.startswith('--'):
                     if '=' in arg:
-                        key, val = arg.split('=')
-                        kwargs[key] = val
+                        key, *values = arg.split('=')
+                        val = '='.join(values)
+                        kwargs[key] = kwargs[str(key).strip('--')] = val
                     else:
-                        kwargs[arg] = True
+                        kwargs[arg] = kwargs[str(arg).strip('--')] = True
                 elif arg.startswith('-'):
-                    kwargs[arg] = True
+                    kwargs[arg] = kwargs[arg.strip('-')] = True
                 else:
                     args.append(arg)
             return cmd(*args, **kwargs)

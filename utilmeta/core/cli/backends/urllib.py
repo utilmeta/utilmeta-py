@@ -20,7 +20,7 @@ class UrllibRequestAdaptor(ClientRequestAdaptor):
         try:
             resp = urlopen(Request(
                 url=self.request.url,
-                method=self.request.method,
+                method=str(self.request.method).upper(),
                 data=self.request.body,
                 headers=self.request.headers,
             ), timeout=timeout)

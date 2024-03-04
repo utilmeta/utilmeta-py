@@ -12,7 +12,6 @@ class RequestsRequestAdaptor(ClientRequestAdaptor):
             url=self.request.url,
             headers=self.request.headers,
             data=self.request.body,
-            # cookies=self.request.cookies,
             timeout=timeout,
             proxies=proxies,
             allow_redirects=allow_redirects,

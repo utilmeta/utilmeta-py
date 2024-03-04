@@ -357,17 +357,6 @@ class TestAPIClass:
                 "update",
                 {"page": 3, 'item': 'test'},
                 {"name": "image.png", "desc": "DESC", "image": image},
-#                 b"""------WebKitFormBoundary
-# Content-Disposition: form-data; name="name"
-# image.png
-# ------WebKitFormBoundary
-# Content-Disposition: form-data; name="desc"
-# DESC
-# ------WebKitFormBoundary
-# Content-Disposition: form-data; name="image"; filename="image.jpg"
-# Content-Type: image/jpeg
-# image
-# ------WebKitFormBoundary--""",
                 {
                     'cookie': 'test-cookie=123',
                     # 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundary'
@@ -427,7 +416,7 @@ class TestAPIClass:
             )()
             assert isinstance(resp, response.Response), f'invalid response: {resp}'
             content = resp.data
-            assert resp.status == status, f"{method} {path} failed with {content}"
+            assert resp.status == status, f"{method} {path} failed with {content}, {status} expected, got {resp.status}"
             if result is not ...:
                 if callable(result):
                     result(content)

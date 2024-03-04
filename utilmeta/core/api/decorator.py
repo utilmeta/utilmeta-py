@@ -56,12 +56,11 @@ def set_excludes(f, excludes):
     if hasattr(f, EndpointAttr.excludes):
         return
 
-    def proc(ex):
-        return ex if isinstance(ex, str) else ex.__name__
     if multi(excludes):
-        excludes = [proc(e) for e in excludes]
+        excludes = list(excludes)
     else:
-        excludes = [proc(excludes)]
+        excludes = [excludes]
+
     setattr(f, EndpointAttr.excludes, excludes)
     return f
 

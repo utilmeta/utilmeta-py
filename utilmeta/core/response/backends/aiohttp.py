@@ -1,6 +1,6 @@
 from aiohttp.client_reqrep import ClientResponse
 from aiohttp.web_response import Response as ServerResponse
-from utilmeta.utils import async_to_sync
+# from utilmeta.utils import async_to_sync
 from .base import ResponseAdaptor
 
 
@@ -25,7 +25,7 @@ class AiohttpClientResponseAdaptor(ResponseAdaptor):
 
     @property
     def body(self) -> bytes:
-        return async_to_sync(self.response.read)()
+        return getattr(self.response, '_body', None)
 
     async def async_read(self) -> bytes:
         return await self.response.read()

@@ -37,6 +37,8 @@ class AiohttpRequestAdaptor(RequestAdaptor):
 
     @property
     def body(self):
+        if 'body' in self.__dict__:
+            return self.__dict__.get('body')
         return async_to_sync(self.async_read)()
 
     async def async_load(self):

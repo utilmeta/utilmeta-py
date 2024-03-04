@@ -300,11 +300,24 @@ except ImportError:
         import asyncio
         async_response = []
 
-        async def run_and_capture_result():
-            r = await to_await
-            async_response.append(r)
+        def wrapper(*args, **kwargs):
+            try:
+                event_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+            else:
+                if event_loop.is_running():
+                    raise RuntimeError(
+                        "You cannot use AsyncToSync in the same thread as an async event loop - "
+                        "just await the async function directly."
+                    )
 
-        loop = asyncio.get_event_loop()
-        coroutine = run_and_capture_result()
-        loop.run_until_complete(coroutine)
-        return async_response[0]
+            async def run_and_capture_result():
+                r = await to_await(*args, **kwargs)
+                async_response.append(r)
+
+            loop = asyncio.get_event_loop()
+            coroutine = run_and_capture_result()
+            loop.run_until_complete(coroutine)
+            return async_response[0]
+        return wrapper

@@ -91,7 +91,12 @@ class ResponseAdaptor(BaseAdaptor):
         content_type = self.content_type
         if not content_type:
             return False
-        maj, sec = content_type.split('/')
+        if '/' not in content_type:
+            return False
+        try:
+            maj, sec = content_type.split('/')
+        except ValueError:
+            return False
         if maj in ('video', 'audio', 'image'):
             return True
         if sec == 'octet-stream':
@@ -105,6 +110,8 @@ class ResponseAdaptor(BaseAdaptor):
         application/json : dict/list
         image/*          : Image
         """
+        if not self.content_type:
+            return None
         if self.json_type:
             return self.get_json()
         elif self.xml_type:

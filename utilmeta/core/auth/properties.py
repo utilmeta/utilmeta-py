@@ -195,7 +195,7 @@ class User(Property):
     # @awaitable(query_user)
     async def aquery_user(self, q=None, **kwargs):
         if self.user_model:
-            inst = await self.user_model.get_instance(q, **kwargs)
+            inst = await self.user_model.aget_instance(q, **kwargs)
             if inst is not None:
                 return inst
         return None

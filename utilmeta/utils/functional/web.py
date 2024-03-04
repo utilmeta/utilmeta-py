@@ -83,7 +83,7 @@ def handle_json_float(data):
 
 
 def fast_digest(value, compress: Union[bool, int] = False, case_insensitive: bool = False,
-                consistent: bool = True, mod: int = 2 ** 32):
+                consistent: bool = True, mod: int = 2 ** 64):
     if consistent:
         encoded = value if isinstance(value, bytes) else str(value).encode()
         dig_mod = int(hashlib.md5(encoded).hexdigest(), 16) % mod
@@ -93,10 +93,12 @@ def fast_digest(value, compress: Union[bool, int] = False, case_insensitive: boo
         dig_mod = hash(str(value)) % mod
 
     if compress:
-        if isinstance(compress, int):
+        if isinstance(compress, bool):
+            base = 36 if case_insensitive else 62
+        elif isinstance(compress, int):
             base = compress
         else:
-            base = 36 if case_insensitive else 62
+            raise TypeError(f'Invalid compress: {compress}')
         return based_number(dig_mod, base)
     return str(dig_mod)
 
@@ -333,7 +335,7 @@ def url_join(base: str, *routes: str, with_scheme: bool = True,
         if append_slash:
             if not base.endswith('/'):
                 base = base + '/'
-        else:
+        elif append_slash is False:
             base = base.rstrip('/')
         return base
     if not isinstance(base, str):
@@ -393,6 +395,9 @@ def parse_raw_url(url: str) -> Tuple[str, dict]:
 def parse_query_dict(qd: Dict[str, List[str]]) -> dict:
     data = {}
     for key, val in dict(qd).items():
+        if not multi(val):
+            data[key] = str(val or '')
+            continue
         if key.endswith('[]'):
             data[key.rstrip('[]')] = val
             continue

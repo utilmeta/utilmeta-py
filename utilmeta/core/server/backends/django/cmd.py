@@ -17,7 +17,8 @@ class DjangoCommand(BaseServiceCommand):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.settings = self.service.get_config(DjangoSettings)
-        self.settings.setup(self.service)
+        # self.settings.setup(self.service)
+        self.service.setup()        # setup here
 
     @command
     def add(self, name: str):

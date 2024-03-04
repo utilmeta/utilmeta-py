@@ -3,7 +3,8 @@ import inspect
 from utilmeta.utils import PluginEvent, PluginTarget, \
     Error, awaitable, url_join, file_like, classonlymethod, \
     encode_multipart_form, RequestType, json_dumps, \
-    COMMON_METHODS, EndpointAttr, time_now
+    COMMON_METHODS, EndpointAttr, time_now, \
+    parse_query_string, parse_query_dict
 
 from utype.types import *
 from http.cookies import SimpleCookie
@@ -13,10 +14,9 @@ from utilmeta.core.response.base import Headers
 from .endpoint import ClientEndpoint
 from utilmeta.core.request import Request, properties
 from utilmeta.utils.context import Property
-from utilmeta.utils import url_join
 
 import urllib
-from urllib.parse import urlparse, parse_qs, urlencode
+from urllib.parse import urlsplit, urlunsplit, urlencode
 from utilmeta import UtilMeta
 from functools import partial
 from typing import TypeVar
@@ -118,6 +118,7 @@ class Client(PluginTarget):
                  service: Optional[UtilMeta] = None,
                  mock: bool = False,
                  internal: bool = False,
+                 plugins: list = (),
 
                  # session=None,      # used to pass along the sdk classes
                  # prepend_route: str = None,
@@ -130,9 +131,10 @@ class Client(PluginTarget):
                  proxies: dict = None,
                  allow_redirects: bool = None,
                  charset: str = 'utf-8',
+                 fail_silently: bool = False,
                  ):
 
-        super().__init__()
+        super().__init__(plugins=plugins)
 
         self._internal = internal
         self._mock = mock
@@ -161,6 +163,7 @@ class Client(PluginTarget):
 
         # self._prepend_route = prepend_route
         self._append_slash = append_slash
+        self._fail_silently = fail_silently
 
         cookies = base_cookies
         if isinstance(cookies, str):
@@ -213,15 +216,33 @@ class Client(PluginTarget):
     def _build_url(self, path: str, query: dict = None):
         if self._internal:
             return path
-        parsed = urlparse(path)
-        qs = parse_qs(parsed.query)
+
+        parsed = urlsplit(path)
+        qs = parse_query_string(parsed.query)
         if isinstance(query, dict):
-            qs.update(query)
+            qs.update(parse_query_dict(query))
+
+        # base_url: null
+        # path: https://origin.com/path?key=value
+
         base_url = self._base_url or (self._service.base_url if self._service else '')
-        base_path = url_join(base_url, parsed.path)
+
+        if parsed.scheme:
+            # ignore base url
+            url = urlunsplit((
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                '',     # query
+                ''      # query
+            ))
+        else:
+            url = url_join(base_url, parsed.path)
+
         if self._append_slash:
-            base_path = base_path.rstrip('/') + '/'
-        return base_path + (('?' + urlencode(qs)) if qs else '')
+            url = url.rstrip('/') + '/'
+
+        return url + (('?' + urlencode(qs)) if qs else '')
 
     def _build_headers(self, headers, cookies=None):
         if cookies:
@@ -399,28 +420,28 @@ class Client(PluginTarget):
             raise TimeoutError(f'No response')
         return response
 
-    @classmethod
-    def _parse_response(cls, response, types: List[Type[Response]]) -> Response:
+    def _parse_response(self, response: Response, types: List[Type[Response]]) -> Response:
         from utype import type_transform
 
         if not types:
             return type_transform(response, Response)
 
+        if not isinstance(response, Response):
+            response = Response(response)
+
         for i, response_cls in enumerate(types):
             if isinstance(response, response_cls):
                 return response
 
-            if not isinstance(response, Response):
-                response = type_transform(response, response_cls)
-            else:
-                if response_cls.status and response.status != response_cls.status:
-                    continue
-                try:
-                    response = response_cls(response=response, strict=True)
-                except Exception as e:   # noqa
-                    if i == len(types) - 1:
-                        raise e
-                    continue
+            if response_cls.status and response.status != response_cls.status:
+                continue
+
+            try:
+                return response_cls(response=response, strict=True)
+            except Exception as e:   # noqa
+                if i == len(types) - 1 and not self._fail_silently:
+                    raise e
+                continue
 
         return type_transform(response, Response)
 
@@ -442,16 +463,22 @@ class Client(PluginTarget):
                 path_params[name] = value
                 continue
 
-            prop = endpoint.wrapper.attrs.get(name)
+            inst = endpoint.wrapper.attrs.get(name)
+            if not inst:
+                continue
+
+            prop = inst.prop
+            key = inst.name  # this is FINAL alias key name instead of attname
+
             if not prop:
                 continue
 
             if prop_in(prop, 'path'):
                 # PathParam
-                path_params[name] = value
+                path_params[key] = value
             elif prop_in(prop, 'query'):
                 # QueryParam
-                query[name] = value
+                query[key] = value
             elif prop_is(prop, 'query'):
                 # Query
                 if isinstance(value, Mapping):
@@ -459,9 +486,9 @@ class Client(PluginTarget):
             elif prop_in(prop, 'body'):
                 # BodyParam
                 if isinstance(body, dict):
-                    body[name] = value
+                    body[key] = value
                 else:
-                    body = {name: value}
+                    body = {key: value}
                 if isinstance(prop, properties.Body):
                     if prop.content_type:
                         headers.update({'content-type': prop.content_type})
@@ -473,14 +500,14 @@ class Client(PluginTarget):
                     body = value
             elif prop_in(prop, 'header'):
                 # HeaderParam
-                headers[name] = value
+                headers[key] = value
             elif prop_is(prop, 'header'):
                 # Headers
                 if isinstance(value, Mapping):
                     headers.update(value)
             elif prop_in(prop, 'cookie'):
                 # CookieParam
-                cookies[name] = value
+                cookies[key] = value
             elif prop_is(prop, 'cookie'):
                 # Cookies
                 if isinstance(value, Mapping):
@@ -643,7 +670,6 @@ class Client(PluginTarget):
             if inspect.isawaitable(resp):
                 resp = await resp
             response = Response(response=resp, request=request)
-
         return response
 
     def request(self, method: str, path: str = None, query: dict = None,
@@ -662,7 +688,6 @@ class Client(PluginTarget):
         response = self._make_request(request, timeout=timeout)
         return self._process_response(response)
 
-    @awaitable(request)
     async def async_request(self, method: str, path: str = None, query: dict = None,
                             data=None, form: dict = None,
                             headers: dict = None, cookies=None,

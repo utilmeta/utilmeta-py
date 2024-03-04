@@ -5,6 +5,8 @@ T = TypeVar('T')
 
 
 class Config(DataClass):
+    __eager__ = False
+
     @classmethod
     def config(cls: Type[T]) -> Optional[T]:
         try:

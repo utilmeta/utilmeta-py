@@ -32,6 +32,10 @@ class AiohttpRequestAdaptor(RequestAdaptor):
     def headers(self):
         return self.request.headers
 
+    @property
+    def cookies(self):
+        return self.request.cookies
+
     def get_form(self):
         return async_to_sync(self.request.post)()
 

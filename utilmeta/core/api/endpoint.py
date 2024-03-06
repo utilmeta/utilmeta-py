@@ -262,6 +262,9 @@ class Endpoint(BaseEndpoint):
         return self.f.__name__
 
     def serve(self, api: 'API'):
+        # ---
+        var.endpoint_ref.setter(api.request, self.ref)
+        # ---
         retry_index = 0
         while True:
             try:
@@ -298,6 +301,9 @@ class Endpoint(BaseEndpoint):
 
     @utils.awaitable(serve)
     async def serve(self, api: 'API'):
+        # ---
+        var.endpoint_ref.setter(api.request, self.ref)
+        # ---
         retry_index = 0
         while True:
             try:

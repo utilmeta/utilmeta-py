@@ -21,6 +21,10 @@ class Database(Config):
 
     sync_adaptor_cls = None
     async_adaptor_cls = EncodeDatabasesAsyncAdaptor
+    # fixme:
+    # for backend that does not support async startup function
+    # the async connection cannot be established
+
     # ---
     name: str
     engine: str = 'sqlite'

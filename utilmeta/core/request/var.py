@@ -124,3 +124,6 @@ path_params = RequestContextVar('_path_params', default=dict)
 allow_methods = RequestContextVar('_allow_methods', default=list)
 allow_headers = RequestContextVar('_allow_headers', default=list)
 unmatched_route = RequestContextVar('_unmatched_route', factory=lambda request: request.adaptor.route)
+operation_names = RequestContextVar('_operation_names', default=list)
+# all the passing-by route's name, to combine the endpoint operationId
+endpoint_ref = RequestContextVar('_endpoint_ref', default=None)

@@ -421,6 +421,8 @@ class WebMixin(models.Model):
 
 
 class VersionLog(models.Model):
+    objects = models.Manager()
+
     service = models.CharField(max_length=100)
     node_id = models.CharField(max_length=100, default=None, null=True, db_index=True)
     instance: Resource = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='restart_records')
@@ -582,6 +584,8 @@ class AlertLog(models.Model):
 
 
 class ServiceLog(WebMixin):
+    objects = models.Manager()
+
     id = models.BigAutoField(primary_key=True)
 
     service = models.CharField(max_length=100)
@@ -602,6 +606,10 @@ class ServiceLog(WebMixin):
         Resource, on_delete=models.SET_NULL,
         null=True, default=None, related_name='endpoint_logs',
     )
+    # incase the endpoint not loaded yet
+    endpoint_ident = models.CharField(max_length=200, default=None, null=True)
+    endpoint_ref = models.CharField(max_length=200, default=None, null=True)
+
     # add redundant field endpoint_ident to make a quick query index and remain even after endpoint is deleted
     # endpoint_ident = models.CharField(max_length=200, null=True, default=None, db_index=True)
     # endpoint_path = URLField(default=None, null=True)
@@ -635,16 +643,29 @@ class ServiceLog(WebMixin):
     )
 
     volatile = models.BooleanField(default=True)
+    # deleted_time = models.DateTimeField(default=None, null=True)
+    # ----------
+    supervisor = models.ForeignKey(
+        Supervisor, related_name='logs', on_delete=models.SET_NULL,
+        default=None, null=True
+    )
+    access_token = models.ForeignKey(
+        AccessToken, related_name='logs', on_delete=models.SET_NULL,
+        default=None, null=True
+    )
 
     class Meta:
         db_table = 'utilmeta_service_log'
 
 
 class RequestLog(WebMixin):
+    objects = models.Manager()
+
     id = models.BigAutoField(primary_key=True)
     service = models.CharField(max_length=100)
     node_id = models.CharField(max_length=100, default=None, null=True, db_index=True)
 
+    # volatile = models.BooleanField(default=True)
     # requests made in other service request context
     time = models.DateTimeField()  # not auto_now_add, cache stored log may add after request for some time
     # version = models.ForeignKey(
@@ -688,6 +709,8 @@ class RequestLog(WebMixin):
 
 
 class QueryLog(models.Model):
+    objects = models.Manager()
+
     # SLOW or error db query log
     id = models.BigAutoField(primary_key=True)
     time = models.DateTimeField()

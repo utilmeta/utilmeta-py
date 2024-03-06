@@ -6,6 +6,7 @@ from ..django import DjangoCacheAdaptor
 
 class RedisCache(Cache):
     async_adaptor_cls = AioredisAdaptor
+    sync_adaptor_cls = DjangoCacheAdaptor
 
     username: Optional[str] = None
     password: Optional[str] = None

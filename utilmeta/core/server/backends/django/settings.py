@@ -249,6 +249,7 @@ class DjangoSettings(Config):
             module = sys.modules[self.module_name]
         else:
             module = service.module
+            self.module_name = service.module_name
 
         self.module = module
         db_config = service.get_config(DatabaseConnections)
@@ -270,11 +271,20 @@ class DjangoSettings(Config):
                     cache.sync_adaptor_cls = DjangoCacheAdaptor
                 caches[name] = self.get_cache(cache)
 
+        middleware = list(self.middleware or DEFAULT_MIDDLEWARE)
+        adaptor = service.adaptor
+        from .adaptor import DjangoServerAdaptor
+        if isinstance(adaptor, DjangoServerAdaptor):
+            middleware_func = adaptor.middleware_func
+            if middleware_func:
+                setattr(self.module, middleware_func.__name__, middleware_func)
+                middleware.append(f'{self.module_name}.{middleware_func.__name__}')
+
         settings = {
             'DEBUG': not service.production,
             'SECRET_KEY': self.get_secret(service),
             'BASE_DIR': service.project_dir,
-            'MIDDLEWARE': self.middleware or DEFAULT_MIDDLEWARE,
+            'MIDDLEWARE': middleware,
             'INSTALLED_APPS': self.apps,
             'ALLOWED_HOSTS': self.allowed_hosts,
             'DATABASE_ROUTERS': self.database_routers,

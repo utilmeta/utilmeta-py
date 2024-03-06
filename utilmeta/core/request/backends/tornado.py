@@ -3,6 +3,7 @@ from tornado.httpserver import HTTPRequest as ServerRequest
 from ..base import RequestAdaptor
 from utilmeta.core.file.backends.tornado import TornadoFileAdaptor
 from utilmeta.core.file.base import File
+from utilmeta.utils import exceptions as exc
 import tornado
 
 
@@ -38,9 +39,28 @@ class TornadoServerRequestAdaptor(RequestAdaptor):
     def headers(self):
         return self.request.headers
 
+    # note: tornado use bytes to process query, which is not a standard way, fallback instead
+    # @property
+    # def query_params(self):
+    #     return self.request.query_arguments
+
     @property
-    def query_params(self):
-        return self.request.query_arguments
+    def cookies(self):
+        cookies = {}
+        for key, val in self.request.cookies.items():
+            cookies[val.key] = val.value
+        return cookies
+
+    async def async_read(self):
+        return self.request.body
+
+    async def async_load(self):
+        try:
+            return self.get_content()
+        except NotImplementedError:
+            raise
+        except Exception as e:
+            raise exc.UnprocessableEntity(f'process request body failed with error: {e}')
 
     def get_form(self):
         form = dict(self.request.body_arguments)

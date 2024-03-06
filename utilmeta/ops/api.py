@@ -14,7 +14,8 @@ from utilmeta.core.api.specs.openapi import OpenAPI
 
 # excludes = var.RequestContextVar('_excludes', cached=True)
 # params = var.RequestContextVar('_params', cached=True)
-supervisor_var = var.RequestContextVar('_supervisor', cached=True)
+supervisor_var = var.RequestContextVar('_ops.supervisor', cached=True)
+access_token_var = var.RequestContextVar('_ops.access_token', cached=True)
 resources_var = var.RequestContextVar('_scopes.resource', cached=True, default=list)
 
 config = Operations.config()
@@ -227,7 +228,7 @@ class OperationsAPI(api.API):
                 token_obj.save(update_fields=['last_activity', 'used_times'])
             else:
                 try:
-                    AccessToken.objects.create(
+                    token_obj = AccessToken.objects.create(
                         token_id=token_id,
                         issuer=supervisor,
                         issued_at=datetime.fromtimestamp(data.get('iat')),
@@ -245,6 +246,7 @@ class OperationsAPI(api.API):
             # scope
             #
             supervisor_var.setter(self.request, supervisor)
+            access_token_var.setter(self.request, token_obj)
             validated = True
             break
 

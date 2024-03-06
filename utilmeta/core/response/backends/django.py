@@ -29,8 +29,12 @@ class DjangoResponseAdaptor(ResponseAdaptor):
             headers=resp.prepare_headers()
         )
         if resp.file:
-            return FileResponse(resp.file, **kwargs)
-        return HttpResponse(resp.body, **kwargs)
+            response = FileResponse(resp.file, **kwargs)
+        else:
+            response = HttpResponse(resp.body, **kwargs)
+
+        setattr(response, '_utilmeta_response', resp)
+        return response
 
     @property
     def status(self):

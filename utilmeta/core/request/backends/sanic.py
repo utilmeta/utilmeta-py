@@ -1,6 +1,7 @@
 from sanic.request import Request
 from .base import RequestAdaptor
 import sanic
+import ipaddress
 
 
 class SanicRequestAdaptor(RequestAdaptor):
@@ -14,7 +15,7 @@ class SanicRequestAdaptor(RequestAdaptor):
 
     @property
     def address(self):
-        return self.request.remote_addr
+        return ipaddress.ip_address(self.request.remote_addr or '127.0.0.1')
 
     @property
     def cookies(self):

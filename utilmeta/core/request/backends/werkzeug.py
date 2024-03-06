@@ -38,6 +38,10 @@ class WerkzeugRequestAdaptor(RequestAdaptor):
     def headers(self):
         return self.request.headers
 
+    @property
+    def cookies(self):
+        return self.request.cookies
+
     def get_form(self):
         form = dict(self.request.form)
         parsed_files = {}

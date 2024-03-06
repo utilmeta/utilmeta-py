@@ -35,6 +35,8 @@ class StarletteResponseAdaptor(ResponseAdaptor):
         for key, val in resp.prepare_headers():
             # set values in this way cause headers is a List[Tuple]
             response.headers[key] = val
+
+        setattr(response, '_utilmeta_response', resp)
         return response
 
     @property
@@ -51,16 +53,15 @@ class StarletteResponseAdaptor(ResponseAdaptor):
 
     @property
     def body(self):
-        return self.response.body
+        # StreamResponse does not have body attribute
+        return getattr(self.response, 'body', b'')
 
     @property
     def cookies(self):
         from http.cookies import SimpleCookie
         cookies = SimpleCookie()
-        for key, value in self.response.raw_headers:
-            if key.lower() == b'set-cookie':
-                # use get_all, cause Set-Cookie can be multiple
-                cookies.load(value)
+        for cookie in self.response.headers.getlist('set-cookie'):
+            cookies.load(cookie)
         return cookies
 
     def close(self):

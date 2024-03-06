@@ -1,10 +1,26 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
     from utilmeta.core.api import API
-from utilmeta.utils import BaseAdaptor, exceptions
+from utilmeta.utils import BaseAdaptor, exceptions, import_obj
 import re
 import inspect
+from utilmeta.core.request import Request
+from utilmeta.core.response import Response
+
+
+class ServiceMiddleware:
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        from utilmeta import service
+        self.service = service
+
+    def process_request(self, request: Request):
+        pass
+
+    def process_response(self, response: Response):
+        pass
 
 
 class ServerAdaptor(BaseAdaptor):
@@ -47,6 +63,7 @@ class ServerAdaptor(BaseAdaptor):
         if self.asynchronous is None:
             config.asynchronous = self.asynchronous = self.default_asynchronous
         self.proxy = None
+        self.middlewares: List[ServiceMiddleware] = []
 
     @property
     def root_pattern(self):
@@ -90,3 +107,16 @@ class ServerAdaptor(BaseAdaptor):
         if not app:
             return False
         return inspect.iscoroutinefunction(app)
+
+    def setup_middlewares(self):
+        raise NotImplementedError
+
+    def add_middleware(self, middleware):
+        if isinstance(middleware, str):
+            middleware = import_obj(middleware)
+        if inspect.isclass(middleware):
+            middleware = middleware()
+        if isinstance(middleware, ServiceMiddleware):
+            self.middlewares.append(middleware)
+        else:
+            raise NotImplementedError(f'middleware of {middleware} no implemented')

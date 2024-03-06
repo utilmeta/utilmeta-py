@@ -131,10 +131,13 @@ class ResponseAdaptor(BaseAdaptor):
     def get_text(self) -> str:
         return self.body.decode(encoding=self.charset or 'utf-8', errors='replace')
 
-    def get_json(self) -> Union[dict, list]:
+    def get_json(self) -> Union[dict, list, None]:
         text = self.get_text()
         import json
-        return json.loads(text, cls=self.json_decoder_cls)
+        try:
+            return json.loads(text, cls=self.json_decoder_cls)
+        except json.decoder.JSONDecodeError:
+            return None
 
     def get_xml(self):
         from xml.etree.ElementTree import XMLParser

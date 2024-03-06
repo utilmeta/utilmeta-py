@@ -222,7 +222,8 @@ class Response:
         self.close()
 
     def close(self):
-        return self.adaptor.close()
+        if self.adaptor:
+            self.adaptor.close()
 
     def parse_content(self):
         if self.result is not None:
@@ -551,8 +552,8 @@ class Response:
 
     @property
     def file(self):
-        if self.adaptor:
-            return self.adaptor.get_file()
+        # if self.adaptor:
+        #     return self.adaptor.get_file()
         return self._file
 
     @file.setter

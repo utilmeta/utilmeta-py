@@ -240,7 +240,10 @@ class UtilMeta:
     def startup(self):
         for cls, config in self.configs.items():
             if isinstance(config, Config):
-                config.on_startup(self)
+                r = config.on_startup(self)
+                if inspect.isawaitable(r):
+                    raise ValueError(f'detect awaitable config setup: {config}, you should use async '
+                                     f'backend such as starlette / sanic / tornado')
         for func in self.events.get('startup', []):
             func()
 

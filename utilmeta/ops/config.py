@@ -1,9 +1,10 @@
 import inspect
+import threading
 
 from utilmeta.conf import Config
 from utilmeta.core.orm.databases.config import Database, DatabaseConnections
 from utype.types import *
-from utilmeta.utils import DEFAULT_SECRET_NAMES, url_join, localhost
+from utilmeta.utils import DEFAULT_SECRET_NAMES, url_join, localhost, cached_property, import_obj
 from typing import Union
 from urllib.parse import urlsplit
 from utilmeta import UtilMeta, __version__
@@ -23,7 +24,8 @@ class Operations(Config):
 
     database = Database
 
-    def __init__(self, route: str,
+    def __init__(self,
+                 route: str,
                  database: Union[str, Database],
                  disabled_scope: List[str] = (),
                  secret_names: List[str] = DEFAULT_SECRET_NAMES,
@@ -31,6 +33,15 @@ class Operations(Config):
                  default_timeout: int = 30,
                  secure_only: bool = True,
                  local_disabled: bool = False,
+                 logger_cls=None,
+                 max_backlog: int = 100,
+                 # will trigger a log save if the log hits this limit
+                 worker_cycle: Union[int, float, timedelta] = timedelta(seconds=30),
+                 # every worker cycle, a worker will do
+                 # - save the logs
+                 # - save the worker monitor
+                 # - the main (with min pid) worker will do the monitor tasks
+                 external_openapi: dict = None,     # openapi paths
                  ):
         super().__init__(**locals())
 
@@ -45,10 +56,24 @@ class Operations(Config):
         self.secure_only = secure_only
         self.local_disabled = local_disabled
 
+        self.worker_cycle = worker_cycle
+        self.max_backlog = max_backlog
+
         if self.HOST not in self.trusted_hosts:
             self.trusted_hosts.append(self.HOST)
 
+        self.logger_cls_string = logger_cls
         self._ready = False
+
+    @cached_property
+    def logger_cls(self):
+        from utilmeta.ops.log import Logger
+        if not self.logger_cls_string:
+            return Logger
+        cls = import_obj(self.logger_cls_string)
+        if not issubclass(cls, Logger):
+            raise TypeError(f'Operations.logger_cls must inherit utilmeta.ops.log.Logger, got {cls}')
+        return cls
 
     @classmethod
     def get_secret_key(cls, service: UtilMeta):
@@ -63,6 +88,11 @@ class Operations(Config):
     def setup(self, service: UtilMeta):
         if self._ready:
             return
+
+        # --- add log middleware
+        service.adaptor.add_middleware(
+            self.logger_cls.middleware_cls(self)
+        )
 
         from utilmeta.core.server.backends.django.settings import DjangoSettings
         django_config = service.get_config(DjangoSettings)
@@ -139,6 +169,10 @@ class Operations(Config):
             return
         print(f'UtilMeta operations API loaded at {ops_api}, '
               f'you can visit https://ops.utilmeta.com to manage your APIs')
+
+        from .log import setup_locals
+        threading.Thread(target=setup_locals, args=(self,)).start()
+        # setup_locals(self)
 
     def get_database_router(self):
         class OperationsDatabaseRouter:
@@ -220,6 +254,8 @@ class Operations(Config):
             # import API after setup
             from .api import OperationsAPI
             service.adaptor.adapt(Operations, route=parsed.path)
+            service.adaptor.setup_middlewares()
+
             if service.module:
                 # ATTRIBUTE FINDER
                 setattr(service.module, 'utilmeta', service)

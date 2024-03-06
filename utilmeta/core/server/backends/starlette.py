@@ -1,12 +1,17 @@
+import inspect
+
 import starlette
-from starlette.requests import Request
+from starlette.requests import Request as StarletteRequest
 from starlette.applications import Starlette
-# from starlette.routing import Route
 from .base import ServerAdaptor
 from utilmeta.core.response import Response
 from utilmeta.core.request.backends.starlette import StarletteRequestAdaptor
 from utilmeta.core.response.backends.starlette import StarletteResponseAdaptor
 from utilmeta.core.api import API
+from utilmeta.core.request import Request
+import contextvars
+
+_current_request = contextvars.ContextVar('_starlette.request')
 
 
 class StarletteServerAdaptor(ServerAdaptor):
@@ -18,6 +23,9 @@ class StarletteServerAdaptor(ServerAdaptor):
     DEFAULT_PORT = 8000
     DEFAULT_HOST = '127.0.0.1'
     HANDLED_METHODS = ["DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
+
+    # REQUEST_ATTR = '_utilmeta_request'
+    RESPONSE_ATTR = '_utilmeta_response'
 
     def __init__(self, config):
         super().__init__(config=config)
@@ -36,6 +44,59 @@ class StarletteServerAdaptor(ServerAdaptor):
             app = WSGIMiddleware(app)
         self.app.mount(route, app)
 
+    # def add_middleware(self):
+    #     self.app.add_middleware()
+
+    def setup_middlewares(self):
+        if self.middlewares:
+            from starlette.middleware.base import BaseHTTPMiddleware
+            self.app.add_middleware(
+                BaseHTTPMiddleware,     # noqa
+                dispatch=self.get_middleware_func()
+            )
+
+    def get_middleware_func(self):
+        async def utilmeta_middleware(starlette_request: StarletteRequest, call_next):
+            response = None
+            starlette_response = None
+            request = Request(self.request_adaptor_cls(starlette_request))
+            for middleware in self.middlewares:
+                request = middleware.process_request(request) or request
+                if inspect.isawaitable(request):
+                    request = await request
+                if isinstance(request, Response):
+                    response = request
+                    break
+
+            if response is None:
+                _current_request.set(request)
+                starlette_response = await call_next(starlette_request)
+                _current_request.set(None)
+                response = getattr(starlette_response, self.RESPONSE_ATTR, None)
+                if not isinstance(response, Response):
+                    response = Response(
+                        response=self.response_adaptor_cls(
+                            starlette_response
+                        ),
+                        request=request
+                    )
+
+            response_updated = False
+            for middleware in self.middlewares:
+                _response = middleware.process_response(response)
+                if inspect.isawaitable(_response):
+                    _response = await _response
+                if isinstance(_response, Response):
+                    response = _response
+                    response_updated = True
+
+            if not starlette_response or response_updated:
+                starlette_response = self.response_adaptor_cls.reconstruct(response)
+
+            return starlette_response
+
+        return utilmeta_middleware
+
     def setup(self):
         # TODO: execute setup plugins
         # self._monkey_patch()
@@ -46,6 +107,8 @@ class StarletteServerAdaptor(ServerAdaptor):
             self.resolve(),
             asynchronous=self.asynchronous,
         )
+
+        self.setup_middlewares()
 
         if self.asynchronous:
             @self.app.on_event('startup')
@@ -85,25 +148,39 @@ class StarletteServerAdaptor(ServerAdaptor):
         # utilmeta_api_class: Type[API]
         if asynchronous:
             # @app.route('%s/{path:path}' % route, methods=cls.HANDLED_METHODS)
-            async def f(request: Request):
+            async def f(request: StarletteRequest):
+                req = None
                 try:
+                    req = _current_request.get(None)
                     path = self.load_route(request.path_params['path'])
+                    if not isinstance(req, Request):
+                        req = self.request_adaptor_cls(request, path)
+                    else:
+                        req.adaptor.route = path
+                        req.adaptor.request = request
                     resp = await utilmeta_api_class(
-                        self.request_adaptor_cls(request, path)
+                        req
                     )()
                 except Exception as e:
-                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
+                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
                 return self.response_adaptor_cls.reconstruct(resp)
         else:
             # @app.route('%s/{path:path}' % route, methods=cls.HANDLED_METHODS)
-            def f(request: Request):
+            def f(request: StarletteRequest):
+                req = None
                 try:
+                    req = _current_request.get(None)
                     path = self.load_route(request.path_params['path'])
+                    if not isinstance(req, Request):
+                        req = self.request_adaptor_cls(request, path)
+                    else:
+                        req.adaptor.route = path
+                        req.adaptor.request = request
                     resp = utilmeta_api_class(
-                        self.request_adaptor_cls(request, path)
+                        req
                     )()
                 except Exception as e:
-                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
+                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
                 return self.response_adaptor_cls.reconstruct(resp)
 
         app.add_route(

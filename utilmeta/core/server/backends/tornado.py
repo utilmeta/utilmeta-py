@@ -1,10 +1,12 @@
 import tornado
 from tornado.web import RequestHandler, Application
 from utilmeta.core.response import Response
+from utilmeta.core.request import Request
 from utilmeta.core.request.backends.tornado import TornadoServerRequestAdaptor
 from .base import ServerAdaptor
 import asyncio
 from utilmeta.core.api import API
+from typing import Optional
 
 
 class TornadoServerAdaptor(ServerAdaptor):
@@ -21,98 +23,138 @@ class TornadoServerAdaptor(ServerAdaptor):
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
-        func = self.get_request_handler(api, asynchronous=asynchronous)
+        func = self.get_request_handler(api, asynchronous=asynchronous, append_slash=True)
         path = f'/{route.strip("/")}/(.*)' if route.strip('/') else '(.*)'
         return path, func
 
-    def get_request_handler(self, utilmeta_api_class, asynchronous: bool = False):
+    def get_request_handler(self, utilmeta_api_class, asynchronous: bool = False, append_slash: bool = False):
         request_adaptor_cls = self.request_adaptor_cls
         service = self
 
+        if append_slash:
+            decorator = tornado.web.addslash
+        else:
+            def decorator(f):
+                return f
+
         if asynchronous:
             class Handler(RequestHandler):
-                @tornado.web.addslash
+                @decorator
                 async def get(self, *args, **kwargs):
                     return await self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 async def put(self, *args, **kwargs):
                     return await self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 async def post(self, *args, **kwargs):
                     return await self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 async def patch(self, *args, **kwargs):
                     return await self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 async def delete(self, *args, **kwargs):
                     return await self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 async def head(self, *args, **kwargs):
                     return await self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 async def options(self, *args, **kwargs):
                     return await self.handle(*args, **kwargs)
 
                 async def handle(self, path: str):
+                    request = None
                     try:
                         path = service.load_route(path)
-                        request = request_adaptor_cls(self.request, path)
-                        response: Response = await utilmeta_api_class(request)()
+                        request = Request(request_adaptor_cls(self.request, path))
+                        response: Optional[Response] = None
+
+                        for middleware in service.middlewares:
+                            request = middleware.process_request(request) or request
+                            if isinstance(request, Response):
+                                response = request
+                                break
+
+                        if response is None:
+                            response: Response = await utilmeta_api_class(request)()
                         if not isinstance(response, Response):
-                            response = Response(response)
+                            response = Response(response=response, request=request)
                     except Exception as e:
-                        response = getattr(utilmeta_api_class, 'response', Response)(error=e)
-                    self.write(response.prepare_body())
+                        response = getattr(utilmeta_api_class, 'response', Response)(error=e, request=request)
+
+                    for middleware in service.middlewares:
+                        _response = middleware.process_response(response)
+                        if isinstance(_response, Response):
+                            response = _response
+
                     self.set_status(response.status, reason=response.reason)
                     for key, value in response.prepare_headers(with_content_type=True):
-                        self.add_header(key, value)
+                        self.set_header(key, value)
+                    self.write(response.prepare_body())
         else:
             class Handler(RequestHandler):
-                @tornado.web.addslash
+                @decorator
                 def get(self, *args, **kwargs):
                     return self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 def put(self, *args, **kwargs):
                     return self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 def post(self, *args, **kwargs):
                     return self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 def patch(self, *args, **kwargs):
                     return self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 def delete(self, *args, **kwargs):
                     return self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 def head(self, *args, **kwargs):
                     return self.handle(*args, **kwargs)
 
-                @tornado.web.addslash
+                @decorator
                 def options(self, *args, **kwargs):
                     return self.handle(*args, **kwargs)
 
                 def handle(self, path: str):
+                    request = None
                     try:
                         path = service.load_route(path)
-                        request = request_adaptor_cls(self.request, path)
-                        response: Response = utilmeta_api_class(request)()
+                        request = Request(request_adaptor_cls(self.request, path))
+                        response: Optional[Response] = None
+
+                        for middleware in service.middlewares:
+                            request = middleware.process_request(request) or request
+                            if isinstance(request, Response):
+                                response = request
+                                break
+
+                        if response is None:
+                            response: Response = utilmeta_api_class(request)()
+                        if not isinstance(response, Response):
+                            response = Response(response=response, request=request)
                     except Exception as e:
-                        response = getattr(utilmeta_api_class, 'response', Response)(error=e)
-                    self.write(response.prepare_body())
+                        response = getattr(utilmeta_api_class, 'response', Response)(error=e, request=request)
+
+                    for middleware in service.middlewares:
+                        _response = middleware.process_response(response) or response
+                        if isinstance(_response, Response):
+                            response = _response
+
                     self.set_status(response.status, reason=response.reason)
                     for key, value in response.prepare_headers(with_content_type=True):
-                        self.add_header(key, value)
+                        self.set_header(key, value)
+                    self.write(response.prepare_body())
 
         return Handler
 

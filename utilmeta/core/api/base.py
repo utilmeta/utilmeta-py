@@ -181,6 +181,14 @@ class API(PluginTarget):
                 # make the annotated key as a property that can access through instance
                 setattr(cls, key, route.make_property())
 
+            # ---------------------------------------------------
+            if inspect.isclass(val) and issubclass(val, Property):
+                # eg: logger: Logger
+                if key not in cls.__dict__:
+                    context = getattr(val, '__context__', None)
+                    if context and isinstance(context, Property):
+                        cls._make_property(key, context)
+
         for key, val in cls.__dict__.items():
             if val in handlers:
                 # already been added

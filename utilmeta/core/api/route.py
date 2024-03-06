@@ -298,6 +298,13 @@ class APIRoute:
         # exit_route(self, exc_type, exc_val, exc_tb)
 
     def __call__(self, api: 'API'):
+        # ---
+        names_var = var.operation_names.setup(api.request)
+        names = names_var.get() or []
+        names.append(self.name)
+        names_var.set(names)
+        # ---
+
         if api.request.is_options:
             if self.is_endpoint:
                 # headers template is dict, while parser.headers can be schema class
@@ -318,6 +325,13 @@ class APIRoute:
 
     @awaitable(__call__)
     async def __call__(self, api: 'API'):
+        # ---
+        names_var = var.operation_names.setup(api.request)
+        names = await names_var.get() or []
+        names.append(self.name)
+        names_var.set(names)
+        # ---
+
         if api.request.is_options:
             if self.is_endpoint:
                 # headers template is dict, while parser.headers can be schema class

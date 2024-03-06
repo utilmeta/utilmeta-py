@@ -6,6 +6,7 @@ from typing import List, Union, Type, Dict
 from utilmeta.utils import awaitable
 import inspect
 from functools import partial
+from contextvars import ContextVar
 
 
 class ParserProperty:
@@ -62,6 +63,18 @@ class Property(Field):
         return self.__instance_cls__(self, field)
 
 
+class ContextProperty(Property):
+    def __init__(self, context_var: ContextVar, **kwargs):
+        self.context_var = context_var
+        super().__init__(**kwargs)
+
+    def getter(self, obj, field: ParserField = None):
+        return self.context_var.get()
+
+    def setter(self, obj, value, field: ParserField = None):
+        self.context_var.set(value)
+
+
 class DuplicateContextProperty(ValueError):
     def __init__(self, msg='', ident: str = None):
         super().__init__(msg)
@@ -88,7 +101,16 @@ class ContextWrapper:
                 # fallback to default
                 prop = self.default_property()
             else:
-                continue
+                prop = None
+                # detect property from type input including Union and Optional
+                for origin in val.input_origins:
+                    context_var = getattr(origin, '__context__', None)
+                    if isinstance(context_var, Property):
+                        prop = context_var
+                        break
+                if not prop:
+                    continue
+
             if prop.__ident__:
                 if prop.__ident__ in ident_props:
                     raise DuplicateContextProperty(ident=prop.__ident__)

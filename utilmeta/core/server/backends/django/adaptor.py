@@ -14,6 +14,7 @@ from utilmeta import UtilMeta
 from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
 from utilmeta.core.request.backends.django import DjangoRequestAdaptor
 from utilmeta.core.response.backends.django import DjangoResponseAdaptor
+from utilmeta.core.request import Request
 from utilmeta.core.api import API
 from utilmeta.utils import Header, localhost, pop
 from utilmeta.core.response import Response
@@ -43,6 +44,9 @@ class DjangoServerAdaptor(ServerAdaptor):
     DEFAULT_PORT = 8000
     DEFAULT_HOST = '127.0.0.1'
 
+    REQUEST_ATTR = '_utilmeta_request'
+    RESPONSE_ATTR = '_utilmeta_response'
+
     def __init__(self, config: UtilMeta):
         super().__init__(config)
         self._ready = False
@@ -60,6 +64,74 @@ class DjangoServerAdaptor(ServerAdaptor):
         )
         # check wsgi application
         self._ready = True
+
+    # def add_middleware(self):
+    #     pass
+
+    def setup_middlewares(self):
+        func = self.middleware_func
+        if not func:
+            return
+
+        from django.conf import settings
+        middlewares = getattr(settings, 'MIDDLEWARE', None) or []
+        if not hasattr(self.settings.module, func.__name__):
+            setattr(self.settings.module, func.__name__, func)
+            middlewares.append(
+                f'{self.settings.module_name}.{func.__name__}'
+            )
+            setattr(settings, 'MIDDLEWARE', middlewares)
+
+    @property
+    def middleware_func(self):
+        if not self.middlewares:
+            return None
+
+        def utilmeta_middleware(get_response):
+            # One-time configuration and initialization.
+
+            def func(django_request):
+                # Code to be executed for each request before
+                # the view (and later middleware) are called.
+                response = None
+                request = Request(self.request_adaptor_cls(django_request))
+                for middleware in self.middlewares:
+                    request = middleware.process_request(request) or request
+                    if isinstance(request, Response):
+                        response = request
+                        break
+
+                if response:
+                    return self.response_adaptor_cls.reconstruct(response)
+
+                setattr(django_request, self.REQUEST_ATTR, request)
+                django_response = get_response(django_request)
+
+                # Code to be executed for each request/response after
+                # the view is called.
+
+                response = getattr(django_response, self.RESPONSE_ATTR, None)
+                if not isinstance(response, Response):
+                    response = Response(
+                        response=self.response_adaptor_cls(django_response),
+                        request=request
+                    )
+
+                response_updated = False
+                for middleware in self.middlewares:
+                    _response = middleware.process_response(response)
+                    if isinstance(_response, Response):
+                        response = _response
+                        response_updated = True
+
+                if response_updated:
+                    django_response = self.response_adaptor_cls.reconstruct(response)
+
+                return django_response
+
+            return func
+
+        return utilmeta_middleware
 
     def check_application(self):
         wsgi_app = self.settings.wsgi_app
@@ -121,21 +193,39 @@ class DjangoServerAdaptor(ServerAdaptor):
 
         if asynchronous:
             async def f(request, route: str = '', *args, **kwargs):
+                req = None
                 try:
-                    req = self.request_adaptor_cls(request, self.load_route(route), *args, **kwargs)
+                    req = getattr(request, self.REQUEST_ATTR, None)
+                    path = self.load_route(route)
+
+                    if not isinstance(req, Request):
+                        req = self.request_adaptor_cls(request, path, *args, **kwargs)
+                    else:
+                        req.adaptor.route = path
+                        req.adaptor.request = request
+
                     root = utilmeta_api_class(req)
                     resp = await root()
                 except Exception as e:
-                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
+                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
                 return self.response_adaptor_cls.reconstruct(resp)
         else:
             def f(request, route: str = '', *args, **kwargs):
+                req = None
                 try:
-                    req = self.request_adaptor_cls(request, self.load_route(route), *args, **kwargs)
+                    req = getattr(request, self.REQUEST_ATTR, None)
+                    path = self.load_route(route)
+
+                    if not isinstance(req, Request):
+                        req = self.request_adaptor_cls(request, path, *args, **kwargs)
+                    else:
+                        req.adaptor.route = path
+                        req.adaptor.request = request
+
                     root = utilmeta_api_class(req)
                     resp = root()
                 except Exception as e:
-                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
+                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
                 return self.response_adaptor_cls.reconstruct(resp)
 
         update_wrapper(f, utilmeta_api_class, updated=())

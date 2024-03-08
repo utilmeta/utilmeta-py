@@ -371,8 +371,8 @@ class Logger(Property):
         request_headers = {}
         response_headers = {}
         if level >= self.STORE_HEADERS_LEVEL:
-            request_headers = self.parse_values(request.headers)
-            response_headers = self.parse_values(response.headers)
+            request_headers = self.parse_values(dict(request.headers))
+            response_headers = self.parse_values(dict(response.headers))
 
         operation_names = var.operation_names.getter(request) or []
         endpoint_ident = '_'.join(operation_names)
@@ -380,13 +380,19 @@ class Logger(Property):
         endpoint = _endpoints_map.get(endpoint_ident) if endpoint_ident else None
         access_token = access_token_var.getter(request)
 
+        try:
+            level_str = LOG_LEVELS[level]
+        except IndexError:
+            level_str = LogLevel.DEBUG
+
         return ServiceLog(
             service=self.service.name,
             instance=_instance,
             version=_version,
+            node_id=getattr(_supervisor, 'node_id', None),
             supervisor=_supervisor,
-            access_token=access_token,
-            level=str(level),
+            access_token_id=getattr(access_token, 'id', None),
+            level=level_str,
             volatile=volatile,
             time=request.time,
             duration=duration,

@@ -96,7 +96,8 @@ class Hook:
 class BeforeHook(Hook):
     hook_type = utils.EndpointAttr.before_hook
     wrapper_cls = RequestContextWrapper
-    parse_params = True
+    # parse_params = False
+    # already pared for request
 
     @classmethod
     def apply_for(cls, func: Callable) -> 'BeforeHook':

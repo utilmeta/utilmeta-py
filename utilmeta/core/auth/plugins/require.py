@@ -45,31 +45,31 @@ class AuthValidatorPlugin(Plugin):
         if self.functions:
             await self.validate_functions(api)
         if self.scopes:
-            await self.validate_scopes(api)
+            self.validate_scopes(api)
 
     def validate_scopes(self, api: 'API'):
-        scopes = self.scopes_var.get(api.request)
+        scopes = self.scopes_var.getter(api.request)
         if not set(scopes or []).issuperset(self.scopes):
             raise exceptions.PermissionDenied(
                 'insufficient scope',
-                scopes=scopes,
-                required_scopes=self.scopes,
+                scope=scopes,
+                required_scope=self.scopes,
                 name=self.name
             )
 
-    @awaitable
-    async def validate_scopes(self, api: 'API'):
-        scopes = await self.scopes_var.get(api.request)
-        if not set(scopes or []).issuperset(self.scopes):
-            raise exceptions.PermissionDenied(
-                'insufficient scope',
-                scopes=scopes,
-                required_scopes=self.scopes,
-                name=self.name
-            )
+    # @awaitable
+    # async def validate_scopes(self, api: 'API'):
+    #     scopes = await self.scopes_var.getter(api.request)
+    #     if not set(scopes or []).issuperset(self.scopes):
+    #         raise exceptions.PermissionDenied(
+    #             'insufficient scope',
+    #             scopes=scopes,
+    #             required_scopes=self.scopes,
+    #             name=self.name
+    #         )
 
     def validate_functions(self, api: 'API'):
-        user = self.user_var.get(api.request)
+        user = self.user_var.getter(api.request)
         if user is None:
             pass
         for func in self.functions:
@@ -83,7 +83,7 @@ class AuthValidatorPlugin(Plugin):
 
     @awaitable(validate_functions)
     async def validate_functions(self, api: 'API'):
-        user = await self.user_var.get(api.request)
+        user = await self.user_var.getter(api.request)
         if user is None:
             pass
         for func in self.functions:

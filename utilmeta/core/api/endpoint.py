@@ -54,6 +54,9 @@ class BaseEndpoint(PluginTarget):
     parser_cls = FunctionParser
     wrapper_cls = RequestContextWrapper
 
+    PARSE_PARAMS = False
+    PARSE_RESULT = True
+
     def __init__(self, f: Callable, *,
                  method: str,
                  plugins: list = None,
@@ -74,8 +77,8 @@ class BaseEndpoint(PluginTarget):
         self.wrapper = self.wrapper_cls(self.parser_cls.apply_for(f))
         self.executor = self.parser.wrap(
             eager_parse=self.eager,
-            parse_params=False,
-            parse_result=True
+            parse_params=self.PARSE_PARAMS,
+            parse_result=self.PARSE_RESULT
         )
 
     def iter_plugins(self):

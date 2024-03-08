@@ -281,10 +281,19 @@ class TestAPIClass:
             ),
             (
                 "get",
+                "@parent/sub/test0",
+                {},
+                None,
+                {},     # test default for before
+                'test0',
+                200,
+            ),
+            (
+                "get",
                 "@parent/sub/test1",
                 {},
                 None,
-                {'X-Test-ID': 3},
+                {'X-Test-ID': '3'},
                 {'test1': 3},
                 200,
             ),
@@ -397,6 +406,14 @@ class TestAPIClass:
                 {"title": "test"},
                 {"X-test-ID": "11"},
                 [11, 3, {"title": "test", "views": 0}],
+                200,
+            ),(
+                "post",
+                "headers_kwargs",
+                {"q": '6'},
+                {"title": "test"},
+                {},     # test default value in request Param
+                ['null', 6, {"title": "test", "views": 0}],
                 200,
             ),
         ]

@@ -4,6 +4,9 @@ from utype.types import *
 from . import __spec_version__
 import utilmeta
 from utilmeta.core.api.specs.openapi import OpenAPISchema
+from .models import ServiceLog, AccessToken
+from utilmeta.core import orm
+from django.db import models
 
 
 class SupervisorBasic(Schema):
@@ -148,3 +151,100 @@ class ResourcesData(utype.Schema):
     url: Optional[str] = None
     resources: List[ResourceData]
     resources_etag: str
+
+
+# ---------------------------------------------------
+
+class WebMixinSchema(utype.Schema):
+    """
+        Log data using http/https schemes
+    """
+    scheme: Optional[str]
+    method: Optional[str]
+    # replace the unit property
+    request_type: Optional[str]
+    response_type: Optional[str]
+    request_headers: Optional[dict]
+    response_headers: Optional[dict]
+
+    user_agent: Optional[dict]
+    status: Optional[int]
+    length: Optional[int]
+    query: Optional[dict]
+    data: Union[dict, list, str, None]
+    result: Union[dict, list, str, None]
+
+    full_url: Optional[str]
+    path = Optional[str]
+
+
+class ServiceLogBase(orm.Schema[ServiceLog]):
+    id: int
+    service: str
+    node_id: Optional[str]
+
+    instance_id: Optional[int]
+    endpoint_id: Optional[int]
+    endpoint_ident: Optional[str]
+
+    level: str
+    time: datetime
+    duration: Optional[int]
+
+    user_id: Optional[str]
+    ip: str
+
+    scheme: Optional[str]
+    method: Optional[str]
+    status: Optional[int]
+    length: Optional[int]
+    path = Optional[str]
+
+
+class ServiceLogSchema(WebMixinSchema, orm.Schema[ServiceLog]):
+    id: int
+    service: str
+    node_id: Optional[str]
+
+    instance_id: Optional[int]
+    endpoint_id: Optional[int]
+    endpoint_remote_id: Optional[str] = orm.Field('endpoint.remote_id')
+    endpoint_ident: Optional[str]
+    endpoint_ref: Optional[str]
+
+    worker_id: Optional[int]
+    worker_pid: Optional[int] = orm.Field('worker.pid')
+    # -----
+
+    level: str
+    time: datetime
+    duration: Optional[int]
+    thread_id: Optional[int]
+    # thread id that handle this request / invoke
+
+    user_id: Optional[str]
+    ip: str
+
+    trace: list
+    messages: list
+
+    access_token_id: Optional[int]
+
+
+class AccessTokenSchema(orm.Schema[AccessToken]):
+    id: int
+
+    issuer_id: int
+    token_id: str
+    issued_at: Optional[datetime]
+    subject: Optional[str]
+    expiry_time: Optional[datetime]
+
+    # ACTIVITY -----------------
+    last_activity: Optional[datetime]
+    used_times: int
+    ip: Optional[str]
+
+    # PERMISSION ---------------
+    scope: list
+    revoked: bool = False

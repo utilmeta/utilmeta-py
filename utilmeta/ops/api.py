@@ -1,7 +1,7 @@
 from utilmeta.core import api, orm, request, response, auth
-from .schema import SupervisorData
+from .schema import SupervisorData, ServiceLogSchema, ServiceLogBase, AccessTokenSchema
 from utilmeta.utils import exceptions
-from .models import Supervisor, AccessToken
+from .models import Supervisor, AccessToken, ServiceLog
 from . import __spec_version__
 from .config import Operations
 from .key import decode_token
@@ -10,6 +10,18 @@ from django.db import models, utils
 from utype.types import *
 from .connect import save_supervisor
 from utilmeta.core.api.specs.openapi import OpenAPI
+
+
+class SupervisorObject(orm.Schema[Supervisor]):
+    id: int
+    service: str
+    node_id: str
+    url: Optional[str] = None
+    public_key: Optional[str] = None
+    ops_api: str
+    ident: str
+    base_url: Optional[str] = None
+    local: bool = False
 
 
 # excludes = var.RequestContextVar('_excludes', cached=True)
@@ -25,14 +37,14 @@ class opsRequire(auth.Require):
     def validate_scopes(self, api_inst: api.API):
         if config.disabled_scope and config.disabled_scope.intersection(self.scopes):
             raise exceptions.PermissionDenied(f'Operation: {self.scopes} denied by config')
-        scopes = self.scopes_var.get(api_inst.request)
+        scopes = self.scopes_var.getter(api_inst.request)
         if '*' in scopes:
             return
         return super().validate_scopes(api_inst)
 
 
 class QueryAPI(api.API):
-    supervisor: Supervisor = supervisor_var
+    supervisor: SupervisorObject = supervisor_var
 
     # scope: data.view:[TABLE_IDENT]
     @opsRequire('data.query')
@@ -53,11 +65,31 @@ class QueryAPI(api.API):
 
 
 class LogAPI(api.API):
-    supervisor: Supervisor = supervisor_var
+    supervisor: SupervisorObject = supervisor_var
 
     @opsRequire('log.view')
-    def get(self):
-        pass
+    def get(self, id: int) -> ServiceLogSchema:
+        try:
+            return ServiceLogSchema.init(id)
+        except orm.EmptyQueryset:
+            raise exceptions.NotFound
+
+    class LogQuery(orm.Query[ServiceLog]):
+        offset: int = orm.Offset()
+        page: int = orm.Page()
+        rows: int = orm.Limit(default=20, le=100, alias_from=['limit'])
+
+    @opsRequire('log.view')
+    @api.get
+    def service(self, query: LogQuery) -> List[ServiceLogBase]:
+        return ServiceLogBase.serialize(
+            query.get_queryset(
+                ServiceLog.objects.filter(
+                    service=self.supervisor.service,
+                    node_id=self.supervisor.node_id
+                ).order_by('-time')
+            )
+        )
 
     @opsRequire('log.delete')
     def delete(self):
@@ -66,11 +98,11 @@ class LogAPI(api.API):
 
 @opsRequire('metrics.view')
 class MetricsAPI(api.API):
-    supervisor: Supervisor = supervisor_var
+    supervisor: SupervisorObject = supervisor_var
 
 
 class TokenAPI(api.API):
-    supervisor: Supervisor = supervisor_var
+    supervisor: SupervisorObject = supervisor_var
 
     def get(self):
         pass
@@ -87,7 +119,7 @@ class TokenAPI(api.API):
         for token_id in set(id_list).difference({exists}):
             AccessToken.objects.create(
                 token_id=token_id,
-                issuer=supervisor_var,
+                issuer_id=self.supervisor.id,
                 expiry_time=self.request.time + timedelta(days=1),
                 revoked=True
             )
@@ -95,12 +127,19 @@ class TokenAPI(api.API):
         if exists:
             AccessToken.objects.filter(
                 token_id__in=id_list,
-                issuer=self.supervisor
+                issuer_id=self.supervisor.id
             ).update(revoked=True)
 
         return len(exists)
 
 
+@api.CORS(
+    allow_origin='*',
+    allow_headers=[
+        'authorization',
+        'x-node-id'
+    ]
+)
 class OperationsAPI(api.API):
     __external__ = True
 
@@ -169,10 +208,13 @@ class OperationsAPI(api.API):
             raise exceptions.BadRequest('Node ID required', state='node_required')
         validated = False
         from utilmeta import service
-        for supervisor in Supervisor.objects.filter(
-            service=service.name,
-            node_id=node_id,
-            disabled=False,
+        for supervisor in SupervisorObject.serialize(
+            Supervisor.objects.filter(
+                service=service.name,
+                node_id=node_id,
+                disabled=False,
+                public_key__isnull=False
+            )
         ):
             data = decode_token(token, public_key=supervisor.public_key)
             if not data:
@@ -200,7 +242,7 @@ class OperationsAPI(api.API):
             scopes = scope.split(' ') if ' ' in scope else scope.split(',')
             scope_names = []
             resources = []
-            for name in scope_names:
+            for name in scopes:
                 if ':' in name:
                     name, resource = name.split(':')
                     resources.append(resource)
@@ -213,10 +255,15 @@ class OperationsAPI(api.API):
             if not token_id:
                 raise exceptions.BadRequest('Invalid token: id required', state='token_expired')
 
-            token_obj: AccessToken = AccessToken.objects.filter(
-                token_id=token_id,
-                issuer=supervisor
-            ).first()
+            try:
+                token_obj = AccessTokenSchema.init(
+                    AccessToken.objects.filter(
+                        token_id=token_id,
+                        issuer_id=supervisor.id
+                    )
+                )
+            except orm.EmptyQueryset:
+                token_obj = None
 
             if token_obj:
                 if token_obj.revoked:
@@ -224,13 +271,13 @@ class OperationsAPI(api.API):
                     # e.g. the subject permissions has changed after the token issued
                     raise exceptions.BadRequest('Invalid token: revoked', state='token_expired')
                 token_obj.last_activity = self.request.time
-                token_obj.used_times = models.F('used_times') + 1
-                token_obj.save(update_fields=['last_activity', 'used_times'])
+                token_obj.used_times += 1
+                token_obj.save()
             else:
                 try:
-                    token_obj = AccessToken.objects.create(
+                    token_obj = AccessTokenSchema(
                         token_id=token_id,
-                        issuer=supervisor,
+                        issuer_id=supervisor.id,
                         issued_at=datetime.fromtimestamp(data.get('iat')),
                         expiry_time=datetime.fromtimestamp(expires),
                         subject=data.get('sub'),
@@ -239,6 +286,7 @@ class OperationsAPI(api.API):
                         ip=str(self.request.ip_address),
                         scope=scopes
                     )
+                    token_obj.save()
                 except utils.IntegrityError:
                     raise exceptions.BadRequest('Invalid token: id duplicated', state='token_expired')
 

@@ -67,7 +67,7 @@ class ParentAPI(api.API):
         return 'world'
 
     @api.before(SubAPI)
-    def assign_var(self, x_test_id: int = request.HeaderParam('X-Test-Id')):
+    def assign_var(self, x_test_id: int = request.HeaderParam('X-Test-Id', default='null')):
         test_var.setter(self.request, x_test_id)
 
 
@@ -245,8 +245,8 @@ class TestAPI(api.API):
         self,
         q: int = request.QueryParam(gt=0),
         data: DataSchema = request.Body,
-        x_test_id: int = request.HeaderParam('X-Test-ID'),
-    ) -> Tuple[int, int, DataSchema]:
+        x_test_id: int = request.HeaderParam('X-Test-ID', default='null'),
+    ) -> Tuple[Union[int, str], int, DataSchema]:
         return x_test_id, q, data
 
     # class FileData(utype.Schema):

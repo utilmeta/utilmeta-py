@@ -37,11 +37,13 @@ class Operations(Config):
                  max_backlog: int = 100,
                  # will trigger a log save if the log hits this limit
                  worker_cycle: Union[int, float, timedelta] = timedelta(seconds=30),
+                 worker_task_cls=None,
                  # every worker cycle, a worker will do
                  # - save the logs
                  # - save the worker monitor
                  # - the main (with min pid) worker will do the monitor tasks
                  external_openapi: dict = None,     # openapi paths
+                 max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
                  ):
         super().__init__(**locals())
 
@@ -56,7 +58,14 @@ class Operations(Config):
         self.secure_only = secure_only
         self.local_disabled = local_disabled
 
+        if isinstance(max_retention_time, timedelta):
+            max_retention_time = max_retention_time.total_seconds()
+        if isinstance(worker_cycle, timedelta):
+            worker_cycle = worker_cycle.total_seconds()
+
+        self.max_retention_time = max_retention_time
         self.worker_cycle = worker_cycle
+        self.worker_task_cls_string = worker_task_cls
         self.max_backlog = max_backlog
 
         if self.HOST not in self.trusted_hosts:
@@ -73,6 +82,17 @@ class Operations(Config):
         cls = import_obj(self.logger_cls_string)
         if not issubclass(cls, Logger):
             raise TypeError(f'Operations.logger_cls must inherit utilmeta.ops.log.Logger, got {cls}')
+        return cls
+
+    @cached_property
+    def worker_task_cls(self):
+        from utilmeta.ops.task import OperationWorkerTask
+        if not self.worker_task_cls_string:
+            return OperationWorkerTask
+        cls = import_obj(self.worker_task_cls_string)
+        if not issubclass(cls, OperationWorkerTask):
+            raise TypeError(f'Operations.worker_task_cls must inherit '
+                            f'utilmeta.ops.task.OperationWorkerTask, got {cls}')
         return cls
 
     @classmethod
@@ -170,8 +190,12 @@ class Operations(Config):
         print(f'UtilMeta operations API loaded at {ops_api}, '
               f'you can visit https://ops.utilmeta.com to manage your APIs')
 
-        from .log import setup_locals
-        threading.Thread(target=setup_locals, args=(self,)).start()
+        # from .log import setup_locals
+        # threading.Thread(target=setup_locals, args=(self,)).start()
+
+        # task
+        task = self.worker_task_cls(self)
+        threading.Thread(target=task.start).start()
         # setup_locals(self)
 
     def get_database_router(self):

@@ -116,6 +116,11 @@ class DjangoServerAdaptor(ServerAdaptor):
                         response=self.response_adaptor_cls(django_response),
                         request=request
                     )
+                else:
+                    if not response.adaptor:
+                        response.adaptor = self.response_adaptor_cls(
+                            django_response
+                        )
 
                 response_updated = False
                 for middleware in self.middlewares:

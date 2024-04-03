@@ -79,7 +79,12 @@ class ParserOrderBy(ParserField):
                     orders.setdefault(self.desc_prefix + name, (order, field, -1))
 
             self.orders = orders
-            self.type = enum_array(list(orders))
+            self.type = enum_array(
+                list(orders),
+                item_type=str,
+                name=f'{self.model.ident}.{self.name}.enum',
+                unique=True
+            )
 
     # def parse_value(self, value, context):
     #     value = super().parse_value(value, context=context)
@@ -91,6 +96,28 @@ class ParserOrderBy(ParserField):
     #                 context.orders.append((o, order, flag))
     #         return orders
     #     return value
+
+    @property
+    def schema_annotations(self):
+        data = dict(self.field.schema_annotations or {})
+        orders = {}
+        for key, order in self.field.orders.items():
+            order: Order
+            field_name = order.field or key
+            name = key
+            if not isinstance(name, str):
+                field = self.model.get_field(field_name, allow_addon=True)
+                name = field_name = field.query_name
+            orders[name] = dict(
+                document=order.document,
+                field=str(field_name),
+                asc=order.asc,
+                desc=order.desc,
+                nulls_first=order.nulls_first,
+                nulls_last=order.nulls_last
+            )
+        data.update(orders=orders)
+        return data
 
 
 class OrderBy(Field):
@@ -133,3 +160,9 @@ class OrderBy(Field):
         self.ignore_invalids = ignore_invalids
         self.ignore_conflicts = ignore_conflicts
         self.single = single
+
+    @property
+    def schema_annotations(self):
+        return {
+            'class': 'order_by',
+        }

@@ -26,6 +26,12 @@ class Filter(Field):
         self.fail_silently = fail_silently
         super().__init__(**kwargs, required=required)
 
+    @property
+    def schema_annotations(self):
+        return {
+            'class': 'filter',
+        }
+
 
 class ParserFilter(ParserField):
     field: 'Filter'
@@ -96,3 +102,10 @@ class ParserFilter(ParserField):
             if self.field.query:
                 return None
         return self.attname
+
+    @property
+    def schema_annotations(self):
+        data = dict(self.field.schema_annotations or {})
+        if self.model_field:
+            data.update(field=self.model_field.query_name)
+        return data

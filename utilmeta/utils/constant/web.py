@@ -169,6 +169,30 @@ class Header(Static):
         return key.replace('-', '_').lower()
 
 
+class TCPStatus(Static):
+    ESTABLISHED = "ESTABLISHED"
+    SYN_SENT = "SYN_SENT"
+    SYN_RECV = "SYN_RECV"
+    FIN_WAIT1 = "FIN_WAIT1"
+    FIN_WAIT2 = "FIN_WAIT2"
+    TIME_WAIT = "TIME_WAIT"
+    CLOSE = "CLOSE"
+    CLOSE_WAIT = "CLOSE_WAIT"
+    LAST_ACK = "LAST_ACK"
+    LISTEN = "LISTEN"
+    CLOSING = "CLOSING"
+    NONE = "NONE"
+
+
+IDLE_TCP_STATUSES = [
+    TCPStatus.CLOSE,
+    TCPStatus.CLOSING,
+    TCPStatus.CLOSE_WAIT,
+    TCPStatus.TIME_WAIT,
+    TCPStatus.FIN_WAIT1,
+    TCPStatus.FIN_WAIT2,
+    TCPStatus.LAST_ACK
+]
 HTTP = Scheme.HTTP + SCHEME
 HTTPS = Scheme.HTTPS + SCHEME
 REQUEST_TYPES = RequestType.gen()

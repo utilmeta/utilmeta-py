@@ -38,7 +38,15 @@ __all__ = [
     'create_only_write',
     'get_recursive_dirs',
     'get_sys_net_connections_info',
+    'get_mac_address',
 ]
+
+import uuid
+
+
+def get_mac_address():
+    h = iter(hex(uuid.getnode())[2:].zfill(12))
+    return ":".join(i + next(h) for i in h)
 
 
 def remove_file(file: str, ignore_not_found: bool = True):
@@ -114,14 +122,22 @@ def get_system_fds():
 
 
 def get_system_open_files():
-    import psutil
-    files = 0
-    for proc in psutil.process_iter():
-        try:
-            files += len(proc.open_files())
-        except psutil.Error:
-            continue
-    return files
+    try:
+        with open('/proc/sys/fs/file-nr') as file_nr:
+            stats = file_nr.read().split()
+            total_fds = int(stats[0]) - int(stats[1])
+            return total_fds
+    except Exception:
+        return None
+        # import psutil
+        # files = 0
+        # for proc in psutil.process_iter(['open_files']):
+        #     try:
+        #         proc.open_files()
+        #         files += len(proc.info['open_files'])
+        #     except psutil.Error:
+        #         continue
+        # return files
 
 
 def get_network_ip(ifname: str):

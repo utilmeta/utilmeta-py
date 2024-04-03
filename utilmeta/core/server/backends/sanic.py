@@ -59,6 +59,11 @@ class SanicServerAdaptor(ServerAdaptor):
                 ),
                 request=Request(self.request_adaptor_cls(sanic_request))
             )
+        else:
+            if not response.adaptor:
+                response.adaptor = self.response_adaptor_cls(
+                    sanic_response
+                )
 
         response_updated = False
         for middleware in self.middlewares:

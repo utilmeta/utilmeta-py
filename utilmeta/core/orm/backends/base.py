@@ -22,6 +22,14 @@ class ModelFieldAdaptor(BaseAdaptor):
         self._model = model
 
     @property
+    def title(self) -> Optional[str]:
+        return None
+
+    @property
+    def description(self) -> Optional[str]:
+        return None
+
+    @property
     def related_model(self) -> Optional['ModelAdaptor']:
         raise NotImplementedError
 

@@ -5,7 +5,7 @@ from .fields.pagination import Page, Limit, Offset
 from .fields.scope import Scope
 from typing import TYPE_CHECKING
 from .context import QueryContext
-# from utilmeta.utils import awaitable
+from utilmeta.utils import multi
 
 
 if TYPE_CHECKING:
@@ -75,6 +75,8 @@ class BaseQuerysetGenerator:
         if isinstance(field, ParserFilter) and field.filterable:
             self.process_filter(field, value=value)
         elif isinstance(field, ParserOrderBy):
+            if not multi(value):
+                value = [value]
             for o in value:
                 if o in field.orders:
                     order, f, flag = field.orders[o]

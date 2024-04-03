@@ -69,6 +69,17 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         else:
             raise TypeError(f'Not concrete field: {self.field} cannot have addon: {repr(self.addon)}')
 
+    @property
+    def title(self) -> Optional[str]:
+        name = self.field.verbose_name
+        if name != self.field.name:
+            return name
+        return None
+
+    @property
+    def description(self) -> Optional[str]:
+        return self.field.help_text or None
+
     @classmethod
     def qualify(cls, obj):
         return isinstance(obj, (models.Field, ForeignObjectRel, exp.BaseExpression, exp.Combinable))

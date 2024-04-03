@@ -80,6 +80,11 @@ class StarletteServerAdaptor(ServerAdaptor):
                         ),
                         request=request
                     )
+                else:
+                    if not response.adaptor:
+                        response.adaptor = self.response_adaptor_cls(
+                            starlette_response
+                        )
 
             response_updated = False
             for middleware in self.middlewares:

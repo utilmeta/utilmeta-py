@@ -1,5 +1,6 @@
 from utype import Field
 from utilmeta.utils import multi
+from typing import Union, List, Dict
 
 
 class Scope(Field):
@@ -33,3 +34,14 @@ class Scope(Field):
         elif multi(value):
             return {v: None for v in value}
         return None
+
+    @property
+    def schema_annotations(self):
+        return {
+            'class': 'scope',
+            'excluded':  self.excluded
+        }
+
+    @property
+    def default_type(self):
+        return Union[List[str], Dict[str, str]]

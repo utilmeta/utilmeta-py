@@ -9,7 +9,7 @@ from utype.parser.func import FunctionParser
 from utype.parser.field import ParserField
 import inspect
 from ..request import Request, var
-from ..request.properties import QueryParam
+from ..request.properties import QueryParam, PathParam
 from ..response import Response
 import utype
 
@@ -54,6 +54,7 @@ class BaseEndpoint(PluginTarget):
     parser_cls = FunctionParser
     wrapper_cls = RequestContextWrapper
 
+    PATH_REGEX = utils.PATH_REGEX
     PARSE_PARAMS = False
     PARSE_RESULT = True
 
@@ -74,7 +75,13 @@ class BaseEndpoint(PluginTarget):
         self.idempotent = idempotent
         self.eager = eager
         self.name = self.__name__ = f.__name__
-        self.wrapper = self.wrapper_cls(self.parser_cls.apply_for(f))
+        self.path_names = self.PATH_REGEX.findall(self.route)
+        self.wrapper = self.wrapper_cls(
+            self.parser_cls.apply_for(f),
+            default_properties={
+                key: PathParam for key in self.path_names
+            }
+        )
         self.executor = self.parser.wrap(
             eager_parse=self.eager,
             parse_params=self.PARSE_PARAMS,

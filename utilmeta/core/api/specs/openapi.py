@@ -70,10 +70,18 @@ class OpenAPIGenerator(JsonSchemaGenerator):
         headers_field = parser.get_field('headers') if parser else None
 
         result_schema = self.generate_for_field(result_field) if result_field else None
-
-        headers_schema = self.generate_for_type(headers_field.type) \
+        headers_schema = self.__class__(headers_field.type, output=True)() \
             if headers_field and headers_field.type != Headers else {}
-        headers = headers_schema.get('properties') or {}
+        # headers is different, doesn't need to generate $ref
+
+        headers_props = headers_schema.get('properties') or {}
+        headers_required = headers_schema.get('required') or []
+        headers = {}
+        for key, val_schema in headers_props.items():
+            headers[key] = {
+                'schema': val_schema,
+                'required': key in headers_required
+            }
 
         content_type = response.content_type
         # todo: headers wrapped
@@ -88,6 +96,13 @@ class OpenAPIGenerator(JsonSchemaGenerator):
                     description='an error message of response',
                 )
                 props[response.message_key] = msg
+            if response.state_key:
+                state = dict(self.generate_for_type(str))
+                state.update(
+                    title='State',
+                    description='action state code of response',
+                )
+                props[response.state_key] = state
             if response.count_key:
                 cnt = dict(self.generate_for_type(int))
                 cnt.update(
@@ -95,13 +110,6 @@ class OpenAPIGenerator(JsonSchemaGenerator):
                     description='a count of the total number of query result',
                 )
                 props[response.count_key] = cnt
-            if response.state_key:
-                state = dict(self.generate_for_type(str))
-                state.update(
-                    title='State',
-                    description='action state code of response',
-                )
-                props[response.count_key] = state
 
             data_schema = {
                 'type': 'object',
@@ -338,6 +346,11 @@ class OpenAPI(BaseAPISpec):
         data = gen.generate_for_response(response)
 
         while name in self.response_names:
+            resp = self.response_names.get(name)
+            resp_data = self.responses.get(resp)
+            if resp_data and str(resp_data) == str(data):
+                # exact data
+                return name
             # de-duplicate name
             name += '_1'
 
@@ -486,6 +499,12 @@ class OpenAPI(BaseAPISpec):
         responses = dict(extra_responses or {})
 
         rt = endpoint.parser.return_type
+        # if isinstance(rt, LogicalType):
+        #     # resolve multiple responses
+        #     if inspect.isclass(rt) and issubclass(rt, Rule):
+        #         pass
+        #
+        # else:
         if inspect.isclass(rt) and issubclass(rt, Response):
             resp = rt
         elif rt is not None:
@@ -515,6 +534,8 @@ class OpenAPI(BaseAPISpec):
             operation.update(parameters=list(params.values()))
         if body and endpoint.method in HAS_BODY_METHODS:
             operation.update(requestBody=body)
+        if endpoint.idempotent is not None:
+            operation.update({'x-idempotent': endpoint.idempotent})
         if endpoint.ref:
             operation.update({'x-ref': endpoint.ref})
         return operation

@@ -13,6 +13,8 @@ class InvalidFileType(UnprocessableEntity):
 
 class File:
     file: BytesIO
+    format = 'binary'
+    # FOR JSON SCHEMA
 
     encoding = property(lambda self: self.file.encoding)
     fileno = property(lambda self: self.file.fileno)

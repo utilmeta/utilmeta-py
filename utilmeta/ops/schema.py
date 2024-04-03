@@ -4,7 +4,8 @@ from utype.types import *
 from . import __spec_version__
 import utilmeta
 from utilmeta.core.api.specs.openapi import OpenAPISchema
-from .models import ServiceLog, AccessToken
+from .models import ServiceLog, AccessToken, Worker, WorkerMonitor, \
+    ServerMonitor, DatabaseMonitor, CacheMonitor, InstanceMonitor
 from utilmeta.core import orm
 from django.db import models
 
@@ -77,6 +78,7 @@ class ServerSchema(ResourceBase):
     ip: str
     # public_ip: Optional[str] = None
     # domain: Optional[str] = None
+    mac: Optional[str] = Field(required=False)
     system: str = Field(required=False)
     platform: dict = Field(default_factory=dict)
 
@@ -155,7 +157,7 @@ class ResourcesData(utype.Schema):
 
 # ---------------------------------------------------
 
-class WebMixinSchema(utype.Schema):
+class WebMixinSchema(orm.Schema):       # not be utype.Schema
     """
         Log data using http/https schemes
     """
@@ -175,7 +177,7 @@ class WebMixinSchema(utype.Schema):
     result: Union[dict, list, str, None]
 
     full_url: Optional[str]
-    path = Optional[str]
+    path: Optional[str]
 
 
 class ServiceLogBase(orm.Schema[ServiceLog]):
@@ -230,6 +232,10 @@ class ServiceLogSchema(WebMixinSchema, orm.Schema[ServiceLog]):
 
     access_token_id: Optional[int]
 
+    in_traffic: int
+    out_traffic: int
+    public: bool
+
 
 class AccessTokenSchema(orm.Schema[AccessToken]):
     id: int
@@ -248,3 +254,102 @@ class AccessTokenSchema(orm.Schema[AccessToken]):
     # PERMISSION ---------------
     scope: list
     revoked: bool = False
+
+
+class SystemMetricsMixin(Schema):
+    used_memory: float
+    cpu_percent: float
+    memory_percent: float
+    disk_percent: float
+    file_descriptors: int
+    active_net_connections: int
+    total_net_connections: int
+    net_connections_info: Dict[str, int]
+    open_files: Optional[int]
+
+    def __init__(self, cpu_percent: float, used_memory: float,
+                 memory_percent: float, disk_percent: float,
+                 net_connections_info: Dict[str, int],
+                 file_descriptors: int, active_net_connections: int,
+                 total_net_connections: int, open_files: Optional[int], **kwargs):
+        super().__init__(locals())
+
+
+class ServiceMetricsMixin(Schema):
+    """
+    request metrics that can simply be calculated in form of incr and divide
+    """
+    in_traffic: Optional[int]
+    out_traffic: Optional[int]
+
+    outbound_requests: int
+    outbound_rps: int
+    outbound_timeouts: int
+    outbound_errors: int
+    outbound_avg_time: float
+
+    queries_num: int
+    query_avg_time: float
+    qps: float
+
+    # requests
+    requests: int
+    rps: float
+    errors: int
+    # error requests made from current service to target instance
+    avg_time: float
+
+
+class WorkerSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Worker]):
+    server_id: int
+    server_remote_id: Optional[str]
+    instance_id: int
+    instance_remote_id: Optional[str]
+
+    pid: int
+    memory_info: dict
+    threads: int
+    start_time: datetime
+
+    master_id: Optional[int]
+    connected: bool
+
+    time: datetime
+
+    status: Optional[str]
+
+
+class WorkerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[WorkerMonitor]):
+    time: datetime
+    interval: Optional[int]
+    worker_id: int
+    memory_info: dict
+    threads: int
+    metrics: dict
+
+
+class ServerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[WorkerMonitor]):
+    time: datetime
+    layer: int
+    interval: Optional[int]
+    server_id: int
+    load_avg_1: Optional[float]
+    load_avg_5: Optional[float]
+    load_avg_15: Optional[float]
+    metrics: dict
+
+
+class InstanceMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[InstanceMonitor]):
+    time: datetime
+    layer: int
+    interval: Optional[int]
+
+    instance_id: int
+    threads: int
+
+    current_workers: int
+    avg_worker_lifetime: Optional[int]
+    new_spawned_workers: int
+    avg_workers: Optional[float]
+
+    metrics: dict

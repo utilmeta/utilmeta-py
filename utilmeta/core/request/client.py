@@ -261,7 +261,7 @@ class ClientRequestAdaptor(RequestAdaptor):
     def content_length(self) -> int:
         length = self.headers.get('content-length')
         if length is not None:
-            return length
+            return int(length or 0)
         if self.body:
             body = self.body
             if isinstance(body, bytes):

@@ -77,6 +77,13 @@ class StarletteRequestAdaptor(RequestAdaptor):
     def headers(self):
         return self.request.headers
 
+    @property
+    def body(self) -> bytes:
+        return async_to_sync(self.async_read)()
+
+    async def async_read(self):
+        return await self.request.body()
+
     def get_form(self):
         return self.process_form(async_to_sync(self.request.form)())
 
@@ -87,13 +94,6 @@ class StarletteRequestAdaptor(RequestAdaptor):
                 value = File(self.file_adaptor_cls(value))
             form.setdefault(key, []).append(value)
         return form
-
-    @property
-    def body(self) -> bytes:
-        return async_to_sync(self.async_read)()
-
-    async def async_read(self):
-        return await self.request.body()
 
     async def async_load(self):
         try:

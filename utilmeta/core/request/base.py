@@ -74,6 +74,20 @@ class Request:
         return self.adaptor.path
 
     @property
+    def traffic(self):
+        traffic = self.adaptor.get_context('traffic')
+        if traffic:
+            return traffic
+        value = 12  # HTTP/1.1 200 OK \r\n
+        value += len(str(self.encoded_path))
+        value += len(str(self.adaptor.request_method))
+        value += self.content_length or 0
+        for key, val in self.headers.items():
+            value += len(str(key)) + len(str(val)) + 4
+        self.adaptor.update_context(traffic=traffic)
+        return value
+
+    @property
     def encoded_path(self) -> str:
         return self.adaptor.encoded_path
 

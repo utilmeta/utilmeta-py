@@ -88,6 +88,9 @@ class Body(Property):
         # if var.data.contains(request):
         #     return var.data.getter(request)
         data = request.data
+        var_data = var.data.setup(request)
+        if not var_data.contains():
+            var_data.set(data)
         self.validate_max_length(request)
         return data
 
@@ -98,7 +101,7 @@ class Body(Property):
         if var_data.contains():
             return await var_data.get()
         data = await request.adaptor.async_load()
-        var_data.set(var_data)
+        var_data.set(data)
         self.validate_max_length(request)
         return data
 

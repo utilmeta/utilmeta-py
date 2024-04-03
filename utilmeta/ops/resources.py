@@ -33,6 +33,8 @@ class ModelGenerator:
             schema = JsonSchemaGenerator(f.rule)()
             data = {k: v for k, v in dict(
                 schema=schema,
+                title=f.title,
+                description=f.description,
                 primary_key=f.is_pk,
                 foreign_key=f.is_fk,
                 readonly=not f.is_writable,
@@ -168,6 +170,8 @@ class ResourcesManager:
 
     @classmethod
     def get_tables(cls) -> List[TableSchema]:
+        # from utilmeta.core.orm.backends.base import ModelAdaptor
+        from utilmeta.core.orm.backends.django import DjangoModelAdaptor
         # todo: support other than django
         from django.apps import apps, AppConfig
         from django.db.models.options import Options
@@ -197,8 +201,9 @@ class ResourcesManager:
                     lb = getattr(base, '_meta').app_label
                     base_id = register_model(base, label=lb)
 
+            adaptor = DjangoModelAdaptor(mod)
             model_name = mod.__name__
-            ident = f'{label}.{model_name}'.lower()
+            ident = adaptor.ident
             generator = ModelGenerator(mod)
             obj = TableSchema(
                 ref=f'{mod.__module__}.{mod.__name__}',
@@ -339,6 +344,27 @@ class ResourcesManager:
                     )
                 )
             else:
+                if resource.type in ('server', 'instance'):
+                    from django.db import models
+                    obj = Resource.objects.filter(
+                        models.Q(node_id__isnull=True) | models.Q(node_id=supervisor.node_id),
+                        service=self.service.name,
+                        type=resource.type,
+                        remote_id=None,
+                        ident=resource.ident,
+                    ).first()
+                    if obj:
+                        updates.append(
+                            Resource(
+                                id=obj.pk,
+                                service=self.service.name,
+                                node_id=supervisor.node_id,
+                                deleted=False,
+                                **resource
+                            )
+                        )
+                        continue
+
                 creates.append(
                     Resource(
                         service=self.service.name,

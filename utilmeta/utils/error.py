@@ -3,6 +3,7 @@ from typing import Type, Dict, Callable, Optional, List
 from . import Attr, SEG, readable
 import sys
 import inspect
+import time
 
 
 class Error:
@@ -26,6 +27,7 @@ class Error:
         self.traceback = ''
         self.variable_info = ''
         self.full_info = ''
+        self.ts = time.time()
 
     def setup(self):
         if self.current_traceback:

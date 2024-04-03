@@ -1,6 +1,6 @@
 from django.db import models
 from utype.types import *
-from utilmeta.utils import time_now
+from utilmeta.utils import time_now, convert_time
 
 
 class Supervisor(models.Model):
@@ -48,8 +48,8 @@ class Supervisor(models.Model):
     # heartbeat_enabled: False
     # report_enabled: true
     # notify_enabled: false
-    # instance_sync_enabled: false
-    # document_sync_enabled: false
+    # users_analytics: false
+    # endpoints_analytics: false
 
     # info = models.JSONField(default=dict)  # store backward compat information
     connected = models.BooleanField(default=False)
@@ -277,6 +277,93 @@ class Worker(SystemMetrics, ServiceMetrics):
             return None
         return cls.objects.filter(pid=pid, server=Resource.get_current_server()).first()
 
+    def get_sys_metrics(self):
+        import psutil
+        try:
+            process = psutil.Process(self.pid)
+        except psutil.Error:
+            return None
+        mem_info = process.memory_full_info()
+
+        try:
+            open_files = len(process.open_files())
+        except psutil.Error:
+            open_files = 0
+
+        return dict(
+            used_memory=getattr(mem_info, 'uss', getattr(mem_info, 'rss')),
+            memory_info={f: getattr(mem_info, f) for f in getattr(mem_info, '_fields')},
+            total_net_connections=len(process.connections()),
+            active_net_connections=len([c for c in process.connections() if c.status != 'CLOSE_WAIT']),
+            file_descriptors=process.num_fds() if psutil.POSIX else None,
+            cpu_percent=process.cpu_percent(interval=1),
+            memory_percent=round(process.memory_percent('uss'), 2),
+            open_files=open_files,
+            threads=process.num_threads(),
+        )
+
+    @classmethod
+    def load(cls, pid: int = None, **kwargs) -> Optional['Worker']:
+        import psutil
+        import os
+        pid = pid or os.getpid()
+        try:
+            proc = psutil.Process(pid)
+        except psutil.Error:
+            return None
+        server = Resource.get_current_server()
+        if not server:
+            return None
+        instance = Resource.get_current_instance()
+        if not instance:
+            return None
+
+        parent_pid = None
+        if proc.parent():
+            parent_pid = proc.parent().pid
+
+        data = dict(
+            start_time=convert_time(datetime.fromtimestamp(proc.create_time())),
+            user=proc.username(),
+            status=proc.status(),
+        )
+
+        data.update(kwargs)
+        master = cls.objects.filter(
+            pid=parent_pid,
+            server=server,
+            instance=instance
+        ).first()
+
+        if master:
+            data.update(master_id=master.pk)    # do not user master=
+
+        # prevent transaction
+        worker_qs = cls.objects.filter(
+            server_id=server.pk,
+            pid=pid,
+        )
+        if worker_qs.exists():
+            # IMPORTANT: update time as soon as Worker.load is triggered
+            # to provide realtime metrics for representative
+            data.update(
+                time=time_now(),
+                connected=True
+            )
+            worker_qs.update(**data)
+            return worker_qs.first()
+
+        from django.db.utils import IntegrityError
+        try:
+            return cls.objects.create(
+                server=server,
+                instance=instance,
+                pid=pid,
+                **data
+            )
+        except IntegrityError:
+            return worker_qs.first()
+
 
 class ServerMonitor(SystemMetrics):
     time = models.DateTimeField(default=time_now)
@@ -339,6 +426,8 @@ class InstanceMonitor(SystemMetrics, ServiceMetrics):
 
 
 class DatabaseMonitor(models.Model):
+    objects = models.Manager()
+
     time = models.DateTimeField(default=time_now)
     layer = models.PositiveSmallIntegerField(default=0)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
@@ -366,6 +455,8 @@ class DatabaseMonitor(models.Model):
 
 
 class CacheMonitor(models.Model):
+    objects = models.Manager()
+
     time = models.DateTimeField(default=time_now)
     layer = models.PositiveSmallIntegerField(default=0)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
@@ -516,15 +607,15 @@ class AlertLog(models.Model):
     type: AlertType = models.ForeignKey(AlertType, on_delete=models.CASCADE, related_name='alert_logs')
     server: Resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE,
-        related_name='server_alert_logs', default=None, null=True
+        related_name='server_alert_logs', default=None, null=True,
     )
     instance: Resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE,
-        related_name='instance_alert_logs', default=None, null=True
+        related_name='instance_alert_logs', default=None, null=True,
     )
     version = models.ForeignKey(
         VersionLog, related_name='alert_logs',
-        on_delete=models.SET_NULL, null=True, default=None
+        on_delete=models.SET_NULL, null=True, default=None,
     )
 
     # impact_requests = models.PositiveBigIntegerField(default=None, null=True)
@@ -596,11 +687,11 @@ class ServiceLog(WebMixin):
 
     version = models.ForeignKey(
         VersionLog, related_name='service_logs',
-        on_delete=models.SET_NULL, null=True, default=None
+        on_delete=models.SET_NULL, null=True, default=None,
     )
     instance = models.ForeignKey(
         Resource, related_name='instance_logs',
-        on_delete=models.SET_NULL, null=True, default=None
+        on_delete=models.SET_NULL, null=True, default=None,
     )
     endpoint = models.ForeignKey(
         Resource, on_delete=models.SET_NULL,
@@ -647,11 +738,11 @@ class ServiceLog(WebMixin):
     # ----------
     supervisor = models.ForeignKey(
         Supervisor, related_name='logs', on_delete=models.SET_NULL,
-        default=None, null=True
+        default=None, null=True,
     )
     access_token = models.ForeignKey(
         AccessToken, related_name='logs', on_delete=models.SET_NULL,
-        default=None, null=True
+        default=None, null=True,
     )
 
     class Meta:
@@ -718,7 +809,10 @@ class QueryLog(models.Model):
     #     VersionLog, related_name='service_logs',
     #     on_delete=models.SET_NULL, null=True, default=None
     # )
-    database = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='query_logs')
+    database = models.ForeignKey(
+        Resource, on_delete=models.CASCADE,
+        related_name='query_logs',
+    )
     query = models.TextField()
     duration = models.PositiveBigIntegerField(default=None, null=True)  # ms
     message = models.TextField(default='')
@@ -742,3 +836,34 @@ class QueryLog(models.Model):
 
     class Meta:
         db_table = 'utilmeta_query_log'
+
+
+class AggregationLog(models.Model):
+    objects = models.Manager()
+
+    service = models.CharField(max_length=100)
+    node_id = models.CharField(max_length=100, default=None, null=True, db_index=True)
+    supervisor = models.ForeignKey(
+        Supervisor, related_name='aggregation_logs', on_delete=models.SET_NULL,
+        default=None, null=True,
+    )
+    data = models.JSONField(default=dict)
+
+    # report the aggregated analytics from log from time span
+    layer = models.PositiveSmallIntegerField(default=0)
+    # 0: hourly
+    # 1: daily
+    # 2: monthly
+
+    from_time = models.DateTimeField()
+    to_time = models.DateTimeField()
+    date = models.DateField(default=None, null=True)
+
+    created_time = models.DateTimeField(auto_now_add=True)
+    reported_time = models.DateTimeField(default=None, null=True)
+    error = models.TextField(default=None, null=True)
+    remote_id = models.CharField(max_length=40, default=None, null=True)
+    # remote id is not None means the report is successful
+
+    class Meta:
+        db_table = 'utilmeta_aggregation_log'

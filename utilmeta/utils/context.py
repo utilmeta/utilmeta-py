@@ -88,7 +88,9 @@ class ContextWrapper:
     context_cls = object
     default_property = None
 
-    def __init__(self, parser: BaseParser, excluded_names: List[str] = None):
+    def __init__(self, parser: BaseParser,
+                 default_properties: dict = None,
+                 excluded_names: List[str] = None):
         properties = {}
         attrs = {}
         ident_props = {}
@@ -97,6 +99,8 @@ class ContextWrapper:
                 continue
             if isinstance(val.field, Property):
                 prop = val.field
+            elif default_properties and key in default_properties:
+                prop = default_properties[key]()
             elif self.default_property:
                 # fallback to default
                 prop = self.default_property()

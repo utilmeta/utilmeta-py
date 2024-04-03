@@ -10,7 +10,7 @@ from utilmeta.utils.error import Error
 import warnings
 
 __all__ = ['omit', 'error_convert', 'handle_retries', 'cached_property',
-           'awaitable', 'async_to_sync',
+           'awaitable', 'async_to_sync', 'adapt_async',
            'handle_parse', 'handle_timeout', 'ignore_errors', 'static_require']
 
 
@@ -233,6 +233,20 @@ def from_coroutine(level=2, _cache={}):
         else:
             _cache[f_code] = False
             return False
+
+
+def adapt_async(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            from utilmeta import service
+        except ImportError:
+            pass
+        else:
+            if service.asynchronous:
+                return service.pool.get_result(func, *args, **kwargs)
+        return func(*args, **kwargs)
+    return wrapper
 
 
 def awaitable(syncfunc, bind_service: bool = False):

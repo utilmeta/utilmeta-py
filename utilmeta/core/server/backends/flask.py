@@ -186,6 +186,11 @@ class FlaskServerAdaptor(ServerAdaptor):
                             ),
                             request=request
                         )
+                    else:
+                        if not response.adaptor:
+                            response.adaptor = self.response_adaptor_cls(
+                                flask_response
+                            )
 
             except Exception as e:
                 error = e

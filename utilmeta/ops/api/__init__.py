@@ -1,136 +1,20 @@
-from utilmeta.core import api, orm, request, response, auth
-from .schema import SupervisorData, ServiceLogSchema, ServiceLogBase, AccessTokenSchema
+from utilmeta.core import api, orm, request
+from ..schema import SupervisorData,  AccessTokenSchema
 from utilmeta.utils import exceptions
-from .models import Supervisor, AccessToken, ServiceLog
-from . import __spec_version__
-from .config import Operations
-from .key import decode_token
+from ..models import Supervisor, AccessToken
+from .. import __spec_version__
+from ..key import decode_token
 from utilmeta.core.request import var
 from django.db import models, utils
 from utype.types import *
-from .connect import save_supervisor
+from ..connect import save_supervisor
 from utilmeta.core.api.specs.openapi import OpenAPI
-
-
-class SupervisorObject(orm.Schema[Supervisor]):
-    id: int
-    service: str
-    node_id: str
-    url: Optional[str] = None
-    public_key: Optional[str] = None
-    ops_api: str
-    ident: str
-    base_url: Optional[str] = None
-    local: bool = False
-
-
-# excludes = var.RequestContextVar('_excludes', cached=True)
-# params = var.RequestContextVar('_params', cached=True)
-supervisor_var = var.RequestContextVar('_ops.supervisor', cached=True)
-access_token_var = var.RequestContextVar('_ops.access_token', cached=True)
-resources_var = var.RequestContextVar('_scopes.resource', cached=True, default=list)
-
-config = Operations.config()
-
-
-class opsRequire(auth.Require):
-    def validate_scopes(self, api_inst: api.API):
-        if config.disabled_scope and config.disabled_scope.intersection(self.scopes):
-            raise exceptions.PermissionDenied(f'Operation: {self.scopes} denied by config')
-        scopes = self.scopes_var.getter(api_inst.request)
-        if '*' in scopes:
-            return
-        return super().validate_scopes(api_inst)
-
-
-class QueryAPI(api.API):
-    supervisor: SupervisorObject = supervisor_var
-
-    # scope: data.view:[TABLE_IDENT]
-    @opsRequire('data.query')
-    def get(self):
-        pass
-
-    @opsRequire('data.create')
-    def post(self):
-        pass
-
-    @opsRequire('data.update')
-    def put(self):
-        pass
-
-    @opsRequire('data.delete')
-    def delete(self):
-        pass
-
-
-class LogAPI(api.API):
-    supervisor: SupervisorObject = supervisor_var
-
-    @opsRequire('log.view')
-    def get(self, id: int) -> ServiceLogSchema:
-        try:
-            return ServiceLogSchema.init(id)
-        except orm.EmptyQueryset:
-            raise exceptions.NotFound
-
-    class LogQuery(orm.Query[ServiceLog]):
-        offset: int = orm.Offset()
-        page: int = orm.Page()
-        rows: int = orm.Limit(default=20, le=100, alias_from=['limit'])
-
-    @opsRequire('log.view')
-    @api.get
-    def service(self, query: LogQuery) -> List[ServiceLogBase]:
-        return ServiceLogBase.serialize(
-            query.get_queryset(
-                ServiceLog.objects.filter(
-                    service=self.supervisor.service,
-                    node_id=self.supervisor.node_id
-                ).order_by('-time')
-            )
-        )
-
-    @opsRequire('log.delete')
-    def delete(self):
-        pass
-
-
-@opsRequire('metrics.view')
-class MetricsAPI(api.API):
-    supervisor: SupervisorObject = supervisor_var
-
-
-class TokenAPI(api.API):
-    supervisor: SupervisorObject = supervisor_var
-
-    def get(self):
-        pass
-
-    @api.post
-    @opsRequire('token.revoke')
-    # this token will be generated and send directly from supervisor
-    def revoke(self, id_list: List[str] = request.Body) -> int:
-        exists = list(AccessToken.objects.filter(
-            token_id__in=id_list,
-            issuer=self.supervisor
-        ).values_list('token_id', flat=True))
-
-        for token_id in set(id_list).difference({exists}):
-            AccessToken.objects.create(
-                token_id=token_id,
-                issuer_id=self.supervisor.id,
-                expiry_time=self.request.time + timedelta(days=1),
-                revoked=True
-            )
-
-        if exists:
-            AccessToken.objects.filter(
-                token_id__in=id_list,
-                issuer_id=self.supervisor.id
-            ).update(revoked=True)
-
-        return len(exists)
+from .query import QueryAPI
+from .log import LogAPI
+from .servers import ServersAPI
+from .token import TokenAPI
+from .utils import opsRequire, WrappedResponse, config, supervisor_var, \
+    SupervisorObject, resources_var, access_token_var
 
 
 @api.CORS(
@@ -138,24 +22,19 @@ class TokenAPI(api.API):
     allow_headers=[
         'authorization',
         'x-node-id'
-    ]
+    ],
+    cors_max_age=3600 * 6
 )
 class OperationsAPI(api.API):
     __external__ = True
 
-    metrics: MetricsAPI
+    servers: ServersAPI
     query: QueryAPI
     log: LogAPI
 
     token: TokenAPI
     openapi: opsRequire('api.view')(OpenAPI.as_api(private=False))
-
-    class response(response.Response):
-        result_key = 'result'
-        message_key = 'msg'
-        state_key = 'state'
-        count_key = 'count'
-
+    response = WrappedResponse
     # @api.get
     # @opsRequire('api.view')
     # def openapi(self):

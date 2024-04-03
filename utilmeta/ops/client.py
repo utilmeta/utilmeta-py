@@ -50,10 +50,19 @@ class SupervisorResourcesResponse(SupervisorResponse):
     result: ResourcesData
 
 
+class ReportResult(utype.Schema):
+    id: str
+    created_records: int = 0
+
+
 class SupervisorNodeResponse(SupervisorResponse):
     name = 'add_node'
     result: Optional[SupervisorData] = None
 
+
+class SupervisorReportResponse(SupervisorResponse):
+    name = 'report'
+    result: ReportResult
 
 # class AddNodeResponse(SupervisorResponse):
 #     name = 'info'
@@ -73,6 +82,15 @@ class SupervisorClient(Client):
 
     @api.get('/')
     def get_info(self) -> Union[SupervisorInfoResponse, SupervisorResponse]: pass
+
+    @api.post('/report')
+    def report_analytics(self, data: dict = request.Body) -> Union[SupervisorReportResponse, SupervisorResponse]:
+        pass
+
+    @api.post('/alert')
+    def alert_incident(self):
+        pass
+
     # @utype.parse
     # def get_supervisors(self) -> List[SupervisorBasic]:
     #     r = self.get('/list')
@@ -98,13 +116,14 @@ class SupervisorClient(Client):
             headers.update({
                 'X-Node-ID': node_id
             })
+            from .models import Supervisor
+            supervisor: Supervisor = Supervisor.objects.filter(
+                node_id=node_id,
+            ).first()
+            if not supervisor:
+                raise ValueError(f'Supervisor for node ID [{node_id}] not exists')
+
             if not node_key:
-                from .models import Supervisor
-                supervisor: Supervisor = Supervisor.objects.filter(
-                    node_id=node_id,
-                ).first()
-                if not supervisor:
-                    raise ValueError(f'Supervisor for node ID [{node_id}] not exists')
                 if supervisor.disabled:
                     raise ValueError('supervisor is disabled')
                 if supervisor.public_key:
@@ -112,6 +131,8 @@ class SupervisorClient(Client):
                 else:
                     if not supervisor.local:
                         pass
+            if not self._base_url:
+                self._base_url = supervisor.base_url
 
         if node_key:
             headers.update({

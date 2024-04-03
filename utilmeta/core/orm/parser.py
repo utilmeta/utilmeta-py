@@ -24,6 +24,13 @@ class QueryClassParser(ClassParser):
     def get_generator(self, values: dict) -> 'BaseQuerysetGenerator':
         return self.model.generator_cls(self, values)
 
+    @property
+    def schema_annotations(self):
+        data = super().schema_annotations or {}
+        if self.model:
+            data.update(model=self.model.ident)
+        return data
+
 
 class SchemaClassParser(ClassParser):
     parser_field_cls = ParserQueryField
@@ -76,3 +83,10 @@ class SchemaClassParser(ClassParser):
             pk = data.get(name)
             if pk is not None:
                 return pk
+
+    @property
+    def schema_annotations(self):
+        data = super().schema_annotations or {}
+        if self.model:
+            data.update(model=self.model.ident)
+        return data

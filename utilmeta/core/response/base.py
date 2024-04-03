@@ -191,6 +191,7 @@ class Response:
 
         self._file = None
         self._error = None
+        self._traffic = None
         self._setup_time = time_now()
 
         if not self.adaptor:
@@ -287,9 +288,13 @@ class Response:
                 result = field.parse_value(result, context=self.__parser__.options.make_context())
 
         if not self.adaptor and self._response_like(result):
-            self.adaptor = ResponseAdaptor.dispatch(result)
-            self.result = None
-            return
+            try:
+                self.adaptor = ResponseAdaptor.dispatch(result)
+                self.result = None
+                return
+            except NotImplementedError:
+                # continue: this is not a response
+                pass
 
         if file_like(result):
             self.init_file(result)
@@ -532,7 +537,10 @@ class Response:
 
     @property
     def content_length(self):
-        return self.headers.get(Header.LENGTH)
+        if self.adaptor:
+            if Header.LENGTH in self.adaptor.headers:
+                return int(self.adaptor.headers.get(Header.LENGTH) or 0)
+        return int(self.headers.get(Header.LENGTH) or 0)
 
     @property
     def count(self):
@@ -671,19 +679,34 @@ class Response:
 
     @property
     def error(self) -> Optional[Error]:
-        if self.success:
-            return None
-        if self._error:
-            return self._error
-        e = exc.HttpError.STATUS_EXCEPTIONS.get(self.status, exc.ServerError)(self.message)
-        return Error(e)
+        return self._error
 
     @error.setter
     def error(self, e):
         self.init_error(e)
 
+    def get_error(self):
+        if self._error:
+            return self._error
+        if self.success:
+            return None
+        e = exc.HttpError.STATUS_EXCEPTIONS.get(self.status, exc.ServerError)(self.message)
+        return Error(e)
+
+    @property
+    def traffic(self):
+        if self._traffic:
+            return self._traffic
+        value = 12      # HTTP/1.1 200 OK
+        value += len(str(self.status)) + len(str(self.reason or 'ok'))
+        value += self.content_length or 0
+        for key, val in self.headers.items():
+            value += len(str(key)) + len(str(val)) + 4
+        self._traffic = value
+        return value
+
     def throw(self):
-        err = self.error
+        err = self.get_error()
         if err:
             raise err.throw()
 

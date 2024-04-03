@@ -298,6 +298,15 @@ class ParserQueryField(ParserField):
             return self.field.field
         return self.attname
 
+    @property
+    def schema_annotations(self):
+        data = dict(self.field.schema_annotations or {})
+        if self.model_field:
+            data.update(field=self.model_field.query_name)
+        if self.related_model:
+            data.update(related_model=self.related_model.ident)
+        return data
+
 
 class QueryField(Field):
     parser_field_cls = ParserQueryField

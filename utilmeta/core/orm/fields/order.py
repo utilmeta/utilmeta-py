@@ -82,7 +82,7 @@ class ParserOrderBy(ParserField):
             self.type = enum_array(
                 list(orders),
                 item_type=str,
-                name=f'{self.model.ident}.{self.name}.enum',
+                # name=f'{self.model.ident}.{self.name}.enum',
                 unique=True
             )
 

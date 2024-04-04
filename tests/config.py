@@ -8,6 +8,8 @@ from utilmeta import conf
 # from django import VERSION as DJANGO_VERSION
 SERVICE_PATH = os.path.join(os.path.dirname(__file__), 'server')
 PARAMETRIZE_CONFIG = False
+CONNECT_TIMEOUT = 3
+CONNECT_INTERVAL = 0.1
 
 
 def setup_service(name, backends: list = (), orm: str = None):
@@ -71,9 +73,9 @@ def make_live(service):
             while True:
                 if s.connect_ex((service.host, service.port)) == 0:
                     break
-                time.sleep(0.1)
+                time.sleep(CONNECT_INTERVAL)
                 cnt += 1
-                if cnt > 3:
+                if cnt > (CONNECT_TIMEOUT / CONNECT_INTERVAL):
                     return
         yield thread
         thread.join(timeout=0)

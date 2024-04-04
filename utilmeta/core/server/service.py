@@ -1,3 +1,4 @@
+import warnings
 from typing import Union, Callable, Type, TypeVar, Optional
 import sys
 import os
@@ -152,12 +153,15 @@ class UtilMeta:
         if application:
             self._application = application
 
-        if not self.adaptor:
-            self.adaptor = ServerAdaptor.dispatch(self)
-            self.port = self.port or self.adaptor.DEFAULT_PORT
+        if self.adaptor:
+            warnings.warn(f'Replacing server backend from [{self.adaptor.backend}] to [{self.backend_name}]')
 
-        if self._application and self.adaptor.application_cls:
-            if not isinstance(self._application, self.adaptor.application_cls):
+        # if not self.adaptor:
+        self.adaptor = ServerAdaptor.dispatch(self)
+        self.port = self.port or self.adaptor.DEFAULT_PORT
+
+        if application and self.adaptor.application_cls:
+            if not isinstance(application, self.adaptor.application_cls):
                 raise ValueError(f'Invalid application for {repr(self.backend_name)}: {application}')
 
     def __repr__(self):

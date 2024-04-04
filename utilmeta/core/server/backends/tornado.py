@@ -18,7 +18,7 @@ class TornadoServerAdaptor(ServerAdaptor):
 
     def __init__(self, config):
         super().__init__(config)
-        self.app = self.config._application
+        self.app = self.config._application if isinstance(self.config._application, self.application_cls) else None
 
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:

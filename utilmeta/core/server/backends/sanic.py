@@ -23,7 +23,8 @@ class SanicServerAdaptor(ServerAdaptor):
 
     def __init__(self, config):
         super().__init__(config)
-        self.app = self.config._application or self.application_cls(self.config.name or self.DEFAULT_NAME)
+        self.app = self.config._application if isinstance(self.config._application, self.application_cls) \
+            else self.application_cls(self.config.name or self.DEFAULT_NAME)
         self._ready = False
 
     def application(self):

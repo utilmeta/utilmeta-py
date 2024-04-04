@@ -42,6 +42,8 @@ class SanicRequestAdaptor(RequestAdaptor):
 
     @property
     def body(self):
+        if 'body' in self.__dict__:
+            return self.__dict__['body']
         return self.request.body
 
     @property

@@ -79,6 +79,8 @@ class StarletteRequestAdaptor(RequestAdaptor):
 
     @property
     def body(self) -> bytes:
+        if 'body' in self.__dict__:
+            return self.__dict__['body']
         return async_to_sync(self.async_read)()
 
     async def async_read(self):

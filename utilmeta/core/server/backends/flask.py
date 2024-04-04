@@ -27,7 +27,8 @@ class FlaskServerAdaptor(ServerAdaptor):
 
     def __init__(self, config):
         super().__init__(config)
-        self.app = self.config._application or self.application_cls(self.config.module_name)
+        self.app = self.config._application if isinstance(self.config._application, self.application_cls) \
+            else self.application_cls(self.config.module_name)
         self._ready = False
 
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):

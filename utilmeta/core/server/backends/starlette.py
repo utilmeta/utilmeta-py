@@ -29,7 +29,8 @@ class StarletteServerAdaptor(ServerAdaptor):
 
     def __init__(self, config):
         super().__init__(config=config)
-        self.app = self.config._application or self.application_cls(debug=not self.config.production)
+        self.app = self.config._application if isinstance(self.config._application, self.application_cls) \
+            else self.application_cls(debug=not self.config.production)
         self._ready = False
 
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):

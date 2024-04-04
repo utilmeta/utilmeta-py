@@ -2,12 +2,13 @@ from tests.config import make_live, setup_service
 from .params import get_requests
 from utilmeta.core.response import Response
 import django
+import pytest
 
 setup_service(__name__)
 
 from server import service
 service.set_backend(django)
-server_thread = make_live(service)
+server_thread = make_live(service, port=8801)
 
 
 def test_django_api(server_thread):

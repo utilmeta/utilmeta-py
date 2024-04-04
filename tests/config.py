@@ -4,7 +4,7 @@ import sys
 import os
 import time
 from utilmeta.utils import multi
-from utilmeta import conf
+from utilmeta import UtilMeta
 # from django import VERSION as DJANGO_VERSION
 SERVICE_PATH = os.path.join(os.path.dirname(__file__), 'server')
 PARAMETRIZE_CONFIG = False
@@ -57,10 +57,14 @@ def setup_service(name, backends: list = (), orm: str = None):
     return service
 
 
-def make_live(service):
+def make_live(service: UtilMeta, port=None):
     @pytest.fixture(scope="session")
     def server_thread():
+        if port:
+            service.port = port
+
         def run_service():
+            service.application()
             service.run()
 
         from threading import Thread

@@ -7,10 +7,10 @@ setup_service(__name__)
 
 from server import service
 service.set_backend(fastapi)
-server_thread = make_live(service)
+server_thread = make_live(service, port=8802)
 
 
-def test_django_api(server_thread):
+def test_fastapi_api(server_thread):
     for method, path, query, body, headers, result, status in get_requests():
         h = dict(headers)
         h.update({

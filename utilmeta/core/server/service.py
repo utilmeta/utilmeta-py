@@ -154,6 +154,10 @@ class UtilMeta:
             self._application = application
 
         if self.adaptor:
+            if self._application and self.adaptor.application_cls:
+                if not isinstance(self._application, self.adaptor.application_cls):
+                    self._application = None
+
             warnings.warn(f'Replacing server backend from [{self.adaptor.backend}] to [{self.backend_name}]')
 
         # if not self.adaptor:

@@ -1,13 +1,13 @@
-from tests.config import make_live, setup_service
-from .params import get_requests
-from utilmeta.core.response import Response
-import flask
-
-setup_service(__name__)
-
-from server import service
-service.set_backend(flask)
-server_thread = make_live(service)
+# from tests.config import make_live, setup_service
+# from .params import get_requests
+# from utilmeta.core.response import Response
+# import flask
+#
+# setup_service(__name__)
+#
+# from server import service
+# service.set_backend(flask)
+# server_thread = make_live(service)
 
 
 # def test_flask_api(server_thread):

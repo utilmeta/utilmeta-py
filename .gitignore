@@ -19,7 +19,9 @@ __pycache__/
 /tests/service/deploy/log/
 *.sqlite3
 db
+db_ops
 /tests/server/db
+/tests/server/db_ops
 */restats
 /.ext
 # .ext/ is used to store pre-developer files that helps development

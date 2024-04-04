@@ -4,10 +4,12 @@ from utilmeta.utils import MetaMethod, CommonMethod, Header, \
     RequestType, cached_property, time_now, gen_key, parse_query_string
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import LOCAL_IP
+from utilmeta.core.file import File
 from ipaddress import ip_address
 from utilmeta.utils.adaptor import BaseAdaptor
 import json
 from collections.abc import Mapping
+import io
 
 
 def get_request_ip(headers: Mapping):
@@ -218,13 +220,7 @@ class RequestAdaptor(BaseAdaptor):
         return parser.close()
 
     def get_file(self):
-        raise NotImplementedError
-        # from utilmeta.utils.media import File
-        # from io import BytesIO
-        # return File(
-        #     file=BytesIO(self.body),
-        #     name=self.gen_file_name(self.content_type)
-        # )
+        return File(io.BytesIO(self.body))
 
     def get_form(self):
         raise NotImplementedError
@@ -292,7 +288,7 @@ class RequestAdaptor(BaseAdaptor):
         except NotImplementedError:
             raise
         except Exception as e:
-            raise exc.UnprocessableEntity(f'process request body failed with error: {e}')
+            raise exc.UnprocessableEntity(f'process request body failed with error: {e}') from e
 
     async def async_read(self):
         raise NotImplementedError

@@ -35,7 +35,7 @@ class Test1Response(response.Response):
 
 class SubAPI(api.API):
     # test context var
-    test_id: int = test_var
+    test_id: Union[int, str] = test_var
 
     @api.get
     def hello(self):
@@ -102,16 +102,16 @@ class TestAPI(api.API):
     # ------------ TEST ROUTE
     @api.get("@special")  # invalid attr name as route
     def special_api(self) -> str:
-        print('PATH:', self.request.path)
-        return self.request.path
+        return self.request.path.split('/')[-1]
 
     @api.post("response")  # slot attr name as route
     def resp(
         self, status: int, error: str = "default"
     ) -> resp_response:
+        print('STATE:', self.common_state_header, repr(self.common_state_header))
         # test response
         return self.resp_response(
-            self.request.path,
+            self.request.path.split('/')[-1],
             state=self.common_state_header,
             status=status,
             message=error,
@@ -119,11 +119,11 @@ class TestAPI(api.API):
 
     @api.get("patch")  # http method as route
     def get_patch(self) -> str:
-        return self.request.path
+        return self.request.path.split('/')[-1]
 
     @api.delete(get_patch)
     def delete_patch(self) -> str:
-        return self.request.path
+        return self.request.path.split('/')[-1]
 
     # --------- TEST PATH
     @api.get("doc/{category}/{page}")
@@ -271,6 +271,7 @@ class TestAPI(api.API):
     def upload(self, data: file.File = request.Body):
         # for i, f in enumerate(data.files):
         #     f.save(f'/tmp/{data.name}-{i}')
+        # print('UPLOAD!!!!', data.size)
         return data.read()
 
 

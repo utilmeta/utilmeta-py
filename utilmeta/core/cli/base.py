@@ -1,4 +1,5 @@
 import inspect
+import io
 
 from utilmeta.utils import PluginEvent, PluginTarget, \
     Error, awaitable, url_join, file_like, classonlymethod, \
@@ -250,41 +251,57 @@ class Client(PluginTarget):
             _cookies.update(SimpleCookie(cookies))
         else:
             _cookies = self._cookies
-        headers = headers or {}
+
+        _headers = Headers({})
+
+        if headers:
+            for key, value in headers.items():
+                if not isinstance(value, (str, bytes)):
+                    if isinstance(value, (dict, list)):
+                        value = json_dumps(value)
+                    else:
+                        value = str(value)
+                _headers[key] = value
+
         if isinstance(_cookies, SimpleCookie) and _cookies:
-            headers.update({
-                'cookie': ';'.join([f'{key}={val.value}' for key, val in _cookies.items() if val.value])
-            })
-        return Headers(headers)
+            _headers['cookie'] = ';'.join([f'{key}={val.value}' for key, val in _cookies.items() if val.value])
+
+        return _headers
 
     def _build_request(self,
                        method: str,
                        path: str = None,
                        query: dict = None,
                        data=None,
-                       form: dict = None,
+                       # form: dict = None,
                        headers: dict = None,
                        cookies=None):
-
-        body = None
-        content_type = None
-        if isinstance(form, dict) and form:
-            if any(file_like(val) for val in form.values()):
-                body = encode_multipart_form(form)
-                content_type = RequestType.FORM_DATA
-            else:
-                body = urlencode(form).encode(self._charset)
-                content_type = RequestType.FORM_URLENCODED
-        elif data:
-            if isinstance(data, (dict, list, tuple)):
-                content_type = RequestType.JSON
-                body = json_dumps(data).encode(self._charset)
-            elif isinstance(data, bytes):
-                body = data
-                content_type = RequestType.OCTET_STREAM
-            else:
-                content_type = RequestType.PLAIN
-                body = str(data).encode(self._charset)
+        # body = None
+        # headers = Headers(headers or {})
+        # content_type = headers.get('content-type')
+        # if isinstance(form, dict) and form:
+        #     if any(file_like(val) for val in form.values()):
+        #         body = encode_multipart_form(form)
+        #         content_type = RequestType.FORM_DATA
+        #     else:
+        #         body = urlencode(form).encode(self._charset)
+        #         content_type = RequestType.FORM_URLENCODED
+        #
+        # elif data:
+        #     if isinstance(data, (dict, list, tuple)):
+        #         if isinstance(data, dict) and any(file_like(val) for val in data.values()):
+        #             body = encode_multipart_form(data)
+        #             content_type = RequestType.FORM_DATA
+        #         else:
+        #             content_type = RequestType.JSON
+        #             body = json_dumps(data).encode(self._charset)
+        #     elif isinstance(data, (bytes, io.BytesIO)):
+        #         body = data
+        #         content_type = RequestType.OCTET_STREAM
+        #     else:
+        #         content_type = RequestType.PLAIN
+        #         body = str(data).encode(self._charset)
+        #
         url = self._build_url(
             path=path,
             query=query
@@ -293,12 +310,12 @@ class Client(PluginTarget):
             headers=headers,
             cookies=cookies
         )
-        if content_type:
-            headers.setdefault('content-type', content_type)
+        # if content_type:
+        #     headers.setdefault('content-type', content_type)
         return self._request_cls(
             method=method,
             url=url,
-            data=body,
+            data=data,
             headers=headers,
             backend=self._backend
         )
@@ -673,7 +690,8 @@ class Client(PluginTarget):
         return response
 
     def request(self, method: str, path: str = None, query: dict = None,
-                data=None, form: dict = None,
+                data=None,
+                # form: dict = None,
                 headers: dict = None, cookies=None, timeout: int = None) -> Response:
 
         request = self._build_request(
@@ -681,7 +699,7 @@ class Client(PluginTarget):
             path=path,
             query=query,
             data=data,
-            form=form,
+            # form=form,
             headers=headers,
             cookies=cookies
         )

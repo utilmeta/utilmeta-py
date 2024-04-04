@@ -56,9 +56,12 @@ service.use(DatabaseConnections({
 }))
 
 from utilmeta.core import api, response
+from tests.test_api.api import TestAPI
 
 
 class RootAPI(api.API):
+    test: TestAPI
+
     class response(response.Response):
         result_key = 'data'
         message_key = 'error'

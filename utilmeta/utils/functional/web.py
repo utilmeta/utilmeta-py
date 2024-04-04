@@ -188,7 +188,8 @@ def encode_multipart_form(form: dict, boundary: str = None) -> Tuple[bytes, str]
     for field, value in form.items():
         key = str(field).encode()
         beg = b"--%s\r\nContent-Disposition: form-data; name=\"%s\"" % (boundary, key)
-        for val in (value if multi(value) else [value]):
+        files = value if multi(value) else [value]
+        for val in files:
             if file_like(val):
                 content = val.read()
                 filename = str(getattr(val, 'name', 'file')).encode()

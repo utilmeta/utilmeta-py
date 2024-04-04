@@ -1,7 +1,9 @@
+import io
+
 from .base import RequestAdaptor
 from django.http.request import HttpRequest
 from django.middleware.csrf import CsrfViewMiddleware, get_token
-from utilmeta.utils import parse_query_dict, cached_property, Header, LOCAL_IP
+from utilmeta.utils import parse_query_dict, cached_property, Header, LOCAL_IP, multi, exceptions
 from ipaddress import ip_address
 from utilmeta.core.file.backends.django import DjangoFileAdaptor
 from utilmeta.core.file.base import File
@@ -42,7 +44,11 @@ class DjangoRequestAdaptor(RequestAdaptor):
     def url(self):
         if hasattr(self.request, 'get_raw_uri'):
             return self.request.get_raw_uri()
-        self.request.build_absolute_uri()
+        return self.request.build_absolute_uri()
+
+    @property
+    def path(self):
+        return self.request.path
 
     @cached_property
     def address(self):
@@ -69,13 +75,23 @@ class DjangoRequestAdaptor(RequestAdaptor):
         self.load_form_data(self.request)
         data = parse_query_dict(self.request.POST)
         parsed_files = {}
-        for key, files in self.request.FILES.items():
-            parsed_files[key] = [File(self.file_adaptor_cls(file)) for file in files]
+        for key in self.request.FILES:
+            files = self.request.FILES.getlist(key)
+            if multi(files):
+                parsed_files[key] = [File(self.file_adaptor_cls(file)) for file in files]
+            else:
+                parsed_files[key] = File(self.file_adaptor_cls(files))
         data.update(parsed_files)
         return data
 
     async def async_load(self):
-        raise NotImplementedError
+        return self.get_content()
+        # try:
+        #     return self.get_content()
+        # except NotImplementedError:
+        #     raise
+        # except Exception as e:
+        #     raise exceptions.UnprocessableEntity(f'process request body failed with error: {e}') from e
 
     async def async_read(self):
         # from django.core.handlers.asgi import ASGIRequest

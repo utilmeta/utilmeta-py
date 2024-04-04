@@ -8,6 +8,7 @@ from utilmeta.utils import Headers, pop, file_like, \
     RequestType, encode_multipart_form, json_dumps, multi,\
     parse_query_string, parse_query_dict
 from collections.abc import Mapping
+from utilmeta.core.file import File
 import mimetypes
 
 
@@ -151,6 +152,7 @@ class ClientRequest:
 
             if isinstance(self.body, io.BytesIO):
                 self._file = self.body
+                self.body = self.body.read()
 
             if self.content_type:
                 if self.content_type.startswith(RequestType.JSON):
@@ -161,6 +163,8 @@ class ClientRequest:
                     if isinstance(qs, io.BytesIO):
                         qs = qs.read()
                     self._form = parse_query_string(qs.decode())
+            else:
+                self.content_type = RequestType.OCTET_STREAM
 
         else:
             if self.content_type:
@@ -311,7 +315,10 @@ class ClientRequestAdaptor(RequestAdaptor):
         return self.request.json
 
     def get_file(self):
-        return self.request.file
+        if isinstance(self.request.file, io.BytesIO):
+            self.request.file.seek(0)
+            return File(self.request.file)
+        return File(io.BytesIO(self.request.body))
 
     @property
     def body(self) -> bytes:

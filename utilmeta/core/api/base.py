@@ -20,6 +20,7 @@ from .endpoint import Endpoint
 from .hook import Hook, ErrorHook, BeforeHook, AfterHook
 from . import decorator
 from utype.utils.compat import is_annotated
+from utype.utils.exceptions import ParseError
 
 setup_class = PluginEvent('setup_class', synchronous_only=True)
 enter_route = PluginEvent('enter_route')
@@ -307,6 +308,8 @@ class API(PluginTarget):
         inst = prop.init(field)
 
         def getter(self: 'API'):
+            if name in self.__dict__:
+                return self.__dict__[name]
             value = inst.get(self.request)
             if unprovided(value):
                 default = field.get_default(cls.__options__, defer=None)
@@ -315,6 +318,13 @@ class API(PluginTarget):
                     return default
                 raise exc.BadRequest(f'{cls.__name__}: '
                                      f'{prop.__class__.__name__}({repr(field.name)}) not provided')
+            try:
+                value = field.parse_value(
+                    value,
+                    context=self.__options__.make_context(cls)
+                )
+            except ParseError as e:
+                raise exc.BadRequest(str(e), detail=e.get_detail()) from e
             self.__dict__[name] = value     # auto-cached
             return value
 
@@ -406,13 +416,25 @@ class API(PluginTarget):
                 setattr(self, key, partial(val, self))
             if isinstance(val, Hook):
                 setattr(self, key, partial(val, self))
-        # set request params for API instance
-        # wrapper: RequestContextWrapper = getattr(self.__class__, '_wrapper', None)
-        # if wrapper:
-        #     kwargs = wrapper.parse_context(request)
-        #     for name, val in kwargs.items():
-        #         setattr(self, name, val)
+
+        self._init_properties()
         setup_instance(self)
+
+    def _init_properties(self):
+        if not self._properties:
+            return
+        context = self.__options__.make_context(cls=__class__)
+        for name, prop in self._properties.items():
+            value = prop.get(self.request)
+            if not unprovided(value):
+                try:
+                    value = prop.field.parse_value(
+                        value,
+                        context=context
+                    )
+                except ParseError as e:
+                    raise exc.BadRequest(str(e), detail=e.get_detail()) from e
+                self.__dict__[name] = value
 
     def _handle_error(self, error: Error, error_hooks: dict):
         hook = error.get_hook(error_hooks, exact=isinstance(error.exception, exc.Redirect))

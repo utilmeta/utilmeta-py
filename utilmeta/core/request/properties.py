@@ -85,8 +85,6 @@ class Body(Property):
 
     def getter(self, request: Request, field: ParserField = None):
         self.validate_content_type(request)
-        # if var.data.contains(request):
-        #     return var.data.getter(request)
         data = request.data
         var_data = var.data.setup(request)
         if not var_data.contains():

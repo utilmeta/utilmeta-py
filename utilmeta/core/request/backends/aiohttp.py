@@ -58,7 +58,7 @@ class AiohttpRequestAdaptor(RequestAdaptor):
         except NotImplementedError:
             raise
         except Exception as e:
-            raise exc.UnprocessableEntity(f'process request body failed with error: {e}')
+            raise exc.UnprocessableEntity(f'process request body failed with error: {e}') from e
 
     async def async_read(self):
         return await self.request.read()

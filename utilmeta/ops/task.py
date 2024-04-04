@@ -8,6 +8,7 @@ from utilmeta.utils import time_now, replace_null, convert_time, Error, normaliz
 import time
 from datetime import timedelta, datetime, timezone
 from django.db import models
+from django.db.utils import OperationalError, ProgrammingError
 from .aggregation import aggregate_logs, aggregate_endpoint_logs
 from typing import Optional
 import random
@@ -77,7 +78,13 @@ class OperationWorkerTask(BaseCycleTask):
         return self.supervisor.node_id if self.supervisor else None
 
     def worker_cycle(self):
-        setup_locals(self.config)
+        try:
+            setup_locals(self.config)
+        except (OperationalError, ProgrammingError):
+            from django.core.management import execute_from_command_line
+            execute_from_command_line(['manage.py', 'migrate', 'ops', f'--database={self.config.db_alias}'])
+            setup_locals(self.config)
+
         # try to set up locals before
         from .log import _server, _worker, _instance, _supervisor
         self.worker = _worker

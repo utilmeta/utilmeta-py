@@ -60,7 +60,7 @@ class TornadoServerRequestAdaptor(RequestAdaptor):
         except NotImplementedError:
             raise
         except Exception as e:
-            raise exc.UnprocessableEntity(f'process request body failed with error: {e}')
+            raise exc.UnprocessableEntity(f'process request body failed with error: {e}') from e
 
     def get_form(self):
         form = dict(self.request.body_arguments)

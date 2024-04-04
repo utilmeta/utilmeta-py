@@ -85,4 +85,4 @@ class SanicRequestAdaptor(RequestAdaptor):
         except NotImplementedError:
             raise
         except Exception as e:
-            raise exceptions.UnprocessableEntity(f'process request body failed with error: {e}')
+            raise exceptions.UnprocessableEntity(f'process request body failed with error: {e}') from e

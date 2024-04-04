@@ -9,7 +9,6 @@ from .config import Operations
 import threading
 import contextvars
 from datetime import timedelta
-import os
 import time
 from functools import wraps
 from django.db import models

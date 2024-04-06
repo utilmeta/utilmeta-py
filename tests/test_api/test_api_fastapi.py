@@ -11,7 +11,11 @@ fastapi_server_thread = make_live_thread(
 
 def test_fastapi_api(service, fastapi_server_process):
     do_live_api_tests(service)
+    service._application = None
+    service.adaptor.app = None
 
 
 def test_fastapi_api_internal(service, fastapi_server_thread):
     do_live_api_tests(service)
+    service._application = None
+    service.adaptor.app = None

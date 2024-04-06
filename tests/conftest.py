@@ -188,7 +188,10 @@ def make_server_thread(backend, port: int = None, **kwargs):
     def server_thread(service: UtilMeta):
         service.set_backend(backend)
         if port:
-            service.port = port
+            if service.asynchronous:
+                service.port = int(f'1{port}')
+            else:
+                service.port = port
         else:
             service.resolve_port()
 

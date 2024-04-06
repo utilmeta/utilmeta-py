@@ -31,15 +31,16 @@ def hello_world():
     return "<p>Hello, flask!</p>"
 
 
-from tests.config import make_live
-server_thread = make_live(service)
+from tests.conftest import make_live_thread
+server_thread = make_live_thread(service, threaded=True)
+
 
 # fixme: flask app must start at the main thread
-# def test_mount_flask(server_thread):
-#     with service.get_client(live=True) as client:
-#         r1 = client.get('v1/hello')
-#         assert r1.status == 200
-#         assert r1.data == "<p>Hello, flask!</p>"
+def test_mount_flask(server_thread):
+    with service.get_client(live=True) as client:
+        r1 = client.get('v1/hello')
+        assert r1.status == 200
+        assert r1.data == "<p>Hello, flask!</p>"
 
 
 if __name__ == '__main__':

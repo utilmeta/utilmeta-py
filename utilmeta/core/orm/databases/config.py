@@ -108,6 +108,11 @@ class Database(Config):
         else:
             if self.sync_adaptor_cls:
                 self.adaptor = self.sync_adaptor_cls(self, alias)
+            else:
+                # default
+                from ..backends.django.database import DjangoDatabaseAdaptor
+                self.adaptor = DjangoDatabaseAdaptor(self, alias)
+
         if not self.adaptor:
             raise exceptions.NotConfigured('Database adaptor not implemented')
         self.asynchronous = asynchronous

@@ -85,13 +85,12 @@ class DjangoRequestAdaptor(RequestAdaptor):
         return data
 
     async def async_load(self):
-        return self.get_content()
-        # try:
-        #     return self.get_content()
-        # except NotImplementedError:
-        #     raise
-        # except Exception as e:
-        #     raise exceptions.UnprocessableEntity(f'process request body failed with error: {e}') from e
+        try:
+            return self.get_content()
+        except NotImplementedError:
+            raise
+        except Exception as e:
+            raise exceptions.UnprocessableEntity(f'process request body failed with error: {e}') from e
 
     async def async_read(self):
         # from django.core.handlers.asgi import ASGIRequest

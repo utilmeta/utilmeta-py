@@ -110,9 +110,12 @@ class Operations(Config):
             return
 
         # --- add log middleware
-        service.adaptor.add_middleware(
-            self.logger_cls.middleware_cls(self)
-        )
+        if service.adaptor:
+            service.adaptor.add_middleware(
+                self.logger_cls.middleware_cls(self)
+            )
+        else:
+            raise NotImplementedError('Operations setup error: service backend not specified')
 
         from utilmeta.core.server.backends.django.settings import DjangoSettings
         django_config = service.get_config(DjangoSettings)
@@ -276,9 +279,12 @@ class Operations(Config):
             service.use(self)
             service.setup()
             # import API after setup
-            from .api import OperationsAPI
-            service.adaptor.adapt(Operations, route=parsed.path)
-            service.adaptor.setup_middlewares()
+            if service.adaptor:
+                from .api import OperationsAPI
+                service.adaptor.adapt(Operations, route=parsed.path)
+                service.adaptor.setup_middlewares()
+            else:
+                raise NotImplementedError('Operations integrate error: service backend not specified')
 
             if service.module:
                 # ATTRIBUTE FINDER

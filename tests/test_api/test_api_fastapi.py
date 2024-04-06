@@ -1,34 +1,17 @@
-from tests.config import make_live, setup_service
-from .params import get_requests
-from utilmeta.core.response import Response
-import fastapi
+from tests.conftest import make_live_process, setup_service, make_live_thread
+from .params import do_live_api_tests
 
-setup_service(__name__)
+setup_service(__name__, backend='fastapi')
+fastapi_server_process = make_live_process(backend='fastapi', port=8002)
+fastapi_server_thread = make_live_thread(
+    backend='fastapi',
+    port=8082
+)
 
-from server import service
-service.set_backend(fastapi)
-server_thread = make_live(service, port=8802)
+
+def test_fastapi_api(service, fastapi_server_process):
+    do_live_api_tests(service)
 
 
-def test_fastapi_api(server_thread):
-    for method, path, query, body, headers, result, status in get_requests():
-        h = dict(headers)
-        h.update({
-            'X-Common-State': 1
-        })
-
-        resp = service.get_client(live=True).request(
-            method=method,
-            path=f'test/{path}',
-            query=query,
-            data=body,
-            headers=h
-        )
-        assert isinstance(resp, Response), f'invalid response: {resp}'
-        content = resp.data
-        assert resp.status == status, f"{method} {path} failed with {content}, {status} expected, got {resp.status}"
-        if result is not ...:
-            if callable(result):
-                result(content)
-            else:
-                assert content == result, f"{method} {path} failed with {content}"
+def test_fastapi_api_internal(service, fastapi_server_thread):
+    do_live_api_tests(service)

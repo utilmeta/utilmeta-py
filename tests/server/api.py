@@ -152,10 +152,6 @@ class TestAPI(api.API):
     ) -> Dict[str, int]:
         return {cls_name: page}
 
-    @api.get('/{path}')
-    def fallback(self, path: str = request.FilePathParam):
-        return path
-
     # ----- TEST BODY
     @api.post
     def upload(self, f: file.File = request.Body):
@@ -273,6 +269,18 @@ class TestAPI(api.API):
         #     f.save(f'/tmp/{data.name}-{i}')
         # print('UPLOAD!!!!', data.size)
         return data.read()
+
+    @api.get
+    def backend(self):
+        try:
+            from utilmeta import service
+            return service.backend_name
+        except ImportError:
+            return None
+
+    @api.get('/{path}')
+    def fallback(self, path: str = request.FilePathParam):
+        return path
 
 
 class UserAPI(api.API):

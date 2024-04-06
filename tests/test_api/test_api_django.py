@@ -1,35 +1,23 @@
-from tests.config import make_live, setup_service
-from .params import get_requests
-from utilmeta.core.response import Response
-import django
-import pytest
-
-setup_service(__name__)
-
-from server import service
-service.set_backend(django)
-server_thread = make_live(service, port=8801)
+from tests.conftest import setup_service, make_live_process, make_server_thread
+from .params import do_live_api_tests
 
 
-def test_django_api(server_thread):
-    for method, path, query, body, headers, result, status in get_requests():
-        h = dict(headers)
-        h.update({
-            'X-Common-State': 1
-        })
+setup_service(__name__, backend='django')
+django_server_process = make_live_process(
+    backend='django',
+    port=8001
+)
+django_server_thread = make_server_thread(
+    backend='django',
+    port=8081
+)
 
-        resp = service.get_client(live=True).request(
-            method=method,
-            path=f'test/{path}',
-            query=query,
-            data=body,
-            headers=h
-        )
-        assert isinstance(resp, Response), f'invalid response: {resp}'
-        content = resp.data
-        assert resp.status == status, f"{method} {path} failed with {content}, {status} expected, got {resp.status}"
-        if result is not ...:
-            if callable(result):
-                result(content)
-            else:
-                assert content == result, f"{method} {path} failed with {content}"
+
+def test_django_api(service, django_server_process):
+    do_live_api_tests(service)
+
+
+def test_django_api_internal(service, django_server_thread):
+    if service.asynchronous:
+        return
+    do_live_api_tests(service)

@@ -255,68 +255,68 @@ class DjangoServerAdaptor(ServerAdaptor):
     def run(self):
         self.setup()
         self.check_application()
-        if not self.background:
-            self.config.startup()
-            if self.asynchronous:
-                try:
-                    from daphne.server import Server
-                except ModuleNotFoundError:
-                    pass
-                else:
-                    print('using [daphne] as asgi server')
-                    try:
-                        Server(
-                            application=self.application(),
-                            endpoints=[self.daphne_endpoint],
-                            server_name=self.config.name,
-                        ).run()
-                    finally:
-                        self.config.shutdown()
-                    return
+        if self.background:
+            return
 
-                try:
-                    import uvicorn
-                except ModuleNotFoundError:
-                    pass
-                else:
-                    print('using [uvicorn] as asgi server')
-                    try:
-                        uvicorn.run(
-                            self.application(),
-                            host=self.config.host or self.DEFAULT_HOST,
-                            port=self.config.port or self.DEFAULT_PORT,
-                        )
-                    finally:
-                        self.config.shutdown()
-                        return
-
-            if self.config.production:
-                server = 'asgi (like uvicorn/daphne)' if self.asynchronous else 'wsgi (like uwsgi/gunicorn)'
-                raise ValueError(f'django in production cannot use service.run(), please use an {server} server')
+        self.config.startup()
+        if self.asynchronous:
+            try:
+                from daphne.server import Server
+            except ModuleNotFoundError:
+                pass
             else:
-                if self.asynchronous:
-                    raise ValueError(f'django debug runserver does not support asgi, please use an asgi server')
+                print('using [daphne] as asgi server')
                 try:
-                    self.runserver()
+                    Server(
+                        application=self.application(),
+                        endpoints=[self.daphne_endpoint],
+                        server_name=self.config.name,
+                    ).run()
+                finally:
+                    self.config.shutdown()
+                return
+
+            try:
+                import uvicorn
+            except ModuleNotFoundError:
+                pass
+            else:
+                print('using [uvicorn] as asgi server')
+                try:
+                    uvicorn.run(
+                        self.application(),
+                        host=self.config.host or self.DEFAULT_HOST,
+                        port=self.config.port,
+                    )
                 finally:
                     self.config.shutdown()
                     return
+
+        if self.config.production:
+            server = 'asgi (like uvicorn/daphne)' if self.asynchronous else 'wsgi (like uwsgi/gunicorn)'
+            raise ValueError(f'django in production cannot use service.run(), please use an {server} server')
         else:
-            pass
+            if self.asynchronous:
+                raise ValueError(f'django debug runserver does not support asgi, please use an asgi server')
+            try:
+                print('DJANGO RUNSERVER')
+                self.runserver()
+            finally:
+                self.config.shutdown()
+                return
 
     @property
     def location(self):
-        return f'{self.config.host or self.DEFAULT_HOST}:{self.config.port or self.DEFAULT_PORT}'
+        return f'{self.config.host or self.DEFAULT_HOST}:{self.config.port}'
 
     @property
     def daphne_endpoint(self):
-        return f"tcp:{self.config.port or self.DEFAULT_PORT}:interface={self.config.host or self.DEFAULT_HOST}"
+        return f"tcp:{self.config.port}:interface={self.config.host or self.DEFAULT_HOST}"
 
     def runserver(self):
         # debug server
-        argv = [sys.argv[0], 'runserver', self.location] if len(sys.argv) == 1 else sys.argv
-        if 'runserver' in argv:
-            if not self.config.auto_reload:
-                argv.append('--noreload')
-
+        argv = [sys.argv[0], 'runserver', self.location]  # if len(sys.argv) == 1 else sys.argv
+        # if 'runserver' in argv:
+        if not self.config.auto_reload:
+            argv.append('--noreload')
         execute_from_command_line(argv)

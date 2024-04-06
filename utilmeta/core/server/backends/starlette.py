@@ -208,6 +208,6 @@ class StarletteServerAdaptor(ServerAdaptor):
             uvicorn.run(
                 self.app,
                 host=self.config.host or self.DEFAULT_HOST,
-                port=self.config.port or self.DEFAULT_PORT,
+                port=self.config.port,
                 **kwargs
             )

@@ -12,7 +12,7 @@ class TornadoFileAdaptor(FileAdaptor):
 
     @property
     def size(self):
-        return None
+        return len(self.file.body)
 
     @property
     def content_type(self):

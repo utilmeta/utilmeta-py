@@ -1,7 +1,7 @@
 import pytest
-from tests.config import setup_service
+from tests.conftest import setup_service
 
-setup_service(__name__)
+setup_service(__name__, async_param=False)
 
 
 class TestSchemaQuery:

@@ -7,6 +7,7 @@ import re
 import inspect
 from utilmeta.core.request import Request
 from utilmeta.core.response import Response
+import socket
 
 
 class ServiceMiddleware:

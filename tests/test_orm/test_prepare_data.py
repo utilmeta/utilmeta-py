@@ -1,4 +1,4 @@
-from tests.config import setup_service
+from tests.conftest import setup_service
 #
 setup_service(__name__)
 

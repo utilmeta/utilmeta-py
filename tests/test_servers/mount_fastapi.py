@@ -28,8 +28,8 @@ service = UtilMeta(
     api=RootAPI
 )
 
-from tests.config import make_live
-server_thread = make_live(service)
+from tests.conftest import make_live_thread
+server_thread = make_live_thread(service)
 
 # fixme: Invalid HTTP request received
 # def test_fastapi(server_thread):

@@ -94,7 +94,7 @@ class TestAPIClass:
                     pass
 
     def test_api_features(self):
-        from .api import TestAPI
+        from api import TestAPI
         # from service.api import RootAPI
 
         for method, path, query, body, headers, result, status in get_requests():

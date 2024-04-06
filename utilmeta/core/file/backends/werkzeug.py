@@ -11,7 +11,12 @@ class WerkzeugFileAdaptor(FileAdaptor):
 
     @property
     def size(self):
-        return self.file.content_length
+        length = self.file.content_length
+        if length:
+            return length
+        size = len(self.file.stream.read())
+        self.file.stream.seek(0)
+        return size
 
     @property
     def content_type(self):

@@ -1,10 +1,10 @@
-from django.core.files.uploadedfile import UploadedFile
 from utilmeta.core.file.backends.django import DjangoFileAdaptor  # noqa
 from io import BytesIO
+from utilmeta.core.response import Response
 
 
 # image = UploadedFile(BytesIO(b"image"), content_type="image/png", size=6)
-def get_requests():
+def get_requests(backend: str = None):
     image = BytesIO(b"image")
     # files = [
     #     UploadedFile(BytesIO(b"f1"), content_type="image/png", size=2),
@@ -18,6 +18,7 @@ def get_requests():
     ]
 
     return [
+        ('get', 'backend', {}, None, {}, backend, 200),
         # (method, path, query, data, headers, result, status)
         ("get", "@special", {}, None, {}, "@special", 200),
         (
@@ -261,3 +262,26 @@ def get_requests():
             200,
         ),
     ]
+
+
+def do_live_api_tests(service):
+    for method, path, query, body, headers, result, status in get_requests(service.backend_name):
+        h = dict(headers)
+        h.update({
+            'X-Common-State': 1
+        })
+        resp = service.get_client(live=True).request(
+            method=method,
+            path=f'test/{path}',
+            query=query,
+            data=body,
+            headers=h
+        )
+        assert isinstance(resp, Response), f'invalid response: {resp}'
+        content = resp.data
+        assert resp.status == status, f"{method} {path} failed with {content}, {status} expected, got {resp.status}"
+        if result is not ...:
+            if callable(result):
+                result(content)
+            else:
+                assert content == result, f"{method} {path} failed with {repr(content)}, {repr(result)} expected"

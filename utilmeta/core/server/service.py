@@ -109,6 +109,26 @@ class UtilMeta:
 
         self._pool = None
 
+    def set_asynchronous(self, asynchronous: bool):
+        if asynchronous is None:
+            return
+        if asynchronous == self.asynchronous:
+            return
+        self.asynchronous = asynchronous
+        if self.adaptor:
+            self.adaptor.asynchronous = asynchronous
+        from utilmeta.core.orm.databases.config import DatabaseConnections
+        from utilmeta.core.cache.config import CacheConnections
+        dbs = self.get_config(DatabaseConnections)
+        if dbs:
+            for alias, database in dbs.databases.items():
+                database.apply(alias, asynchronous)
+        caches = self.get_config(CacheConnections)
+        if caches:
+            for alias, cache in caches.caches.items():
+                cache.apply(alias, asynchronous)
+        # fixme: other config that dependent on asynchronous
+
     def set_backend(self, backend):
         if not backend:
             return
@@ -162,7 +182,7 @@ class UtilMeta:
 
         # if not self.adaptor:
         self.adaptor = ServerAdaptor.dispatch(self)
-        self.port = self.port or self.adaptor.DEFAULT_PORT
+        # self.port = self.port or self.adaptor.DEFAULT_PORT
 
         if application and self.adaptor.application_cls:
             if not isinstance(application, self.adaptor.application_cls):
@@ -225,9 +245,9 @@ class UtilMeta:
                 return config
         return None
 
-    def get_client(self, live: bool = False, backend=None):
+    def get_client(self, live: bool = False, backend=None, **kwargs):
         from utilmeta.core.cli.base import Client
-        return Client(service=self, internal=not live, backend=backend)
+        return Client(service=self, internal=not live, backend=backend, **kwargs)
 
     def setup(self):
         if self._ready:
@@ -348,9 +368,29 @@ class UtilMeta:
         print(BLUE % '|', '   base url:', f'{self.base_url}')
         print('')
 
+    def resolve_port(self):
+        print('PID:', os.getpid())
+        if self.port:
+            return
+
+        import socket
+        if self.adaptor and self.adaptor.DEFAULT_PORT:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                if s.connect_ex((self.host, self.adaptor.DEFAULT_PORT)) != 0:
+                    self.port = self.adaptor.DEFAULT_PORT
+                    return
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            addr = s.getsockname()
+            port = addr[1]
+            self.port = port
+            return
+
     def run(self, **kwargs):
         if not self.adaptor:
             raise NotImplementedError('UtilMeta: service backend not specified')
+        self.resolve_port()
         self.print_info()
         self.setup()
         return self.adaptor.run(**kwargs)
@@ -368,7 +408,7 @@ class UtilMeta:
         if self._origin:
             return self._origin
         host = self.host or '127.0.0.1'
-        port = self.port
+        port = self.port or (self.adaptor.DEFAULT_PORT if self.adaptor else None)
         if port == 80 and self.scheme == 'http':
             port = None
         elif port == 443 and self.scheme == 'https':

@@ -108,7 +108,7 @@ from django.core.servers.basehttp import (
 from django.test.testcases import QuietWSGIRequestHandler  # noqa
 # from asgiref.server import StatelessServer
 # server = StatelessServer()
-from daphne.server import Server
+# from daphne.server import Server
 from typing import Optional
 
 
@@ -271,9 +271,8 @@ def run_server(backend: str = None, port: int = None, asynchronous: bool = None)
     if asynchronous:
         service.set_asynchronous(asynchronous)
 
-    from utilmeta.utils.schema.z_cov import cov
-    cov()
-
+    # from utilmeta.utils.schema.z_cov import cov
+    # cov()
     # with open('./log', 'a') as f:
     #     f.write(f'=========================== SERVER RUN: {backend}, {port}, {asynchronous}\n')
 

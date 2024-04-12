@@ -12,6 +12,8 @@ from utilmeta.core.request import Request
 import contextvars
 
 _current_request = contextvars.ContextVar('_starlette.request')
+# _current_response = contextvars.ContextVar('_starlette.response')
+# starlette 's response may cross the context, so that cannot be picked
 
 
 class StarletteServerAdaptor(ServerAdaptor):
@@ -23,9 +25,6 @@ class StarletteServerAdaptor(ServerAdaptor):
     DEFAULT_PORT = 8000
     DEFAULT_HOST = '127.0.0.1'
     HANDLED_METHODS = ["DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
-
-    # REQUEST_ATTR = '_utilmeta_request'
-    RESPONSE_ATTR = '_utilmeta_response'
 
     def __init__(self, config):
         super().__init__(config=config)
@@ -73,7 +72,9 @@ class StarletteServerAdaptor(ServerAdaptor):
                 _current_request.set(request)
                 starlette_response = await call_next(starlette_request)
                 _current_request.set(None)
-                response = getattr(starlette_response, self.RESPONSE_ATTR, None)
+                response = request.adaptor.get_context('response')
+                # response = _current_response.get(None)
+                # _current_response.set(None)
                 if not isinstance(response, Response):
                     response = Response(
                         response=self.response_adaptor_cls(
@@ -160,7 +161,7 @@ class StarletteServerAdaptor(ServerAdaptor):
                     req = _current_request.get(None)
                     path = self.load_route(request.path_params['path'])
                     if not isinstance(req, Request):
-                        req = self.request_adaptor_cls(request, path)
+                        req = Request(self.request_adaptor_cls(request, path))
                     else:
                         req.adaptor.route = path
                         req.adaptor.request = request
@@ -169,6 +170,8 @@ class StarletteServerAdaptor(ServerAdaptor):
                     )()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                if req:
+                    req.adaptor.update_context(response=resp)
                 return self.response_adaptor_cls.reconstruct(resp)
         else:
             # @app.route('%s/{path:path}' % route, methods=cls.HANDLED_METHODS)
@@ -178,7 +181,7 @@ class StarletteServerAdaptor(ServerAdaptor):
                     req = _current_request.get(None)
                     path = self.load_route(request.path_params['path'])
                     if not isinstance(req, Request):
-                        req = self.request_adaptor_cls(request, path)
+                        req = Request(self.request_adaptor_cls(request, path))
                     else:
                         req.adaptor.route = path
                         req.adaptor.request = request
@@ -187,6 +190,8 @@ class StarletteServerAdaptor(ServerAdaptor):
                     )()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                if req:
+                    req.adaptor.update_context(response=resp)
                 return self.response_adaptor_cls.reconstruct(resp)
 
         app.add_route(

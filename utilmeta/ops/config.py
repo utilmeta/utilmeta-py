@@ -198,7 +198,10 @@ class Operations(Config):
 
         # task
         task = self.worker_task_cls(self)
-        threading.Thread(target=task.start).start()
+        thread = threading.Thread(target=task.start)
+        thread.setDaemon(True)
+        # todo: protect resources of daemon thread
+        thread.start()
         # setup_locals(self)
 
     def get_database_router(self):

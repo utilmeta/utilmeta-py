@@ -55,22 +55,6 @@ class ClientEndpoint(BaseEndpoint):
         )
         self.client = client
         self.path_args = self.PATH_REGEX.findall(self.route)
-        self.response_types: List[Type[Response]] = self.parse_responses(self.parser.return_type)
-
-    @classmethod
-    def parse_responses(cls, return_type):
-        def is_response(r):
-            return inspect.isclass(r) and issubclass(r, Response)
-
-        if is_response(return_type):
-            return [return_type]
-        elif isinstance(return_type, LogicalType):
-            values = []
-            for origin in return_type.resolve_origins():
-                if is_response(origin):
-                    values.append(origin)
-            return values
-        return []
 
     @property
     def ref(self) -> str:

@@ -35,8 +35,6 @@ class StarletteResponseAdaptor(ResponseAdaptor):
         for key, val in resp.prepare_headers():
             # set values in this way cause headers is a List[Tuple]
             response.headers[key] = val
-
-        setattr(response, '_utilmeta_response', resp)
         return response
 
     @property

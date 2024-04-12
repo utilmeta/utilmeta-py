@@ -433,6 +433,9 @@ class API(PluginTarget):
                         context=context
                     )
                 except ParseError as e:
+                    if self.request.is_options:
+                        # ignore parse error for OPTIONS request
+                        continue
                     raise exc.BadRequest(str(e), detail=e.get_detail()) from e
                 self.__dict__[name] = value
 
@@ -447,7 +450,7 @@ class API(PluginTarget):
             # if nothing return, it implies that follow the api default error flow
             if result is None:
                 raise error.throw()
-        return process_response(self, result)
+        return result
 
     @awaitable(_handle_error)
     async def _handle_error(self, error: Error, error_hooks: dict):
@@ -461,7 +464,7 @@ class API(PluginTarget):
             # if nothing return, it implies that follow the api default error flow
             if result is None:
                 raise error.throw()
-        return await process_response(self, result)
+        return result
 
     def _resolve(self) -> APIRoute:
         method_routes: Dict[str, APIRoute] = {}
@@ -501,14 +504,16 @@ class API(PluginTarget):
             with self._resolve() as route:
                 error_hooks = route.error_hooks
                 result = route(self)
-                if isinstance(result, Response):
-                    result.request = self.request
-                elif Response.is_cls(getattr(self.__class__, 'response', None)):
-                    result = self.response(result, request=self.request)
-                response = process_response(self, result)
         except Exception as e:
-            response = self._handle_error(Error(e), error_hooks)
-        return response
+            result = self._handle_error(Error(e), error_hooks)
+
+        if isinstance(result, Response):
+            if not result.request:
+                result.request = self.request
+        elif Response.is_cls(getattr(self.__class__, 'response', None)):
+            result = self.response(result, request=self.request)
+
+        return process_response(self, result)
 
     @awaitable(__call__)
     async def __call__(self):
@@ -518,14 +523,14 @@ class API(PluginTarget):
             with self._resolve() as route:
                 error_hooks = route.error_hooks
                 result = await route(self)
-                if isinstance(result, Response):
-                    result.request = self.request
-                elif Response.is_cls(getattr(self.__class__, 'response', None)):
-                    result = self.response(result, request=self.request)
-                response = await process_response(self, result)
         except Exception as e:
-            response = await self._handle_error(Error(e), error_hooks)
-        return response
+            result = await self._handle_error(Error(e), error_hooks)
+        if isinstance(result, Response):
+            if not result.request:
+                result.request = self.request
+        elif Response.is_cls(getattr(self.__class__, 'response', None)):
+            result = self.response(result, request=self.request)
+        return await process_response(self, result)
 
     def options(self):
         return Response(headers={

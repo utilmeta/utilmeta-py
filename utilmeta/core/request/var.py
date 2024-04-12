@@ -53,11 +53,11 @@ class RequestContextVar(Property):
     def contains(self, request: 'Request'):
         return request.adaptor.in_context(self.key)
 
-    def getter(self, request: 'Request', field=None):
-        r = unprovided
+    def getter(self, request: 'Request', field=None, default=unprovided):
+        r = default
         if self.contains(request):
             r = request.adaptor.get_context(self.key)
-        else:
+        elif unprovided(r):
             if callable(self.factory):
                 r = self.factory(request)
             if unprovided(r):
@@ -65,16 +65,16 @@ class RequestContextVar(Property):
                     r = self.default()
                 else:
                     r = self.default
-        if self.cached:
+        if self.cached and not unprovided(r):
             self.setter(request, r)
         return r
 
     @awaitable(getter)
-    async def getter(self, request: 'Request', field=None):
-        r = unprovided
+    async def getter(self, request: 'Request', field=None, default=unprovided):
+        r = default
         if self.contains(request):
             r = request.adaptor.get_context(self.key)
-        else:
+        elif unprovided(r):
             if callable(self.factory):
                 r = self.factory(request)
                 if inspect.isawaitable(r):
@@ -88,7 +88,7 @@ class RequestContextVar(Property):
                     r = self.default
             # else:
             #     raise KeyError(f'context: {repr(self.key)} missing')
-        if self.cached:
+        if self.cached and not unprovided(r):
             self.setter(request, r)
         return r
 

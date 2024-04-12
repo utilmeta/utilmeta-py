@@ -20,6 +20,10 @@ from utilmeta.utils import Header, localhost, pop
 from utilmeta.core.response import Response
 from utilmeta.core.server.backends.base import ServerAdaptor
 from .settings import DjangoSettings
+import contextvars
+
+_current_request = contextvars.ContextVar('_django.request')
+_current_response = contextvars.ContextVar('_django.response')
 
 
 class DebugCookieMiddleware(MiddlewareMixin):
@@ -43,9 +47,6 @@ class DjangoServerAdaptor(ServerAdaptor):
     URLPATTERNS = 'urlpatterns'
     DEFAULT_PORT = 8000
     DEFAULT_HOST = '127.0.0.1'
-
-    REQUEST_ATTR = '_utilmeta_request'
-    RESPONSE_ATTR = '_utilmeta_response'
 
     def __init__(self, config: UtilMeta):
         super().__init__(config)
@@ -104,13 +105,15 @@ class DjangoServerAdaptor(ServerAdaptor):
                 if response:
                     return self.response_adaptor_cls.reconstruct(response)
 
-                setattr(django_request, self.REQUEST_ATTR, request)
+                _current_request.set(django_request)
                 django_response = get_response(django_request)
+                _current_request.set(None)
 
                 # Code to be executed for each request/response after
                 # the view is called.
 
-                response = getattr(django_response, self.RESPONSE_ATTR, None)
+                response = _current_response.get(None)
+                _current_response.set(None)
                 if not isinstance(response, Response):
                     response = Response(
                         response=self.response_adaptor_cls(django_response),
@@ -200,7 +203,7 @@ class DjangoServerAdaptor(ServerAdaptor):
             async def f(request, route: str = '', *args, **kwargs):
                 req = None
                 try:
-                    req = getattr(request, self.REQUEST_ATTR, None)
+                    req = _current_request.get(None)
                     path = self.load_route(route)
 
                     if not isinstance(req, Request):
@@ -213,12 +216,13 @@ class DjangoServerAdaptor(ServerAdaptor):
                     resp = await root()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
         else:
             def f(request, route: str = '', *args, **kwargs):
                 req = None
                 try:
-                    req = getattr(request, self.REQUEST_ATTR, None)
+                    req = _current_request.get(None)
                     path = self.load_route(route)
 
                     if not isinstance(req, Request):
@@ -231,6 +235,7 @@ class DjangoServerAdaptor(ServerAdaptor):
                     resp = root()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
 
         update_wrapper(f, utilmeta_api_class, updated=())

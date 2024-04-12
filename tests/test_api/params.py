@@ -151,6 +151,15 @@ def get_requests(backend: str = None):
             {'resp': 5},
             200,
         ),
+        (
+            "get",
+            "@parent/error",
+            {"msg": "test_message"},
+            None,
+            {},
+            {'test': 'test_message', 'message': ''},
+            200,
+        ),
         # ----------------------
         (
             "post",

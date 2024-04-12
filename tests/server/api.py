@@ -1,7 +1,7 @@
 from utilmeta.core import api, response, request, file
 from utype.types import *
 import utype
-from utilmeta.utils import exceptions
+from utilmeta.utils import exceptions, Error
 
 test_var = request.var.RequestContextVar('test-id', cached=True)
 
@@ -69,6 +69,15 @@ class ParentAPI(api.API):
     @api.before(SubAPI)
     def assign_var(self, x_test_id: int = request.HeaderParam('X-Test-Id', default='null')):
         test_var.setter(self.request, x_test_id)
+
+    @api.get
+    def error(self, msg: str):
+        raise exceptions.UpgradeRequired(msg)
+
+    @api.handle(error, exceptions.UpgradeRequired)
+    def handle_error_1(self, e: Error):
+        # test error hook: use the API's response
+        return e.exception.message
 
 
 @api.route('the/api')
@@ -210,7 +219,7 @@ class TestAPI(api.API):
         # print('UPDATE:', image, image.size, image.read())
         # print(test_cookie)
         return {
-            'image': image.read(),
+            'image': image.read().decode(),
             'cookie': test_cookie,
             'name': name,
             'desc': desc,

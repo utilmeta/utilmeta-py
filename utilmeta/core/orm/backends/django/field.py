@@ -32,10 +32,6 @@ def to_many(field):
 
 
 def to_one(field):
-    """
-    This kind of field is mutable in Module side, because the modify can only be done from the certain One
-    (OneRel | Fk)
-    """
     return isinstance(field, (models.OneToOneField, models.OneToOneRel, models.ManyToOneRel))
 
 
@@ -54,6 +50,10 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
 
         super().__init__(field, addon, model, lookup_name)
         self.validate_addon()
+
+    @property
+    def multi_relations(self):
+        return self.lookup_name and '__' in self.lookup_name
 
     def validate_addon(self):
         if not self.addon:

@@ -155,6 +155,10 @@ class ModelFieldAdaptor(BaseAdaptor):
     def is_combined(self):
         raise NotImplementedError
 
+    @property
+    def multi_relations(self):
+        raise NotImplementedError
+
     @classmethod
     def get_exp_field(cls, exp) -> Optional[str]:
         raise NotImplementedError

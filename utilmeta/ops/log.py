@@ -537,7 +537,7 @@ class Logger(Property):
             self.commit_error(response.error)
 
         method = str(request.adaptor.request_method).lower()
-        user_id = var.user_id.getter(request)
+        user_id = var.user_id.getter(request, default=None)
         query = self.parse_values(request.query or {})
         data = None
         result = None

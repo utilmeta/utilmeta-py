@@ -21,7 +21,6 @@ class WerkzeugResponseAdaptor(ResponseAdaptor):
             headers=resp.prepare_headers(),
             content_type=resp.content_type,
         )
-        setattr(response, '_utilmeta_response', resp)
         return response
 
     @classmethod

@@ -32,8 +32,6 @@ class DjangoResponseAdaptor(ResponseAdaptor):
             response = FileResponse(resp.file, **kwargs)
         else:
             response = HttpResponse(resp.body, **kwargs)
-
-        setattr(response, '_utilmeta_response', resp)
         return response
 
     @property

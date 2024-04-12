@@ -4,7 +4,7 @@ from utilmeta.core import request as req
 from .parser import SchemaClassParser, QueryClassParser
 # from .generator import BaseQuerysetGenerator
 # from .backends.base import ModelAdaptor
-from . import exceptions
+from utilmeta.core.orm import exceptions
 
 T = TypeVar('T')
 

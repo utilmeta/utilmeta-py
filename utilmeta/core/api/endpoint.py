@@ -1,12 +1,13 @@
 from utilmeta import utils
 from utilmeta.utils import exceptions as exc
-from typing import Callable, Union, Type, TYPE_CHECKING
+from typing import Callable, Union, Type, List, TYPE_CHECKING
 from utilmeta.utils.plugin import PluginTarget, PluginEvent
 from utilmeta.utils.error import Error
 from utilmeta.utils.context import ContextWrapper, Property
 from utype.parser.base import BaseParser
 from utype.parser.func import FunctionParser
 from utype.parser.field import ParserField
+from utype.parser.rule import LogicalType
 import inspect
 from ..request import Request, var
 from ..request.properties import QueryParam, PathParam
@@ -56,7 +57,10 @@ class BaseEndpoint(PluginTarget):
 
     PATH_REGEX = utils.PATH_REGEX
     PARSE_PARAMS = False
-    PARSE_RESULT = True
+    # params is already parsed by the request parser
+    PARSE_RESULT = False
+    # result will be parsed in the end of endpoint.serve
+    STRICT_RESULT = False
 
     def __init__(self, f: Callable, *,
                  method: str,
@@ -87,6 +91,22 @@ class BaseEndpoint(PluginTarget):
             parse_params=self.PARSE_PARAMS,
             parse_result=self.PARSE_RESULT
         )
+        self.response_types: List[Type[Response]] = self.parse_responses(self.parser.return_type)
+
+    @classmethod
+    def parse_responses(cls, return_type):
+        def is_response(r):
+            return inspect.isclass(r) and issubclass(r, Response)
+
+        if is_response(return_type):
+            return [return_type]
+        elif isinstance(return_type, LogicalType):
+            values = []
+            for origin in return_type.resolve_origins():
+                if is_response(origin):
+                    values.append(origin)
+            return values
+        return []
 
     def iter_plugins(self):
         for cls, plugin in self._plugins.items():
@@ -271,11 +291,26 @@ class Endpoint(BaseEndpoint):
             return f'{self.module_name}.{self.f.__name__}'
         return self.f.__name__
 
+    def make_response(self, response, request, error=None):
+        if not self.response_types:
+            return response
+        if isinstance(response, Response):
+            return response
+        for i, resp_type in enumerate(self.response_types):
+            try:
+                return resp_type(response, request=request, error=error, strict=self.STRICT_RESULT)
+            except Exception as e:
+                if i == len(self.response_types) - 1:
+                    raise e
+                continue
+        return response
+
     def serve(self, api: 'API'):
         # ---
         var.endpoint_ref.setter(api.request, self.ref)
         # ---
         retry_index = 0
+        err = None
         while True:
             try:
                 api.request.adaptor.update_context(
@@ -307,7 +342,7 @@ class Endpoint(BaseEndpoint):
                     break
             retry_index += 1
         exit_endpoint(self, api)
-        return response
+        return self.make_response(response, request=api.request, error=err)
 
     @utils.awaitable(serve)
     async def serve(self, api: 'API'):
@@ -315,6 +350,7 @@ class Endpoint(BaseEndpoint):
         var.endpoint_ref.setter(api.request, self.ref)
         # ---
         retry_index = 0
+        err = None
         while True:
             try:
                 api.request.adaptor.update_context(
@@ -346,7 +382,7 @@ class Endpoint(BaseEndpoint):
                     break
             retry_index += 1
         await exit_endpoint(self, api)
-        return response
+        return self.make_response(response, request=api.request, error=err)
 
     def parse_request(self, request: Request):
         try:

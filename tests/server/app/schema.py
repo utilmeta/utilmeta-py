@@ -8,7 +8,7 @@ import sys
 
 
 __all__ = ["UserSchema", "ArticleSchema", "CommentSchema",
-           "ContentSchema", 'UserBase', 'UserQuery', 'ArticleQuery']
+           "ContentSchema", 'UserBase', 'UserQuery', 'ArticleQuery', 'ArticleBase', 'ContentBase']
 
 
 class UserBase(orm.Schema[User]):
@@ -125,6 +125,18 @@ class ArticleSchema(ContentSchema[Article]):
         return article_schema
 
 
+class ArticleBase(orm.Schema[Article]):
+    id: int
+    title: str
+    slug: str
+
+
+class ContentBase(orm.Schema[BaseContent]):
+    id: int
+    content: str
+    article: Optional[ArticleBase]
+
+
 class UserSchema(UserBase):
     @classmethod
     def get_top_articles(cls, *pks):
@@ -155,6 +167,9 @@ class UserSchema(UserBase):
     )
     articles_num: int = orm.Field(exp.Count("contents", filter=exp.Q(contents__type="article")))
     combined_num: int = orm.Field(exp.Count("contents") * exp.Count("followers"))
+
+    articles: List[ArticleBase] = orm.Field('contents__article')
+    # test multi+fk
 
     # @property
     # def total_views(self) -> int:

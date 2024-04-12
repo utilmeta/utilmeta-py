@@ -299,6 +299,23 @@ class ParserQueryField(ParserField):
         return self.attname
 
     @property
+    def is_sub_relation(self):
+        # relate to a sub model, which is identical to the primary key of the queried pks
+        # eg.
+        # class Content(Model):
+        #    pass
+        # class Article(Content):
+        #    pass
+        # content.article is a sub relation
+        if self.related_model:
+            if issubclass(self.related_model.model, self.model.model):
+                if not self.model_field.multi_relations and \
+                        self.model_field.remote_field and \
+                        self.model_field.remote_field.is_pk:
+                    return True
+        return False
+
+    @property
     def schema_annotations(self):
         data = dict(self.field.schema_annotations or {})
         if self.model_field:

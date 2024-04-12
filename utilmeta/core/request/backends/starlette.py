@@ -91,11 +91,17 @@ class StarletteRequestAdaptor(RequestAdaptor):
 
     def process_form(self, data: FormData):
         form = {}
+        result = {}
         for key, value in data.multi_items():
             if isinstance(value, UploadFile):
                 value = File(self.file_adaptor_cls(value))
             form.setdefault(key, []).append(value)
-        return form
+        for key, val in form.items():
+            if len(val) == 1:
+                result[key] = val[0]
+            else:
+                result[key] = val
+        return result
 
     async def async_load(self):
         try:

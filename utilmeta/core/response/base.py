@@ -1,4 +1,5 @@
 import inspect
+import io
 import json
 from http.cookies import SimpleCookie
 from utilmeta.core.request import Request
@@ -370,6 +371,7 @@ class Response:
             # must convert to list iterable
             # this data is guarantee that not file_like
             data = list(data)
+        # self._data = data
         if data is None or data == '':
             data = b''
         self._content = data
@@ -394,18 +396,20 @@ class Response:
 
     @property
     def data(self):
-        if self._data:
-            return self._data
-        data = self.body
-        if not data:
+        if not self._content:
             return None
         if self.content_type:
             if self.content_type.startswith(JSON):
-                data = json.loads(data)
-            elif self.content_type.startswith('text/'):
-                data = data.decode(errors='ignore')
-        self._data = data
-        return data
+                if self._data:
+                    return self._data
+                self._data = json.loads(self.dump_json())
+                return self._data
+        if isinstance(self._content, io.BytesIO):
+            self._content.seek(0)
+            data = self._content.read()
+            self._content.seek(0)
+            return data
+        return self._content
 
     # @classmethod
     # def get_data(cls, resp: 'Response'):

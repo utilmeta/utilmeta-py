@@ -269,8 +269,23 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     # many related field / common values
                     # like author__followers / author__followers__join_date
                     # we need to serialize its value first
-                    if field.model_field.remote_field and field.model_field.remote_field.is_pk:
+
+                    if field.is_sub_relation:
                         pk_map = {str(pk): pk for pk in pk_list}
+
+                    elif field.model_field.is_2o:
+                        f, c = field.model_field.reverse_lookup
+                        m = field.model_field.related_model
+                        # use reverse query due to the unfixed issue on the async backend
+                        # also prevent redundant "None" over the non-exist fk
+
+                        if m and f:
+                            for val in m.get_queryset(
+                                    **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
+                                rel = val['__target']
+                                if rel is not None:
+                                    pk_map.setdefault(rel, []).append(val[c or PK])
+
                     else:
                         _args = []
                         _kw = {}
@@ -483,21 +498,23 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                             pk_map[str(pk)] = await self.normalize_pk_list(rel_qs)
 
                 else:
-                    if field.model_field.is_2o:
-                        # fixme: also no many-relates included in the reverse relations
-                        # many to one
-                        if field.model_field.remote_field and field.model_field.remote_field.is_pk:
-                            pk_map = {str(pk): pk for pk in pk_list}
-                        else:
-                            f, c = field.model_field.reverse_lookup
-                            m = field.model_field.related_model
-                            # use reverse query due to the unfixed issue on the async backend
-                            if m and f:
-                                async for val in m.get_queryset(
-                                        **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
-                                    rel = val['__target']
-                                    if rel is not None:
-                                        pk_map.setdefault(rel, []).append(val[c or PK])
+                    if field.is_sub_relation:
+                        # fixme: async backend may not fetch pk along with one-to-rel
+
+                        pk_map = {str(pk): pk for pk in pk_list}
+
+                    elif field.model_field.is_2o:
+                        f, c = field.model_field.reverse_lookup
+                        m = field.model_field.related_model
+                        # use reverse query due to the unfixed issue on the async backend
+                        # also prevent redundant "None" over the non-exist fk
+                        if m and f:
+                            async for val in m.get_queryset(
+                                    **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
+                                rel = val['__target']
+                                if rel is not None:
+                                    pk_map.setdefault(rel, []).append(val[c or PK])
+
                     else:
                         _args = []
                         _kw = {}

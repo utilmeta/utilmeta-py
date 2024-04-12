@@ -250,6 +250,8 @@ class ResourcesManager:
         from utilmeta.utils import get_ip
         from utilmeta.core.orm.databases.config import DatabaseConnections
         db_config = self.service.get_config(DatabaseConnections)
+        if not db_config:
+            return []
         databases = []
         for alias, db in db_config.databases.items():
             databases.append(
@@ -271,9 +273,11 @@ class ResourcesManager:
         from utilmeta.utils import get_ip
         from utilmeta.core.cache.config import CacheConnections
         cache_config = self.service.get_config(CacheConnections)
-        databases = []
+        if not cache_config:
+            return []
+        caches = []
         for alias, cache in cache_config.caches.items():
-            databases.append(
+            caches.append(
                 CacheSchema(
                     alias=alias,
                     engine=cache.engine,
@@ -282,7 +286,7 @@ class ResourcesManager:
                     server=get_ip(cache.host, True),
                 )
             )
-        return databases
+        return caches
 
     def get_tasks(self):
         pass

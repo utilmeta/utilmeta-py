@@ -345,3 +345,10 @@ def make_live_process(backend: str = None, port: int = None, cmdline: bool = Fal
             else:
                 server.terminate()
     return service_process
+
+# TODO
+# currently I am not able to write subprocess tests that can be measured in pytest-cov
+# so the current workaround is:
+# 1. use server process to test the REAL-WORLD-LIVE-CASE of apis (but not counting to coverage)
+# 2. use server thread to make up the coverage (redundant though)
+# working on a better solution (eg. make the subprocess executions cover-able)

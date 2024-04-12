@@ -7,9 +7,10 @@ from utilmeta.core.request import Request
 from .base import ServerAdaptor
 from utilmeta.core.api import API
 import sys
-# import contextvars
+import contextvars
 
-# _current_request = contextvars.ContextVar('_starlette.request')
+_current_request = contextvars.ContextVar('_flask.request')
+_current_response = contextvars.ContextVar('_flask.response')
 
 
 class FlaskServerAdaptor(ServerAdaptor):
@@ -22,8 +23,8 @@ class FlaskServerAdaptor(ServerAdaptor):
     DEFAULT_HOST = '127.0.0.1'
     DEFAULT_PORT = 5000
 
-    REQUEST_ATTR = '_utilmeta_request'
-    RESPONSE_ATTR = '_utilmeta_response'
+    # REQUEST_ATTR = '_utilmeta_request'
+    # RESPONSE_ATTR = '_utilmeta_response'
 
     def __init__(self, config):
         super().__init__(config)
@@ -99,7 +100,7 @@ class FlaskServerAdaptor(ServerAdaptor):
                 from flask import request
                 req = None
                 try:
-                    req = getattr(request, self.REQUEST_ATTR, None)
+                    req = _current_request.get(None)
                     path = self.load_route(path)
 
                     if not isinstance(req, Request):
@@ -111,6 +112,7 @@ class FlaskServerAdaptor(ServerAdaptor):
                     resp = await utilmeta_api_class(req)()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
         else:
             @app.route(route, defaults={'path': ''}, methods=self.HANDLED_METHODS)
@@ -119,7 +121,7 @@ class FlaskServerAdaptor(ServerAdaptor):
                 from flask import request
                 req = None
                 try:
-                    req = getattr(request, self.REQUEST_ATTR, None)
+                    req = _current_request.get(None)
                     path = self.load_route(path)
 
                     if not isinstance(req, Request):
@@ -131,6 +133,7 @@ class FlaskServerAdaptor(ServerAdaptor):
                     resp = utilmeta_api_class(req)()
                 except Exception as e:
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
 
     def wsgi_app(self, environ: dict, start_response):
@@ -159,7 +162,7 @@ class FlaskServerAdaptor(ServerAdaptor):
             start the response.
         """
         ctx = self.app.request_context(environ)
-        error: BaseException | None = None
+        error = None
         request = None
         flask_response = None
         try:
@@ -169,7 +172,7 @@ class FlaskServerAdaptor(ServerAdaptor):
                 # -----------------------
                 response = None
                 request = Request(self.request_adaptor_cls(flask_request))
-                setattr(flask_request, self.REQUEST_ATTR, request)
+                _current_request.set(request)
 
                 for middleware in self.middlewares:
                     request = middleware.process_request(request) or request
@@ -179,7 +182,9 @@ class FlaskServerAdaptor(ServerAdaptor):
                 # -----------------------------------
                 if response is None:
                     flask_response = self.app.full_dispatch_request()
-                    response = getattr(flask_response, self.RESPONSE_ATTR, None)
+                    _current_request.set(None)
+                    response = _current_response.get(None)
+                    _current_response.set(None)
                     if not isinstance(response, Response):
                         response = Response(
                             response=self.response_adaptor_cls(

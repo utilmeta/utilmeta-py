@@ -7,6 +7,7 @@ import warnings
 import pytest
 import psutil
 from utilmeta import UtilMeta
+from typing import Union
 # from django import VERSION as DJANGO_VERSION
 SERVICE_PATH = os.path.join(os.path.dirname(__file__), 'server')
 PARAMETRIZE_CONFIG = False
@@ -37,7 +38,7 @@ WINDOWS = os.name == 'nt'
 #         cleanup_on_sigterm()
 
 
-def setup_service(name, backend: str = None, async_param: bool = True, orm: str = None):
+def setup_service(name, backend: str = None, async_param: Union[list, bool] = True, orm: str = None):
     """
     If a list of params is provided, each param will not across and will execute in order
     for every ConfigParam, params inside are consider crossing, will enumerate every possible combination
@@ -55,7 +56,9 @@ def setup_service(name, backend: str = None, async_param: bool = True, orm: str 
     #     config_list = [config]
 
     async_params = None
-    if async_param:
+    if isinstance(async_param, list):
+        async_params = async_param
+    elif async_param:
         async_params = [False, True]
 
     # if not backends:

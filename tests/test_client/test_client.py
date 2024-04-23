@@ -3,7 +3,7 @@ from tests.conftest import make_live_process, make_server_thread, setup_service
 from .client import TestClient, DataSchema
 import pytest
 
-setup_service(__name__, backend='django', async_param=False)
+setup_service(__name__, backend='django', async_param=[False])
 # server_process = make_live_process(
 #     backend='django',
 #     port=8666

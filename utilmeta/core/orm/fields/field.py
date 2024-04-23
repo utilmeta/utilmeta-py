@@ -72,6 +72,7 @@ class ParserQueryField(ParserField):
                 cls_parser = ClassParser.resolve_parser(origin)
                 if cls_parser:
                     parser = cls_parser
+                    schema = origin
                     self.related_single = True
                     break
 
@@ -86,12 +87,17 @@ class ParserQueryField(ParserField):
                             schema = schema or parser.obj
                         else:
                             raise TypeError(f'orm.Field({repr(self.name)}): '
-                                            f'Invalid related model: {self.related_model.model},'
-                                            f' sub model of {parser.model.model} expected')
+                                            f'Invalid related model: {parser.model.model},'
+                                            f' sub model of {self.related_model.model} expected')
                     else:
                         schema = schema or parser.obj
                         # 1. func field
                         # 2. common field (or array field) with not constraint relation
+
+                # schema should set AS IS and prevent from going to [parser.obj]
+                # because when using __future__.annotations
+                # parser.obj will be orm.Schema until the Schema class is initialized
+                # so if the schema contains self-reference, it will not provide the correct related schema
 
             if not schema:
                 if not self.related_model:
@@ -135,8 +141,6 @@ class ParserQueryField(ParserField):
         if not isinstance(self.model, ModelAdaptor):
             return
 
-        self.get_query_schema()
-
         if class_func(self.field_name):
             from utype.parser.func import FunctionParser
             func = FunctionParser.apply_for(self.field_name)
@@ -169,6 +173,8 @@ class ParserQueryField(ParserField):
 
             if not self.mode:
                 self.mode = 'r'
+
+            self.get_query_schema()
             return
 
         if self.model.check_related_queryset(self.field_name):
@@ -178,6 +184,9 @@ class ParserQueryField(ParserField):
             self.related_model = self.model.get_model(self.queryset)
             if not self.related_model:
                 raise ValueError(f'No model detected in queryset: {self.queryset}')
+
+            self.get_query_schema()
+
             if self.related_single is False:
                 warnings.warn(f'{self.model} schema field: {repr(self.name)} is a multi-relation with a subquery, '
                               f'you need to make sure that only 1 row of the query is returned, '
@@ -187,9 +196,14 @@ class ParserQueryField(ParserField):
             return
 
         self.model_field = self.model.get_field(self.field_name, allow_addon=True, silently=True)
+        self.related_model = self.model_field.related_model if self.model_field else None
+
+        # fix: get related model before get query schema
+        self.get_query_schema()
+
         if self.model_field:
-            self.primary_key = self.model_field and self.model_field.is_pk \
-                               and self.model.is_sub_model(self.model_field.field_model)
+            self.primary_key = self.model_field and self.model_field.is_pk and \
+                               self.model.is_sub_model(self.model_field.field_model)
             # use is sub model, because pk might be its base model
 
             if self.primary_key and self.model_field.is_auto:
@@ -215,8 +229,6 @@ class ParserQueryField(ParserField):
             #     if not self.required:
             #         # required when creating
             #         self.required = 'a'
-
-            self.related_model = self.model_field.related_model
 
             self.many_included = self.model.include_many_relates(self.field_name)
             if self.many_included:

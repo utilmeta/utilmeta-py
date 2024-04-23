@@ -1,4 +1,5 @@
 from utilmeta.utils.plugin import Plugin
+from utilmeta.utils import awaitable
 from ..databases.config import DatabaseConnections
 import inspect
 import functools
@@ -40,6 +41,17 @@ class AtomicPlugin(Plugin):
             def wrapper(*args, **kwargs):
                 with transaction:
                     return f(*args, **kwargs)
+
+            try:
+                from utilmeta import service
+            except ImportError:
+                pass
+            else:
+                if service.asynchronous:
+                    @functools.wraps(f)
+                    def threaded_wrapper(*args, **kwargs):
+                        return service.pool.get_result(wrapper, *args, **kwargs)
+                    return threaded_wrapper
 
             return wrapper
 

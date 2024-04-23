@@ -14,7 +14,7 @@ __all__ = [
     'before',
     'after',
     'handle',
-    'plugin'
+    'plugin',
 ]
 
 

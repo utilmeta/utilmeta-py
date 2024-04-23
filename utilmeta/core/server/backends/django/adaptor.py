@@ -105,7 +105,7 @@ class DjangoServerAdaptor(ServerAdaptor):
                 if response:
                     return self.response_adaptor_cls.reconstruct(response)
 
-                _current_request.set(django_request)
+                _current_request.set(request)
                 django_response = get_response(django_request)
                 _current_request.set(None)
 
@@ -207,7 +207,7 @@ class DjangoServerAdaptor(ServerAdaptor):
                     path = self.load_route(route)
 
                     if not isinstance(req, Request):
-                        req = self.request_adaptor_cls(request, path, *args, **kwargs)
+                        req = Request(self.request_adaptor_cls(request, path, *args, **kwargs))
                     else:
                         req.adaptor.route = path
                         req.adaptor.request = request
@@ -226,7 +226,7 @@ class DjangoServerAdaptor(ServerAdaptor):
                     path = self.load_route(route)
 
                     if not isinstance(req, Request):
-                        req = self.request_adaptor_cls(request, path, *args, **kwargs)
+                        req = Request(self.request_adaptor_cls(request, path, *args, **kwargs))
                     else:
                         req.adaptor.route = path
                         req.adaptor.request = request

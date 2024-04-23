@@ -1,10 +1,8 @@
 import inspect
-import io
 
 from utilmeta.utils import PluginEvent, PluginTarget, \
-    Error, awaitable, url_join, file_like, classonlymethod, \
-    encode_multipart_form, RequestType, json_dumps, \
-    COMMON_METHODS, EndpointAttr, time_now, \
+    Error, url_join, classonlymethod, json_dumps, \
+    COMMON_METHODS, EndpointAttr, \
     parse_query_string, parse_query_dict
 
 from utype.types import *
@@ -320,7 +318,7 @@ class Client(PluginTarget):
             backend=self._backend
         )
 
-    def __func__(self, endpoint: ClientEndpoint, *args, **kwargs):
+    def __request__(self, endpoint: ClientEndpoint, *args, **kwargs):
         if self._mock:
             if endpoint.response_types:
                 resp = endpoint.response_types[0]
@@ -377,8 +375,7 @@ class Client(PluginTarget):
             raise TimeoutError(f'No response')
         return response
 
-    @awaitable(__func__)
-    async def __func__(self, endpoint: ClientEndpoint, *args, **kwargs):
+    async def __async_request__(self, endpoint: ClientEndpoint, *args, **kwargs):
         if self._mock:
             if endpoint.response_types:
                 resp = endpoint.response_types[0]
@@ -395,7 +392,7 @@ class Client(PluginTarget):
                     retry_index=retry_index,
                     idempotent=endpoint.idempotent
                 )
-                result = (await self._process_request(request)) or request
+                result = (await self._async_process_request(request)) or request
                 # this result can be a Request or Response
 
                 if isinstance(result, Request):
@@ -405,7 +402,7 @@ class Client(PluginTarget):
                 else:
                     response = result
 
-                result = await self._process_response(self._parse_response(
+                result = await self._async_process_response(self._parse_response(
                     response,
                     types=endpoint.response_types
                 ))
@@ -563,8 +560,7 @@ class Client(PluginTarget):
                 return request
         return request
 
-    @awaitable(_process_request)
-    async def _process_request(self, request: Request):
+    async def _async_process_request(self, request: Request):
         request = self.process_request(request)
         if inspect.isawaitable(request):
             request = await request     # noqa
@@ -606,8 +602,7 @@ class Client(PluginTarget):
                 response = resp
         return response
 
-    @awaitable(_process_response)
-    async def _process_response(self, response: Response):
+    async def _async_process_response(self, response: Response):
         # --- common process
         if response.cookies:
             self._cookies.update(response.cookies)
@@ -691,7 +686,6 @@ class Client(PluginTarget):
 
     def request(self, method: str, path: str = None, query: dict = None,
                 data=None,
-                # form: dict = None,
                 headers: dict = None, cookies=None, timeout: int = None) -> Response:
 
         request = self._build_request(
@@ -707,7 +701,7 @@ class Client(PluginTarget):
         return self._process_response(response)
 
     async def async_request(self, method: str, path: str = None, query: dict = None,
-                            data=None, form: dict = None,
+                            data=None,
                             headers: dict = None, cookies=None,
                             timeout: int = None) -> Response:
         request = self._build_request(
@@ -715,12 +709,11 @@ class Client(PluginTarget):
             path=path,
             query=query,
             data=data,
-            form=form,
             headers=headers,
             cookies=cookies
         )
         response = await self._make_async_request(request, timeout=timeout)
-        return await self._process_response(response)
+        return await self._async_process_response(response)
 
     def get(self, path: str = None, query: dict = None, data=None, headers: dict = None):
         return self.request(method='GET', path=path, query=query, data=data, headers=headers)

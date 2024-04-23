@@ -102,12 +102,12 @@ def aggregate_logs(service: str,
             time__gte=start,
             time__lt=current
         ).aggregate(
-            requests=models.Sum('requests'),
-            avg_time=models.Sum(models.F('avg_time') * models.F('requests')) / models.Sum('requests')
+            total_requests=models.Sum('requests'),
+            total_avg_time=models.Sum(models.F('avg_time') * models.F('requests')) / models.Sum('requests')
         )
         requests = service_logs.count()
-        total_requests = total_data.get('requests') or requests
-        avg_time = total_data.get('avg_time') or 0
+        total_requests = total_data.get('total_requests') or requests
+        avg_time = total_data.get('total_avg_time') or 0
 
     if not total_requests:
         return

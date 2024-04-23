@@ -26,7 +26,7 @@ class Supervisor(models.Model):
     public_key = models.TextField(default=None, null=True)  # used to decode token
     # None when generated as placeholder
 
-    init_key = models.CharField(max_length=200, default=None, null=True)
+    init_key = models.TextField(default=None, null=True)
     # used to identify the init add supervisor request
 
     created_time = models.DateTimeField(auto_now_add=True)
@@ -63,7 +63,7 @@ class Supervisor(models.Model):
 
     data = models.JSONField(default=dict)
 
-    resources_etag = models.CharField(max_length=200, default=None, null=True)
+    resources_etag = models.TextField(default=None, null=True)
     # if resources etag doesn't change
     # there is not need to re-update
     # etag is generated from supervisor
@@ -85,9 +85,9 @@ class AccessToken(models.Model):
     objects = models.Manager()
 
     issuer = models.ForeignKey(Supervisor, related_name='access_tokens', on_delete=models.CASCADE)
-    token_id = models.CharField(max_length=100, unique=True)
+    token_id = models.CharField(max_length=200, unique=True)
     issued_at = models.DateTimeField(default=None, null=True)
-    subject = models.CharField(max_length=200, default=None, null=True)
+    subject = models.CharField(max_length=500, default=None, null=True)
     expiry_time = models.DateTimeField(default=None, null=True)
     # clear tokens beyond the expiry time
 
@@ -125,10 +125,10 @@ class Resource(models.Model):
     # database
     # cache
     ident = models.CharField(max_length=200)
-    route = models.CharField(max_length=300)
+    route = models.CharField(max_length=500)
     # :type/:node/:ident
 
-    remote_id = models.CharField(max_length=40, default=None, null=True)
+    remote_id = models.CharField(max_length=100, default=None, null=True)
     # id_map = models.JSONField(default=dict)
     # supervisor: id
     # remote_id = models.CharField(max_length=40, default=None, null=True)
@@ -569,7 +569,7 @@ class AlertType(models.Model):
 
     subcategory = models.CharField(max_length=200)
     name = models.CharField(max_length=100)   # settings name or custom name
-    target = models.CharField(max_length=100)
+    target = models.TextField()
     # eg
     # type.category: resource_saturated
     # type.subcategory: cpu_percent_exceed
@@ -579,7 +579,7 @@ class AlertType(models.Model):
     # type.subcategory: slow_response
     # type.name: Slow response at POST /api/user
 
-    ident = models.CharField(max_length=200)
+    ident = models.CharField(max_length=500)
 
     compress_window: int = models.PositiveBigIntegerField(null=True, default=None)   # seconds
     min_times: int = models.PositiveIntegerField(default=1)

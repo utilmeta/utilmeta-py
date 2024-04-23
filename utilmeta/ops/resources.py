@@ -109,7 +109,7 @@ class ResourcesManager:
     def get_metadata(self):
         return NodeMetadata(
             ops_api=self.ops_config.ops_api,
-            base_url=self.service.base_url,
+            base_url=self.ops_config.base_url,
             name=self.service.name,
             description=self.service.description,
             version=self.service.version_str,

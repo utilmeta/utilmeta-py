@@ -27,6 +27,8 @@ class Operations(Config):
     def __init__(self,
                  route: str,
                  database: Union[str, Database],
+                 base_url: str = None,
+                 # replace service.base_url
                  disabled_scope: List[str] = (),
                  secret_names: List[str] = DEFAULT_SECRET_NAMES,
                  trusted_hosts: List[str] = (),
@@ -67,6 +69,7 @@ class Operations(Config):
         self.worker_cycle = worker_cycle
         self.worker_task_cls_string = worker_task_cls
         self.max_backlog = max_backlog
+        self._base_url = base_url
 
         if self.HOST not in self.trusted_hosts:
             self.trusted_hosts.append(self.HOST)
@@ -238,12 +241,19 @@ class Operations(Config):
         if parsed.scheme:
             # is url
             return self.route
+        return url_join(self.base_url, self.route)
+
+    @property
+    def base_url(self):
+        if self._base_url:
+            parsed = urlsplit(self._base_url)
+            if parsed.scheme:
+                return self._base_url
         try:
             from utilmeta import service
         except ImportError:
             return None
-        base_url = service.base_url
-        return url_join(base_url, self.route)
+        return service.base_url
 
     def check_host(self):
         parsed = urlsplit(self.ops_api)

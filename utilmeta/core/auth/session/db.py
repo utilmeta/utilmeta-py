@@ -160,7 +160,7 @@ class DBSessionSchema(BaseSessionSchema):
         # to be inherited
         session = self._model_cls.get_instance(
             session_key=self._session_key,
-            deleted_time__isnull=False
+            deleted_time=None,
         )
         if session:
             return self.decode(session.encoded_data)
@@ -172,7 +172,7 @@ class DBSessionSchema(BaseSessionSchema):
         # to be inherited
         session = await self._model_cls.aget_instance(
             session_key=self._session_key,
-            deleted_time__isnull=False
+            deleted_time=None
         )
         if session:
             return self.decode(session.encoded_data)

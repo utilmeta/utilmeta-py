@@ -19,8 +19,11 @@ class User(Property):
     def get_user_id(self, request: Request) -> Union[str, int, Any]:
         data: Mapping = self.authentication.getter(request) or {}
         if isinstance(data, Mapping):
-            return data.get(self.key)
-        return data
+            user_id = data.get(self.key)
+        else:
+            user_id = data
+        self.id_context_var.setter(request, user_id)
+        return user_id
 
     @awaitable(get_user_id)
     async def get_user_id(self, request: Request) -> Union[str, int, Any]:
@@ -29,8 +32,11 @@ class User(Property):
             r = await r
         data: Mapping = r or {}
         if isinstance(data, Mapping):
-            return data.get(self.key)
-        return data
+            user_id = data.get(self.key)
+        else:
+            user_id = data
+        self.id_context_var.setter(request, user_id)
+        return user_id
 
     def get_user(self, request: Request):
         user_id = self.get_user_id(request)
@@ -40,6 +46,7 @@ class User(Property):
                 # user.set(inst)
                 if self.scopes_field:
                     self.scopes_context_var.setter(request, getattr(inst, self.scopes_field, []))
+                self.context_var.setter(request, inst)
                 return inst
         return None
 
@@ -52,6 +59,7 @@ class User(Property):
                 # user.set(inst)
                 if self.scopes_field:
                     self.scopes_context_var.setter(request, getattr(inst, self.scopes_field, []))
+                self.context_var.setter(request, inst)
                 return inst
         return None
 
@@ -64,7 +72,6 @@ class User(Property):
             # already cached
             return user_var.get()
         user = self.get_user(request)
-        user_var.set(user)
         if not user:
             if field and type(None) in field.input_origins:
                 return None
@@ -81,7 +88,6 @@ class User(Property):
             # use await in async context
             return await user_var.get()
         user = await self.get_user(request)
-        user_var.set(user)
         if not user:
             if field and type(None) in field.input_origins:
                 return None

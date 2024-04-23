@@ -27,6 +27,10 @@ class ServiceInfoSchema(Schema):
     timestamp: int
 
 
+class NodeInfoSchema(ServiceInfoSchema):
+    node_id: str
+
+
 class NodeMetadata(Schema):
     ops_api: str
     name: str

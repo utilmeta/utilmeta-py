@@ -3,6 +3,15 @@ import utype
 from utype.types import *
 
 
+class DataSchema(utype.Schema):
+    key: str
+
+
+class DataResponse(response.Response):
+    result_key = 'test'
+    result: DataSchema
+
+
 class TestClient(cli.Client):
     @api.get("doc/{category}/{page}")
     def get_doc(self, category: str = request.PathParam('[a-zA-Z0-9-]{1,20}'),
@@ -12,11 +21,11 @@ class TestClient(cli.Client):
     # query param is still the default?
     @api.get
     def query(self, page: int = request.QueryParam(),
-              item: str = request.QueryParam("default")) -> response.Response: pass
+              item: str = request.QueryParam()) -> response.Response: pass
 
-    @api.get
-    async def query(self, page: int = request.QueryParam(),
-                    item: str = request.QueryParam("default")) -> response.Response: pass
+    @api.get('query')
+    async def async_query(self, page: int = request.QueryParam(),
+                          item: str = request.QueryParam()) -> response.Response: pass
 
     class QuerySchema(utype.Schema):
         page: int = utype.Field(ge=1, le=10)
@@ -48,3 +57,6 @@ class TestClient(cli.Client):
             content_type=request.Body.FORM_URLENCODED,
         ),
     ) -> Tuple[int, int, str, int, DataSchema]: pass
+
+    @api.get('@parent/data')
+    def get_data(self, key: str) -> Union[DataResponse, response.Response]: pass

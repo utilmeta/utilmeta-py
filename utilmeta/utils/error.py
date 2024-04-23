@@ -6,6 +6,9 @@ import inspect
 import time
 
 
+CAUSE_DIVIDER = '\n# The above exception was the direct cause of the following exception:\n'
+
+
 class Error:
     def __init__(self, e: Exception = None):
         if isinstance(e, Exception):
@@ -29,31 +32,29 @@ class Error:
         self.full_info = ''
         self.ts = time.time()
 
-    def setup(self):
+    def setup(self, from_errors: list = ()):
         if self.current_traceback:
             return
         # FIXME: lots of performance cost in this function
         self.current_traceback = ''.join(traceback.format_tb(self.exc_traceback))
-        causes = self.get_causes()
-        if len(causes) > 1:
-            traces = []
-            local_vars = {}
-            for cause in causes:
-                if cause is self:
-                    traces.append(self.current_traceback)
-                else:
-                    cause.setup()
-                    traces.append(cause.current_traceback)
-                local_vars.update(cause.locals)
-            self.traceback = '# this error is caused by:\n'.join(traces)
-            self.locals = local_vars
-        else:
-            self.traceback = self.current_traceback
+        self.traceback = self.current_traceback
+        if not from_errors:
             try:
                 self.locals = inspect.trace()[-1][0].f_locals
                 # self.locals: Dict[str, Any] = Util.clean_kwargs(inspect.trace()[-1][0].f_locals, display=True)
             except IndexError:
                 self.locals = {}
+
+        cause = self.exc.__cause__
+        from_errors = [self.exc] + list(from_errors)
+
+        if cause and cause not in from_errors:
+            cause_error = self.__class__(cause)
+            cause_error.setup(from_errors=from_errors)
+            self.traceback = cause_error.full_info + CAUSE_DIVIDER + self.traceback
+            # self.locals.update({
+            #     f'{cause.__class__.__name__}.{key}': val for key, val in cause_error.locals.items()
+            # })
 
         variables = []
         if self.locals:
@@ -84,16 +85,27 @@ class Error:
             self.exc
         )
 
-    @property
-    def root_cause(self) -> 'Error':
-        return self.get_causes()[0]
+    # @property
+    # def root_cause(self) -> Exception:
+    #     return self.get_causes()[0]
 
-    def get_causes(self) -> List['Error']:
-        # causes = getattr(self.exc, Attr.CAUSES, [])
-        # cause_reasons = [str(c.current_traceback) for c in causes]
-        # if self.current_traceback in cause_reasons:
-        #     return causes
-        return [self, *getattr(self.exc, Attr.CAUSES, [])]
+    # def get_causes(self) -> List[Exception]:
+    #     # causes = getattr(self.exc, Attr.CAUSES, [])
+    #     # cause_reasons = [str(c.current_traceback) for c in causes]
+    #     # if self.current_traceback in cause_reasons:
+    #     #     return causes
+    #     causes = []
+    #     cause = self.exc
+    #     while cause:
+    #         causes.append(cause)
+    #         cause = cause.__cause__
+    #         if cause in causes:
+    #             break
+    #
+    #     causes.reverse()
+    #     print('CAUSES:', causes)
+    #     # return [self, *getattr(self.exc, Attr.CAUSES, [])]
+    #     return causes
 
     # @property
     # def target(self) -> 'Error':
@@ -146,7 +158,8 @@ class Error:
         type = type or self.type
         if prepend or not isinstance(self.exc, type):
             e = type(f'{prepend}{self.exc}', **kwargs)  # noqa
-            setattr(e, Attr.CAUSES, self.get_causes())
+            e.__cause__ = self.exc
+            # setattr(e, Attr.CAUSES, self.get_causes())
         else:
             e = self.exc
         # it need the throw caller to raise the error like: raise Error().throw()

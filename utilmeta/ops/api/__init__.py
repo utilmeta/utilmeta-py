@@ -1,11 +1,11 @@
 from utilmeta.core import api, orm, request
 from ..schema import SupervisorData,  AccessTokenSchema
-from utilmeta.utils import exceptions
+from utilmeta.utils import exceptions, adapt_async
 from ..models import Supervisor, AccessToken
 from .. import __spec_version__
 from ..key import decode_token
 from utilmeta.core.request import var
-from django.db import models, utils
+from django.db import utils
 from utype.types import *
 from ..connect import save_supervisor
 from utilmeta.core.api.specs.openapi import OpenAPI
@@ -30,7 +30,7 @@ class OperationsAPI(api.API):
 
     servers: ServersAPI
     query: QueryAPI
-    log: LogAPI
+    logs: LogAPI
 
     token: TokenAPI
     openapi: opsRequire('api.view')(OpenAPI.as_api(private=False))
@@ -41,10 +41,17 @@ class OperationsAPI(api.API):
     #     from utilmeta import service
     #     openapi = OpenAPI(service)()
 
-    @orm.Atomic(config.db_alias)
+    # @orm.Atomic(config.db_alias)
+    @adapt_async
     def post(self, data: SupervisorData = request.Body):
         save_supervisor(data)
-        return self.get()
+        return dict(
+            node_id=data.node_id,
+            # this is critical
+            # if the POST /api/ops redirect to GET /api/ops by 301
+            # the supervisor will not notice the difference by the result data if this field is not filled
+            **self.get()
+        )
 
     def get(self):
         try:
@@ -67,13 +74,13 @@ class OperationsAPI(api.API):
                 from utilmeta import service
                 if not service.production and str(self.request.ip_address) == service.host == '127.0.0.1':
                     # LOCAL -> LOCAL MANAGE
-                    supervisor = Supervisor.objects.filter(
+                    supervisor = SupervisorObject.init(Supervisor.objects.filter(
                         service=service.name,
                         node_id=node_id,
                         disabled=False,
                         local=True,
                         ops_api=config.ops_api,
-                    ).first()
+                    ))
                     if not supervisor:
                         raise exceptions.Unauthorized
                     supervisor_var.setter(self.request, supervisor)

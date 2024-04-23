@@ -6,7 +6,7 @@ from utilmeta.core import request
 from utype.types import *
 from .key import encrypt_data
 from .schema import NodeMetadata, SupervisorBasic, ServiceInfoSchema, SupervisorInfoSchema, \
-    SupervisorData, ResourcesSchema, ResourcesData
+    SupervisorData, ResourcesSchema, ResourcesData, NodeInfoSchema
 
 
 class SupervisorResponse(response.Response):
@@ -25,10 +25,23 @@ class SupervisorInfoResponse(SupervisorResponse):
     name = 'info'
     result: SupervisorInfoSchema
 
-    @property
-    def success(self):
+    def validate(self):
         if super().success:
             if self.result.utilmeta:
+                return True
+        return False
+
+    # success property is used to init error and state before the result is initialized
+    # so it cannot access result, or will get None
+
+
+class NodeInfoResponse(SupervisorResponse):
+    name = 'add_node'
+    result: NodeInfoSchema
+
+    def validate(self):
+        if super().success:
+            if self.result.utilmeta and self.result.node_id:
                 return True
         return False
 
@@ -37,8 +50,7 @@ class ServiceInfoResponse(SupervisorResponse):
     name = 'info'
     result: ServiceInfoSchema
 
-    @property
-    def success(self):
+    def validate(self):
         if super().success:
             if self.result.utilmeta:
                 return True
@@ -157,8 +169,7 @@ class SupervisorClient(Client):
 
 class OperationsClient(Client):
     @api.post('/')
-    def add_supervisor(self, data: SupervisorData = request.Body) -> \
-            Union[ServiceInfoResponse, SupervisorResponse]: pass
+    def add_supervisor(self, data: SupervisorData = request.Body) -> NodeInfoResponse: pass
 
     @api.get('/')
     def get_info(self) -> Union[ServiceInfoResponse, SupervisorResponse]: pass

@@ -66,6 +66,12 @@ class ParentAPI(api.API):
     def hello(self):
         return 'world'
 
+    @api.get
+    def data(self, key: str):
+        return self.response({
+            'key': key
+        })
+
     @api.before(SubAPI)
     def assign_var(self, x_test_id: int = request.HeaderParam('X-Test-Id', default='null')):
         test_var.setter(self.request, x_test_id)

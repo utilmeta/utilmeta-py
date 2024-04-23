@@ -230,22 +230,6 @@ class BaseEndpoint(PluginTarget):
                 return res
         raise e.throw()
 
-    def __call__(self, *args, **kwargs):
-        # with self:
-        r = self.executor(*args, **kwargs)
-        if inspect.isawaitable(r):
-            raise exc.ServerError('awaitable detected in sync function')
-        return r
-
-    @utils.awaitable(__call__)
-    async def __call__(self, *args, **kwargs):
-        # async with self:
-        r = self.executor(*args, **kwargs)
-        while inspect.isawaitable(r):
-            # executor is maybe a sync function, which will not need to await
-            r = await r
-        return r
-
 
 class Endpoint(BaseEndpoint):
     @classmethod
@@ -282,6 +266,22 @@ class Endpoint(BaseEndpoint):
             eager=eager
         )
         self.api = api
+
+    def __call__(self, *args, **kwargs):
+        # with self:
+        r = self.executor(*args, **kwargs)
+        if inspect.isawaitable(r):
+            raise exc.ServerError('awaitable detected in sync function')
+        return r
+
+    @utils.awaitable(__call__)
+    async def __call__(self, *args, **kwargs):
+        # async with self:
+        r = self.executor(*args, **kwargs)
+        while inspect.isawaitable(r):
+            # executor is maybe a sync function, which will not need to await
+            r = await r
+        return r
 
     @property
     def ref(self) -> str:

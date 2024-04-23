@@ -36,7 +36,7 @@ def auto_select_supervisor(*supervisors: SupervisorBasic, timeout: int = 5, time
     def fetch_supervisor_info(base_url: str):
         with SupervisorClient(base_url=base_url, fail_silently=True) as client:
             resp = client.get_info()
-            if resp.success:
+            if resp.validate():
                 url_map.setdefault(base_url, []).append(resp.duration_ms)
 
     with ThreadPoolExecutor() as pool:
@@ -83,6 +83,24 @@ def save_supervisor(data: SupervisorData) -> Supervisor:
     else:
         # from api calling
         raise NotImplementedError
+
+
+def update_service_supervisor(service: str, node_id: str):
+    if not service or not node_id:
+        return
+    from utilmeta.ops import models
+    for model in [
+        models.Resource,
+        models.AlertType,
+        models.ServiceLog,
+        models.RequestLog,
+        models.VersionLog,
+        models.AggregationLog,
+    ]:
+        model.objects.filter(
+            service=service,
+            node_id=None
+        ).update(node_id=node_id)
 
 
 def connect_supervisor(
@@ -165,17 +183,21 @@ def connect_supervisor(
             if resp.result:
                 # supervisor is returned (cannot access)
                 supervisor_obj = save_supervisor(resp.result)
+                if not supervisor_obj.node_id or supervisor_obj.node_id != resp.result.node_id:
+                    raise ValueError(f'supervisor failed to create: inconsistent node id: '
+                                     f'{supervisor_obj.node_id}, {resp.result.node_id}')
             else:
                 # supervisor already updated in POST OperationsAPI/
                 supervisor_obj: Supervisor = Supervisor.objects.get(pk=supervisor_obj.pk)
 
-            # update after
-            if not supervisor_obj.node_id:
-                raise ValueError('supervisor failed to create')
-            if supervisor_obj.node_id != resp.result.node_id:
-                raise ValueError(f'supervisor failed to create: inconsistent node id: '
-                                 f'{supervisor_obj.node_id}, {resp.result.node_id}')
+                # update after
+                if not supervisor_obj.node_id:
+                    raise ValueError('supervisor failed to create')
 
+            update_service_supervisor(
+                service=supervisor_obj.service,
+                node_id=supervisor_obj.node_id
+            )
             if not supervisor_obj.local:
                 if not supervisor_obj.public_key:
                     raise ValueError('supervisor failed to create: no public key')

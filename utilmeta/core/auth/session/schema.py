@@ -2,8 +2,7 @@ from utype.utils.encode import JSONSerializer
 from utype.utils.datastructures import unprovided
 from utype import Schema, Field, Options
 from utilmeta.utils import awaitable, gen_key, time_now, http_time
-import inspect
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from typing import Optional, TypeVar, Type, ClassVar, TYPE_CHECKING
 import warnings
 from .base import BaseSession
@@ -14,6 +13,7 @@ if TYPE_CHECKING:
     from utilmeta.core.request import Request
 
 T = TypeVar('T')
+EPOCH = datetime(1970, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
 
 class SessionError(Exception):
@@ -452,7 +452,10 @@ class SchemaSession(BaseSession):
                 session.flush()
         session[key] = new_user_id
         if expiry_age is not None:
-            session.expiry = time_now() + timedelta(seconds=expiry_age)
+            if not expiry_age:
+                session.expiry = EPOCH
+            else:
+                session.expiry = time_now() + timedelta(seconds=expiry_age)
 
     @awaitable(login)
     async def login(self, request, key: str, expiry_age: int = None, user_id_var=var.user_id):
@@ -473,7 +476,10 @@ class SchemaSession(BaseSession):
                 await session.aflush()
         session[key] = new_user_id
         if expiry_age is not None:
-            session.expiry = time_now() + timedelta(seconds=expiry_age)
+            if not expiry_age:
+                session.expiry = EPOCH
+            else:
+                session.expiry = time_now() + timedelta(seconds=expiry_age)
 
     def is_empty(self, session: BaseSessionSchema):
         return session.is_empty

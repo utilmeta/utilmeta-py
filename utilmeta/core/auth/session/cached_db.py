@@ -68,7 +68,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         # to be inherited
         session = self._model_cls.get_instance(
             session_key=self._session_key,
-            deleted_time__isnull=True
+            deleted_time=None
         )
         if session:
             try:
@@ -90,7 +90,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         # to be inherited
         session = await self._model_cls.aget_instance(
             session_key=self._session_key,
-            deleted_time__isnull=True
+            deleted_time=None
         )
         if session:
             try:

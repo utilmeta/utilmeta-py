@@ -236,6 +236,9 @@ def from_coroutine(level=2, _cache={}):
 
 
 def adapt_async(func):
+    if inspect.iscoroutinefunction(func) or inspect.isasyncgenfunction(func):
+        return func
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:

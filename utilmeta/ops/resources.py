@@ -5,7 +5,7 @@ from .config import Operations
 from .schema import NodeMetadata, ResourcesSchema, \
     InstanceSchema, ServerSchema, TableSchema, DatabaseSchema, CacheSchema, ResourceData
 from utilmeta import UtilMeta
-from utilmeta.utils import fast_digest, json_dumps
+from utilmeta.utils import fast_digest, json_dumps, ignore_errors
 
 
 class ModelGenerator:
@@ -233,6 +233,7 @@ class ResourcesManager:
         return tables
 
     @classmethod
+    @ignore_errors(default=None)
     def get_db_max_connections(cls, using: str) -> int:
         from django.db import connections
         db_sql = {

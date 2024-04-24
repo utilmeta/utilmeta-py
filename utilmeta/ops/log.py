@@ -737,6 +737,11 @@ def batch_save_logs(close: bool = False):
         query_logs = []
         request_logs = []
 
+        if not _server:
+            # not setup yet
+            from .config import Operations
+            setup_locals(Operations.config())
+
         for response in queue:
             response: Response
             try:

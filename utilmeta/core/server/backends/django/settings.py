@@ -280,13 +280,18 @@ class DjangoSettings(Config):
                 setattr(self.module, middleware_func.__name__, middleware_func)
                 middleware.append(f'{self.module_name}.{middleware_func.__name__}')
 
+        hosts = list(self.allowed_hosts)
+        if service.origin:
+            from urllib.parse import urlparse
+            hosts.append(urlparse(service.origin).hostname)
+
         settings = {
             'DEBUG': not service.production,
             'SECRET_KEY': self.get_secret(service),
             'BASE_DIR': service.project_dir,
             'MIDDLEWARE': middleware,
             'INSTALLED_APPS': self.apps,
-            'ALLOWED_HOSTS': self.allowed_hosts,
+            'ALLOWED_HOSTS': hosts,
             'DATABASE_ROUTERS': self.database_routers,
             'APPEND_SLASH': self.append_slash,
             'LANGUAGE_CODE': self.language,

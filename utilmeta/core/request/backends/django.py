@@ -3,7 +3,7 @@ import io
 from .base import RequestAdaptor
 from django.http.request import HttpRequest
 from django.middleware.csrf import CsrfViewMiddleware, get_token
-from utilmeta.utils import parse_query_dict, cached_property, Header, LOCAL_IP, multi, exceptions
+from utilmeta.utils import parse_query_dict, cached_property, Header, LOCAL_IP, multi, exceptions, url_join
 from ipaddress import ip_address
 from utilmeta.core.file.backends.django import DjangoFileAdaptor
 from utilmeta.core.file.base import File
@@ -44,7 +44,11 @@ class DjangoRequestAdaptor(RequestAdaptor):
     def url(self):
         if hasattr(self.request, 'get_raw_uri'):
             return self.request.get_raw_uri()
-        return self.request.build_absolute_uri()
+        try:
+            return self.request.build_absolute_uri()
+        except KeyError:
+            from utilmeta import service
+            return url_join(service.origin, self.path)
 
     @property
     def path(self):

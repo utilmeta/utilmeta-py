@@ -1,6 +1,8 @@
+import utype
+
 from utilmeta.core import api, orm
 from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
-from utilmeta.utils import time_now, convert_data_frame, exceptions
+from utilmeta.utils import time_now, convert_data_frame, exceptions, adapt_async
 from ..schema import WorkerSchema, ServerMonitorSchema, WorkerMonitorSchema, InstanceMonitorSchema
 from ..models import ServerMonitor, Worker, InstanceMonitor, WorkerMonitor, Resource
 from django.db import models
@@ -15,19 +17,19 @@ class ServersAPI(api.API):
     class BaseQuery(orm.Query):
         start: datetime = orm.Filter(query=lambda v: models.Q(time__gte=v))
         end: datetime = orm.Filter(query=lambda v: models.Q(time__lte=v))
-        within_hours: int = orm.Filter(lambda v: models.Q(
+        within_hours: int = orm.Filter(query=lambda v: models.Q(
             time__gte=time_now() - timedelta(hours=v)))
-        within_days: int = orm.Filter(lambda v: models.Q(
+        within_days: int = orm.Filter(query=lambda v: models.Q(
             time__gte=time_now() - timedelta(days=v)))
-        limit: int = orm.Limit()
 
     class ServerMonitorQuery(BaseQuery[ServerMonitor]):
         # server_id: str = orm.Filter('server.remote_id')
-        server_id: str = orm.Filter(required=True)
+        server_id: str = orm.Filter(required=True, alias_from=['server'])
         layer: int = orm.Filter(default=0)
 
     @api.get
-    def metrics(self, query: ServerMonitorQuery):
+    @adapt_async
+    def metrics(self, query: ServerMonitorQuery, limit: int = utype.Param(None)):
         server = Resource.objects.filter(
             type='server',
             node_id=self.supervisor.node_id,
@@ -36,9 +38,13 @@ class ServersAPI(api.API):
         if not server:
             raise exceptions.NotFound('server not found')
         query.server_id = server.pk
-        result = ServerMonitorSchema.serialize(
-            query
-        )
+        if limit:
+            qs = query.get_queryset().order_by('-time')[:limit]
+        else:
+            qs = query
+        result = ServerMonitorSchema.serialize(qs)
+        if limit:
+            result.reverse()
         return convert_data_frame(result)
 
     class WorkerQuery(orm.Query[Worker]):
@@ -50,6 +56,7 @@ class ServersAPI(api.API):
         connected: bool = orm.Filter(default=True)
 
     @api.get
+    @adapt_async
     def workers(self, query: WorkerQuery):
         instance = Resource.objects.filter(
             type='instance',
@@ -74,6 +81,7 @@ class ServersAPI(api.API):
         instance_id: int = orm.Filter(required=True)
 
     @api.get('instance/metrics')
+    @adapt_async
     def instance_metrics(self, query: InstanceMonitorQuery):
         instance = Resource.objects.filter(
             type='instance',

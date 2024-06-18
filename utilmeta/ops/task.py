@@ -69,6 +69,8 @@ class OperationWorkerTask(BaseCycleTask):
         self.hourly_aggregation = None
         self.daily_aggregation = None
 
+        self._init_cycle = False
+
     def __call__(self, *args, **kwargs):
         self.worker_cycle()
         return True
@@ -78,6 +80,9 @@ class OperationWorkerTask(BaseCycleTask):
         return self.supervisor.node_id if self.supervisor else None
 
     def worker_cycle(self):
+        if not self._last_exec:
+            self._last_exec = time_now()
+
         try:
             setup_locals(self.config)
         except (OperationalError, ProgrammingError):
@@ -91,7 +96,7 @@ class OperationWorkerTask(BaseCycleTask):
         self.server = _server
         self.instance = _instance
         self.supervisor = _supervisor
-        
+
         # 1. save logs
         batch_save_logs()
 
@@ -114,6 +119,15 @@ class OperationWorkerTask(BaseCycleTask):
             self.alert()
             self.aggregation()
             self.clear()
+
+            if not self._init_cycle:
+                # 1st cycle
+                from .resources import ResourcesManager
+                resources = ResourcesManager(self.service)
+                resources.sync_resources(self.supervisor)
+                # try to update
+
+        self._init_cycle = True
 
     @property
     def connected_workers(self):

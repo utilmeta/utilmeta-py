@@ -6,7 +6,7 @@ from utype.parser.field import ParserField
 from utilmeta.core.request import Request, var
 from utilmeta.core.response import Response
 from utilmeta.utils.plugin import Plugin
-from utilmeta.utils import import_obj, awaitable
+from utilmeta.utils import import_obj, awaitable, localhost
 from ..base import BaseAuthentication
 
 
@@ -88,6 +88,7 @@ class BaseSession(BaseAuthentication):
                  expire_at_browser_close: bool = False,
                  save_every_request: bool = False,
                  cycle_key_at_login: bool = True,
+                 allow_localhost: bool = False,
                  interrupted: Literal['override', 'cycle', 'error'] = 'override',
                  cookie: Cookie = Cookie(http_only=True),
                  context_var=None,
@@ -111,6 +112,7 @@ class BaseSession(BaseAuthentication):
         self.save_every_request = save_every_request
         self.cycle_key_at_login = cycle_key_at_login
         self.interrupted = interrupted
+        self.allow_localhost = allow_localhost
 
     def process_response(self, response: Response):
         """
@@ -176,16 +178,27 @@ class BaseSession(BaseAuthentication):
         raise NotImplementedError
 
     def _set_cookie(self, response: Response, session_key: str, max_age: int = None, expires: str = None):
+        cookie_domain = self.cookie.domain
+        secure = self.cookie.secure or None
+        same_site = self.cookie.same_site
+        if self.allow_localhost and response.request:
+            if localhost(response.request.origin):
+                secure = None
+                cookie_domain = None
+                if not localhost(response.request.host):
+                    same_site = 'None'
+                    secure = True
+                    # secure is required to use SameSite=None
         response.set_cookie(
             self.cookie_name,
             session_key,
             max_age=max_age,
             expires=expires,
-            domain=self.cookie.domain,
+            domain=cookie_domain,
             path=self.cookie.path,
-            secure=self.cookie.secure or None,
+            secure=secure,
             httponly=self.cookie.http_only or None,
-            samesite=self.cookie.same_site,
+            samesite=same_site,
         )
 
     def openapi_scheme(self) -> dict:

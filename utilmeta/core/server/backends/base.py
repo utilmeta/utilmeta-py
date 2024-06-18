@@ -89,6 +89,20 @@ class ServerAdaptor(BaseAdaptor):
         self.root = self.config.resolve()
         return self.root
 
+    def worker_post_fork(self):
+        self.config.startup()
+
+    def apply_fork(self):
+        try:
+            import uwsgidecorators  # noqa
+            uwsgidecorators.postfork(self.worker_post_fork)
+        except ModuleNotFoundError:
+            pass
+        # todo: for backend that does not have native startup hook (django / flask) using Gunicorn
+        # need to override gunicorn.py
+        # def post_fork(server, worker):
+        #   service.adaptor.apply_fork()
+
     def setup(self):
         raise NotImplementedError
 

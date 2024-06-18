@@ -260,7 +260,7 @@ class AccessTokenSchema(orm.Schema[AccessToken]):
     revoked: bool = False
 
 
-class SystemMetricsMixin(Schema):
+class SystemMetricsMixin(orm.Schema):
     used_memory: float
     cpu_percent: float
     memory_percent: float
@@ -271,15 +271,15 @@ class SystemMetricsMixin(Schema):
     net_connections_info: Dict[str, int]
     open_files: Optional[int]
 
-    def __init__(self, cpu_percent: float, used_memory: float,
-                 memory_percent: float, disk_percent: float,
-                 net_connections_info: Dict[str, int],
-                 file_descriptors: int, active_net_connections: int,
-                 total_net_connections: int, open_files: Optional[int], **kwargs):
-        super().__init__(locals())
+    # def __init__(self, cpu_percent: float, used_memory: float,
+    #              memory_percent: float, disk_percent: float,
+    #              net_connections_info: Dict[str, int],
+    #              file_descriptors: int, active_net_connections: int,
+    #              total_net_connections: int, open_files: Optional[int], **kwargs):
+    #     super().__init__(locals())
 
 
-class ServiceMetricsMixin(Schema):
+class ServiceMetricsMixin(orm.Schema):
     """
     request metrics that can simply be calculated in form of incr and divide
     """
@@ -287,7 +287,7 @@ class ServiceMetricsMixin(Schema):
     out_traffic: Optional[int]
 
     outbound_requests: int
-    outbound_rps: int
+    outbound_rps: float
     outbound_timeouts: int
     outbound_errors: int
     outbound_avg_time: float
@@ -324,6 +324,8 @@ class WorkerSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Worker]):
 
 
 class WorkerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[WorkerMonitor]):
+    id: int
+
     time: datetime
     interval: Optional[int]
     worker_id: int
@@ -332,7 +334,9 @@ class WorkerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Wo
     metrics: dict
 
 
-class ServerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[WorkerMonitor]):
+class ServerMonitorSchema(SystemMetricsMixin, orm.Schema[ServerMonitor]):
+    id: int
+
     time: datetime
     layer: int
     interval: Optional[int]
@@ -344,6 +348,8 @@ class ServerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Wo
 
 
 class InstanceMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[InstanceMonitor]):
+    id: int
+
     time: datetime
     layer: int
     interval: Optional[int]
@@ -357,3 +363,6 @@ class InstanceMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[
     avg_workers: Optional[float]
 
     metrics: dict
+
+
+# fixme: orm.Schema's base Schema must be orm.Schema, not utype.Schema

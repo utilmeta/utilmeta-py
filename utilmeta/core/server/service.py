@@ -369,7 +369,6 @@ class UtilMeta:
         print('')
 
     def resolve_port(self):
-        print('PID:', os.getpid())
         if self.port:
             return
 

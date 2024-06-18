@@ -40,8 +40,15 @@ class DjangoRequestAdaptor(RequestAdaptor):
     def request_method(self):
         return self.request.method
 
-    @cached_property
+    @property
     def url(self):
+        return self._url
+
+    @property
+    def address(self):
+        return self._address
+
+    def get_url(self):
         if hasattr(self.request, 'get_raw_uri'):
             return self.request.get_raw_uri()
         try:
@@ -53,10 +60,6 @@ class DjangoRequestAdaptor(RequestAdaptor):
     @property
     def path(self):
         return self.request.path
-
-    @cached_property
-    def address(self):
-        return get_request_ip(self.request.META)
 
     @classmethod
     def load_form_data(cls, request):
@@ -103,19 +106,19 @@ class DjangoRequestAdaptor(RequestAdaptor):
         return self.body
         # not actually "async", but could be used from async server
 
-    @cached_property
-    def encoded_path(self):
-        try:
-            return self.request.get_full_path()
-        except AttributeError:
-            from django.utils.encoding import escape_uri_path
-            # RFC 3986 requires query string arguments to be in the ASCII range.
-            # Rather than crash if this doesn't happen, we encode defensively.
-            path = escape_uri_path(self.request.path)
-            qs = self.request.META.get('QUERY_STRING', '')
-            if qs:
-                path += '?' + qs
-            return path
+    # @cached_property
+    # def encoded_path(self):
+    #     try:
+    #         return self.request.get_full_path()
+    #     except AttributeError:
+    #         from django.utils.encoding import escape_uri_path
+    #         # RFC 3986 requires query string arguments to be in the ASCII range.
+    #         # Rather than crash if this doesn't happen, we encode defensively.
+    #         path = escape_uri_path(self.request.path)
+    #         qs = self.request.META.get('QUERY_STRING', '')
+    #         if qs:
+    #             path += '?' + qs
+    #         return path
 
     @property
     def body(self):
@@ -123,15 +126,15 @@ class DjangoRequestAdaptor(RequestAdaptor):
 
     @property
     def headers(self):
-        return self.request.headers
+        return self._headers
 
     @property
     def scheme(self):
         return self.request.scheme
 
-    @property
-    def query_string(self):
-        return self.request.META.get('QUERY_STRING', '')
+    # @property
+    # def query_string(self):
+    #     return self.request.META.get('QUERY_STRING', '')
 
     @property
     def query_params(self):
@@ -143,4 +146,8 @@ class DjangoRequestAdaptor(RequestAdaptor):
 
     def __init__(self, request: HttpRequest, route: str = None, *args, **kwargs):
         super().__init__(request, route, *args, **kwargs)
-        self.request = request
+        # django request.META might lost if the current request context is finished
+        # so we need to save it to the local vars
+        self._headers = self.request.headers
+        self._address = get_request_ip(self.request.META)
+        self._url = self.get_url()

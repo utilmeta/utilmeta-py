@@ -52,8 +52,13 @@ class SchemaClassParser(ClassParser):
                         # maybe the base class only use (orm.Schema) as base and not specifying model
                         # we need to assign and setup here, otherwise
                         # we should regenerate another new instance to avoid model conflict
-                        field = field.reconstruct(self.model)
-                        field.setup(self.options)
+                        try:
+                            field = field.reconstruct(self.model)
+                            field.setup(self.options)
+                        except Exception as e:
+                            raise e.__class__(f'orm.Schema: setup field [{repr(name)}] '
+                                              f'for model: {self.model} failed with error: {e}') from e
+
                         self.fields[name] = field
             if pk_names:
                 pass

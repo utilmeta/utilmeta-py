@@ -46,7 +46,7 @@ class ParserFilter(ParserField):
         from ..backends.base import ModelAdaptor, ModelFieldAdaptor
         self.model: Optional[ModelAdaptor] = None
         self.model_field: Optional[ModelFieldAdaptor] = None
-        self.query: Optional[Callable] = None
+        # self.query: Optional[Callable] = None
         self.filter = self.field if isinstance(self.field, Filter) else Filter()
 
         if isinstance(model, ModelAdaptor):
@@ -61,11 +61,12 @@ class ParserFilter(ParserField):
                         if not self.filter.query:
                             raise ValueError(f'Filter({repr(self.field_name)}) '
                                              f'not resolved to field in model: {model.model}')
-                if self.filter.query:
-                    self.query = self.filter.query
-
                     if not inspect.isfunction(self.query):
                         self.model.check_query(self.query)
+
+    @property
+    def query(self):
+        return self.filter.query
 
     @property
     def order(self):

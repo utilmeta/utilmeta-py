@@ -8,6 +8,13 @@ import django
 from datetime import date, time, timedelta, datetime
 
 
+def clear_query_ordering(query, force=False):
+    if django.VERSION < (4, 0):
+        query.clear_ordering(force_empty=force)
+    else:
+        query.clear_ordering(force=force)
+
+
 class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
     connections_cls = DatabaseConnections
 
@@ -32,7 +39,8 @@ class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
             return
         query = self.query.chain(klass=sql.Query)
         query.select_related = False
-        query.clear_ordering(force=True)
+        clear_query_ordering(query, True)
+        # query.clear_ordering(force=True)
         query.extra = {}
         query.select = []
         meta = query.get_meta()
@@ -174,7 +182,8 @@ class AwaitableQuery(sql.Query):
                 # Queries with distinct_fields need ordering and when a limit is
                 # applied we must take the slice from the ordered query. Otherwise
                 # no need for ordering.
-                inner_query.clear_ordering(force=False)
+                clear_query_ordering(inner_query, False)
+                # inner_query.clear_ordering(force=False)
                 if not inner_query.distinct:
                     # If the inner query uses default select and it has some
                     # aggregate annotations, then we must make sure the inner
@@ -224,7 +233,8 @@ class AwaitableQuery(sql.Query):
                 self.select = ()
                 self.default_cols = False
                 self.extra = {}
-            outer_query.clear_ordering(force=True)
+            clear_query_ordering(outer_query, True)
+            # outer_query.clear_ordering(force=True)
             outer_query.clear_limits()
             outer_query.select_for_update = False
             outer_query.select_related = False
@@ -289,7 +299,8 @@ class AwaitableQuery(sql.Query):
                 # Queries with distinct_fields need ordering and when a limit is
                 # applied we must take the slice from the ordered query. Otherwise
                 # no need for ordering.
-                inner_query.clear_ordering(force=False)
+                clear_query_ordering(inner_query, False)
+                # inner_query.clear_ordering(force=False)
                 if not inner_query.distinct:
                     # If the inner query uses default select and it has some
                     # aggregate annotations, then we must make sure the inner
@@ -368,7 +379,8 @@ class AwaitableQuery(sql.Query):
             #     for expression in outer_query.annotation_select.values()
             # ]
             # elide_empty = not any(result is NotImplemented for result in empty_set_result)
-            outer_query.clear_ordering(force=True)
+            clear_query_ordering(outer_query, True)
+            # outer_query.clear_ordering(force=True)
             outer_query.clear_limits()
             outer_query.select_for_update = False
             outer_query.select_related = False

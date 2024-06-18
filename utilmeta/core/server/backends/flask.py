@@ -55,13 +55,7 @@ class FlaskServerAdaptor(ServerAdaptor):
         )
 
         self.setup_middlewares()
-        # @self.app.after_server_start
-        # async def startup(*_):
-        #     await self.config.startup()
-        #
-        # @self.app.before_server_stop
-        # async def shutdown(*_):
-        #     await self.config.shutdown()
+        self.apply_fork()
 
         self._ready = True
 

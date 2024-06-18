@@ -97,17 +97,18 @@ def aggregate_logs(service: str,
         total_requests = requests = total_data.get('requests') or 0
         avg_time = total_data.get('avg_time') or 0
     else:
-        total_data = WorkerMonitor.objects.filter(
+        worker_qs = WorkerMonitor.objects.filter(
             worker__instance__service=service,
             time__gte=start,
             time__lt=current
-        ).aggregate(
-            total_requests=models.Sum('requests'),
-            total_avg_time=models.Sum(models.F('avg_time') * models.F('requests')) / models.Sum('requests')
         )
         requests = service_logs.count()
-        total_requests = total_data.get('total_requests') or requests
-        avg_time = total_data.get('total_avg_time') or 0
+        total_requests = worker_qs.aggregate(v=models.Sum('requests'))['v'] or requests
+        if total_requests:
+            avg_time = worker_qs.aggregate(
+                v=models.Sum(models.F('avg_time') * models.F('requests')) / total_requests)['v'] or 0
+        else:
+            avg_time = 0
 
     if not total_requests:
         return

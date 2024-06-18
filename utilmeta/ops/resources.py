@@ -6,6 +6,7 @@ from .schema import NodeMetadata, ResourcesSchema, \
     InstanceSchema, ServerSchema, TableSchema, DatabaseSchema, CacheSchema, ResourceData
 from utilmeta import UtilMeta
 from utilmeta.utils import fast_digest, json_dumps, ignore_errors
+from django.db import models
 
 
 class ModelGenerator:
@@ -350,7 +351,6 @@ class ResourcesManager:
                 )
             else:
                 if resource.type in ('server', 'instance'):
-                    from django.db import models
                     obj = Resource.objects.filter(
                         models.Q(node_id__isnull=True) | models.Q(node_id=supervisor.node_id),
                         service=self.service.name,
@@ -370,18 +370,24 @@ class ResourcesManager:
                         )
                         continue
 
-                creates.append(
-                    Resource(
-                        service=self.service.name,
-                        node_id=supervisor.node_id,
-                        **resource
+                if not Resource.objects.filter(
+                    models.Q(node_id__isnull=True) | models.Q(node_id=supervisor.node_id),
+                    service=self.service.name,
+                    type=resource.type,
+                    ident=resource.ident,
+                ).exists():
+                    creates.append(
+                        Resource(
+                            service=self.service.name,
+                            node_id=supervisor.node_id,
+                            **resource
+                        )
                     )
-                )
 
         if updates:
             Resource.objects.bulk_update(
                 updates,
-                fields=['server_id', 'ident', 'route', 'deleted'],
+                fields=['server_id', 'ident', 'route', 'deleted', 'remote_id'],
             )
         if creates:
             Resource.objects.bulk_create(
@@ -391,6 +397,7 @@ class ResourcesManager:
 
         Resource.objects.filter(
             node_id=supervisor.node_id,
+            remote_id__isnull=False
         ).exclude(
             remote_id__in=remote_pks
         ).update(

@@ -350,6 +350,9 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     def is_concrete(self):
         if self.is_exp:
             return False
+        if self.is_m2m:
+            # somehow ManyToManyField is considered "concrete" in django
+            return False
         return getattr(self.field, 'concrete', False)
 
     @property

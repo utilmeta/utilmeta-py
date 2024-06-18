@@ -29,7 +29,7 @@ class OperationsAPI(api.API):
     __external__ = True
 
     servers: ServersAPI
-    query: QueryAPI
+    data: QueryAPI
     logs: LogAPI
 
     token: TokenAPI

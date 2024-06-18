@@ -257,6 +257,8 @@ class ParserQueryField(ParserField):
                 self.type = rule.merge_type(self.type)
                 # merge declared type and model field type
 
+                # fixme: do not merge for ForwardRef
+
         else:
             if isinstance(self.field, QueryField) and self.field.field:
                 raise ValueError(f'orm.Field({repr(self.field.field)}) not exists in model: {self.model}')

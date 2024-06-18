@@ -63,6 +63,7 @@ class DjangoServerAdaptor(ServerAdaptor):
             route='(.*)',
             asynchronous=self.asynchronous
         )
+        self.apply_fork()
         # check wsgi application
         self._ready = True
 
@@ -106,6 +107,10 @@ class DjangoServerAdaptor(ServerAdaptor):
                     return self.response_adaptor_cls.reconstruct(response)
 
                 _current_request.set(request)
+                # fixme:
+                # in production (uwsgi)
+                # request.META might lost during log saving
+                # result in the emptiness of ip_address and url
                 django_response = get_response(django_request)
                 _current_request.set(None)
 
@@ -260,6 +265,7 @@ class DjangoServerAdaptor(ServerAdaptor):
     def run(self):
         self.setup()
         self.check_application()
+
         if self.background:
             return
 

@@ -80,18 +80,92 @@ class BaseEndpoint(PluginTarget):
         self.eager = eager
         self.name = self.__name__ = f.__name__
         self.path_names = self.PATH_REGEX.findall(self.route)
+
+        # ---------------
         self.wrapper = self.wrapper_cls(
             self.parser_cls.apply_for(f),
-            default_properties={
-                key: PathParam for key in self.path_names
-            }
+            default_properties=self.default_wrapper_properties
         )
         self.executor = self.parser.wrap(
             eager_parse=self.eager,
             parse_params=self.PARSE_PARAMS,
             parse_result=self.PARSE_RESULT
         )
-        self.response_types: List[Type[Response]] = self.parse_responses(self.parser.return_type)
+
+        self.sync_wrapper = None
+        self.async_wrapper = None
+        self.sync_executor = None
+        self.async_executor = None
+
+        # -- adapt @awaitable
+        if getattr(self.f, '_awaitable', False):
+            sync_func = getattr(self.f, '_syncfunc', None)
+            async_func = getattr(self.f, '_asyncfunc', None)
+            if sync_func:
+                self.sync_wrapper = self.wrapper_cls(
+                    self.parser_cls.apply_for(sync_func),
+                    default_properties=self.default_wrapper_properties
+                )
+                self.sync_executor = self.sync_wrapper.parser.wrap(
+                    eager_parse=self.eager,
+                    parse_params=self.PARSE_PARAMS,
+                    parse_result=self.PARSE_RESULT
+                )
+            if async_func:
+                self.async_wrapper = self.wrapper_cls(
+                    self.parser_cls.apply_for(async_func),
+                    default_properties=self.default_wrapper_properties
+                )
+                self.async_executor = self.async_wrapper.parser.wrap(
+                    eager_parse=self.eager,
+                    parse_params=self.PARSE_PARAMS,
+                    parse_result=self.PARSE_RESULT
+                )
+
+        self.response_types: List[Type[Response]] = self.parse_responses(
+            self.return_type
+        )
+
+    @property
+    def return_type(self):
+        if self.parser.return_type:
+            return self.parser.return_type
+        if self.sync_wrapper:
+            rt = self.sync_wrapper.parser.return_type
+            if rt:
+                return rt
+        if self.async_wrapper:
+            rt = self.async_wrapper.parser.return_type
+            if rt:
+                return rt
+        return None
+
+    def get_wrapper(self, asynchronous: bool = False):
+        if asynchronous:
+            if self.async_wrapper:
+                return self.async_wrapper
+        else:
+            if self.sync_wrapper:
+                return self.sync_wrapper
+        return self.wrapper
+
+    def get_parser(self, asynchronous: bool = False):
+        return self.get_wrapper(asynchronous).parser
+
+    def get_executor(self, asynchronous: bool = False):
+        if asynchronous:
+            if self.async_executor:
+                return self.async_executor
+        else:
+            if self.sync_executor:
+                return self.sync_executor
+        return self.executor
+
+    @property
+    def default_wrapper_properties(self):
+        return {
+            key: PathParam for key in self.path_names
+        }
 
     @classmethod
     def parse_responses(cls, return_type):
@@ -268,16 +342,16 @@ class Endpoint(BaseEndpoint):
         self.api = api
 
     def __call__(self, *args, **kwargs):
-        # with self:
-        r = self.executor(*args, **kwargs)
+        executor = self.get_executor(False)
+        r = executor(*args, **kwargs)
         if inspect.isawaitable(r):
             raise exc.ServerError('awaitable detected in sync function')
         return r
 
     @utils.awaitable(__call__)
     async def __call__(self, *args, **kwargs):
-        # async with self:
-        r = self.executor(*args, **kwargs)
+        executor = self.get_executor(True)
+        r = executor(*args, **kwargs)
         while inspect.isawaitable(r):
             # executor is maybe a sync function, which will not need to await
             r = await r
@@ -387,8 +461,9 @@ class Endpoint(BaseEndpoint):
     def parse_request(self, request: Request):
         try:
             kwargs = dict(var.path_params.getter(request))
-            kwargs.update(self.wrapper.parse_context(request))
-            return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
+            wrapper = self.get_wrapper(False)
+            kwargs.update(wrapper.parse_context(request))
+            return wrapper.parser.parse_params((), kwargs, context=wrapper.parser.options.make_context())
         except utype.exc.ParseError as e:
             raise exc.BadRequest(str(e), detail=e.get_detail()) from e
 
@@ -396,8 +471,9 @@ class Endpoint(BaseEndpoint):
     async def parse_request(self, request: Request):
         try:
             kwargs = dict(await var.path_params.getter(request))
-            kwargs.update(await self.wrapper.parse_context(request))
-            return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
+            wrapper = self.get_wrapper(True)
+            kwargs.update(await wrapper.parse_context(request))
+            return wrapper.parser.parse_params((), kwargs, context=wrapper.parser.options.make_context())
             # in base Endpoint, args is not supported
         except utype.exc.ParseError as e:
             raise exc.BadRequest(str(e), detail=e.get_detail()) from e

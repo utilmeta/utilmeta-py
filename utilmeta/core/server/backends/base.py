@@ -66,6 +66,9 @@ class ServerAdaptor(BaseAdaptor):
         self.proxy = None
         self.middlewares: List[ServiceMiddleware] = []
 
+    # def init_application(self):
+    #     return
+
     @property
     def root_pattern(self):
         if not self.config.root_url:

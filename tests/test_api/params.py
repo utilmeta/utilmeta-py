@@ -4,7 +4,7 @@ from utilmeta.core.response import Response
 
 
 # image = UploadedFile(BytesIO(b"image"), content_type="image/png", size=6)
-def get_requests(backend: str = None):
+def get_requests(backend: str = None, asynchronous: bool = False):
     image = BytesIO(b"image")
     # files = [
     #     UploadedFile(BytesIO(b"f1"), content_type="image/png", size=2),
@@ -40,6 +40,7 @@ def get_requests(backend: str = None):
         ("get", "doc/tech/3", {}, None, {}, {"tech": 3}, 200),
         ("get", "query", {"page": "3"}, None, {}, [3, "default"], 200),
         ("get", "query", {"page": 3, "item": 4}, None, {}, [3, "4"], 200),
+        ("get", "asynchronous", {}, None, {}, 'async' if asynchronous else 'sync', 200),
         (
             "get",
             "query_schema",
@@ -274,7 +275,10 @@ def get_requests(backend: str = None):
 
 
 def do_live_api_tests(service):
-    for method, path, query, body, headers, result, status in get_requests(service.backend_name):
+    for method, path, query, body, headers, result, status in get_requests(
+        service.backend_name,
+        asynchronous=service.asynchronous
+    ):
         h = dict(headers)
         h.update({
             'X-Common-State': 1

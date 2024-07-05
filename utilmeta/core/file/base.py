@@ -14,6 +14,7 @@ class InvalidFileType(UnprocessableEntity):
 class File:
     file: BytesIO
     format = 'binary'
+    accept = '*/*'
     # FOR JSON SCHEMA
 
     encoding = property(lambda self: self.file.encoding)
@@ -125,18 +126,28 @@ class File:
 
 
 class Image(File):
+    accept = 'image/*'
+
     def validate(self):
         if not self.content_type or not self.is_image:
             raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, image expected')
 
+    def get_image(self):
+        from PIL import Image, ImageOps
+        return ImageOps.exif_transpose(Image.open(self.file))
+
 
 class Audio(File):
+    accept = 'audio/*'
+
     def validate(self):
         if not self.content_type or not self.is_audio:
             raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, audio expected')
 
 
 class Video(File):
+    accept = 'video/*'
+
     def validate(self):
         if not self.content_type or not self.is_video:
             raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, video expected')

@@ -233,7 +233,11 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         if not pk_list:
             return
         pk_map = {}
+
         key = field.name
+        query_key = '__' + key
+        # avoid "conflicts with a field on the model."
+
         current_qs: models.QuerySet = self.model.get_queryset(pk__in=pk_list)
         related_qs: models.QuerySet = field.queryset
         # - current_qs.filter(pk__in=self.pk_list).values(related_field, PK)   [no related_qs provided]
@@ -241,7 +245,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         #   - related_schema.serialize(related_qs)   [related_schema provided]
 
         if field.expression:
-            pk_map = {val[PK]: val[key] for val in current_qs.values(PK, **{key: field.expression})}
+            pk_map = {val[PK]: val[query_key] for val in current_qs.values(PK, **{query_key: field.expression})}
         elif related_qs is None:
             # directly query relation without filter/order
             # in this way,
@@ -287,15 +291,15 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                                     pk_map.setdefault(rel, []).append(val[c or PK])
 
                     else:
-                        _args = []
-                        _kw = {}
+                        # _args = []
+                        # _kw = {}
                         qn = self.get_query_name(field)
-                        if qn == key:
-                            _args = (key,)
-                        else:
-                            _kw = {key: exp.F(qn)}
-                        for val in current_qs.values(PK, *_args, **_kw):
-                            rel = val[key]
+                        # if qn == key:
+                        #     _args = (key,)
+                        # else:
+                        # _kw = {query_key: exp.F(qn)}
+                        for val in current_qs.values(PK, **{query_key: exp.F(qn)}):
+                            rel = val[query_key]
                             if rel is not None:
                                 pk_map.setdefault(val[PK], []).append(rel)
         else:
@@ -307,8 +311,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # so the final values might not be the exact 'pk'
                 # we do not override if user has already selected
 
-            for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
-                rel = val[key]
+            for val in current_qs.values(PK, **{query_key: exp.Subquery(related_qs)}):
+                rel = val[query_key]
                 if rel is not None:
                     pk_map.setdefault(val[PK], []).append(rel)
 
@@ -463,6 +467,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             return
         pk_map = {}
         key = field.name
+        query_key = '__' + key
+        # avoid "conflicts with a field on the model."
+
         current_qs: models.QuerySet = self.model.get_queryset(pk__in=pk_list)
         related_qs: models.QuerySet = field.queryset
         # - current_qs.filter(pk__in=self.pk_list).values(related_field, PK)   [no related_qs provided]
@@ -470,7 +477,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         #   - related_schema.serialize(related_qs)   [related_schema provided]
 
         if field.expression:
-            pk_map = {val[PK]: val[key] async for val in current_qs.values(PK, **{key: field.expression})}
+            pk_map = {val[PK]: val[query_key] async for val in current_qs.values(PK, **{query_key: field.expression})}
         elif related_qs is None:
             # directly query relation without filter/order
             # in this way,
@@ -516,15 +523,15 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                                     pk_map.setdefault(rel, []).append(val[c or PK])
 
                     else:
-                        _args = []
-                        _kw = {}
+                        # _args = []
+                        # _kw = {}
                         qn = self.get_query_name(field)
-                        if qn == key:
-                            _args = (key,)
-                        else:
-                            _kw = {key: exp.F(qn)}
-                        async for val in current_qs.values(PK, *_args, **_kw):
-                            rel = val[key]
+                        # if qn == key:
+                        #     _args = (key,)
+                        # else:
+                        # _kw = {query_key: exp.F(qn)}
+                        async for val in current_qs.values(PK, **{query_key: exp.F(qn)}):
+                            rel = val[query_key]
                             if rel is not None:
                                 pk_map.setdefault(val[PK], []).append(rel)
         else:
@@ -533,8 +540,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # 2. this is a related schema query, we should override the values to PK
                 related_qs = related_qs.values(PK)
 
-            async for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
-                rel = val[key]
+            async for val in current_qs.values(PK, **{query_key: exp.Subquery(related_qs)}):
+                rel = val[query_key]
                 if rel is not None:
                     pk_map.setdefault(val[PK], []).append(rel)
 

@@ -32,6 +32,10 @@ class FlaskServerAdaptor(ServerAdaptor):
             else self.application_cls(self.config.module_name)
         self._ready = False
 
+    # def init_application(self):
+    #     return self.config._application if isinstance(self.config._application, self.application_cls) \
+    #         else self.application_cls(self.config.module_name)
+
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous

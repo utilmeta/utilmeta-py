@@ -274,7 +274,7 @@ def run_server(backend: str = None, port: int = None, asynchronous: bool = None)
         service.set_backend(backend)
     if port:
         service.port = port
-    if asynchronous:
+    if asynchronous is not None:
         service.set_asynchronous(asynchronous)
 
     # from utilmeta.utils.schema.z_cov import cov

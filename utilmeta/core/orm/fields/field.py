@@ -265,8 +265,10 @@ class ParserQueryField(ParserField):
             # will not be queried (input of 'r' mode)
             if not self.no_input:
                 self.no_input = 'r'
-            if not self.mode:
-                self.mode = 'r'
+            if not self.no_output:
+                self.no_output = 'aw'
+            # if not self.mode:
+            #     self.mode = 'r'
 
     @property
     def readable(self):

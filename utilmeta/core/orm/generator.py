@@ -58,6 +58,8 @@ class BaseQuerysetGenerator:
                 offset = (self.page - 1) * self.limit
         if offset is not None:
             if self.limit:
+                if self.page:
+                    offset = max(offset, (self.page - 1) * self.limit)
                 return slice(offset, offset + self.limit)
             else:
                 return slice(offset, None)

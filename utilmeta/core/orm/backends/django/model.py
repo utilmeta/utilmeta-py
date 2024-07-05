@@ -35,6 +35,10 @@ class DjangoModelAdaptor(ModelAdaptor):
         tag = '.'.join((app_label, self.model.__name__))
         return tag.lower()
 
+    @property
+    def field_errors(self) -> Tuple[Type[Exception], ...]:
+        return (exc.FieldError,)
+
     @classmethod
     def qualify(cls, obj):
         return isinstance(obj, ModelBase)
@@ -63,6 +67,20 @@ class DjangoModelAdaptor(ModelAdaptor):
     async def create(self, d=None, **data) -> model_cls:
         return await self.get_queryset().acreate(**(d or data))
 
+    def bulk_create(self, data: list, **kwargs):
+        objs = self.get_queryset().bulk_create(data, **kwargs)
+        return self.model.objects.filter(pk__in=[obj.pk for obj in objs])
+
+    async def abulk_create(self, data: list, **kwargs):
+        objs = await self.get_queryset().abulk_create(data, **kwargs)
+        return self.model.objects.filter(pk__in=[obj.pk for obj in objs])
+
+    def bulk_update(self, data: list, fields: list):
+        return self.get_queryset().bulk_update(data, fields=fields)
+
+    async def abulk_update(self, data: list, fields: list):
+        return await self.get_queryset().abulk_update(data, fields=fields)
+
     def delete(self, q=None, **filters):
         if not q and not filters:
             # no filters
@@ -74,6 +92,25 @@ class DjangoModelAdaptor(ModelAdaptor):
             # no filters
             return
         return await self.get_queryset(q, **filters).adelete()
+
+    def values(self, q=None, *fields, **filters) -> List[dict]:
+        # for django it's like model.objects.all()
+        if isinstance(q, models.QuerySet):
+            qs = q
+            if filters:
+                qs = q.filter(**filters)
+        else:
+            qs = self.get_queryset(q, **filters)
+        return list(qs.values(*fields))
+
+    async def avalues(self, q=None, *fields, **filters) -> List[dict]:
+        if isinstance(q, models.QuerySet):
+            qs = q
+            if filters:
+                qs = q.filter(**filters)
+        else:
+            qs = self.get_queryset(q, **filters)
+        return [val async for val in qs.values(*fields)]
 
     def get_queryset(self, q=None, **filters) -> queryset_cls:
         # for django it's like model.objects.all()
@@ -144,6 +181,8 @@ class DjangoModelAdaptor(ModelAdaptor):
         if not isinstance(name, str):
             # field ref / expression
             return self.field_adaptor_cls(name, model=self)
+        if name == 'pk':
+            return self.field_adaptor_cls(self.meta.pk, model=self, lookup_name=name)
         model = self.model
         lookups = name.replace('.', SEG).split(SEG)
         f = None

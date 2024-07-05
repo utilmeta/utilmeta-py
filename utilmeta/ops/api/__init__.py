@@ -9,7 +9,7 @@ from django.db import utils
 from utype.types import *
 from ..connect import save_supervisor
 from utilmeta.core.api.specs.openapi import OpenAPI
-from .query import QueryAPI
+from .data import DataAPI
 from .log import LogAPI
 from .servers import ServersAPI
 from .token import TokenAPI
@@ -29,7 +29,7 @@ class OperationsAPI(api.API):
     __external__ = True
 
     servers: ServersAPI
-    data: QueryAPI
+    data: DataAPI
     logs: LogAPI
 
     token: TokenAPI
@@ -102,21 +102,24 @@ class OperationsAPI(api.API):
                 public_key__isnull=False
             )
         ):
-            data = decode_token(token, public_key=supervisor.public_key)
-            if not data:
+            try:
+                token_data = decode_token(token, public_key=supervisor.public_key)
+            except ValueError:
+                raise exceptions.BadRequest('Invalid token format', state='token_expired')
+            if not token_data:
                 continue
-            token_node_id = data.get('nid')
+            token_node_id = token_data.get('nid')
             if token_node_id != node_id:
                 raise exceptions.Conflict(f'Invalid node id')
-            issuer = data.get('iss') or ''
+            issuer = token_data.get('iss') or ''
             if not str(supervisor.base_url).startswith(issuer):
                 raise exceptions.Conflict(f'Invalid token issuer: {repr(issuer)}')
-            audience = data.get('aud') or ''
+            audience = token_data.get('aud') or ''
             if not config.ops_api.startswith(audience):
                 # todo: log, but not force to reject
                 pass
 
-            expires = data.get('exp')
+            expires = token_data.get('exp')
             if not expires:
                 raise exceptions.UnprocessableEntity('Invalid token: no expires')
 
@@ -124,7 +127,7 @@ class OperationsAPI(api.API):
                 raise exceptions.BadRequest('Invalid token: expired', state='token_expired')
 
             # SCOPE ----------------------------
-            scope = data.get('scope') or ''
+            scope = token_data.get('scope') or ''
             scopes = scope.split(' ') if ' ' in scope else scope.split(',')
             scope_names = []
             resources = []
@@ -137,7 +140,7 @@ class OperationsAPI(api.API):
             resources_var.setter(self.request, resources)
             # -------------------------------------
 
-            token_id = data.get('jti') or ''
+            token_id = token_data.get('jti') or ''
             if not token_id:
                 raise exceptions.BadRequest('Invalid token: id required', state='token_expired')
 
@@ -164,9 +167,9 @@ class OperationsAPI(api.API):
                     token_obj = AccessTokenSchema(
                         token_id=token_id,
                         issuer_id=supervisor.id,
-                        issued_at=datetime.fromtimestamp(data.get('iat')),
+                        issued_at=datetime.fromtimestamp(token_data.get('iat')),
                         expiry_time=datetime.fromtimestamp(expires),
-                        subject=data.get('sub'),
+                        subject=token_data.get('sub'),
                         last_activity=self.request.time,
                         used_times=1,
                         ip=str(self.request.ip_address),

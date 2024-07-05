@@ -5,8 +5,6 @@ from django.db.models import CharField, NOT_PROVIDED
 
 
 class PasswordField(CharField):
-    __write_only__ = True
-
     @classmethod
     def guess_encoded(cls, pwd: str):
         if len(pwd) < 60:

@@ -10,10 +10,11 @@ from django.db import models
 
 
 class ModelGenerator:
-    def __init__(self, model):
+    def __init__(self, model, config: Operations):
         self.model = model
         from utilmeta.core.orm.backends.base import ModelAdaptor
         self.adaptor = ModelAdaptor.dispatch(model)
+        self.config = config
 
     # @property
     # def ident(self):
@@ -22,16 +23,20 @@ class ModelGenerator:
     def generate_fields(self):
         from utype.specs.json_schema import JsonSchemaGenerator
         fields = {}
-        for f in self.adaptor.get_fields(many=False):
+        for f in self.adaptor.get_fields(many=False, no_inherit=True):
             name = f.column_name
             to_model = to_field = relate_name = None
-
+            secret = self.config.is_secret(name)
             if f.is_fk:
                 to_model = f.related_model.ident if f.related_model else None
                 to_field = f.to_field
                 relate_name = f.relate_name
-
+                secret = False
+            if f.is_pk:
+                secret = False
             schema = JsonSchemaGenerator(f.rule)()
+            if schema.get('type') == 'boolean':
+                secret = False
             data = {k: v for k, v in dict(
                 schema=schema,
                 title=f.title,
@@ -46,7 +51,8 @@ class ModelGenerator:
                 category=f.field.__class__.__name__,
                 to_model=to_model,
                 to_field=to_field,
-                relate_name=relate_name
+                relate_name=relate_name,
+                secret=secret
             ).items() if v}
 
             fields[name] = data
@@ -169,8 +175,7 @@ class ResourcesManager:
             **self.instance_data
         )
 
-    @classmethod
-    def get_tables(cls) -> List[TableSchema]:
+    def get_tables(self) -> List[TableSchema]:
         # from utilmeta.core.orm.backends.base import ModelAdaptor
         from utilmeta.core.orm.backends.django import DjangoModelAdaptor
         # todo: support other than django
@@ -205,7 +210,7 @@ class ResourcesManager:
             adaptor = DjangoModelAdaptor(mod)
             model_name = mod.__name__
             ident = adaptor.ident
-            generator = ModelGenerator(mod)
+            generator = ModelGenerator(mod, config=self.ops_config)
             obj = TableSchema(
                 ref=f'{mod.__module__}.{mod.__name__}',
                 ident=ident,

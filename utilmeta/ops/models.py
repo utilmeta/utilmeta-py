@@ -157,7 +157,8 @@ class Resource(models.Model):
             type='server',
             ident=get_server_ip(),
             deleted=False
-        ).first()
+        ).order_by('remote_id', 'deprecated', '-created_time').first()
+        # first go with the remote_id
 
     @classmethod
     def get_current_instance(cls) -> Optional['Resource']:

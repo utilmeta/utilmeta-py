@@ -54,7 +54,7 @@ class Operations(Config):
         self.db_alias = database if isinstance(database, str) else '__ops'
 
         self.disabled_scope = set(disabled_scope)
-        self.secret_names = secret_names
+        self.secret_names = [k.lower() for k in secret_names]
         self.trusted_hosts = list(trusted_hosts)
         self.default_timeout = default_timeout
         self.secure_only = secure_only
@@ -302,3 +302,9 @@ class Operations(Config):
             if service.module:
                 # ATTRIBUTE FINDER
                 setattr(service.module, 'utilmeta', service)
+
+    def is_secret(self, key: str):
+        for k in self.secret_names:
+            if k in key.lower():
+                return True
+        return False

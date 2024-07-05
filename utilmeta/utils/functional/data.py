@@ -31,6 +31,7 @@ __all__ = [
     'merge_list',
     'dict_number_add',
     'make_dict_by',
+    'reduce_value',
     'get_number', 'is_sub_dict',  'convert_data_frame',
     'based_number', 'get_based_number', 'list_or_args', 'bi_search', 'replace_null',
     'make_hash', 'avg', 'pop_null', 'dict_list_merge', 'normalize_title'
@@ -332,6 +333,38 @@ def get_number(num_str: str, ignore: bool = True) -> Union[int, float, None]:
         if value.is_integer():
             return int(value)
         return value
+
+
+def reduce_value(data, max_length: int) -> dict:
+    result = {}
+    t = 'string'
+    items = None
+    if multi(data):
+        t = 'array'
+        length = len(str(data))
+        items = len(data)
+    elif isinstance(data, (dict, Mapping)):
+        t = 'object'
+        length = len(str(data))
+        items = len(data)
+    elif isinstance(data, (str, bytes)):
+        length = len(data)
+    else:
+        return data
+    if length <= max_length:
+        return data
+    if isinstance(data, bytes):
+        data = data.decode('utf-8', 'ignore')
+    result['$reduced'] = True
+    result.update(
+        type=t,
+        length=length,
+        content=str(data)[:max_length],
+        content_length=max_length
+    )
+    if items is not None:
+        result.update(items=items)
+    return result
 
 
 def readable(data, max_length: int = 20, more: bool = True) -> str:

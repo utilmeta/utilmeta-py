@@ -200,8 +200,16 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             if mod:
                 _type = mod.pk_field.rule
 
+                if _type and self.is_nullable:
+                    from utype.parser.rule import LogicalType
+                    _type = LogicalType.any_of(_type, type(None))
+
         elif self.is_concrete:
             _type = self._get_type(self.field)
+
+            if _type and self.is_nullable:
+                from utype.parser.rule import LogicalType
+                _type = LogicalType.any_of(_type, type(None))
 
         elif self.is_exp:
             if isinstance(self.field, exp.Count):

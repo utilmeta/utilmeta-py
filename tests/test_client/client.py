@@ -27,6 +27,9 @@ class TestClient(cli.Client):
     async def async_query(self, page: int = request.QueryParam(),
                           item: str = request.QueryParam()) -> response.Response: pass
 
+    @api.get("asynchronous")
+    def get_asynchronous(self) -> response.Response: pass
+
     class QuerySchema(utype.Schema):
         page: int = utype.Field(ge=1, le=10)
         item: Optional[str] = utype.Field(min_length=3, max_length=10)

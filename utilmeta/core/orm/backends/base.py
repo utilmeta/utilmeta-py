@@ -191,6 +191,10 @@ class ModelAdaptor(BaseAdaptor):
         return f'{self.model.__module__}.{self.model.__name__}'
 
     @property
+    def field_errors(self) -> Tuple[Type[Exception], ...]:
+        return (Exception, )
+
+    @property
     def pk_field(self) -> field_adaptor_cls:
         raise NotImplementedError
 
@@ -208,6 +212,18 @@ class ModelAdaptor(BaseAdaptor):
     async def create(self, d=None, **data):
         raise NotImplementedError
 
+    def bulk_create(self, data: list, **kwargs):
+        raise NotImplementedError
+
+    async def abulk_create(self, data: list, **kwargs):
+        raise NotImplementedError
+
+    def bulk_update(self, data: list, fields: list):
+        raise NotImplementedError
+
+    async def abulk_update(self, data: list, fields: list):
+        raise NotImplementedError
+
     def delete(self, q=None, **filters):
         raise NotImplementedError
 
@@ -219,6 +235,12 @@ class ModelAdaptor(BaseAdaptor):
     #
     # def serialize_queryset(self, queryset):
     #     raise NotImplementedError
+
+    def values(self, q=None, *fields, **filters) -> List[dict]:
+        raise NotImplementedError
+
+    async def avalues(self, q=None, *fields, **filters) -> List[dict]:
+        raise NotImplementedError
 
     def get_queryset(self, q=None, **filters):
         # for django it's like model.objects.all()

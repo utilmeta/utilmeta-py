@@ -116,7 +116,10 @@ class UtilMeta:
             return
         self.asynchronous = asynchronous
         if self.adaptor:
-            self.adaptor.asynchronous = asynchronous
+            if self.adaptor.asynchronous != asynchronous:
+                self.adaptor.asynchronous = asynchronous
+                # todo?
+
         from utilmeta.core.orm.databases.config import DatabaseConnections
         from utilmeta.core.cache.config import CacheConnections
         dbs = self.get_config(DatabaseConnections)

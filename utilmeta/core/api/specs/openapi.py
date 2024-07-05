@@ -9,6 +9,7 @@ from utilmeta.core.api.route import APIRoute
 from utilmeta.core.request import properties
 from utilmeta.core.response import Response
 from utilmeta.core.auth.base import BaseAuthentication
+from utilmeta.core.file.base import File
 from utilmeta.core.auth.properties import User
 from utilmeta.core.response.base import Headers, JSON, OCTET_STREAM, PLAIN
 from utilmeta.utils.context import Property, ParserProperty
@@ -56,6 +57,8 @@ class OpenAPIGenerator(JsonSchemaGenerator):
         if data is None:
             return data
         t = f.output_type if self.output else f.type
+        if isinstance(t, type) and issubclass(t, File):
+            data.update(accept=t.accept)
         if isinstance(t, LogicalType) and f.discriminator_map:
             # not part of json-schema, but in OpenAPI
             data.update(discriminator=dict(

@@ -191,6 +191,7 @@ class DjangoServerAdaptor(ServerAdaptor):
         api = self._get_api(utilmeta_api_class, asynchronous=asynchronous)
         api_path = re_path(route, api)
         urls = getattr(self.settings.url_conf, self.URLPATTERNS, [])
+        # fixme: if add_api is called duplicate, urls may be also duplicate
         if api_path not in urls:
             urls.append(api_path)
         setattr(self.settings.url_conf, self.URLPATTERNS, urls)

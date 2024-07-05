@@ -105,11 +105,15 @@ for arg in sys.argv:
         asynchronous = False
 if backend:
     service.set_backend(backend)
-    app = service.application()
+else:
+    import django
+    service.set_backend(django)
 if port:
     service.port = port
 if asynchronous is not None:
     service.set_asynchronous(asynchronous)
+
+app = service.application()
 
 if __name__ == '__main__':
     try:
@@ -118,7 +122,4 @@ if __name__ == '__main__':
         pass
     else:
         cleanup_on_sigterm()
-    if not service.backend:
-        import django
-        service.set_backend(django)
     service.run()

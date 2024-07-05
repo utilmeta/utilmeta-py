@@ -74,6 +74,9 @@ class DjangoCommand(BaseServiceCommand):
             #     cfg: AppConfig
             #     self.mergemigrations(cfg.label)
             for key, cfg in apps.app_configs.items():
+                if not cfg.path.startswith(self.service.project_dir):
+                    # eg. django content types / utilmeta.ops
+                    continue
                 cfg: AppConfig
                 # if cfg.label == app_name:
                 migrations_path = os.path.join(cfg.path, 'migrations')

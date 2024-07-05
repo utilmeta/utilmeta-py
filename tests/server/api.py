@@ -1,7 +1,7 @@
 from utilmeta.core import api, response, request, file
 from utype.types import *
 import utype
-from utilmeta.utils import exceptions, Error
+from utilmeta.utils import exceptions, Error, awaitable
 
 test_var = request.var.RequestContextVar('test-id', cached=True)
 
@@ -292,6 +292,16 @@ class TestAPI(api.API):
             return service.backend_name
         except ImportError:
             return None
+
+    def sync_api(self):
+        return 'sync'
+
+    @api.get('asynchronous')
+    @awaitable(sync_api)
+    async def sync_api(self):
+        import asyncio
+        await asyncio.sleep(0.02)
+        return 'async'
 
     @api.get('/{path}')
     def fallback(self, path: str = request.FilePathParam):

@@ -46,6 +46,8 @@ class TestClientClass:
             assert isinstance(dt.result, DataSchema)
             assert dt.result.key == 'test1'
 
+            # assert client.get_asynchronous().data == ('async' if service.asynchronous else 'sync')
+
     @pytest.mark.asyncio
     async def test_live_server_async(self, server_thread):
         with TestClient(
@@ -68,3 +70,5 @@ class TestClientClass:
             dt = client.get_data(key='test1')
             assert isinstance(dt.result, DataSchema)
             assert dt.result.key == 'test1'
+
+            # assert client.get_asynchronous().data == ('async' if service.asynchronous else 'sync')

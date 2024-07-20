@@ -4,7 +4,7 @@ from .decorator import *
 from . import decorator
 from .plugins.retry import RetryPlugin as Retry
 from .plugins.cors import CORSPlugin as CORS
-from .plugins.rate import RateLimitPlugin as RateLimit
+# from .plugins.rate import RateLimitPlugin as RateLimit
 
 route = decorator.APIDecoratorWrapper(None)
 get = decorator.APIDecoratorWrapper('get')

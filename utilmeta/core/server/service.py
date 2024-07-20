@@ -257,7 +257,8 @@ class UtilMeta:
             return
 
         # ------- EAGER ---
-        for cls, config in self.configs.items():
+        for cls in list(self.configs):
+            config = self.configs[cls]
             if isinstance(config, Config) and config.__eager__:
                 config.setup(self)
 

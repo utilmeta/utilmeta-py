@@ -150,7 +150,7 @@ class ServerCache(BaseCacheInterface):
     scope_prefix: str
     cache_control: str
     vary_header: Union[str, List[str]]
-    vary_function: Callable[['Request'], str]
+    # vary_function: Callable[['Request'], str]
 
     def __init__(self, cache_alias: str = 'default',
                  scope_prefix: str = None,
@@ -159,7 +159,7 @@ class ServerCache(BaseCacheInterface):
                  cache_response: bool = False,
                  etag_response: bool = False,
                  vary_header: Union[str, List[str]] = None,
-                 vary_function: Callable[['Request'], str] = None,
+                 vary_function=None,
                  expiry_time: Union[int, datetime, timedelta, Callable, None] = 0,
                  # normalizer, take the request and return the normalized result
                  max_entries: int = None,  # None means unlimited
@@ -601,10 +601,14 @@ from utilmeta.core.response import Response
 
 
 @setup_instance.hook(API)
-def setup_instance_for_cache(cache: ServerCache, api: API, __attname__: str):
+def setup_instance_for_cache(cache, api, __attname__: str):
+    cache: ServerCache
+    api: API
     setattr(api, __attname__, cache.make_cache(api.request))
 
 
 @process_response.hook(API)
-def process_response_for_cache(cache: ServerCache, response: Response):
+def process_response_for_cache(cache, response):
+    cache: ServerCache
+    response: Response
     response.update_headers(**cache.headers)

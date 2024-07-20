@@ -191,6 +191,7 @@ class Response:
         self._stack = stack
 
         self._file = None
+        self._file_path = None
         self._error = None
         self._traffic = None
         self._setup_time = time_now()
@@ -309,6 +310,16 @@ class Response:
         if isinstance(file, File):
             self._file = file.file
             return
+        if isinstance(file, str):
+            self._file_path = file
+            self._file = open(self._file_path, 'rb')
+            return
+        from pathlib import Path
+        if isinstance(file, Path):
+            self._file_path = str(file)
+            self._file = open(self._file_path, 'rb')
+            return
+
         if not file_like(file):
             return
         self._file = file
@@ -365,24 +376,47 @@ class Response:
             return
         if self._file:
             self._content = self._file
-            return
-        data = self.build_data()
-        if hasattr(data, '__iter__') and not isinstance(data, (bytes, memoryview, str, list, dict)):
-            # must convert to list iterable
-            # this data is guarantee that not file_like
-            data = list(data)
-        # self._data = data
-        if data is None or data == '':
-            data = b''
-        self._content = data
+            if self._file_path:
+                # if there is file path and no content-disposition is set
+                # we set it
+                content_disposition = self.headers.get('content-disposition')
+                if not content_disposition:
+                    # set
+                    from urllib.parse import quote
+                    from pathlib import Path
+                    self.set_header('content-disposition',
+                                    f'inline; filename="{quote(Path(self._file_path).name)}"')
+        else:
+            data = self.build_data()
+            if hasattr(data, '__iter__') and not isinstance(data, (bytes, memoryview, str, list, dict)):
+                # must convert to list iterable
+                # this data is guarantee that not file_like
+                data = list(data)
+            # self._data = data
+            if data is None or data == '':
+                data = b''
+            self._content = data
         self.build_content_type()
 
     def build_content_type(self):
-        if self.content_type is not None:
+        content_type = self.headers.get('content-type')
+        if content_type:
+            self.content_type = content_type
             return
         if hasattr(self._content, 'content_type'):
             # like File
             self.content_type = self._content.content_type
+            return
+        if self._file:
+            # no content type in headers, guess
+            filename = self.filename
+            if filename:
+                import mimetypes
+                self.content_type, content_encode = mimetypes.guess_type(filename)
+            else:
+                self.content_type = OCTET_STREAM
+            return
+        if self.content_type is not None:
             return
         if not self._content:
             # no content. no type
@@ -393,6 +427,19 @@ class Response:
             self.content_type = PLAIN
         elif isinstance(self._content, bytes) or file_like(self._content):
             self.content_type = OCTET_STREAM
+
+    @property
+    def filename(self):
+        content_disposition = self.headers.get('content-disposition')
+        if not content_disposition:
+            return
+        from urllib.parse import unquote
+        for part in unquote(content_disposition).split('filename="')[1:]:
+            return part.strip('"')
+        if self._file_path:
+            from pathlib import Path
+            return Path(self._file_path).name
+        return None
 
     @property
     def data(self):

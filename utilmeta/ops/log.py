@@ -286,6 +286,7 @@ class LogMiddleware(ServiceMiddleware):
         # log.set(Logger())   # set logger
         logger = self.config.logger_cls()
         _logger.set(logger)
+        logger.setup_request(request)
         request_logger.setter(request, logger)
 
     def process_response(self, response: Response):
@@ -296,6 +297,7 @@ class LogMiddleware(ServiceMiddleware):
             return
 
         logger.exit()
+        logger.setup_response(response)
 
         # log metrics into current worker
         # even if the request is omitted
@@ -351,7 +353,9 @@ class Logger(Property):
             self.init_time = from_logger.init_time
         self.init = self.relative_time()
         self.duration = None
-        
+
+        self._request = None
+        self._supervised = False
         self._from_logger = from_logger
         self._span_logger: Optional[Logger] = None
         self._span_data = span_data
@@ -362,6 +366,7 @@ class Logger(Property):
         self._exceptions = []
         self._level = None
         self._omitted = False
+        self._server_timing = False
         self._exited = False
         self._volatile = self.DEFAULT_VOLATILE
 
@@ -428,6 +433,9 @@ class Logger(Property):
             span_data=data,
             from_logger=self,
         )
+        logger._request = self._request
+        logger._supervised = self._supervised
+        logger._server_timing = self._server_timing
         _logger.set(logger)
         self._span_logger = logger
         return logger
@@ -461,6 +469,32 @@ class Logger(Property):
         #         outbound_requests_time=self._outbound_duration,
         #     )
         return data
+
+    def setup_request(self, request: Request):
+        self._request = request
+        if _supervisor:
+            supervisor_id = request.headers.get('X-Node-ID')
+            supervisor_hash = request.headers.get('X-Supervisor-Key-MD5')
+            if supervisor_hash and supervisor_id == _supervisor.node_id: # noqa
+                import hashlib
+                if hashlib.md5(_supervisor.public_key) == supervisor_hash: # noqa
+                    self._supervised = True
+        if self._supervised:
+            log_options = request.headers.get('X-Log-Options')
+            if log_options:
+                options = [option.strip() for option in str(log_options).lower().split(',')]
+                if 'omit' in options:
+                    self._omitted = True
+                if 'timing' in options or 'server-timing' in options:
+                    self._server_timing = True
+
+    def setup_response(self, response: Response):
+        if self._supervised:
+            if self._server_timing:
+                duration = response.duration_ms or self.duration
+                ts = response.request.time.timestamp() if response.request else self.init_time
+                if duration:
+                    response.set_header('Server-Timing', f'total;dur={duration};ts={ts}')
 
     def generate_request_logs(self, context_type='service_log', context_id=None):
         if not self._client_responses:

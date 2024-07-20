@@ -26,9 +26,10 @@ class FileAdaptor(BaseAdaptor):
         file_path = path
         name = name or self.filename
         if name:
-            file_path = os.path.join(file_path, name)
+            if os.path.isdir(file_path):
+                file_path = os.path.join(file_path, name)
 
         with open(file_path, 'wb') as fp:
-            fp.write(self.file)
+            fp.write(self.object.read())
 
         return file_path

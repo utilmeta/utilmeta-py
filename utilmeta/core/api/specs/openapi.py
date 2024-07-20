@@ -27,6 +27,8 @@ import json
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
 
+MULTIPART = 'multipart/form-data'
+
 
 def guess_content_type(schema: dict):
     if not schema:
@@ -46,8 +48,6 @@ def guess_content_type(schema: dict):
 
     return PLAIN
 
-# todo: for schema, consider INPUT/OUTPUT and mode, and count it to different schema
-
 
 class OpenAPIGenerator(JsonSchemaGenerator):
     DEFAULT_REF_PREFIX = "#/components/schemas/"
@@ -66,6 +66,40 @@ class OpenAPIGenerator(JsonSchemaGenerator):
                 mapping={k: self.generate_for_type(v) for k, v in f.discriminator_map.items()}
             ))
         return data
+
+    def get_ref_object(self, ref: str):
+        name = ref.lstrip(self.ref_prefix)
+        return self.names.get(name)
+
+    def get_ref_schema(self, ref: str):
+        obj = self.get_ref_object(ref)
+        return self.defs.get(obj)
+
+    def get_schema(self, schema: dict):
+        if not schema or not isinstance(schema, dict):
+            return None
+        ref = schema.get('$ref')
+        if ref:
+            return self.get_ref_schema(ref)
+        return schema
+
+    def get_body_content_type(self, body_schema: dict):
+        if not body_schema or not isinstance(body_schema, dict):
+            return None
+        ref = body_schema.get('$ref')
+        if ref:
+            body_schema = self.get_ref_schema(ref)
+            if not body_schema or not isinstance(body_schema, dict):
+                return None
+        if body_schema.get('type') == 'object':
+            for key, field in body_schema.get('properties', {}).items():
+                if field.get('format') == 'binary':
+                    return MULTIPART
+                if field.get('type') == 'array':
+                    if field.get('items', {}).get('format') == 'binary':
+                        return MULTIPART
+            return JSON
+        return guess_content_type(body_schema)
 
     def generate_for_response(self, response: Type[Response]):
         parser = getattr(response, '__parser__', None)
@@ -365,6 +399,7 @@ class OpenAPI(BaseAPISpec):
         params = {}
         media_types = {}
         body_params = {}
+        body_form = False
         body_params_required = []
         body_required = False
         body_description = ''
@@ -410,7 +445,14 @@ class OpenAPI(BaseAPISpec):
                 if _in == 'body':
                     if field.is_required(generator.options):
                         body_params_required.append(key)
-                    body_params[key] = generator.generate_for_field(field)
+                    body_params[key] = field_schema = generator.generate_for_field(field)
+                    if field_schema:
+                        if field_schema.get('type') == 'array':
+                            if field_schema.get('items', {}).get('format') == 'binary':
+                                body_form = True
+                        elif field_schema.get('format') == 'binary':
+                            body_form = True
+
                 elif _in in self.PARAMS_IN:
                     data = {
                         'in': _in,
@@ -436,7 +478,7 @@ class OpenAPI(BaseAPISpec):
                 content_type = getattr(prop, 'content_type', None)
                 if not content_type:
                     # guess
-                    content_type = guess_content_type(schema)
+                    content_type = generator.get_body_content_type(schema) or PLAIN
                 media_types[content_type] = {
                     'schema': schema
                 }
@@ -460,15 +502,26 @@ class OpenAPI(BaseAPISpec):
 
         if media_types:
             if body_params:
-                for value in media_types.values():
-                    schema: dict = value.get('schema')
+                generator = self.get_generator(None)
+
+                for key in list(media_types):
+                    schema: dict = media_types[key].get('schema')
                     if not schema:
                         continue
-                    schema.setdefault('properties', {}).update(body_params)
+                    body_schema = dict(generator.get_schema(schema))
+                    body_props = body_schema.get('properties') or {}
+                    body_props.update(body_params)
+                    body_schema['properties'] = body_props
+                    media_types[key]['schema'] = body_schema
+
+                    if body_form and key != MULTIPART:
+                        media_types[MULTIPART] = media_types.pop(key)
+
         elif body_params:
             # content type is default to be json
+            content_type = MULTIPART if body_form else JSON
             media_types = {
-                'application/json': {
+                content_type: {
                     'schema': {
                         'type': 'object',
                         'properties': body_params,

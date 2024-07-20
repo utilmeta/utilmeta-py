@@ -1,5 +1,5 @@
 from utilmeta.core import api, orm, request
-from ..schema import SupervisorData,  AccessTokenSchema
+from ..schema import SupervisorData, SupervisorPatch, AccessTokenSchema
 from utilmeta.utils import exceptions, adapt_async
 from ..models import Supervisor, AccessToken
 from .. import __spec_version__
@@ -15,6 +15,12 @@ from .servers import ServersAPI
 from .token import TokenAPI
 from .utils import opsRequire, WrappedResponse, config, supervisor_var, \
     SupervisorObject, resources_var, access_token_var
+
+LOCAL_OPERATIONS = [
+    'api.view',
+    'metrics.view',
+    'log.view',
+]
 
 
 @api.CORS(
@@ -74,17 +80,28 @@ class OperationsAPI(api.API):
                 from utilmeta import service
                 if not service.production and str(self.request.ip_address) == service.host == '127.0.0.1':
                     # LOCAL -> LOCAL MANAGE
-                    supervisor = SupervisorObject.init(Supervisor.objects.filter(
-                        service=service.name,
-                        node_id=node_id,
-                        disabled=False,
-                        local=True,
-                        ops_api=config.ops_api,
-                    ))
-                    if not supervisor:
-                        raise exceptions.Unauthorized
-                    supervisor_var.setter(self.request, supervisor)
-                    var.scopes.setter(self.request, ['*'])
+                    try:
+                        supervisor = SupervisorObject.init(Supervisor.objects.filter(
+                            service=service.name,
+                            node_id=node_id,
+                            disabled=False,
+                            local=True,
+                            ops_api=config.ops_api,
+                        ))
+                        supervisor_var.setter(self.request, supervisor)
+                    except orm.EmptyQueryset:
+                        supervisor_var.setter(self.request, SupervisorObject(
+                            id=None,
+                            service=service.name,
+                            node_id=None,
+                            disabled=False,
+                            ident=None,
+                            local=True,
+                            ops_api=config.ops_api,
+                        ))
+                        pass
+                        # raise exceptions.Unauthorized
+                    var.scopes.setter(self.request, LOCAL_OPERATIONS)
                     return
 
             raise exceptions.Unauthorized

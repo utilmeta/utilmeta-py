@@ -16,3 +16,4 @@ def configure(service: UtilMeta):
             engine='sqlite3',
         )
     }))
+    {operations} # noqa

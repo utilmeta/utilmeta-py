@@ -6,7 +6,7 @@ from utilmeta.core import api
 import os
 {import_backend}    # noqa
 
-
+{plugins}  # noqa
 class RootAPI(api.API):
     @api.get
     def hello(self):
@@ -26,6 +26,7 @@ service = UtilMeta(
     route='/api',
     api=RootAPI
 )
+{operations} # noqa
 
 app = service.application()     # used in wsgi/asgi server
 

@@ -45,11 +45,13 @@ class SetupCommand(BaseServiceCommand):
 
     @command('')
     def setup(self, name: str = '', *,
-              template: Literal['full', 'lite'] = Arg('--temp', alias_from=['--t', '--template'], default='lite')):
+              template: Literal['full', 'lite'] = Arg('--temp', alias_from=['--t', '--template'], default='lite'),
+              with_operations: bool = Arg('--ops', default=False),
+              ):
         """
         Set up a new project
-        :param name: project name
-        :param template: [optional] template suite, chose from 'full', 'lite', default to 'lite'
+        --t: select template: full / lite
+        --ops: with operations configuration
         """
         if not name:
             print(RED % 'meta Error: project name is required for setup')
@@ -114,11 +116,15 @@ class SetupCommand(BaseServiceCommand):
 
                 if str(file).endswith('.py') or str(file).endswith('.ini'):
                     content = read_from(path)
-                    write_to(path, self.render(content.replace('# noqa', '')))
+                    write_to(path, self.render(
+                        content.replace('# noqa', ''),
+                        with_operations=with_operations,
+                        template=template
+                    ))
 
         print(f'UtilMeta project <{BLUE % self.project_name}> successfully setup at path: {project_path}')
 
-    def render(self, content) -> str:
+    def render(self, content, with_operations: bool = False, template: str = None) -> str:
         def _format(text: str, *args, **kwargs):
             for i in range(0, len(args)):
                 k = "{" + str(i) + "}"
@@ -128,11 +134,66 @@ class SetupCommand(BaseServiceCommand):
                 text = text.replace(k, str(val))
             return text
 
+        if template == 'full':
+            operations_text = """
+    from utilmeta.ops.config import Operations
+    from utilmeta.conf.time import Time
+    
+    service.use(Time(
+        time_zone='UTC',
+        use_tz=True,
+        datetime_format="%Y-%m-%dT%H:%M:%SZ"
+    ))
+    service.use(Operations(
+        route='ops',
+        max_backlog=50,
+        database=Database(
+            name='utilmeta_ops',
+            engine='sqlite3',
+        ),
+        local_disabled=env.PRODUCTION,
+        secure_only=env.PRODUCTION,
+        trusted_hosts=[] if env.PRODUCTION else ['127.0.0.1']
+    ))
+""".format(name=self.project_name)
+        else:
+            operations_text = """
+from utilmeta.ops.config import Operations
+from utilmeta.conf.time import Time
+from utilmeta.core.orm.databases import DatabaseConnections, Database
+
+service.use(DatabaseConnections({{
+    'default': Database(
+        name='{name}',
+        engine='sqlite3',
+    )
+}}))
+service.use(Time(
+    time_zone='UTC',
+    use_tz=True,
+    datetime_format="%Y-%m-%dT%H:%M:%SZ"
+))
+service.use(Operations(
+    route='ops',
+    max_backlog=50,
+    database=Database(
+        name='utilmeta_ops',
+        engine='sqlite3',
+    ),
+    local_disabled=production,
+    secure_only=production,
+    trusted_hosts=[] if production else ['127.0.0.1']
+))
+""".format(name=self.project_name)
+
         return _format(
             content,
             name=self.project_name,
             backend=self.backend,
             import_backend=f'import {self.backend}',
             description=self.description,
-            host=self.host
+            host=self.host,
+            operations=operations_text if with_operations else '',
+            plugins="""
+@api.CORS(allow_origin='*')""" if with_operations else ''
         )

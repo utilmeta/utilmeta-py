@@ -315,8 +315,8 @@ class RequestParam(Property):
 
     def __init__(self,
                  alias: str = None,
-                 default=None,
-                 required: bool = False,
+                 default=unprovided,
+                 required: bool = None,
                  style: str = None,
                  **kwargs):
         if required:
@@ -527,7 +527,11 @@ class UserAgent(Property):
         self.tablet = tablet
 
     def runtime_validate(self, user_agent):
-        from user_agents.parsers import UserAgent
+        try:
+            from user_agents.parsers import UserAgent   # noqa
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError('UserAgent validation requires to install [user_agents] package')
+
         user_agent: UserAgent
 
         if self.regex:

@@ -48,6 +48,12 @@ class OperationsCommand(BaseServiceCommand):
         manager.sync_resources(force=force)
 
     @command
+    def delete(self, node_id: str, token: str = Arg(required=True)):
+        """
+        delete supervisor
+        """
+
+    @command
     def stats(self):
         """
         View the current stats

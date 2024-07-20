@@ -7,13 +7,13 @@ from utype.types import *
 
 
 class SupervisorObject(orm.Schema[Supervisor]):
-    id: int
+    id: Optional[int]
     service: str
-    node_id: str
+    node_id: Optional[str]
     url: Optional[str] = None
     public_key: Optional[str] = None
     ops_api: str
-    ident: str
+    ident: Optional[str]
     base_url: Optional[str] = None
     local: bool = False
 

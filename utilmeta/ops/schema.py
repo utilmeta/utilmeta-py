@@ -54,6 +54,19 @@ class SupervisorData(Schema):
     local: bool = False
 
 
+class SupervisorPatch(Schema):
+    node_id: str
+    url: Optional[str] = orm.Field(default=None, defer_default=True)
+    ident: str
+    base_url: Optional[str] = orm.Field(default=None, defer_default=True)
+    backup_urls: List[str] = Field(default_factory=list)
+    heartbeat_interval: Optional[int] = orm.Field(default=None, defer_default=True)
+    settings: dict = orm.Field(default_factory=dict, defer_default=True)
+    alert_settings: dict = orm.Field(default_factory=dict, defer_default=True)
+    task_settings: dict = orm.Field(default_factory=dict, defer_default=True)
+    aggregate_settings: dict = orm.Field(default_factory=dict, defer_default=True)
+
+
 class ResourceBase(Schema):
     __options__ = utype.Options(addition=True)
 

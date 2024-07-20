@@ -28,10 +28,10 @@ class DjangoResponseAdaptor(ResponseAdaptor):
             charset=resp.charset,
             headers=resp.prepare_headers()
         )
-        if resp.file:
-            response = FileResponse(resp.file, **kwargs)
-        else:
-            response = HttpResponse(resp.body, **kwargs)
+        # if resp.file:
+        #     response = FileResponse(resp.file, **kwargs)
+        # else:
+        response = HttpResponse(resp.body, **kwargs)
         return response
 
     @property

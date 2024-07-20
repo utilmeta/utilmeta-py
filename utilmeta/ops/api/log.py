@@ -65,8 +65,9 @@ class LogAPI(api.API):
     def service(self, query: LogQuery):
         base_qs = ServiceLog.objects.filter(
             service=self.supervisor.service,
-            node_id=self.supervisor.node_id
         )
+        if self.supervisor.node_id:
+            base_qs = base_qs.filter(node_id=self.supervisor.node_id)
         return self.response(
             result=ServiceLogBase.serialize(
                 query.get_queryset(base_qs)
@@ -78,11 +79,13 @@ class LogAPI(api.API):
     @api.get('service/values')
     @adapt_async
     def service_log_values(self, query: LogQuery):
+        base_qs = ServiceLog.objects.filter(
+            service=self.supervisor.service,
+        )
+        if self.supervisor.node_id:
+            base_qs = base_qs.filter(node_id=self.supervisor.node_id)
         qs = query.get_queryset(
-            ServiceLog.objects.filter(
-                service=self.supervisor.service,
-                node_id=self.supervisor.node_id
-            )
+            base_qs
         )
         result = {}
         for field in AGGREGATION_FIELDS:

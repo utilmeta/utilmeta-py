@@ -1,3 +1,5 @@
+import inspect
+
 from utype.types import *
 from utilmeta.utils import multi, get_origin, Header
 from utilmeta.utils import exceptions as exc
@@ -57,6 +59,14 @@ class CORSPlugin(Plugin):
         self.expose_headers = expose_headers
         self.gen_csrf_token = gen_csrf_token
         self.exclude_statuses = exclude_statuses
+
+    def __call__(self, func, *args, **kwargs):
+        from ..base import API
+        if inspect.isclass(func) and issubclass(func, API):
+            if not hasattr(func, 'response'):
+                from utilmeta.core.response import Response
+                func.response = Response
+        return super().__call__(func, *args, **kwargs)
 
     def process_request(self, request: Request, api=None):
         from utilmeta import service

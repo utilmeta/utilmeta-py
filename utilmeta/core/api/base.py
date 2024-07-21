@@ -226,7 +226,11 @@ class API(PluginTarget):
                     # 2. @api.parser             (method=None)
                     # 3. def get(self):          (method='get')
                     # 4. @api(method='CUSTOM')   (method='custom')
-                    val = cls._endpoint_cls.apply_for(val, cls)
+                    try:
+                        val = cls._endpoint_cls.apply_for(val, cls)
+                    except Exception as e:
+                        raise e.__class__(f'{cls.__name__}: '
+                                          f'generate endpoint [{repr(key)}] failed with error: {e}') from e
                 elif hook_type:
                     val = cls._hook_cls.dispatch_for(val, hook_type)
                 else:
@@ -245,6 +249,7 @@ class API(PluginTarget):
                             name=key,
                             route=val.getattr('route', val.route),
                             summary=val.getattr('summary'),
+                            description=val.getattr('description'),
                             deprecated=val.getattr('deprecated'),
                             private=val.getattr('private'),
                             priority=val.getattr('priority')

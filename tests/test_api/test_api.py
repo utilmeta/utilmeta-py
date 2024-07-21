@@ -1,4 +1,4 @@
-from utilmeta.core import api, request
+from utilmeta.core import api, request, file
 from utilmeta.core.api import API
 from utilmeta.core import response
 import pytest
@@ -91,6 +91,13 @@ class TestAPIClass:
             class WrongAPI(API):  # noqa
                 @api.get
                 def post(self):  # HTTP-METHOD function with conflict @api
+                    pass
+
+        # ------------ wrong params
+        with pytest.raises(Exception):
+            class WrongAPI(API):  # noqa
+                @api.get
+                def file(self, f: file.File):  # HTTP-METHOD function with conflict @api
                     pass
 
     def test_api_features(self):

@@ -4,6 +4,7 @@ from typing import Callable, Union, Type, List, TYPE_CHECKING
 from utilmeta.utils.plugin import PluginTarget, PluginEvent
 from utilmeta.utils.error import Error
 from utilmeta.utils.context import ContextWrapper, Property
+from utilmeta.utils.exceptions import InvalidDeclaration
 from utype.parser.base import BaseParser
 from utype.parser.func import FunctionParser
 from utype.parser.field import ParserField
@@ -49,6 +50,53 @@ class RequestContextWrapper(ContextWrapper):
             if headers and utils.multi(headers):
                 utils.distinct_add(self.header_names, [str(v).lower() for v in headers])
         return prop.init(val)
+
+    @classmethod
+    def contains_file(cls, field: ParserField):
+        def file_like(file_cls):
+            from utilmeta.core.file import File
+            from io import BytesIO
+            if inspect.isclass(file_cls):
+                if issubclass(file_cls, (File, BytesIO, bytearray)):
+                    return True
+            return False
+        
+        from utype import Rule
+        if isinstance(field.type, type) and issubclass(field.type, Rule):
+            # try to find List[schema]
+            if isinstance(field.type.__origin__, LogicalType) and field.type.__origin__.combinator:
+                for arg in field.type.__origin__.args:
+                    if file_like(arg):
+                        return True
+            else:
+                if field.type.__origin__ and issubclass(field.type.__origin__, list) and field.type.__args__:
+                    # we only accept list, not tuple/set
+                    arg = field.type.__args__[0]
+                    if file_like(arg):
+                        return True
+        else:
+            # try to find Optional[schema]
+            for origin in field.input_origins:
+                if file_like(origin):
+                    return True
+
+        return False
+
+    def validate_method(self, method: str):
+        # 1. only PUT / PATCH / POST allow to have body params
+        # 2. File params not allowed in
+        allow_body = method.lower() in ['post', 'put', 'patch']
+        for key, val in self.properties.items():
+            field = val.field
+
+            prop = val.prop
+            if prop.__ident__ == 'body' or prop.__in__ and getattr(prop.__in__, '__ident__', None) == 'body':
+                if not allow_body:
+                    raise InvalidDeclaration(f'body param: {repr(key)} not supported in method: {repr(method)}')
+            else:
+                if self.contains_file(field):
+                    raise InvalidDeclaration(f'request param: {repr(key)} used file as type declaration,'
+                                             f' which is not supported, file must be declared in Body or BodyParam')
 
 
 class BaseEndpoint(PluginTarget):
@@ -125,6 +173,7 @@ class BaseEndpoint(PluginTarget):
         self.response_types: List[Type[Response]] = self.parse_responses(
             self.return_type
         )
+        self.wrapper.validate_method(method)
 
     @property
     def return_type(self):
@@ -329,7 +378,13 @@ class Endpoint(BaseEndpoint):
                  method: str,
                  plugins: list = None,
                  idempotent: bool = None,
-                 eager: bool = False
+                 eager: bool = False,
+                 # openapi specs:
+                 operation_id: str = None,
+                 tags: List[str] = None,
+                 summary: str = None,
+                 description: str = None,
+                 extension: dict = None,
                  ):
 
         super().__init__(
@@ -340,6 +395,11 @@ class Endpoint(BaseEndpoint):
             eager=eager
         )
         self.api = api
+        self.operation_id = operation_id
+        self.tags = tags
+        self.summary = summary
+        self.description = description
+        self.extension = extension
 
     def __call__(self, *args, **kwargs):
         executor = self.get_executor(False)
@@ -356,6 +416,18 @@ class Endpoint(BaseEndpoint):
             # executor is maybe a sync function, which will not need to await
             r = await r
         return r
+
+    @property
+    def openapi_extension(self):
+        ext = {}
+        if not self.extension or not isinstance(self.extension, dict):
+            return ext
+        for key, val in self.extension.items():
+            key = str(key).lower().replace('_', '-')
+            if not key.startswith('x-'):
+                key = f'x-{key}'
+            ext[key] = val
+        return ext
 
     @property
     def ref(self) -> str:

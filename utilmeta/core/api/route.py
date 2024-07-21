@@ -23,6 +23,7 @@ class APIRoute:
                  name: str,
                  parent: Type['API'] = None,
                  summary: str = None,
+                 description: str = None,
                  deprecated: bool = None,
                  private: bool = None,
                  priority: int = None,
@@ -50,7 +51,7 @@ class APIRoute:
         self.handler = handler
         self.parent = parent
         self.summary = summary
-        self.description = get_doc(handler)
+        self.description = description or get_doc(handler)
         self.deprecated = deprecated
         self.private = private or handler.__name__.startswith('_')
         self.priority = priority

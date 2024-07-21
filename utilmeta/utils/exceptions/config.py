@@ -27,3 +27,7 @@ class ConfigError(Exception):
 class UnsetError(ConfigError):
     # some config is required to set a value in some condition but remain empty (None)
     pass
+
+
+class InvalidDeclaration(Exception):
+    pass

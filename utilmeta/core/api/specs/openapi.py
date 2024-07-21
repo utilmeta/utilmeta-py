@@ -214,6 +214,7 @@ class OpenAPI(BaseAPISpec):
         self.response_names = {}
         self.paths: Dict[str, dict] = {}
         self.security_schemas = {}
+        self.operations = set()
         # self.operations = {}
 
     def get_def_name(self, t: type):
@@ -549,7 +550,19 @@ class OpenAPI(BaseAPISpec):
                       ) -> dict:
         # https://spec.openapis.org/oas/v3.1.0#operationObject
         operation_names = list(tags) + [endpoint.name]
-        operation_id = '_'.join(operation_names)
+        operation_id = endpoint.operation_id
+        if not operation_id or operation_id in self.operations:
+            operation_id = '_'.join(operation_names)
+            if operation_id in self.operations:
+                operation_id = endpoint.ref.replace('.', '_')
+        self.operations.add(operation_id)
+
+        # tags -----
+        tags = list(tags)
+        if endpoint.tags:
+            for tag in endpoint.tags:
+                if isinstance(tag, str) and tag not in tags:
+                    tags.append(tag)
 
         params, body, requires = self.parse_properties(endpoint.wrapper.properties)
         responses = dict(extra_responses or {})
@@ -594,6 +607,9 @@ class OpenAPI(BaseAPISpec):
             operation.update({'x-idempotent': endpoint.idempotent})
         if endpoint.ref:
             operation.update({'x-ref': endpoint.ref})
+        extension = endpoint.openapi_extension
+        if extension:
+            operation.update(extension)
         return operation
 
     def from_route(self, route: APIRoute,

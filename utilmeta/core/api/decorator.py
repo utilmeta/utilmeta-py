@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, TypeVar
+from typing import Callable, TypeVar, List
 from utilmeta.utils import METHODS, EndpointAttr, multi, CommonMethod, HOOK_TYPES
 import warnings
 
@@ -132,6 +132,9 @@ class APIDecoratorWrapper:
                  private: bool = None,
                  priority: int = None,
                  eager: bool = None,
+                 tags: List[str] = None,
+                 description: str = None,
+                 extension: dict = None,
                  **kwargs,
                  ):
 

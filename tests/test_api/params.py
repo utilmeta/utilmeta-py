@@ -18,9 +18,9 @@ def get_requests(backend: str = None, asynchronous: bool = False):
     ]
 
     return [
-        ('get', 'backend', {}, None, {}, backend, 200),
         # (method, path, query, data, headers, result, status)
         ("get", "@special", {}, None, {}, "@special", 200),
+        ('get', 'backend', {}, None, {}, backend, 200),
         (
             "post",
             "response",
@@ -292,7 +292,8 @@ def do_live_api_tests(service):
         )
         assert isinstance(resp, Response), f'invalid response: {resp}'
         content = resp.data
-        assert resp.status == status, f"{method} {path} failed with {content}, {status} expected, got {resp.status}"
+        assert resp.status == status, \
+            f"{method} {path} failed with {content}, {status} expected, got {resp.status}, {resp.headers}"
         if result is not ...:
             if callable(result):
                 result(content)

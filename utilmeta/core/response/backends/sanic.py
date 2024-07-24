@@ -22,6 +22,9 @@ class SanicResponseAdaptor(ResponseAdaptor):
 
     @classmethod
     def reconstruct(cls, resp: Union['ResponseAdaptor', 'Response']):
+        if isinstance(resp, HTTPResponse):
+            return resp
+
         from utilmeta.core.response import Response
 
         if isinstance(resp, ResponseAdaptor):

@@ -718,7 +718,10 @@ class Response:
     @property
     def body(self) -> bytes:
         if self.adaptor:
-            return self.adaptor.body
+            body = self.adaptor.body
+            # sometime adaptor.body maybe only can read once
+            if body:
+                return body
         body = self.prepare_body()
         if hasattr(body, 'read'):
             return body.read()      # noqa

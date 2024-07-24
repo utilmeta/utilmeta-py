@@ -15,6 +15,9 @@ class DjangoResponseAdaptor(ResponseAdaptor):
 
     @classmethod
     def reconstruct(cls, resp: Union['ResponseAdaptor', 'Response']):
+        if isinstance(resp, (HttpResponse, StreamingHttpResponse)):
+            return resp
+
         from utilmeta.core.response import Response
         if isinstance(resp, ResponseAdaptor):
             resp = Response(response=resp)
@@ -48,9 +51,13 @@ class DjangoResponseAdaptor(ResponseAdaptor):
 
     @property
     def body(self) -> bytes:
+        if self._body is not None:
+            return self._body
         if isinstance(self.response, StreamingHttpResponse):
-            return self.response.getvalue()
-        return self.response.content
+            self._body = self.response.getvalue()
+        else:
+            self._body = self.response.content
+        return self._body
 
     @property
     def cookies(self):

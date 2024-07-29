@@ -82,6 +82,8 @@ class JsonWebToken(BaseAuthentication):
         if inv:
             token_dict['exp'] = iat + inv
         try:
+            # python-jwt
+            # pip install jwt
             from jwt import JWT  # noqa
             from jwt.jwk import OctetJWK  # noqa
             jwt = JWT()
@@ -90,12 +92,18 @@ class JsonWebToken(BaseAuthentication):
                 jwt_key = OctetJWK(key=self.secret_key.encode())
             jwt_token = jwt.encode(token_dict, key=jwt_key, alg=self.algorithm)
         except ImportError:
+            # PyJWT
+            # pip install pyjwt
             # jwt 1.7
             import jwt  # noqa
+            import jwt
             jwt_token = jwt.encode(  # noqa
                 token_dict, self.secret_key,
                 algorithm=self.algorithm
-            ).decode('ascii')
+            )
+            if isinstance(jwt_token, bytes):
+                # jwt > 2.0 gives the str
+                jwt_token = jwt_token.decode('ascii')
         self.jwt_var.setter(request, jwt_token)
         return {self.user_token_field: jwt_token} if isinstance(self.user_token_field, str) else None
         # if conf.jwt_token_field:

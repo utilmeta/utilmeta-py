@@ -8,6 +8,9 @@ class WerkzeugResponseAdaptor(ResponseAdaptor):
 
     @classmethod
     def reconstruct(cls, resp: Union['ResponseAdaptor', 'WerkzeugResponse']):
+        if isinstance(resp, WerkzeugResponse):
+            return resp
+
         from utilmeta.core.response import Response
 
         if isinstance(resp, ResponseAdaptor):

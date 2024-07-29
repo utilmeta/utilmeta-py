@@ -123,6 +123,7 @@ class ServerThread(threading.Thread):
         connections_override=None,
         single_thread: bool = False,
     ):
+        service._application = None
         self.service = service
         self.is_ready = threading.Event()
         self.error = None

@@ -33,3 +33,6 @@ class FileAdaptor(BaseAdaptor):
             fp.write(self.object.read())
 
         return file_path
+
+    def close(self):
+        pass

@@ -12,9 +12,10 @@ __all__ = ["UserSchema", "ArticleSchema", "CommentSchema",
 
 
 class UserBase(orm.Schema[User]):
-    id: int = orm.Field(mode='ra')
+    id: int = orm.Field(no_input='w')
     username: str
     password = orm.Field(mode='wa')
+    jwt_token: Optional[str] = orm.Field(mode='r')
     avatar: str = orm.Field(mode='rw')
     followers_num: int = orm.Field(exp.Count('followers'))
     followings_num: Annotated[int, exp.Count('followings')]

@@ -31,7 +31,7 @@ class JsonWebToken(BaseAuthentication):
             from jwt.exceptions import DecodeError as JWTDecodeError  # noqa
             key = self.secret_key
         try:
-            jwt_params = jwt.decode(token, key)  # noqa
+            jwt_params = jwt.decode(token, key, self.algorithm)  # noqa
         except JWTDecodeError:
             raise exceptions.BadRequest(f'invalid jwt token')
         if self.audience:
@@ -96,7 +96,6 @@ class JsonWebToken(BaseAuthentication):
             # pip install pyjwt
             # jwt 1.7
             import jwt  # noqa
-            import jwt
             jwt_token = jwt.encode(  # noqa
                 token_dict, self.secret_key,
                 algorithm=self.algorithm

@@ -21,3 +21,6 @@ class TornadoFileAdaptor(FileAdaptor):
     @property
     def filename(self):
         return self.file.filename
+
+    def close(self):
+        pass

@@ -1,7 +1,7 @@
 from django.db.models import Manager
 from django.db import models
-from utilmeta.core.orm.backends.django.models import PasswordField, AwaitableModel
-import sys
+from utilmeta.core.orm.backends.django.models import PasswordField, AwaitableModel, AbstractSession
+
 
 class User(AwaitableModel):
     # test abstract inherit with some field set None
@@ -23,6 +23,10 @@ class User(AwaitableModel):
     # email = None    # test set None; and it's following reaction on schema generator
     admin = models.BooleanField(default=False)
     signup_time = models.DateTimeField(auto_now_add=True)
+
+    last_login_time = models.DateTimeField(auto_now=True)
+    last_login_ip = models.GenericIPAddressField(default=None, null=True)
+    last_activity = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "user"
@@ -72,3 +76,12 @@ class Comment(BaseContent):
 
     class Meta:
         db_table = "comment"
+
+
+class Session(AbstractSession):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions', default=None, null=True)
+    ip = models.GenericIPAddressField(default=None, null=True)
+    ua = models.JSONField(default=dict)
+
+    class Meta:
+        db_table = 'session'

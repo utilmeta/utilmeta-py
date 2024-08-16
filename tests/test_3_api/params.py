@@ -17,10 +17,10 @@ def get_requests(backend: str = None, asynchronous: bool = False):
         BytesIO(b"f3"),
     ]
 
+    backend_requests = [('get', 'backend', {}, None, {}, backend, 200)] if backend else []
     return [
         # (method, path, query, data, headers, result, status)
         ("get", "@special", {}, None, {}, "@special", 200),
-        ('get', 'backend', {}, None, {}, backend, 200),
         (
             "post",
             "response",
@@ -271,7 +271,7 @@ def get_requests(backend: str = None, asynchronous: bool = False):
             ['null', 6, {"title": "test", "views": 0}],
             200,
         ),
-    ]
+    ] + backend_requests
 
 
 def do_live_api_tests(service):

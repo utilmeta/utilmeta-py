@@ -4,6 +4,8 @@ import sys
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.dirname(__file__))
+DB_PATH = os.path.join(os.path.dirname(__file__), 'db')
+DB_OPS_PATH = os.path.join(os.path.dirname(__file__), 'db_ops')
 
 from utilmeta import UtilMeta
 from utilmeta.conf import Env
@@ -33,6 +35,8 @@ service = UtilMeta(
     asynchronous=None,
     production=env.PRODUCTION,
     version=(0, 1, 0),
+    api='api.RootAPI',
+    route='/api'
     # host='0.0.0.0' if env.PRODUCTION else '127.0.0.1',
     # port=80 if env.PRODUCTION else 8800,
 )
@@ -47,13 +51,13 @@ service.use(DjangoSettings(
 service.use(Operations(
     route='ops',
     database=Database(
-        name='db_ops',
+        name=DB_OPS_PATH,
         engine='sqlite3',
     )
 ))
 service.use(DatabaseConnections({
     'default': Database(
-        name='db',
+        name=DB_PATH,
         engine='sqlite3',
         # user=env.DB_USER,
         # password=env.DB_PASSWORD,
@@ -61,36 +65,7 @@ service.use(DatabaseConnections({
     )
 }))
 
-from utilmeta.core import api, response
-from api import TestAPI
-
-
-def shutdown():
-    import psutil
-    proc = psutil.Process(os.getpid())
-    proc.terminate()
-
-
-class RootAPI(api.API):
-    test: TestAPI
-
-    class response(response.Response):
-        result_key = 'data'
-        message_key = 'error'
-
-    @api.get
-    def hello(self):
-        return self.request.path
-
-    @api.get
-    def shutdown(self):
-        import threading
-        threading.Thread(target=shutdown).start()
-
-
-service.mount(RootAPI, route='/api')
-# app = service.application()
-
+# ------ SET BACKEND
 backend = None
 port = None
 asynchronous = None
@@ -112,7 +87,9 @@ if port:
     service.port = port
 if asynchronous is not None:
     service.set_asynchronous(asynchronous)
+# --------
 
+# app = service.application()
 app = service.application()
 
 if __name__ == '__main__':

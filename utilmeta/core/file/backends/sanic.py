@@ -21,3 +21,6 @@ class SanicFileAdaptor(FileAdaptor):
     @property
     def filename(self):
         return self.file.name
+
+    def close(self):
+        pass

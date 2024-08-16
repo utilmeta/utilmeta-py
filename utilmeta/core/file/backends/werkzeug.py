@@ -25,3 +25,6 @@ class WerkzeugFileAdaptor(FileAdaptor):
     @property
     def filename(self):
         return self.file.filename
+
+    def close(self):
+        self.file.close()

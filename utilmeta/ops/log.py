@@ -1,5 +1,6 @@
 from utilmeta.core.response import Response
 from utilmeta.core.request import var, Request
+from utilmeta.core.file import File
 from utilmeta.utils.context import ContextProperty, Property
 from typing import List, Optional, Union
 from utilmeta.core.server import ServiceMiddleware
@@ -520,6 +521,10 @@ class Logger(Property):
 
         )
 
+    @classmethod
+    def get_file_repr(cls, file):
+        return '<file>'
+
     def parse_values(self, data):
         if not self.config.secret_names:
             return data
@@ -532,7 +537,7 @@ class Logger(Property):
                 if isinstance(v, list):
                     result[k] = self.parse_values(v)
                 elif file_like(v):
-                    result[k] = str(v)
+                    result[k] = self.get_file_repr(data)
                 else:
                     for key in self.config.secret_names:
                         if key in k.lower():
@@ -544,12 +549,12 @@ class Logger(Property):
             result = []
             for d in data:
                 if file_like(d):
-                    result.append(str(d))
+                    result.append(self.get_file_repr(data))
                 else:
                     result.append(d)
             return result
         if file_like(data):
-            return None
+            return self.get_file_repr(data)
         return str(data)
 
     def generate_log(self, response: Response):

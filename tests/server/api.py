@@ -308,15 +308,17 @@ class TestAPI(api.API):
         return path
 
 
-class UserAPI(api.API):
-    sessionid: str = request.CookieParam(required=True)
-    csrftoken: str = request.CookieParam(default=None)
-
-    @api.post
-    def operation(self):
-        return [self.sessionid, self.csrftoken]
+from app.api import UserAPI
 
 
-# class RootAPI(api.API):
-#     response = response.Response
-#     test: TestAPI
+class RootAPI(api.API):
+    test: TestAPI
+    user: UserAPI
+
+    class response(response.Response):
+        result_key = 'data'
+        message_key = 'error'
+
+    @api.get
+    def hello(self):
+        return self.request.path

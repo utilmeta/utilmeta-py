@@ -54,7 +54,10 @@ class File:
 
     @property
     def closed(self):
-        return not self.file or self.file.closed
+        return not self.file or getattr(self.file, 'closed', None)
+
+    def close(self):
+        self.adaptor.close()
 
     def readable(self):
         if self.closed:

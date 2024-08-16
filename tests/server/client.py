@@ -12,6 +12,51 @@ class DataResponse(response.Response):
     result: DataSchema
 
 
+class UserSchema(utype.Schema):
+    id: int
+    username: str
+    jwt_token: Optional[str]
+    avatar: str
+    followers_num: int
+    signup_time: datetime
+
+
+class UserResponse(response.Response):
+    result: UserSchema
+
+
+class UserClient(cli.Client):
+    @api.post('user/jwt_login')
+    def jwt_login(self, username: str = request.BodyParam(),
+                  password: str = request.BodyParam()) -> Union[UserResponse, response.Response]:
+        pass
+
+    @api.get('user/user_by_jwt')
+    def jwt_get(self, token: str = request.HeaderParam('authorization')) -> Union[UserResponse, response.Response]:
+        pass
+
+    @api.post('user/session_login')
+    def session_login(self, username: str = request.BodyParam(),
+                      password: str = request.BodyParam()) -> Union[UserResponse, response.Response]:
+        pass
+
+    @api.get('user/user_by_session')
+    def session_get(self) -> Union[UserResponse, response.Response]:
+        pass
+
+    @api.post('user/session_logout')
+    def session_logout(self):
+        pass
+
+    @api.patch('user')
+    def update_user(self,
+                    username: str = request.BodyParam(required=False),
+                    password: str = request.BodyParam(required=False),
+                    avatar: str = request.BodyParam(required=False),
+                    ) -> Union[UserResponse, response.Response]:
+        pass
+
+
 class TestClient(cli.Client):
     @api.get("doc/{category}/{page}")
     def get_doc(self, category: str = request.PathParam('[a-zA-Z0-9-]{1,20}'),
@@ -35,7 +80,7 @@ class TestClient(cli.Client):
         item: Optional[str] = utype.Field(min_length=3, max_length=10)
 
     @api.get
-    def query_schema(self, query: QuerySchema = request.Query) -> QuerySchema: pass
+    def query_schema(self, query: QuerySchema = request.Query) -> response.Response[QuerySchema]: pass
 
     class MultiFormData(utype.Schema):
         name: str

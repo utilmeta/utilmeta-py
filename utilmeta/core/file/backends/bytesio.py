@@ -15,6 +15,7 @@ class BytesIOFileAdaptor(FileAdaptor):
 
     @property
     def size(self):
+        self.file.seek(0)
         byts = self.file.read()
         size = len(byts)
         self.file.seek(0)
@@ -27,3 +28,6 @@ class BytesIOFileAdaptor(FileAdaptor):
     @property
     def filename(self):
         return None
+
+    def close(self):
+        self.file.close()

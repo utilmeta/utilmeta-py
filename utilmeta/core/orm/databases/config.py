@@ -87,9 +87,9 @@ class Database(Config):
     def dsn(self):
         # [user[:password]@][netloc][:port][/dbname]
         if 'sqlite' in self.engine:
-            if os.name != 'nt':
-                if os.path.isabs(self.name):
-                    return self.name
+            # if os.name != 'nt':
+            #     if os.path.isabs(self.name):
+            #         return self.name
             # https://stackoverflow.com/a/19262231/14026109
             # Also, as Windows doesn't have the concept of root
             # and instead uses drives, you have to specify absolute path with 3 slashes

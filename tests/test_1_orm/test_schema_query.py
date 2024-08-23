@@ -18,6 +18,7 @@ class TestSchemaQuery:
         assert len(res) == 2
         assert res[0]["username"] == "alice"
         assert res[0]["followers_num"] == 2
+        assert set(res[0].follower_names) == {'bob', 'jack'}
         assert res[0]["followings_num"] == 1
         assert set(res[0]["liked_slugs"]) == {"about-tech", "some-news", "big-shot"}
         assert res[0]["@views"] == 103
@@ -41,6 +42,7 @@ class TestSchemaQuery:
         sup = UserSchema.init(5)
         assert len(sup.articles) == 0
         assert sup.articles_num == 0
+        assert sup.follower_names == []
 
     def test_scope_and_excludes(self):
         from app.schema import UserSchema, UserQuery
@@ -87,8 +89,8 @@ class TestSchemaQuery:
         assert content.article.id == 1
 
     def test_related_qs(self):
-        from app.schema import UserBase, ArticleSchema, UserQuery
-        from app.models import Article, Follow, User
+        from app.schema import UserBase, ArticleSchema
+        from app.models import Article, User
         from typing import List, Optional
         from utilmeta.core import orm
         from django.db import models
@@ -155,6 +157,7 @@ class TestSchemaQuery:
         assert user.sum_views == 103
         assert user.top_articles[0].author_tag["name"] == "alice"
         assert user.top_articles[0].views == 103
+        assert set(user.follower_names) == {'bob', 'jack'}
 
         # --------------
         bob = await UserSchema.ainit(
@@ -170,6 +173,7 @@ class TestSchemaQuery:
         sup = UserSchema.init(5)
         assert len(sup.articles) == 0
         assert sup.articles_num == 0
+        assert sup.follower_names == []
 
     @pytest.mark.asyncio
     async def test_async_init_users_with_sync_query(self):

@@ -172,6 +172,7 @@ class UserSchema(UserBase):
     articles: List[ArticleBase] = orm.Field('contents__article')
     # test multi+fk
 
+    follower_names: List[str] = orm.Field('followers.username')
     # @property
     # def total_views(self) -> int:
     #     return sum([article.views for article in self.articles])

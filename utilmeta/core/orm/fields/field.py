@@ -236,6 +236,7 @@ class ParserQueryField(ParserField):
                 # if not self.model_field.is_exp:
                 # expression need to be isolated, otherwise multiple many included query will blow the query
                 self.isolated = True
+                self.related_single = False
 
             elif not self.model_field.is_concrete:
                 self.isolated = True

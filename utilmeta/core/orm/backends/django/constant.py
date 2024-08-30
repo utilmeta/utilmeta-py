@@ -12,7 +12,7 @@ SEG = '__'
 
 FIELDS_TYPE = {
     ('CharField', 'ImageField', 'ChoiceField', 'PasswordField',
-     'EmailField', 'FilePathField', 'FileField', 'URLField',
+     'EmailField', 'FilePathField', 'FileField', 'URLField', 'SlugField',
      'GenericIPAddressField', 'IPAddressField', 'TextField',
      'RichTextField',): str,
     ('UUIDField',): UUID,

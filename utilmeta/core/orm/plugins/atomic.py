@@ -16,6 +16,35 @@ class AtomicPlugin(Plugin):
         self.force_rollback = force_rollback
         self.db = DatabaseConnections.get(alias)
 
+        self.transaction = None
+        self.async_transaction = None
+
+    def __enter__(self):
+        self.transaction = self.db.transaction(
+            savepoint=self.savepoint,
+            isolation=self.isolation,
+            force_rollback=self.force_rollback
+        )
+        return self.transaction.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.transaction:
+            self.transaction.__exit__(exc_type, exc_val, exc_tb)
+            self.transaction = None
+
+    async def __aenter__(self):
+        self.async_transaction = self.db.async_transaction(
+            savepoint=self.savepoint,
+            isolation=self.isolation,
+            force_rollback=self.force_rollback
+        )
+        return await self.async_transaction.__aenter__()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.async_transaction:
+            await self.async_transaction.__aexit__(exc_type, exc_val, exc_tb)
+            self.async_transaction = None
+
     def __call__(self, f, *_, **__):
         if inspect.iscoroutinefunction(f) or inspect.isasyncgenfunction(f):
             transaction = self.db.async_transaction(

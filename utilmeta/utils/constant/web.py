@@ -41,7 +41,7 @@ class RequestType(Static):
     FORM_URLENCODED = 'application/x-www-form-urlencoded'
     FORM_DATA = 'multipart/form-data'
     XML = 'text/xml'
-    APP_XML = 'application/text/xml'
+    APP_XML = 'application/xml'
     OCTET_STREAM = 'application/octet-stream'
 
 

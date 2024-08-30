@@ -206,6 +206,7 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
 
         elif self.is_concrete:
             _type = self._get_type(self.field)
+            # todo: deal with JSONField: its type include dict/list/null and other types that can be serialized
 
             if _type and self.is_nullable:
                 from utype.parser.rule import LogicalType
@@ -223,6 +224,10 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             target_field = self.target_field
             if target_field:
                 _args = [target_field.rule]
+
+        if _type is None:
+            # fallback to string field
+            _type = str
 
         params = self._get_params(field)
         kwargs = {}

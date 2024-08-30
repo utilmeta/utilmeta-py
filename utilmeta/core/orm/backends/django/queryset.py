@@ -179,7 +179,11 @@ class AwaitableQuerySet(QuerySet):
             values = await db.fetchall(q, params)
         # use the same query compiler to parse the result
         # because query compiler will setup query and attrs
-        values = list(self._convert_raw_values(values, query=self.query))
+        query = self.query
+        if not query.select:
+            # if no select values, result cannot be converted properly
+            query = self._chain().values().query
+        values = list(self._convert_raw_values(values, query=query))
         if one:
             return values[0]
         return values

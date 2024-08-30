@@ -458,7 +458,8 @@ class OpenAPI(BaseAPISpec):
                     data = {
                         'in': _in,
                         'name': key,
-                        'required': prop.required,
+                        'required': field.required,
+                        # prop may be injected
                         'schema': generator(),
                     }
                     if prop.description:

@@ -2,6 +2,7 @@ from utype import Schema, Options
 from typing import Union, Mapping
 import os
 import json
+import yaml
 
 
 class Env(Schema):
@@ -47,6 +48,9 @@ class Env(Schema):
 
         if self._file.endswith('.json'):
             return json.load(open(self._file, 'r'))
+
+        if self._file.endswith('.yml') or self._file.endswith('.yaml'):
+            return yaml.safe_load(open(self._file, 'r'))
 
         content = open(self._file, 'r').read()
         data = {}

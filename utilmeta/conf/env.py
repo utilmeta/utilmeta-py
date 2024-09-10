@@ -48,6 +48,12 @@ class Env(Schema):
         if self._file.endswith('.json'):
             return json.load(open(self._file, 'r'))
 
+        if self._file.endswith('.yml') or self._file.endswith('.yaml'):
+            from utilmeta.utils import check_requirement
+            check_requirement('pyyaml', install_when_require=True)
+            import yaml
+            return yaml.safe_load(open(self._file, 'r'))
+
         content = open(self._file, 'r').read()
         data = {}
         for line in content.splitlines():

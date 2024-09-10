@@ -2,7 +2,6 @@ from utype import Schema, Options
 from typing import Union, Mapping
 import os
 import json
-import yaml
 
 
 class Env(Schema):

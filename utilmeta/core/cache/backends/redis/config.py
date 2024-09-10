@@ -21,7 +21,6 @@ class RedisCache(Cache):
         db: int = 0,
         **kwargs
     ):
-        self.kwargs = kwargs
         super().__init__(
             engine='redis',
             username=username,
@@ -34,8 +33,6 @@ class RedisCache(Cache):
     def get_location(self):
         if self.location:
             return self.location
-        if self.kwargs.get('url'):
-            return self.kwargs.get('url')
         if not self.password:
             return f'{self.scheme}://{self.host}:{self.port}/{self.db}'
         else:

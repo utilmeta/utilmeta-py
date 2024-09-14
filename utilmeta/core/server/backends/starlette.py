@@ -209,6 +209,8 @@ class StarletteServerAdaptor(ServerAdaptor):
         if self.background:
             pass
         else:
+            from utilmeta.utils import check_requirement
+            check_requirement('uvicorn', install_when_require=True)
             import uvicorn
             uvicorn.run(
                 self.app,

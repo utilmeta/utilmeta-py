@@ -329,7 +329,7 @@ ArticleSchema 的 `author` 字段就直接指定了 UserSchema 作为类型声�
 !!! warning "使用 Optional"
 	当你要查询的外键关系对象可能为 None 时 (模型字段声明了 `null=True`)，你应该使用 `Optional[Schema]` 来作为对应的类型声明
 
-对于 **多对多 / 一对多** 等可能包含多个关系对象的字段，你应该使用 `List[Schema]` 作为类型声明，比如
+对于 **多对多 / 多对一** 等可能包含多个关系对象的字段，你应该使用 `List[Schema]` 作为类型声明，比如
 
 ```python hl_lines="12"
 from utilmeta.core import api, orm
@@ -507,6 +507,77 @@ class ArticleSchema(orm.Schema[Article]):
             )
         return article_schema
 ```
+
+
+### 关系更新
+
+关系字段除了查询外，可能还会有创建和更新的需求，
+
+!!! tip
+	关系字段的创建与更新只支持 一级的多对一关系对象更新和一级的多对多关系更新
+
+```json
+[{
+	"username": "alice",
+	"articles": [{
+		"content": "Hello World"
+	}]
+}]
+```
+
+
+对于多对多关系的更新，由于存在中间表，有着两种方式：
+1. 关系对象指向中间表，转化为多对一关系对象的更新
+2. 关系对象指向目标表
+
+```python
+class User(amodels.AwaitableModel):
+    username = models.CharField(max_length=40, unique=True)
+    password = PasswordField(max_length=100)
+    email = models.EmailField(max_length=60, unique=True)
+    followers = models.ManyToManyField(
+        'self', related_name='followed_bys', 
+        through='Follow', through_fields=('following', 'follower'),
+        symmetrical=False
+    )
+    
+class Follow(amodels.AwaitableModel):
+    following = models.ForeignKey(
+	    User, related_name='user_followers', 
+	    on_delete=amodels.ACASCADE
+	)
+    follower = models.ForeignKey(
+	    User, related_name='user_followings', 
+	    on_delete=amodels.ACASCADE
+	)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class FollowSchema(orm.Schema[Follow]):
+	follower_id: int
+	created_at: datetime
+
+# 1. 关系对象指向中间表，
+class UserUpdate1(orm.Schema[User]):
+	username: str
+	user_followings: List[FollowSchema] = orm.Field(mode='rwa')
+
+# 2. 关系对象指向中间表，
+class UserUpdate2(orm.Schema[User]):
+	username: str
+	followings: List[int] = orm.Field(mode='rwa')
+```
+
+**忽略关系错误（IntegrityError）**
+
+如果客户端提供的数据中，关系字段的值是不存在的（比如提供一个无法在关系表中找到的主键值），这时可以选择主动忽略这样的关系错误
+
+
+!!! warning
+	多对多关系字段的更新仅限于更新关系（也就是中间表），不能更新多对多的目标表，从上面的例子而言，就是不能从一个用户更新这个用户关注的人的个人信息（用户名，邮箱，.etc），只能更新他的关注关系（关注谁，不关注谁），这个限制是必要的，要不然很容易造成权限漏洞
+
+!!! note
+	关系更新特性在 v2.6.1 以上的版本支持
+
 
 ## `orm.Schema` 的使用
 

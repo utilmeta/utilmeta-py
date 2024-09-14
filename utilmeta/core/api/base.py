@@ -227,7 +227,7 @@ class API(PluginTarget):
                     # 3. def get(self):          (method='get')
                     # 4. @api(method='CUSTOM')   (method='custom')
                     try:
-                        val = cls._endpoint_cls.apply_for(val, cls)
+                        val = cls._endpoint_cls.apply_for(val, cls, name=key)
                     except Exception as e:
                         raise e.__class__(f'{cls.__name__}: '
                                           f'generate endpoint [{repr(key)}] failed with error: {e}') from e
@@ -247,7 +247,7 @@ class API(PluginTarget):
                         route = cls._route_cls(
                             val,
                             name=key,
-                            route=val.getattr('route', val.route),
+                            route=val.route,
                             summary=val.getattr('summary'),
                             description=val.getattr('description'),
                             deprecated=val.getattr('deprecated'),

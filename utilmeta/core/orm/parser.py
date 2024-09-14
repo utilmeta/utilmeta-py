@@ -41,6 +41,11 @@ class SchemaClassParser(ClassParser):
         self.model = ModelAdaptor.dispatch(model) if model else None
         super().__init__(obj, *args, **kwargs)
 
+        serialize_options = getattr(obj, '__serialize_options__', None)
+        self.output_options = self.options_cls.generate_from(
+            serialize_options
+        ) if serialize_options else None
+
         pk_names = set()
         if self.model:
             for name in list(self.fields):

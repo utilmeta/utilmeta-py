@@ -104,9 +104,6 @@ class UtilMeta:
         from utilmeta.core.server.backends.base import ServerAdaptor
         self.adaptor: Optional[ServerAdaptor] = None
         self.set_backend(backend)
-
-        self.routes = {}
-
         self._pool = None
 
     def set_asynchronous(self, asynchronous: bool):

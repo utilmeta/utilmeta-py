@@ -49,31 +49,34 @@ class ParserQueryField(ParserField):
         if isinstance(self.type, type) and issubclass(self.type, Rule):
             # try to find List[schema]
             if isinstance(self.type.__origin__, LogicalType) and self.type.__origin__.combinator:
+                self.related_single = True
+
                 for arg in self.type.__origin__.args:
                     cls_parser = ClassParser.resolve_parser(arg)
                     if cls_parser:
                         # for optional
                         parser = cls_parser
                         schema = arg
-                        self.related_single = True
                         break
             else:
                 if self.type.__origin__ and issubclass(self.type.__origin__, list) and self.type.__args__:
+                    self.related_single = False
+                    # also for List[str] / List[int]
                     # we only accept list, not tuple/set
                     arg = self.type.__args__[0]
                     cls_parser = ClassParser.resolve_parser(arg)
                     if cls_parser:
                         parser = cls_parser
                         schema = arg
-                        self.related_single = False
+
         else:
+            self.related_single = True
             # try to find Optional[schema]
             for origin in self.input_origins:
                 cls_parser = ClassParser.resolve_parser(origin)
                 if cls_parser:
                     parser = cls_parser
                     schema = origin
-                    self.related_single = True
                     break
 
         if parser:
@@ -236,7 +239,8 @@ class ParserQueryField(ParserField):
                 # if not self.model_field.is_exp:
                 # expression need to be isolated, otherwise multiple many included query will blow the query
                 self.isolated = True
-                self.related_single = False
+                if self.related_single is None:
+                    self.related_single = False
 
             elif not self.model_field.is_concrete:
                 self.isolated = True

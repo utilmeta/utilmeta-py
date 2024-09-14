@@ -322,7 +322,7 @@ class OpenAPI(BaseAPISpec):
         data = dict(
             title=self.service.title or self.service.name or self.service.description,
             description=self.service.description or self.service.title,
-            version=self.service.version
+            version=self.service.version_str
         )
         if self.service.info:
             data.update(self.service.info)
@@ -363,19 +363,19 @@ class OpenAPI(BaseAPISpec):
             res.append({})
         return res
 
-    def get_response_name(self, response: Type[Response], tags: list = ()):
+    def get_response_name(self, response: Type[Response], routes: list = ()):
         if response == Response:
             return Response.__name__
         if response in self.responses:
             for k, v in self.response_names.items():
                 if v == response:
                     return k
-        names = list(tags)
+        names = list(routes)
         names.append(response.name or get_obj_name(response))
         return '_'.join(names)
 
-    def set_response(self, response: Type[Response], tags: list = ()):
-        name = self.get_response_name(response, tags=tags)
+    def set_response(self, response: Type[Response], routes: list = ()):
+        name = self.get_response_name(response, routes=routes)
 
         if response in self.responses:
             return name
@@ -396,8 +396,8 @@ class OpenAPI(BaseAPISpec):
         self.response_names[name] = response
         return name
 
-    def parse_properties(self, props: Dict[str, ParserProperty]) -> Tuple[dict, dict, list]:
-        params = {}
+    def parse_properties(self, props: Dict[str, ParserProperty]) -> Tuple[list, dict, list]:
+        params = []
         media_types = {}
         body_params = {}
         body_form = False
@@ -472,7 +472,8 @@ class OpenAPI(BaseAPISpec):
                             data.update(style=field.field.style)
                     if not unprovided(field.field.example):
                         data.update(example=field.field.example)
-                    params[key] = data
+
+                    params.append(data)
 
             elif prop.__ident__ == 'body':
                 schema = generator()
@@ -489,18 +490,26 @@ class OpenAPI(BaseAPISpec):
 
             elif prop.__ident__ in self.PARAMS_IN:
                 # all the params in this prop is in the __ident__
+                # should ex
                 schema = generator()
-                schema_type = schema.get('type')
-                if schema_type != 'object' and not schema.get('$ref'):
+                prop_schema = generator.get_schema(schema) or {}
+                schema_type = prop_schema.get('type')
+
+                if not prop_schema or schema_type != 'object':
                     raise TypeError(f'Invalid object type: {field.type} for request property: '
                                     f'{repr(prop.__ident__)}, must be a object type, got {repr(schema_type)}')
-                params[key] = {
-                    'in': prop.__ident__,
-                    'name': key,
-                    'schema': schema,
-                    'style': 'form',
-                    'explode': True
-                }
+
+                props = prop_schema.get('properties') or {}
+                required = prop_schema.get('required') or []
+                for name, value in props.items():
+                    params.append({
+                        'in': prop.__ident__,
+                        'name': name,
+                        'schema': value,
+                        'required': name in required,
+                        # 'style': 'form',
+                        # 'explode': True
+                    })
 
         if media_types:
             if body_params:
@@ -543,7 +552,7 @@ class OpenAPI(BaseAPISpec):
 
     def from_endpoint(self, endpoint: Endpoint,
                       tags: list = (),
-                      extra_params: dict = None,
+                      extra_params: list = None,
                       extra_body: dict = None,
                       response_cls: Type[Response] = None,
                       extra_responses: dict = None,
@@ -561,9 +570,11 @@ class OpenAPI(BaseAPISpec):
         # tags -----
         tags = list(tags)
         if endpoint.tags:
-            for tag in endpoint.tags:
-                if isinstance(tag, str) and tag not in tags:
-                    tags.append(tag)
+            # set by @api.method(tags=[...])
+            tags = endpoint.tags
+            # for tag in endpoint.tags:
+            #     if isinstance(tag, str) and tag not in tags:
+            #         tags.append(tag)
 
         params, body, requires = self.parse_properties(endpoint.wrapper.properties)
         responses = dict(extra_responses or {})
@@ -582,13 +593,13 @@ class OpenAPI(BaseAPISpec):
         else:
             resp = response_cls or Response
 
-        resp_name = self.set_response(resp, tags=tags)
+        resp_name = self.set_response(resp, routes=operation_names)
         responses[resp.status or 200] = {'$ref': f'#/components/responses/{resp_name}'}
 
         if extra_params:
             # _params = dict(extra_params)
             # _params.update(params)
-            params.update(extra_params)
+            params.extend(extra_params)
             # endpoint params can override before hook params
             # the more front params should be exposed
         if extra_body:
@@ -601,7 +612,7 @@ class OpenAPI(BaseAPISpec):
             security=self.merge_requires(extra_requires, requires)
         )
         if params:
-            operation.update(parameters=list(params.values()))
+            operation.update(parameters=params)
         if body and endpoint.method in HAS_BODY_METHODS:
             operation.update(requestBody=body)
         if endpoint.idempotent is not None:
@@ -616,7 +627,7 @@ class OpenAPI(BaseAPISpec):
     def from_route(self, route: APIRoute,
                    *routes: str,
                    tags: list = (),
-                   params: dict = None,
+                   params: list = None,
                    response_cls: Type[Response] = None,
                    responses: dict = None,
                    requires: list = None) -> dict:
@@ -631,7 +642,7 @@ class OpenAPI(BaseAPISpec):
         ).items() if v is not None}
 
         extra_body = None
-        extra_params = {}
+        extra_params = []
         extra_requires = []
         extra_responses = dict(responses or {})     # the deeper (close to the api response) is prior
         # before hooks
@@ -639,7 +650,7 @@ class OpenAPI(BaseAPISpec):
             prop_params, body, before_requires = self.parse_properties(before.wrapper.properties)
             if body and not extra_body:
                 extra_body = body
-            extra_params.update(prop_params)
+            extra_params.extend(prop_params)
             extra_requires = self.merge_requires(extra_requires, before_requires)
 
         for after in route.after_hooks:
@@ -648,7 +659,7 @@ class OpenAPI(BaseAPISpec):
 
         for error, hook in route.error_hooks.items():
             if hook.response:
-                resp_name = self.set_response(hook.response, tags=tags)
+                resp_name = self.set_response(hook.response, routes=list(tags))
                 extra_responses[hook.response.status or 'default'] = {'$ref': f'#/components/responses/{resp_name}'}
 
         path_data = {}
@@ -674,11 +685,11 @@ class OpenAPI(BaseAPISpec):
             else:
                 self.paths[path] = path_data = method_data
                 if params:
-                    path_data.update(parameters=list(params.values()))
+                    path_data.update(parameters=params)
             # responses
         else:
-            common_params = dict(params or {})
-            common_params.update(extra_params)
+            common_params = list(params or [])
+            common_params.extend(extra_params)
             core_data = self.from_api(
                 route.handler, *new_routes,
                 tags=new_tags,
@@ -695,7 +706,7 @@ class OpenAPI(BaseAPISpec):
 
     def from_api(self, api: Type[API], *routes,
                  tags: list = (),
-                 params: dict = None,
+                 params: list = None,
                  response_cls: Type[Response] = None,
                  responses: dict = None,
                  requires: list = None) -> Optional[dict]:
@@ -703,9 +714,9 @@ class OpenAPI(BaseAPISpec):
             # external APIs will not participate in docs
             return None
         core_data = None
-        extra_params = dict(params or {})
+        extra_params = list(params or [])
         prop_params, body, prop_requires = self.parse_properties(api._properties)
-        extra_params.update(prop_params)
+        extra_params.extend(prop_params)
 
         response_cls = getattr(api, 'response', response_cls)
 

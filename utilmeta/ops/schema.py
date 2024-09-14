@@ -35,11 +35,15 @@ class NodeMetadata(Schema):
     ops_api: str
     name: str
     base_url: str
-    description: str
+    title: str = None
+    description: str = None
 
     version: Optional[str] = None
     spec_version: str = __spec_version__
     production: bool = False
+
+    language: str = 'python'
+    utilmeta_version: str = utilmeta.__version__
 
 
 class SupervisorData(Schema):

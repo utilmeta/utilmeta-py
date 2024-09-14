@@ -290,9 +290,17 @@ class AwaitableCollector(Collector):
             # Recursively collect concrete model's parent models, but not their
             # related objects. These will be found by meta.get_fields()
             concrete_model = model._meta.concrete_model
-            for ptr in concrete_model._meta.parents.values():
+            for parent_model, ptr in concrete_model._meta.parents.items():
                 if ptr:
-                    parent_objs = [getattr(obj, ptr.name) for obj in new_objs]
+                    parent_objs = []
+                    for obj in new_objs:
+                        if not obj.pk:
+                            continue
+                        parent = getattr(obj, ptr.name)
+                        if not parent or not parent.pk:
+                            parent = parent_model(pk=obj.pk)
+                        parent_objs.append(parent)
+
                     await self.acollect(
                         parent_objs,
                         source=model,

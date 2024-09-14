@@ -366,7 +366,8 @@ class PathParam(RequestParam):
 
     regex = '[^/]+'  # default regex, can be override
 
-    def __init__(self, regex: str = None, *, min_length: str = None, max_length: str = None, required: bool = True):
+    def __init__(self, regex: str = None, *, min_length: str = None, max_length: str = None,
+                 required: bool = True, default=unprovided, **kwargs):
         if not regex:
             if min_length:
                 if max_length:
@@ -381,11 +382,17 @@ class PathParam(RequestParam):
             self.regex = regex
         self.min_length = min_length
         self.max_length = max_length
+
+        if not unprovided(default):
+            required = False
+
         self.required = required
 
         super().__init__(
             regex=self.regex,
             required=required,
+            default=default,
+            **kwargs
         )
 
 

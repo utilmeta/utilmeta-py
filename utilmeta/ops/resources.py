@@ -118,6 +118,7 @@ class ResourcesManager:
             ops_api=self.ops_config.ops_api,
             base_url=self.ops_config.base_url,
             name=self.service.name,
+            title=self.service.title,
             description=self.service.description,
             version=self.service.version_str,
             production=self.service.production

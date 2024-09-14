@@ -112,6 +112,9 @@ class BaseEndpoint(PluginTarget):
 
     def __init__(self, f: Callable, *,
                  method: str,
+                 name: str = None,
+                 # the attribute name of API/SDK class
+                 # instead of function name (maybe affected by not-@wrap decorator function)
                  plugins: list = None,
                  idempotent: bool = None,
                  eager: bool = False
@@ -126,7 +129,7 @@ class BaseEndpoint(PluginTarget):
         self.method = method
         self.idempotent = idempotent
         self.eager = eager
-        self.name = self.__name__ = f.__name__
+        self.name = self.__name__ = name or f.__name__
         self.path_names = self.PATH_REGEX.findall(self.route)
 
         # ---------------
@@ -356,7 +359,7 @@ class BaseEndpoint(PluginTarget):
 
 class Endpoint(BaseEndpoint):
     @classmethod
-    def apply_for(cls, func: Callable, api: Type['API'] = None):
+    def apply_for(cls, func: Callable, api: Type['API'] = None, name: str = None):
         _cls = getattr(func, 'cls', None)
         if not _cls or not issubclass(_cls, Endpoint):
             # override current class
@@ -371,11 +374,14 @@ class Endpoint(BaseEndpoint):
             kwargs[key] = v
         if api:
             kwargs.update(api=api)
+        if name:
+            kwargs.update(name=name)
         return _cls(func, **kwargs)
 
     def __init__(self, f: Callable, *,
                  api: Type['API'] = None,
                  method: str,
+                 name: str = None,
                  plugins: list = None,
                  idempotent: bool = None,
                  eager: bool = False,
@@ -391,6 +397,7 @@ class Endpoint(BaseEndpoint):
             f,
             plugins=plugins,
             method=method,
+            name=name,
             idempotent=idempotent,
             eager=eager
         )
@@ -432,10 +439,10 @@ class Endpoint(BaseEndpoint):
     @property
     def ref(self) -> str:
         if self.api:
-            return f'{self.api.__ref__}.{self.f.__name__}'
+            return f'{self.api.__ref__}.{self.name}'
         if self.module_name:
-            return f'{self.module_name}.{self.f.__name__}'
-        return self.f.__name__
+            return f'{self.module_name}.{self.name}'
+        return self.name
 
     def make_response(self, response, request, error=None):
         if not self.response_types:

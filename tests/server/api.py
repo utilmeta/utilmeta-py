@@ -33,11 +33,23 @@ class Test1Response(response.Response):
     result_key = 'test1'
 
 
+def decorator():
+    # import functools
+
+    def wrapper(func):
+        # @functools.wraps(func)
+        def f(*args, **kwargs):
+            return func(*args, **kwargs)
+        return f
+    return wrapper
+
+
 class SubAPI(api.API):
     # test context var
     test_id: Union[int, str] = test_var
 
     @api.get
+    @decorator()  # test decorator with different function name (with no params)
     def hello(self):
         return 'world'
 

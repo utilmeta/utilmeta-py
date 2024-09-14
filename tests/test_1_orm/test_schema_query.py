@@ -19,6 +19,7 @@ class TestSchemaQuery:
         assert res[0]["username"] == "alice"
         assert res[0]["followers_num"] == 2
         assert set(res[0].follower_names) == {'bob', 'jack'}
+        assert res[0].follower_rep.username == 'bob'
         assert res[0]["followings_num"] == 1
         assert set(res[0]["liked_slugs"]) == {"about-tech", "some-news", "big-shot"}
         assert res[0]["@views"] == 103
@@ -43,6 +44,7 @@ class TestSchemaQuery:
         assert len(sup.articles) == 0
         assert sup.articles_num == 0
         assert sup.follower_names == []
+        assert sup.follower_rep is None
 
     def test_scope_and_excludes(self):
         from app.schema import UserSchema, UserQuery

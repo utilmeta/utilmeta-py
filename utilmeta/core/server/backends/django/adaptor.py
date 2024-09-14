@@ -288,21 +288,19 @@ class DjangoServerAdaptor(ServerAdaptor):
                     self.config.shutdown()
                 return
 
+            from utilmeta.utils import check_requirement
+            check_requirement('uvicorn', install_when_require=True)
+            import uvicorn
+            print('using [uvicorn] as asgi server')
             try:
-                import uvicorn
-            except ModuleNotFoundError:
-                pass
-            else:
-                print('using [uvicorn] as asgi server')
-                try:
-                    uvicorn.run(
-                        self.application(),
-                        host=self.config.host or self.DEFAULT_HOST,
-                        port=self.config.port,
-                    )
-                finally:
-                    self.config.shutdown()
-                    return
+                uvicorn.run(
+                    self.application(),
+                    host=self.config.host or self.DEFAULT_HOST,
+                    port=self.config.port,
+                )
+            finally:
+                self.config.shutdown()
+                return
 
         if self.config.production:
             server = 'asgi (like uvicorn/daphne)' if self.asynchronous else 'wsgi (like uwsgi/gunicorn)'

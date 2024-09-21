@@ -261,7 +261,7 @@ class Response:
         return inspect.isclass(r) and issubclass(r, cls)
 
     @classmethod
-    def _response_like(cls, resp):
+    def response_like(cls, resp):
         status = getattr(resp, 'status', getattr(resp, 'status_code', None))
         if status and isinstance(status, int):
             return True
@@ -289,7 +289,7 @@ class Response:
             if field:
                 result = field.parse_value(result, context=self.__parser__.options.make_context())
 
-        if not self.adaptor and self._response_like(result):
+        if not self.adaptor and self.response_like(result):
             try:
                 self.adaptor = ResponseAdaptor.dispatch(result)
                 self.result = None

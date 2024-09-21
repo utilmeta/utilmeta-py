@@ -6,6 +6,16 @@ class FileAdaptor(BaseAdaptor):
     def __init__(self, file):
         self.file = file
 
+    @classmethod
+    def get_module_name(cls, obj):
+        from io import BytesIO
+        from utilmeta.core.response.base import Response, ResponseAdaptor
+        if isinstance(obj, BytesIO):
+            return 'bytesio'
+        elif isinstance(obj, (Response, ResponseAdaptor)) or Response.response_like(obj):
+            return 'response'
+        return super().get_module_name(obj)
+
     @property
     def object(self):
         raise NotImplementedError

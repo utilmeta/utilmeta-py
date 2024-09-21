@@ -25,7 +25,11 @@ class ResponseFileAdaptor(FileAdaptor):
 
     @property
     def object(self):
-        return self.file.file
+        file = self.file.file
+        if file:
+            return file
+        from io import BytesIO
+        return BytesIO(self.file.body)
 
     @property
     def size(self):

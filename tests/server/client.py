@@ -108,3 +108,6 @@ class TestClient(cli.Client):
 
     @api.get('@parent/data')
     def get_data(self, key: str) -> Union[DataResponse, response.Response]: pass
+
+    @api.get('file')
+    def get_file(self, content: str) -> response.Response: pass

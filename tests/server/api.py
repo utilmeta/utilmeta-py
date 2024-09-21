@@ -315,6 +315,11 @@ class TestAPI(api.API):
         await asyncio.sleep(0.02)
         return 'async'
 
+    @api.get
+    def file(self, content: str):
+        from io import BytesIO
+        return self.response(file=BytesIO(content.encode()))
+
     @api.get('/{path}')
     def fallback(self, path: str = request.FilePathParam):
         return path

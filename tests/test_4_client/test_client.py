@@ -1,4 +1,5 @@
 from utilmeta.core.cli import Client
+from utilmeta.core.file import File
 from tests.conftest import make_live_process, make_server_thread, setup_service
 from client import TestClient, DataSchema
 import pytest
@@ -47,6 +48,13 @@ class TestClientClass:
             assert dt.result.key == 'test1'
 
             # assert client.get_asynchronous().data == ('async' if service.asynchronous else 'sync')
+
+            # test file
+            fr = client.get_file(content='test-content-1')
+            assert fr.status == 200
+            file = File(fr)
+            assert file.size == len('test-content-1')
+            assert file.read() == b'test-content-1'
 
     @pytest.mark.asyncio
     async def test_live_server_async(self, server_thread):

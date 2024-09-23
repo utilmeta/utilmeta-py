@@ -2,6 +2,8 @@ import inspect
 import io
 import json
 from http.cookies import SimpleCookie
+from pprint import pprint
+
 from utilmeta.core.request import Request
 from utype.types import *
 from utilmeta.utils import Header,\
@@ -479,16 +481,22 @@ class Response:
     def __repr__(self):
         return self.__str__()
 
-    def print(self):
-        print(str(self))
+    def _print(self,print_f):
+        print_f(str(self))
         content_type = self.content_type or self.headers.get('content-type')
         content_length = self.content_length
         if content_type:
-            print(f'{content_type} ({content_length or 0})')
+            print_f(f'{content_type} ({content_length or 0})')
             data = self.data
             if data:
-                print(data)
-        print('')
+                print_f(data)
+        print_f('')
+
+    def print(self):
+        self._print(print)
+
+    def pprint(self):
+        self._print(pprint)
 
     def dump_json(self, encoder=None, ensure_ascii: bool = False, **kwargs):
         import json

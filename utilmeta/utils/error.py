@@ -1,16 +1,18 @@
 import traceback
-from typing import Type, Dict, Callable, Optional, List
+from typing import Type, Dict, Callable, Optional, List, TYPE_CHECKING
 from . import Attr, SEG, readable
 import sys
 import inspect
 import time
 
+if TYPE_CHECKING:
+    from utilmeta.core.request.base import Request
 
 CAUSE_DIVIDER = '\n# The above exception was the direct cause of the following exception:\n'
 
 
 class Error:
-    def __init__(self, e: Exception = None):
+    def __init__(self, e: Exception = None, request: 'Request' = None):
         if isinstance(e, Exception):
             self.exc = e
             self.type = e.__class__
@@ -31,6 +33,9 @@ class Error:
         self.variable_info = ''
         self.full_info = ''
         self.ts = time.time()
+
+        # request context
+        self.request = request
 
     def setup(self, from_errors: list = ()):
         if self.current_traceback:

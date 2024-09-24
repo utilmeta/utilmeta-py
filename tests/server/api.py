@@ -320,6 +320,11 @@ class TestAPI(api.API):
         from io import BytesIO
         return self.response(file=BytesIO(content.encode()))
 
+    @api.get
+    @api.Retry(max_retries=3, retry_interval=0.2, max_retries_timeout=.35)
+    def retry(self):
+        raise exceptions.BadRequest('retry')
+
     @api.get('/{path}')
     def fallback(self, path: str = request.FilePathParam):
         return path

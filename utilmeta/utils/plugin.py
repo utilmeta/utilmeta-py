@@ -3,9 +3,38 @@ import warnings
 from utilmeta.utils.base import Util
 from utilmeta.utils import awaitable
 from typing import Type, Dict, List, Callable, Iterator, Union
-from functools import partial
+from functools import partial, wraps
 from utype.parser.func import FunctionParser
 # from .context import Property
+
+
+def omit_unsupported_params(f):
+    # eg for def func(a, b): when passing func(1, 2, 3), we ignore the exceeded args
+    pos_var = None
+    kw_var = None
+    args_num = 0
+    keys = []
+    for i, (name, param) in enumerate(inspect.signature(f).parameters.items()):
+        if param.kind == param.VAR_POSITIONAL:
+            pos_var = name
+            continue
+        elif param.kind == param.VAR_KEYWORD:
+            kw_var = name
+            continue
+
+        if param.kind != param.KEYWORD_ONLY:
+            args_num += 1
+        if param.kind != param.POSITIONAL_ONLY:
+            keys.append(name)
+
+    if pos_var and kw_var:
+        return f
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        return f(*args[:args_num], **{k: v for k, v in kwargs.items() if k in keys})
+
+    return wrapper
 
 
 class Plugin(Util):
@@ -212,7 +241,7 @@ class PluginEvent:
                     hooked = True
                     # from hook, should particle first argument to plugin instance
                     partial_kw = {target_arg: inst} if target_arg else {}
-                    yield partial(func, plugin, **partial_kw)
+                    yield partial(omit_unsupported_params(func), plugin, **partial_kw)
             if hooked:
                 continue
             handler = getattr(plugin, self.name, None)
@@ -221,7 +250,7 @@ class PluginEvent:
             # 2, plugin.<event_name>
             if callable(handler):
                 # already partial by instance method reference
-                yield handler
+                yield omit_unsupported_params(handler)
 
     def register(self, target_class):
         if not inspect.isclass(target_class):

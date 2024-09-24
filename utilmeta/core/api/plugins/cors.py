@@ -68,7 +68,7 @@ class CORSPlugin(Plugin):
                 func.response = Response
         return super().__call__(func, *args, **kwargs)
 
-    def process_request(self, request: Request, api=None):
+    def process_request(self, request: Request):
         from utilmeta import service
         if request.origin != service.origin:
             # origin cross settings is above all other request control settings
@@ -103,7 +103,7 @@ class CORSPlugin(Plugin):
             return True
         return self.allow_origins and request.origin not in self.allow_origins
 
-    def process_response(self, response: Response, api=None):
+    def process_response(self, response: Response):
         if not isinstance(response, Response):
             return response
         request: Request = response.request
@@ -137,6 +137,9 @@ class CORSPlugin(Plugin):
                 response.set_header(Header.ACCESS_MAX_AGE, self.cors_max_age)
         return response
 
-    def handle_error(self, error, api):
+    def handle_error(self, error, api=None):
         # if error is uncaught
-        return getattr(api, 'response', Response)(error=error, request=api.request)
+        return self.process_response((getattr(api, 'response', None) or Response)(
+            error=error,
+            request=error.request
+        ))

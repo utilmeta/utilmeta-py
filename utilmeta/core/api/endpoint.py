@@ -325,10 +325,10 @@ class BaseEndpoint(PluginTarget):
                 response = resp
         return response
 
-    def handle_error(self, request: Request, e: Error):
+    def handle_error(self, e: Error):
         for error_handler in handle_error.iter(self):
             try:
-                res = error_handler(request, e, self)
+                res = error_handler(e, self)
             except NotImplementedError:
                 continue
             if isinstance(res, Request):
@@ -340,10 +340,10 @@ class BaseEndpoint(PluginTarget):
         raise e.throw()
 
     @utils.awaitable(handle_error)
-    async def handle_error(self, request: Request, e: Error):
+    async def handle_error(self, e: Error):
         for error_handler in handle_error.iter(self):
             try:
-                res = error_handler(request, e, self)
+                res = error_handler(e, self)
             except NotImplementedError:
                 continue
             if inspect.isawaitable(res):
@@ -402,6 +402,7 @@ class Endpoint(BaseEndpoint):
             eager=eager
         )
         self.api = api
+        self.response = getattr(api, 'response', None)
         self.operation_id = operation_id
         self.tags = tags
         self.summary = summary
@@ -486,8 +487,8 @@ class Endpoint(BaseEndpoint):
                     response = result
                     break
             except Exception as e:
-                err = Error(e)
-                result = self.handle_error(api.request, err)
+                err = Error(e, request=api.request)
+                result = self.handle_error(err)
                 if isinstance(result, Request):
                     api.request = result
                 else:
@@ -526,8 +527,8 @@ class Endpoint(BaseEndpoint):
                     response = result
                     break
             except Exception as e:
-                err = Error(e)
-                result = await self.handle_error(api.request, err)
+                err = Error(e, request=api.request)
+                result = await self.handle_error(err)
                 if isinstance(result, Request):
                     api.request = result
                 else:

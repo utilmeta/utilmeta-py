@@ -360,8 +360,8 @@ class Client(PluginTarget):
                     raise TypeError(f'invalid response: {result}')
 
             except Exception as e:
-                err = Error(e)
-                result = self.handle_error(request, err)
+                err = Error(e, request=request)
+                result = self.handle_error(err)
                 if isinstance(result, Request):
                     request = result
                 elif isinstance(result, Response):
@@ -417,8 +417,8 @@ class Client(PluginTarget):
                     raise TypeError(f'invalid response: {result}')
 
             except Exception as e:
-                err = Error(e)
-                result = self.handle_error(request, err)
+                err = Error(e, request=request)
+                result = self.handle_error(err)
                 if inspect.isawaitable(result):
                     result = await result
                 if isinstance(result, Request):
@@ -771,5 +771,5 @@ class Client(PluginTarget):
         """
         return response
 
-    def handle_error(self, request: Request, error: Error):
+    def handle_error(self, error: Error):
         raise error.throw()

@@ -328,7 +328,7 @@ class Response:
 
     def init_error(self, error):
         if isinstance(error, Exception):
-            error = Error(error)
+            error = Error(error, request=self.request)
         elif not isinstance(error, Error):
             return
         if not self.status:
@@ -481,16 +481,16 @@ class Response:
     def __repr__(self):
         return self.__str__()
 
-    def _print(self,print_f):
-        print_f(str(self))
+    def _print(self, print_f):
+        print(str(self))
         content_type = self.content_type or self.headers.get('content-type')
-        content_length = self.content_length
         if content_type:
-            print_f(f'{content_type} ({content_length or 0})')
             data = self.data
+            content_length = self.content_length or len(str(data))
+            print(f'{content_type} ({content_length or 0})')
             if data:
                 print_f(data)
-        print_f('')
+        print('')
 
     def print(self):
         self._print(print)
@@ -753,7 +753,7 @@ class Response:
         if self.success:
             return None
         e = exc.HttpError.STATUS_EXCEPTIONS.get(self.status, exc.ServerError)(self.message)
-        return Error(e)
+        return Error(e, request=self.request)
 
     @property
     def traffic(self):

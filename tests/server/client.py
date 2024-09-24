@@ -63,6 +63,11 @@ class TestClient(cli.Client):
                 page: int = 1) -> response.Response:
         pass
 
+    @api.get("doc/{category}/{page}")
+    async def aget_doc(self, category: str = request.PathParam('[a-zA-Z0-9-]{1,20}'),
+                       page: int = 1) -> response.Response:
+        pass
+
     # query param is still the default?
     @api.get
     def query(self, page: int = request.QueryParam(),
@@ -109,5 +114,11 @@ class TestClient(cli.Client):
     @api.get('@parent/data')
     def get_data(self, key: str) -> Union[DataResponse, response.Response]: pass
 
+    @api.get('@parent/data')
+    async def aget_data(self, key: str) -> Union[DataResponse, response.Response]: pass
+
     @api.get('file')
     def get_file(self, content: str) -> response.Response: pass
+
+    @api.get('retry')
+    def get_retry(self) -> response.Response: pass

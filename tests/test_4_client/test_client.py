@@ -56,12 +56,17 @@ class TestClientClass:
             assert file.size == len('test-content-1')
             assert file.read() == b'test-content-1'
 
+            #
+            tr = client.get_retry()
+            assert tr.status == 500
+            assert 'MaxRetriesTimeoutExceed' in tr.text
+
     @pytest.mark.asyncio
     async def test_live_server_async(self, server_thread):
         with TestClient(
             base_url='http://127.0.0.1:8666/api/test',
         ) as client:
-            v = client.get_doc(
+            v = await client.aget_doc(
                 category='finance',
                 page=3
             )
@@ -75,7 +80,7 @@ class TestClientClass:
             )
             assert v.data == [3, 'what']
 
-            dt = client.get_data(key='test1')
+            dt = await client.aget_data(key='test1')
             assert isinstance(dt.result, DataSchema)
             assert dt.result.key == 'test1'
 

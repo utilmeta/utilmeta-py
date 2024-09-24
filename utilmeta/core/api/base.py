@@ -58,6 +58,7 @@ class API(PluginTarget):
     _properties: Dict[str, ParserProperty]
     _annotations: Dict[str, type]
     _hook_cls: Type[Hook] = Hook
+    _error_cls: Type[Error] = Error
     _route_cls: Type[APIRoute] = APIRoute
     _endpoint_cls: Type[Endpoint] = Endpoint
     _parser_field_cls: Type[ParserField] = ParserField
@@ -510,7 +511,7 @@ class API(PluginTarget):
                 error_hooks = route.error_hooks
                 result = route(self)
         except Exception as e:
-            result = self._handle_error(Error(e), error_hooks)
+            result = self._handle_error(self._error_cls(e, request=self.request), error_hooks)
 
         if isinstance(result, Response):
             if not result.request:
@@ -529,7 +530,7 @@ class API(PluginTarget):
                 error_hooks = route.error_hooks
                 result = await route(self)
         except Exception as e:
-            result = await self._handle_error(Error(e), error_hooks)
+            result = await self._handle_error(self._error_cls(e, request=self.request), error_hooks)
         if isinstance(result, Response):
             if not result.request:
                 result.request = self.request

@@ -1,3 +1,4 @@
+import functools
 import inspect
 import io
 import json
@@ -490,7 +491,6 @@ class Response:
             data = self.data
             if data:
                 print_f(data)
-        print_f('')
 
     def print(self):
         self._print(print)

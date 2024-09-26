@@ -8,7 +8,7 @@ from utype.parser.func import FunctionParser
 # from .context import Property
 
 
-def omit_unsupported_params(f):
+def omit_unsupported_params(f, asynchronous: bool = None):
     # eg for def func(a, b): when passing func(1, 2, 3), we ignore the exceeded args
     pos_var = None
     kw_var = None
@@ -30,9 +30,17 @@ def omit_unsupported_params(f):
     if pos_var and kw_var:
         return f
 
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        return f(*args[:args_num], **{k: v for k, v in kwargs.items() if k in keys})
+    if inspect.iscoroutinefunction(f) or asynchronous:
+        @wraps(f)
+        async def wrapper(*args, **kwargs):
+            r = f(*args[:args_num], **{k: v for k, v in kwargs.items() if k in keys})
+            if inspect.isawaitable(r):
+                return await r
+            return r
+    else:
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            return f(*args[:args_num], **{k: v for k, v in kwargs.items() if k in keys})
 
     return wrapper
 
@@ -200,7 +208,7 @@ class PluginEvent:
             pos = list(args)
             if pos:
                 result = pos[0]
-            for handler in self.iter(inst):
+            for handler in self.iter(inst, asynchronous=True):
                 if result is not None:
                     # set the new result
                     pos[0] = result
@@ -210,7 +218,7 @@ class PluginEvent:
                 if result is None:
                     result = pos[0]
         else:
-            for handler in self.iter(inst):
+            for handler in self.iter(inst, asynchronous=True):
                 result = handler(*args, inst, **kwargs)
                 if inspect.isawaitable(result):
                     await result
@@ -229,7 +237,7 @@ class PluginEvent:
             cls_hooks.extend(self._hooks.get(target_cls))
         return cls_hooks
 
-    def iter(self, inst: 'PluginTarget') -> Iterator[Callable]:
+    def iter(self, inst: 'PluginTarget', asynchronous: bool = None) -> Iterator[Callable]:
         plugins = getattr(inst, '_plugins', {})
         if not plugins or not isinstance(plugins, dict):
             return
@@ -241,7 +249,10 @@ class PluginEvent:
                     hooked = True
                     # from hook, should particle first argument to plugin instance
                     partial_kw = {target_arg: inst} if target_arg else {}
-                    yield partial(omit_unsupported_params(func), plugin, **partial_kw)
+                    yield partial(
+                        omit_unsupported_params(func, asynchronous=asynchronous),
+                        plugin, **partial_kw
+                    )
             if hooked:
                 continue
             handler = getattr(plugin, self.name, None)
@@ -250,7 +261,7 @@ class PluginEvent:
             # 2, plugin.<event_name>
             if callable(handler):
                 # already partial by instance method reference
-                yield omit_unsupported_params(handler)
+                yield omit_unsupported_params(handler, asynchronous=asynchronous)
 
     def register(self, target_class):
         if not inspect.isclass(target_class):

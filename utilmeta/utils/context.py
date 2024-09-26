@@ -101,19 +101,24 @@ class ContextWrapper:
                 prop = val.field
             elif default_properties and key in default_properties:
                 prop = default_properties[key]()
-            elif self.default_property:
-                # fallback to default
-                prop = self.default_property()
             else:
                 prop = None
                 # detect property from type input including Union and Optional
                 for origin in val.input_origins:
-                    context_var = getattr(origin, '__context__', None)
-                    if isinstance(context_var, Property):
-                        prop = context_var
-                        break
+                    prop_field = getattr(origin, '__field__', None)
+                    if prop_field:
+                        if isinstance(prop_field, Property):
+                            prop = prop_field
+                            break
+                        elif inspect.isclass(prop_field) and issubclass(prop_field, Property):
+                            prop = prop_field()
+                            break
                 if not prop:
-                    continue
+                    if self.default_property:
+                        # fallback to default
+                        prop = self.default_property()
+                    else:
+                        continue
 
             if prop.__ident__:
                 if prop.__ident__ in ident_props:

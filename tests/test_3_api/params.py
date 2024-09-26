@@ -18,9 +18,19 @@ def get_requests(backend: str = None, asynchronous: bool = False):
     ]
 
     backend_requests = [('get', 'backend', {}, None, {}, backend, 200)] if backend else []
+    if asynchronous:
+        # test async plugins
+        backend_requests += [
+            ("get", "async_plugin", {}, None, {},
+             {"test": "plugin-async-3", "message": ""}, 403),
+        ]
+
     return [
         # (method, path, query, data, headers, result, status)
         ("get", "@special", {}, None, {}, "@special", 200),
+        ("get", "sync_plugin", {}, None, {},
+         {"test": "plugin-async-1" if asynchronous else "plugin-sync-1", "message": ""},
+         401),
         (
             "post",
             "response",

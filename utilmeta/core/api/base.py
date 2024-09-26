@@ -191,6 +191,8 @@ class API(PluginTarget):
                     if context and isinstance(context, Property):
                         cls._make_property(key, context)
 
+        local_vars = {k: v for k, v in cls.__dict__.items() if not k.startswith('_')}
+
         for key, val in cls.__dict__.items():
             if val in handlers:
                 # already been added
@@ -228,7 +230,11 @@ class API(PluginTarget):
                     # 3. def get(self):          (method='get')
                     # 4. @api(method='CUSTOM')   (method='custom')
                     try:
-                        val = cls._endpoint_cls.apply_for(val, cls, name=key)
+                        val = cls._endpoint_cls.apply_for(
+                            val, cls,
+                            name=key,
+                            local_vars=local_vars
+                        )
                     except Exception as e:
                         raise e.__class__(f'{cls.__name__}: '
                                           f'generate endpoint [{repr(key)}] failed with error: {e}') from e

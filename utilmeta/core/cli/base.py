@@ -569,7 +569,7 @@ class Client(PluginTarget):
             return request
 
         # request = process_request(self, request)
-        for handler in process_request.iter(self):
+        for handler in process_request.iter(self, asynchronous=True):
             try:
                 request = handler(request, self)
             except NotImplementedError:
@@ -614,7 +614,7 @@ class Client(PluginTarget):
         if not isinstance(response, Response):
             # need to invoke another request
             return response
-        for handler in process_response.iter(self):
+        for handler in process_response.iter(self, asynchronous=True):
             try:
                 resp = handler(response, self)
             except NotImplementedError:

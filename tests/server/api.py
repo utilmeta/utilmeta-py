@@ -1,7 +1,7 @@
 from utilmeta.core import api, response, request, file
 from utype.types import *
 import utype
-from utilmeta.utils import exceptions, Error, awaitable
+from utilmeta.utils import exceptions, Error, awaitable, Plugin
 
 test_var = request.var.RequestContextVar('test-id', cached=True)
 
@@ -31,6 +31,19 @@ class TestResponse(response.Response):
 
 class Test1Response(response.Response):
     result_key = 'test1'
+
+
+class TestPlugin(Plugin):
+    def __init__(self, num: int = 0):
+        self.num = num
+        super().__init__(num=num)
+
+    def process_response(self, resp: response.Response):
+        return TestResponse(f'plugin-sync-{self.num}', status=resp.status)
+
+    @awaitable(process_response)
+    async def process_response(self, resp: response.Response):
+        return TestResponse(f'plugin-async-{self.num}', status=resp.status)
 
 
 def decorator():
@@ -324,6 +337,16 @@ class TestAPI(api.API):
     @api.Retry(max_retries=3, retry_interval=0.2, max_retries_timeout=.35)
     def retry(self):
         raise exceptions.BadRequest('retry')
+
+    @api.get
+    @TestPlugin(num=1)
+    def sync_plugin(self):
+        return self.response(status=401)
+
+    @api.get
+    @TestPlugin(num=3)
+    async def async_plugin(self):
+        return self.response(status=403)
 
     @api.get('/{path}')
     def fallback(self, path: str = request.FilePathParam):

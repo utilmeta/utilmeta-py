@@ -117,7 +117,8 @@ class BaseEndpoint(PluginTarget):
                  # instead of function name (maybe affected by not-@wrap decorator function)
                  plugins: list = None,
                  idempotent: bool = None,
-                 eager: bool = False
+                 eager: bool = False,
+                 local_vars: dict = None,
                  ):
 
         super().__init__(plugins=plugins)
@@ -131,10 +132,14 @@ class BaseEndpoint(PluginTarget):
         self.eager = eager
         self.name = self.__name__ = name or f.__name__
         self.path_names = self.PATH_REGEX.findall(self.route)
+        self.local_vars = local_vars
 
         # ---------------
+        parser = self.parser_cls.apply_for(f)
+        parser.resolve_forward_refs(local_vars=local_vars)
+        # resolve even if local_vars is None
         self.wrapper = self.wrapper_cls(
-            self.parser_cls.apply_for(f),
+            parser,
             default_properties=self.default_wrapper_properties
         )
         self.executor = self.parser.wrap(
@@ -275,7 +280,7 @@ class BaseEndpoint(PluginTarget):
 
     @utils.awaitable(process_request)
     async def process_request(self, request: Request) -> Union[Request, Response]:
-        for handler in process_request.iter(self):
+        for handler in process_request.iter(self, asynchronous=True):
             try:
                 req = handler(request, self)
             except NotImplementedError:
@@ -307,7 +312,7 @@ class BaseEndpoint(PluginTarget):
 
     @utils.awaitable(process_response)
     async def process_response(self, response):
-        for handler in process_response.iter(self):
+        for handler in process_response.iter(self, asynchronous=True):
             try:
                 resp = handler(response, self)
             except NotImplementedError:
@@ -341,7 +346,7 @@ class BaseEndpoint(PluginTarget):
 
     @utils.awaitable(handle_error)
     async def handle_error(self, e: Error):
-        for error_handler in handle_error.iter(self):
+        for error_handler in handle_error.iter(self, asynchronous=True):
             try:
                 res = error_handler(e, self)
             except NotImplementedError:
@@ -359,7 +364,10 @@ class BaseEndpoint(PluginTarget):
 
 class Endpoint(BaseEndpoint):
     @classmethod
-    def apply_for(cls, func: Callable, api: Type['API'] = None, name: str = None):
+    def apply_for(cls, func: Callable, api: Type['API'] = None,
+                  name: str = None,
+                  local_vars: dict = None,
+                  ):
         _cls = getattr(func, 'cls', None)
         if not _cls or not issubclass(_cls, Endpoint):
             # override current class
@@ -376,6 +384,8 @@ class Endpoint(BaseEndpoint):
             kwargs.update(api=api)
         if name:
             kwargs.update(name=name)
+        if local_vars:
+            kwargs.update(local_vars=local_vars)
         return _cls(func, **kwargs)
 
     def __init__(self, f: Callable, *,
@@ -390,6 +400,7 @@ class Endpoint(BaseEndpoint):
                  tags: List[str] = None,
                  summary: str = None,
                  description: str = None,
+                 local_vars: dict = None,
                  extension: dict = None,
                  ):
 
@@ -399,7 +410,8 @@ class Endpoint(BaseEndpoint):
             method=method,
             name=name,
             idempotent=idempotent,
-            eager=eager
+            eager=eager,
+            local_vars=local_vars
         )
         self.api = api
         self.response = getattr(api, 'response', None)

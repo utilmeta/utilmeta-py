@@ -344,6 +344,15 @@ class TestSchemaQuery:
         following_objs.pop(0)
         following_objs.append({'target_id': 3})
 
+        # ----
+        user2 = UserSchema[orm.A](
+            username='new user 2',
+            followings=[0, 2]
+        )
+        with pytest.raises(exceptions.BadRequest):
+            user2.save(with_relations=True, transaction=True)
+        assert not User.objects.filter(username='new user 2').exists()
+
         user_update1 = UserSchema[orm.W](
             id=user1.pk,
             username='new user 2',
@@ -387,6 +396,7 @@ class TestSchemaQuery:
             type: str
             author: UserSchema
             author_id: int = orm.Field(mode='ra')
+            liked_bys: List[int] = orm.Field(required=False, mode='raw')
             created_at: datetime
 
         class CommentData(orm.Schema[Comment]):
@@ -411,6 +421,7 @@ class TestSchemaQuery:
             type='comment',
             content='my comment 1',
             author_id=2,
+            liked_bys=[1, 3],
             comment=dict(on_content_id=3),
             comments=[
                 dict(author_id=1, content='cm1'),
@@ -422,6 +433,7 @@ class TestSchemaQuery:
         assert comment.on_content.pk == 3
         assert comment.author.pk == 2
         assert comment.content == 'my comment 1'
+        assert set(comment.liked_bys.values_list('id', flat=True)) == {1, 3}
         assert set(Comment.objects.filter(
             on_content=comment).values_list('content', flat=True)) == {'cm1', 'cm2'}
 
@@ -454,6 +466,16 @@ class TestSchemaQuery:
         user1_inst: User = await user1.aget_instance(fresh=True)
         assert user1_inst.username == 'async new user 1'
         assert {v async for v in Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)} == {1, 2}
+
+        # -------------
+        user2 = UserSchema[orm.A](
+            username='new async user 2',
+            followings=[0, 2]
+        )
+        with pytest.raises(exceptions.BadRequest):
+            await user2.asave(with_relations=True, transaction=True)
+        assert not await User.objects.filter(username='new async user 2').aexists()
+        # ------------------
 
         user1 = await UserSchema.ainit(user1_inst)
         following_objs = list(user1.user_followings)
@@ -504,6 +526,7 @@ class TestSchemaQuery:
             type: str
             author: UserSchema
             author_id: int = orm.Field(mode='ra')
+            liked_bys: List[int] = orm.Field(required=False, mode='raw')
             created_at: datetime
 
         class CommentData(orm.Schema[Comment]):
@@ -529,6 +552,7 @@ class TestSchemaQuery:
             type='comment',
             content='my comment 1',
             author_id=2,
+            liked_bys=[1, 3],
             comment=dict(on_content_id=3),
             comments=[
                 dict(author_id=1, content='cm1'),
@@ -542,6 +566,9 @@ class TestSchemaQuery:
         assert comment.content == 'my comment 1'
         assert {v async for v in Comment.objects.filter(
             on_content=comment).values_list('content', flat=True)} == {'cm1', 'cm2'}
+
+        c = await ContentSchema.ainit(content.pk)
+        assert set(c.liked_bys) == {1, 3}
 
     def test_bulk_save(self):
         pass

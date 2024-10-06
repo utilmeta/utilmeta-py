@@ -50,6 +50,14 @@ class ModelFieldAdaptor(BaseAdaptor):
         raise NotImplementedError
 
     @property
+    def through_model(self) -> Optional['ModelAdaptor']:
+        raise NotImplementedError
+
+    @property
+    def through_fields(self) -> Tuple[Optional['ModelFieldAdaptor'], Optional['ModelFieldAdaptor']]:
+        raise NotImplementedError
+
+    @property
     def model(self):
         return self._model
 

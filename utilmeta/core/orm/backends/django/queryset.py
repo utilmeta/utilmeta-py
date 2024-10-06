@@ -198,7 +198,6 @@ class AwaitableQuerySet(QuerySet):
             db = self.connections_cls.get(self.db)
             async with db.async_transaction(savepoint=False):
                 await self._insert_obj_parents(obj)
-                print('PARENTS:', obj.pk)
                 return await self._insert_obj(obj, raw=True)
         else:
             return await self._insert_obj(obj)

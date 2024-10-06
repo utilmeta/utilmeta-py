@@ -16,6 +16,12 @@ class UpdateFailed(ValueError):
         super().__init__(msg or 'orm.Error: must_update=True: failed to update')
 
 
+class InvalidRelationalUpdate(ValueError):
+    def __init__(self, msg: str = None, model=None):
+        self.model = model
+        super().__init__(msg)
+
+
 class EmptyQueryset(ValueError):
     def __init__(self, msg: str = None, model=None):
         self.model = model

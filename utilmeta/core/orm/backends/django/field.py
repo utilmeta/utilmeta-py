@@ -1,6 +1,6 @@
 from utilmeta.utils import multi
 from ..base import ModelFieldAdaptor
-from typing import Union, Optional, Type, TYPE_CHECKING
+from typing import Union, Optional, Type, TYPE_CHECKING, Tuple
 from django.db import models
 from django.db.models.fields.reverse_related import ForeignObjectRel
 from django.db.models.query_utils import DeferredAttribute
@@ -44,6 +44,11 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             field = field.field
             if not lookup_name:
                 lookup_name = getattr(field, 'field_name', getattr(field, 'name', None))
+
+        # if isinstance(field, str):
+        #     from .model import DjangoModelAdaptor
+        #     if isinstance(model, DjangoModelAdaptor):
+        #         field = model.get_field(field)
 
         if not self.qualify(field):
             raise TypeError(f'Invalid field: {field}')
@@ -115,6 +120,47 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             from .model import DjangoModelAdaptor
             return DjangoModelAdaptor(rel)
         return None
+
+    @property
+    def through_model(self):
+        if not self.is_m2m:
+            return None
+        if isinstance(self.field, models.ManyToManyField):
+            rel = self.field.remote_field
+        else:
+            rel = self.field
+        if rel.through:
+            from .model import DjangoModelAdaptor
+            return DjangoModelAdaptor(rel.through)
+        return None
+
+    @property
+    def through_fields(self) -> Tuple[Optional['ModelFieldAdaptor'], Optional['ModelFieldAdaptor']]:
+        if not self.is_m2m:
+            return None, None
+        is_rel = False
+        related_model = self.related_model
+        through_model = self.through_model
+        if not related_model or not through_model:
+            return None, None
+        if isinstance(self.field, models.ManyToManyField):
+            rel = self.field.remote_field
+        else:
+            rel = self.field
+            is_rel = True
+        if rel.through_fields:
+            _from = through_model.get_field(rel.through_fields[0])
+            _to = through_model.get_field(rel.through_fields[1])
+        else:
+            _from = _to = None
+            for field in through_model.get_fields(many=False, no_inherit=True):
+                if not field.related_model:
+                    continue
+                if issubclass(field.related_model.model, self.model.model):
+                    _from = field
+                elif issubclass(field.related_model.model, related_model.model):
+                    _to = field
+        return (_to, _from) if is_rel else (_from, _to)
 
     @property
     def is_nullable(self):

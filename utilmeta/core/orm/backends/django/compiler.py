@@ -935,6 +935,51 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational '
                                   f'deletion errors for {repr(key)}: {e}')
 
+    async def asave_relation_keys(self,
+                                  obj,
+                                  keys: list,
+                                  field: ParserQueryField,
+                                  add_only: bool = False
+                                 ):
+        if not isinstance(obj, self.model.model):
+            obj = self.model.init_instance(pk=obj)
+
+        through_model = field.model_field.through_model
+        related_model = field.model_field.related_model
+        from_field, to_field = field.model_field.through_fields
+        if not through_model or not related_model or not from_field or not to_field:
+            raise exceptions.InvalidRelationalUpdate(f'Invalid relational keys update field: '
+                                                     f'{repr(field.model_field.name)}, must be a many-to-may field/rel')
+        create_objs = []
+        all_keys = []
+        for key in keys:
+            if isinstance(key, related_model.model):
+                rel_obj = key
+            else:
+                rel_obj = related_model.init_instance(pk=key)
+            thr_data = {
+                from_field.name: obj,
+                to_field.name: rel_obj
+            }
+            if not add_only:
+                thr_obj = await through_model.aget_instance(**thr_data)
+                if thr_obj:
+                    all_keys.append(thr_obj.pk)
+                    continue
+            create_objs.append(thr_data)
+
+        through_qs = AwaitableQuerySet(model=through_model.model).filter(**{from_field.name: obj})
+        db = through_qs.connections_cls.get(through_qs.db)
+
+        async with db.async_transaction(savepoint=False):
+            for val in create_objs:
+                obj = await AwaitableQuerySet(model=through_model.model).acreate(**val)
+                all_keys.append(obj.pk)
+            if not add_only:
+                await through_qs.exclude(
+                    pk__in=all_keys
+                ).adelete()
+
     async def asave_relations(self,
                               pk,
                               relation_keys: dict,
@@ -947,7 +992,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
 
         for name, (field, keys) in relation_keys.items():
             field: ParserQueryField
-            inst: models.Model = self.model.model(pk=pk)
+            inst: models.Model = self.model.init_instance(pk=pk)
             if field.related_single:
                 if keys:
                     related_model = field.model_field.related_model.model
@@ -963,14 +1008,13 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     except error_classes as e:
                         warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
             else:
-                rel_field = getattr(inst, name, None)
-                if not rel_field:
-                    continue
                 try:
-                    if must_create:
-                        await rel_field.aadd(*keys)
-                    else:
-                        await rel_field.aset(keys)
+                    await self.asave_relation_keys(
+                        inst,
+                        keys=keys,
+                        field=field,
+                        add_only=must_create
+                    )
                 except error_classes as e:
                     warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
 
@@ -988,7 +1032,6 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 for rel_name in relation_fields:
                     setattr(obj, rel_name, pk)
 
-            print('RESULT BULK RELATION:', key, objects)
             result = await related_schema.abulk_save(
                 objects,
                 must_create=must_create and not field.model_field.remote_field.is_pk,

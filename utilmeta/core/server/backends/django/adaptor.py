@@ -309,7 +309,6 @@ class DjangoServerAdaptor(ServerAdaptor):
             if self.asynchronous:
                 raise ValueError(f'django debug runserver does not support asgi, please use an asgi server')
             try:
-                print('DJANGO RUNSERVER')
                 self.runserver()
             finally:
                 self.config.shutdown()

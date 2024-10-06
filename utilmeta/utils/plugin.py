@@ -221,7 +221,7 @@ class PluginEvent:
             for handler in self.iter(inst, asynchronous=True):
                 result = handler(*args, inst, **kwargs)
                 if inspect.isawaitable(result):
-                    await result
+                    result = await result
         return result
 
     def get_hooks(self, target):

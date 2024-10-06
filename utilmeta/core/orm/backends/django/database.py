@@ -24,10 +24,9 @@ class DjangoDatabaseAdaptor(BaseDatabaseAdaptor):
         'postgres': POSTGRESQL
     }
 
-    @classmethod
-    def get_constraints_error_cls(cls):
+    def get_integrity_errors(self):
         from django.db.utils import IntegrityError
-        return IntegrityError
+        return (IntegrityError,)
 
     @classmethod
     def gen_router(cls, app_dbs: Dict[str, Tuple[str, List[str]]]):

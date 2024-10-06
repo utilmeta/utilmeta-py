@@ -1,18 +1,32 @@
 import inspect
 
-from utilmeta.core.orm.compiler import BaseQueryCompiler
+from utilmeta.core.orm.compiler import BaseQueryCompiler, TransactionWrapper
 from ...fields.field import ParserQueryField
 from . import expressions as exp
 from .constant import PK, ID, SEG
 from django.db import models
 from utilmeta.utils import awaitable, Error, multi, pop
-from typing import List
+from typing import List, Tuple, Type, Union
 from .queryset import AwaitableQuerySet
 import asyncio
 import warnings
 from datetime import timedelta
 from utilmeta.core.orm import exceptions
 from enum import Enum
+
+
+def get_ignored_errors(errors: Union[bool, Type[Exception], List[Exception]]) -> Tuple[Type[Exception], ...]:
+    if not errors:
+        return ()
+    if errors is True:
+        return (Exception,)
+    if not multi(errors):
+        errors = [errors]
+    values = []
+    for err in errors:
+        if inspect.isclass(err) and issubclass(err, Exception):
+            values.append(err)
+    return tuple(values)
 
 
 class DjangoQueryCompiler(BaseQueryCompiler):
@@ -651,106 +665,370 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         return value
 
     def commit_data(self, data: dict):
-        data = self.process_data(data)
+        data, _, _ = self.process_data(data, with_relations=False)
         for p in {PK, ID, *self.parser.pk_names}:
             pk = pop(data, p)
             if pk is not None:
                 self.queryset = self.queryset.filter(pk=pk)
         if data:
-            self.queryset.update(**data)
+            try:
+                self.queryset.update(**data)
+            except self.get_integrity_errors(False) as e:
+                raise self.get_integrity_error(e) from e
         return self.queryset
 
     @awaitable(commit_data, bind_service=True)
     async def commit_data(self, data: dict):
-        data = self.process_data(data)
+        data, _, _ = self.process_data(data, with_relations=False)
         for p in {PK, ID, *self.parser.pk_names}:
             pk = pop(data, p)
             if pk is not None:
                 self.queryset = self.queryset.filter(pk=pk)
         if data:
-            await self.queryset.aupdate(**data)
+            try:
+                await self.queryset.aupdate(**data)
+            except self.get_integrity_errors(True) as e:
+                raise self.get_integrity_error(e) from e
         return self.queryset
 
-    def save_data(self, data, must_create: bool = False, must_update: bool = False):
-        if multi(data):
-            # TODO: implement bulk create/update
-            pk_list = []
-            for val in data:
-                pk = self.save_data(val)
-                if pk is not None:
+    # def get_instance(self, pk):
+    #     self.model.get_instance_recursively(pk=pk)
+
+    def save_data(self,
+                  data,
+                  must_create: bool = False,
+                  must_update: bool = False,
+                  ignore_bulk_errors: bool = False,
+                  ignore_relation_errors: bool = False,
+                  with_relations: bool = None,
+                  transaction: bool = False,
+                  ):
+        with TransactionWrapper(self.model, transaction, errors_map=self.get_errors_map(False)):
+            if multi(data):
+                # TODO: implement bulk create/update
+                error_classes = get_ignored_errors(ignore_bulk_errors)
+                pk_list = []
+                for val in data:
+                    try:
+                        pk = self.save_data(
+                            val,
+                            must_create=must_create,
+                            must_update=must_update,
+                            ignore_relation_errors=ignore_relation_errors,
+                            with_relations=with_relations,
+                        )
+                    except error_classes as e:
+                        pk = None
+                        # leave it to None to keep the result pk_list the same length as values
+                        warnings.warn(f'orm.Schema[{self.model.model}]: ignoring bulk_save errors: {e}')
                     pk_list.append(pk)
-            return pk_list
-        else:
-            from utilmeta.core.orm.schema import Schema
-            pk = None
-            if isinstance(data, Schema):
-                pk = data.pk
-            elif isinstance(data, dict):
-                for p in {PK, ID, *self.parser.pk_names}:
-                    pk = data.get(p)
-                    if pk is not None:
-                        break
-            data = self.process_data(data)
-            if pk is None:
-                # create
-                if must_update:
-                    raise exceptions.MissingPrimaryKey
-                obj = self.model.create(data)
-                pk = obj.pk
+                return pk_list
             else:
-                # attempt to update
-                # then create if no rows was updated
-                if must_create:
-                    rows = 0
-                else:
-                    rows = self.model.update(data, pk=pk)
-                if not rows:
+                from utilmeta.core.orm.schema import Schema
+                pk = None
+                if isinstance(data, Schema):
+                    pk = data.pk
+                elif isinstance(data, dict):
+                    for p in {PK, ID, *self.parser.pk_names}:
+                        pk = data.get(p)
+                        if pk is not None:
+                            break
+                data, rel_keys, rel_objs = self.process_data(data, with_relations=with_relations)
+                if pk is None:
+                    # create
                     if must_update:
-                        raise exceptions.UpdateFailed
-                    obj = self.model.create(data)
+                        raise exceptions.MissingPrimaryKey
+                    try:
+                        obj = self.model.create(data)
+                    except self.get_integrity_errors(False) as e:
+                        raise self.get_integrity_error(e) from e
                     pk = obj.pk
-            return pk
-
-    @awaitable(save_data, bind_service=True)
-    async def save_data(self, data, must_create: bool = False, must_update: bool = False):
-        if multi(data):
-            # TODO: implement bulk create/update
-            pk_list = []
-            for val in data:
-                pk = await self.save_data(val, must_create=must_create, must_update=must_update)
-                if pk is not None:
-                    pk_list.append(pk)
-            return pk_list
-        else:
-            from utilmeta.core.orm.schema import Schema
-            pk = None
-            if isinstance(data, Schema):
-                pk = data.pk
-            elif isinstance(data, dict):
-                for p in {PK, ID, *self.parser.pk_names}:
-                    pk = data.get(p)
-                    if pk is not None:
-                        break
-
-            data = self.process_data(data)
-            if pk is None:
-                if must_update:
-                    raise exceptions.MissingPrimaryKey
-                # create
-                obj = await self.model.create(data)
-                pk = obj.pk
-            else:
-                # attempt to update
-                # then create if no rows was updated
-                if not must_create:
-                    exists = await self.model.get_queryset(pk=pk).aexists()
-                    if exists:
-                        await self.model.update(data, pk=pk)
+                else:
+                    # attempt to update
+                    # then create if no rows was updated
+                    if must_create:
+                        rows = 0
                     else:
+                        try:
+                            rows = self.model.update(data, pk=pk)
+                        except self.get_integrity_errors(False) as e:
+                            raise self.get_integrity_error(e) from e
+                        if not rows:
+                            inst = self.model.get_instance_recursively(pk=pk)
+                            # child not exists, but parent exists
+                            if inst:
+                                self.model.save_raw(pk=pk, **data)
+                                rows = 1
+                    if not rows:
                         if must_update:
                             raise exceptions.UpdateFailed
-                        must_create = True
-                if must_create:
-                    obj = await self.model.create(data)
+                        try:
+                            obj = self.model.create(data)
+                        except self.get_integrity_errors(False) as e:
+                            raise self.get_integrity_error(e) from e
+                        pk = obj.pk
+                if with_relations and pk:
+                    self.save_relations(
+                        pk,
+                        relation_keys=rel_keys,
+                        relation_objects=rel_objs,
+                        must_create=must_create,
+                        ignore_errors=ignore_relation_errors,
+                    )
+                return pk
+
+    @awaitable(save_data, bind_service=True)
+    async def save_data(self,
+                        data,
+                        must_create: bool = False,
+                        must_update: bool = False,
+                        ignore_bulk_errors: bool = False,
+                        ignore_relation_errors: bool = False,
+                        with_relations: bool = None,
+                        transaction: bool = False,
+                        ):
+        async with TransactionWrapper(self.model, transaction, errors_map=self.get_errors_map(True)):
+            if multi(data):
+                # TODO: implement bulk create/update
+                error_classes = get_ignored_errors(ignore_bulk_errors)
+                pk_list = []
+                for val in data:
+                    try:
+                        pk = await self.save_data(
+                            val,
+                            must_create=must_create,
+                            must_update=must_update,
+                            ignore_relation_errors=ignore_relation_errors,
+                            with_relations=with_relations
+                        )
+                    except error_classes as e:
+                        pk = None
+                        warnings.warn(f'orm.Schema[{self.model.model}]: ignoring bulk_save errors: {e}')
+                    pk_list.append(pk)
+                return pk_list
+            else:
+                from utilmeta.core.orm.schema import Schema
+                pk = None
+                if isinstance(data, Schema):
+                    pk = data.pk
+                elif isinstance(data, dict):
+                    for p in {PK, ID, *self.parser.pk_names}:
+                        pk = data.get(p)
+                        if pk is not None:
+                            break
+
+                data, rel_keys, rel_objs = self.process_data(data, with_relations=with_relations)
+
+                if pk is None:
+                    if must_update:
+                        raise exceptions.MissingPrimaryKey
+                    # create
+                    try:
+                        obj = await self.model.create(data)
+                    except self.get_integrity_errors(True) as e:
+                        raise self.get_integrity_error(e) from e
                     pk = obj.pk
-            return pk
+                else:
+                    # attempt to update
+                    # then create if no rows was updated
+                    if not must_create:
+                        exists = await self.model.get_queryset(pk=pk).aexists()
+                        if exists:
+                            try:
+                                await self.model.update(data, pk=pk)
+                            except self.get_integrity_errors(True) as e:
+                                raise self.get_integrity_error(e) from e
+                        else:
+                            if must_update:
+                                raise exceptions.UpdateFailed
+                            inst = await self.model.aget_instance_recursively(pk=pk)
+                            if inst:
+                                # child not exists, but parent exists
+                                await self.model.asave_raw(pk=pk, **data)
+                            else:
+                                must_create = True
+                    if must_create:
+                        try:
+                            obj = await self.model.create(data)
+                        except self.get_integrity_errors(True) as e:
+                            raise self.get_integrity_error(e) from e
+                        pk = obj.pk
+
+                if with_relations and pk:
+                    await self.asave_relations(
+                        pk,
+                        relation_keys=rel_keys,
+                        relation_objects=rel_objs,
+                        must_create=must_create,
+                        ignore_errors=ignore_relation_errors,
+                    )
+                return pk
+
+    def save_relations(self,
+                       pk,
+                       relation_keys: dict,
+                       relation_objects: dict,
+                       must_create: bool = False,
+                       ignore_errors: bool = False,
+                       ):
+        from utilmeta.core.orm.schema import Schema
+        error_classes = get_ignored_errors(ignore_errors)
+
+        for name, (field, keys) in relation_keys.items():
+            field: ParserQueryField
+            inst: models.Model = self.model.model(pk=pk)
+            if field.related_single:
+                if keys:
+                    related_model = field.model_field.related_model.model
+                    if multi(keys):
+                        rel_key = list(keys)[0]
+                    else:
+                        rel_key = keys
+                    related_inst = related_model(pk=rel_key)
+                    relation_field = field.model_field.remote_field.column_name
+                    setattr(related_inst, relation_field, pk)
+                    try:
+                        related_inst.save(update_fields=[relation_field])
+                    except error_classes as e:
+                        warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
+            else:
+                rel_field = getattr(inst, name, None)
+                if not rel_field:
+                    continue
+
+                try:
+                    if must_create:
+                        rel_field.add(*keys)
+                    else:
+                        rel_field.set(keys)
+                except error_classes as e:
+                    warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
+
+        for key, (field, objects) in relation_objects.items():
+            field: ParserQueryField
+            related_schema = field.related_schema
+            if not related_schema or not issubclass(related_schema, Schema):
+                continue
+            # SET PK
+            relation_fields = getattr(related_schema, '__relational_fields__', []) or []
+            if isinstance(objects, Schema):
+                objects = [objects]
+            for obj in objects:
+                for rel_name in relation_fields:
+                    setattr(obj, rel_name, pk)
+            result = related_schema.bulk_save(
+                objects,
+                must_create=must_create and not field.model_field.remote_field.is_pk,
+                ignore_errors=ignore_errors,
+                with_relations=True
+            )
+            if not must_create:
+                # delete the unrelated-relation
+                try:
+                    field_name = field.model_field.remote_field.name
+                    if not field_name:
+                        continue
+                    field.related_model.get_queryset(
+                        **{field_name: pk}
+                    ).exclude(pk__in=[val.pk for val in result if val.pk]).delete()
+                except error_classes as e:
+                    warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational '
+                                  f'deletion errors for {repr(key)}: {e}')
+
+    async def asave_relations(self,
+                              pk,
+                              relation_keys: dict,
+                              relation_objects: dict,
+                              must_create: bool = False,
+                              ignore_errors: bool = False,
+                              ):
+        from utilmeta.core.orm.schema import Schema
+        error_classes = get_ignored_errors(ignore_errors)
+
+        for name, (field, keys) in relation_keys.items():
+            field: ParserQueryField
+            inst: models.Model = self.model.model(pk=pk)
+            if field.related_single:
+                if keys:
+                    related_model = field.model_field.related_model.model
+                    if multi(keys):
+                        rel_key = list(keys)[0]
+                    else:
+                        rel_key = keys
+                    related_inst = related_model(pk=rel_key)
+                    relation_field = field.model_field.remote_field.column_name
+                    setattr(related_inst, relation_field, pk)
+                    try:
+                        await related_inst.asave(update_fields=[relation_field])
+                    except error_classes as e:
+                        warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
+            else:
+                rel_field = getattr(inst, name, None)
+                if not rel_field:
+                    continue
+                try:
+                    if must_create:
+                        await rel_field.aadd(*keys)
+                    else:
+                        await rel_field.aset(keys)
+                except error_classes as e:
+                    warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
+
+        # async tasks may cause update problem? don't know, to be tested
+        for key, (field, objects) in relation_objects.items():
+            field: ParserQueryField
+            related_schema = field.related_schema
+            if not related_schema or not issubclass(related_schema, Schema):
+                continue
+            # SET PK
+            relation_fields = getattr(related_schema, '__relational_fields__', []) or []
+            if isinstance(objects, Schema):
+                objects = [objects]
+            for obj in objects:
+                for rel_name in relation_fields:
+                    setattr(obj, rel_name, pk)
+
+            print('RESULT BULK RELATION:', key, objects)
+            result = await related_schema.abulk_save(
+                objects,
+                must_create=must_create and not field.model_field.remote_field.is_pk,
+                ignore_errors=ignore_errors,
+                with_relations=True
+            )
+            if not must_create:
+                # delete the unrelated-relation
+                try:
+                    field_name = field.model_field.remote_field.name
+                    if not field_name:
+                        continue
+                    await field.related_model.get_queryset(
+                        **{field_name: pk}
+                    ).exclude(pk__in=[val.pk for val in result if val.pk]).adelete()
+                except error_classes as e:
+                    warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational '
+                                  f'deletion errors for {repr(key)}: {e}')
+
+    def get_errors_map(self, asynchronous: bool = False) -> dict:
+        if self.context.integrity_error_cls:
+            errors = self.get_integrity_errors(asynchronous)
+            if errors:
+                return {errors: self.context.integrity_error_cls}
+        return {}
+
+    def get_integrity_errors(self, asynchronous: bool = False):
+        if not self.context.integrity_error_cls:
+            # if there is no class to be re-throw
+            # we should not return any
+            return ()
+        from .queryset import AwaitableQuerySet
+        qs = self.model.model.objects.all()
+        from django.db.utils import IntegrityError
+        if isinstance(qs, AwaitableQuerySet) or asynchronous:
+            from utilmeta.core.orm import DatabaseConnections
+            db = DatabaseConnections.get(qs.db)
+            errors = list(db.get_adaptor(asynchronous=asynchronous).get_integrity_errors())
+        else:
+            errors = []
+        if IntegrityError not in errors:
+            errors.append(IntegrityError)
+        return tuple(errors)

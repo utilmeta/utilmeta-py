@@ -61,12 +61,17 @@ class SchemaClassParser(ClassParser):
                             field = field.reconstruct(self.model)
                             field.setup(self.options)
                         except Exception as e:
-                            raise e.__class__(f'orm.Schema: setup field [{repr(name)}] '
+                            raise e.__class__(f'{self.name}(orm.Schema): setup field [{repr(name)}] '
                                               f'for model: {self.model} failed with error: {e}') from e
 
                         self.fields[name] = field
-            if pk_names:
-                pass
+            # if pk_names:
+            #     pass
+            # else:
+            #     if self.options.mode and 'w' in self.options.mode:
+            #         raise exceptions.InvalidSchema(f'{self.name}(orm.Schema): with mode: {repr(self.options.mode)}) '
+            #                                        f'requires to declare a primary key field (such as id)')
+
         self.pk_names = pk_names
 
     @property

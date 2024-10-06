@@ -12,7 +12,7 @@ __all__ = ["UserSchema", "ArticleSchema", "CommentSchema",
 
 
 class UserBase(orm.Schema[User]):
-    id: int = orm.Field(no_input='w')
+    id: int = orm.Field(mode='raw', required='r')
     username: str
     password = orm.Field(mode='wa')
     jwt_token: Optional[str] = orm.Field(mode='r')
@@ -23,12 +23,12 @@ class UserBase(orm.Schema[User]):
 
 
 class ContentSchema(orm.Schema[BaseContent]):
-    id: int = orm.Field(mode='ra')
+    id: int = orm.Field(mode='raw', required='r')
     content: str = orm.Field(
         auth={'r': auth.Require()}
     )  # test read auth, test common field mount
     created_at: datetime
-    updated_at: datetime = Field(default_factory=datetime.now, no_input=True)       # last modified
+    updated_at: datetime = Field(default_factory=datetime.now, no_input='aw')       # last modified
     public: bool = orm.Field(auth={
         'w': orm.Relate('author'),
         'a': auth.Require()
@@ -41,7 +41,7 @@ class ContentSchema(orm.Schema[BaseContent]):
 
 
 class CommentSchema(ContentSchema[Comment]):
-    type: Literal["comment"] = "comment"
+    type: Literal["comment"] = orm.Field(default="comment", no_input='aw')
     on_content_id: int = orm.Field(mode='ra', alias="@content")
     creator: UserBase = orm.Field(
         "author", alias="@author",
@@ -52,7 +52,7 @@ class CommentSchema(ContentSchema[Comment]):
 
 
 class ArticleSchema(ContentSchema[Article]):
-    type: Literal["article"] = "article"
+    type: Literal["article"] = orm.Field(default="article", no_input='aw')
     content = orm.Field(auth={
         'w': orm.Relate('author'),
         'r': auth.Require()

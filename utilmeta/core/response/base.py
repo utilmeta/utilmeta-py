@@ -326,7 +326,7 @@ class Response:
             return
         self._file = file
 
-    def init_error(self, error):
+    def init_error(self, error: Union[Error, Exception]):
         if isinstance(error, Exception):
             error = Error(error, request=self.request)
         elif not isinstance(error, Error):
@@ -719,7 +719,11 @@ class Response:
         if not self._content:
             return b''
         if self.content_type and self.content_type.startswith(JSON):
-            return self.dump_json()
+            try:
+                return self.dump_json()
+            except TypeError as e:
+                self.init_error(e)
+                return str(e).encode()
         # this content might not be bytes, leave the encoding to the adaptor
         return self._content
 

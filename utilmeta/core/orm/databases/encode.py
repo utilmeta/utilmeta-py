@@ -22,6 +22,33 @@ if TYPE_CHECKING:
 #   the easy-but-not-fixing-the-root solution is use __relation=exp.F('relation') to produce a different name
 #   but such mistake will definitely happens in the complex query
 
+from databases.core import Transaction, Database
+
+
+class _Transaction(Transaction):
+    async def commit(self) -> None:
+        async with self._connection._transaction_lock:
+            assert self._connection._transaction_stack[-1] is self
+            assert self._transaction is not None
+            await self._transaction.commit()
+            # POP after committing successfully
+            self._connection._transaction_stack.pop()
+            await self._connection.__aexit__()
+            self._transaction = None
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        """
+        Called when exiting `async with database.transaction()`
+        """
+        if exc_type is not None or self._force_rollback:
+            await self.rollback()
+        else:
+            try:
+                await self.commit()
+            except Exception as e:
+                await self.rollback()
+                raise e
+
 
 class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
     asynchronous = True
@@ -48,30 +75,53 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
     def __init__(self, config: 'Database', alias: str = None):
         super().__init__(config, alias=alias)
         self.async_engine = None
-        self.engine = self.config.engine
-        if '+' in self.engine:
-            self.async_engine = self.engine.split('+')[1]
+        self.db_backend = None
+        self.engine = None
+        if '+' in self.config.engine:
+            self.db_backend, self.async_engine = self.config.engine.split('+')
+            self.engine = self.config.engine
         else:
             for name, engine in self.DEFAULT_ASYNC_ENGINES.items():
-                if name in self.engine.lower():
+                if name in self.config.engine.lower():
                     self.engine = engine
-                    self.async_engine = self.engine.split('+')[1]
+                    self.db_backend, self.async_engine = self.engine.split('+')
                     break
-            if not self.async_engine:
-                raise ValueError(f'{self.__class__.__name__}: engine invalid or not implemented: {repr(self.engine)}')
+            if not self.engine:
+                raise ValueError(f'{self.__class__.__name__}: engine invalid or not implemented: '
+                                 f'{repr(self.config.engine)}')
 
         self._db = None     # process local
+        self._processed = False
         # import threading
         # self.local = threading.local()                  # thread local
         # self._var_db = contextvars.ContextVar('db')     # coroutine local
 
-    def get_constraints_error_cls(self):
-        if self.async_engine == 'asyncpg':
-            from asyncpg.exceptions import UniqueViolationError
-            return UniqueViolationError
-        # elif self.async_engine == 'aiopg':
-        #     from aiopg
-        return Exception
+    def get_integrity_errors(self):
+        if self.db_backend in ('postgres', 'postgresql'):
+            errors = []
+            try:
+                from asyncpg.exceptions import IntegrityConstraintViolationError
+                errors.append(IntegrityConstraintViolationError)
+            except (ImportError, ModuleNotFoundError):
+                pass
+            try:
+                from psycopg2 import IntegrityError
+                errors.append(IntegrityError)
+            except (ImportError, ModuleNotFoundError):
+                pass
+            return tuple(errors)
+        elif self.db_backend in ('sqlite', 'sqlite3'):
+            from sqlite3 import IntegrityError
+            return (IntegrityError,)
+        elif self.db_backend == 'mysql':
+            errors = []
+            try:
+                from pymysql.err import IntegrityError
+                errors.append(IntegrityError)
+            except (ImportError, ModuleNotFoundError):
+                pass
+            return tuple(errors)
+        return ()
 
     def get_db(self):
         if self._db:
@@ -84,15 +134,48 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
             raise ValueError(f'Invalid engine: {engine}')
         # sqlite://<file>
         # postgresql://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
-        database = Database(f'{engine}://{self.config.dsn}', **self.config.params)
+        params = dict(self.config.params)
+        factory = self.connection_factory
+        if factory:
+            params.update(factory=factory)
+        database = Database(f'{engine}://{self.config.dsn}', **params)
         self._db = database
         return database
+
+    @property
+    def connection_factory(self):
+        if self.db_backend in ('sqlite', 'sqlite3'):
+            import sqlite3
+            from aiosqlite import Connection
+
+            class SQLiteConnection(sqlite3.Connection):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    # if not self.in_transaction:
+                    self.execute('PRAGMA foreign_keys = ON;')
+                    # self.execute('PRAGMA legacy_alter_table = OFF;')
+                    # print('SQLITE EXECUTE')
+
+            return SQLiteConnection
+        return None
+
+    # async def process_db(self, db):
+    #     if self._processed:
+    #         return
+    #     if self.db_backend in ('sqlite', 'sqlite3'):
+    #         # ref: django.db.backends.sqlite3.base.get_new_connection
+    #         # print('EXECUTE PRAGMA')
+    #         await db.execute("PRAGMA foreign_keys = ON;")
+    #         await db.execute("PRAGMA legacy_alter_table = OFF;")
+    #     self._processed = True
 
     async def connect(self):
         db = self.get_db()
         # db = self._db.get(None)
         if not db.is_connected:
             await db.connect()
+        # if not self._processed:
+        # await self.process_db(db)
         return db
         # from databases import Database
         # engine = self.engine
@@ -157,7 +240,7 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
 
     def transaction(self, savepoint=None, isolation=None, force_rollback: bool = False):
         db = self.get_db()
-        return db.transaction(force_rollback=force_rollback, isolation=isolation)
+        return _Transaction(db.connection, force_rollback=force_rollback, isolation=isolation)
 
     def check(self):
         try:

@@ -32,6 +32,18 @@ class AtomicPlugin(Plugin):
             self.transaction.__exit__(exc_type, exc_val, exc_tb)
             self.transaction = None
 
+    # def __await__(self):
+    #     if self.async_transaction:
+    #         return self.async_transaction.__await__()
+    #
+    def rollback(self):
+        if self.async_transaction:
+            return self.async_transaction.rollback()
+
+    def commit(self):
+        if self.async_transaction:
+            return self.async_transaction.commit()
+
     async def __aenter__(self):
         self.async_transaction = self.db.async_transaction(
             savepoint=self.savepoint,

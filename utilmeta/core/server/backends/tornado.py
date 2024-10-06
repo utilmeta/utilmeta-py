@@ -169,9 +169,13 @@ class TornadoServerAdaptor(ServerAdaptor):
         return self.setup()
 
     async def main(self):
+        print('SETUP')
         app = self.setup()
+        print('APP:', app)
         app.listen(self.config.port)
+        print('LISTEN')
         await self.config.startup()
+        print('STARTUP')
         try:
             await asyncio.Event().wait()
         finally:

@@ -205,6 +205,12 @@ class ModelAdaptor(BaseAdaptor):
     async def update(self, data: dict, q=None, **filters):
         raise NotImplementedError
 
+    def save_raw(self, pk=None, **data):
+        raise NotImplementedError
+
+    def asave_raw(self, pk=None, **data):
+        raise NotImplementedError
+
     def create(self, d=None, **data):
         raise NotImplementedError
 
@@ -246,6 +252,12 @@ class ModelAdaptor(BaseAdaptor):
         # for django it's like model.objects.all()
         raise NotImplementedError
 
+    def get_instance_recursively(self, q=None, **filters):
+        raise NotImplementedError
+
+    def aget_instance_recursively(self, q=None, **filters):
+        raise NotImplementedError
+
     def get_instance(self, q=None, **filters):
         raise NotImplementedError
 
@@ -272,6 +284,10 @@ class ModelAdaptor(BaseAdaptor):
     @property
     def table_name(self) -> str:
         raise NotImplementedError
+
+    @property
+    def default_db_alias(self) -> str:
+        return 'default'
 
     def get_parents(self) -> list:
         raise NotImplementedError

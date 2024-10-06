@@ -60,6 +60,15 @@ class DjangoModelAdaptor(ModelAdaptor):
             return
         return await self.get_queryset(q, **filters).aupdate(**data)
 
+    def save_raw(self, pk=None, **data):
+        inst = self.init_instance(pk, **data)
+        inst.save_base(raw=True)
+
+    async def asave_raw(self, pk=None, **data):
+        inst = self.init_instance(pk, **data)
+        from .queryset import AwaitableQuerySet
+        return await AwaitableQuerySet(model=self.model)._insert_obj(inst, raw=True)
+
     def create(self, d=None, **data) -> model_cls:
         return self.get_queryset().create(**(d or data))
 
@@ -120,6 +129,26 @@ class DjangoModelAdaptor(ModelAdaptor):
             return base.filter(*args, **filters)
         return base
 
+    def get_instance_recursively(self, q=None, **filters):
+        inst = self.get_instance(q, **filters)
+        if inst:
+            return inst
+        for parent, field in self.meta.parents.items():
+            inst = self.__class__(parent).get_instance_recursively(q, **filters)
+            if inst:
+                return inst
+        return None
+
+    async def aget_instance_recursively(self, q=None, **filters):
+        inst = await self.aget_instance(q, **filters)
+        if inst:
+            return inst
+        for parent, field in self.meta.parents.items():
+            inst = await self.__class__(parent).aget_instance_recursively(q, **filters)
+            if inst:
+                return inst
+        return None
+
     def get_instance(self, q=None, **filters) -> model_cls:
         return self.get_queryset(q, **filters).first()
 
@@ -161,6 +190,10 @@ class DjangoModelAdaptor(ModelAdaptor):
     @property
     def table_name(self):
         return self.meta.db_table
+
+    @property
+    def default_db_alias(self) -> str:
+        return self.get_queryset().db or 'default'
 
     def get_parents(self):
         return self.meta.parents

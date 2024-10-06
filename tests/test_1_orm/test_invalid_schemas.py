@@ -15,3 +15,10 @@ class TestInvalidSchemas:
         with pytest.raises(Exception):
             class UserSchema(orm.Schema[User]):
                 followers: List[ContentSchema]
+
+    def test_non_exists_fields(self):
+        from app.models import User
+
+        with pytest.raises(Exception):
+            class UserSchema(orm.Schema[User]):
+                not_exists_field: str = orm.Field('not_exists_field')

@@ -5,7 +5,7 @@ from utilmeta.core.orm.backends.django.models import PasswordField, AwaitableMod
 
 class User(AwaitableModel):
     # test abstract inherit with some field set None
-    objects = Manager()
+    # objects = Manager()
     username = models.CharField(max_length=20, unique=True)
     # email = models.EmailField()
     password = PasswordField(min_length=6, max_length=20)
@@ -49,6 +49,7 @@ class BaseContent(AwaitableModel):
     public = models.BooleanField(default=False)
     liked_bys = models.ManyToManyField(User, related_name="likes", db_table="like")
     author = models.ForeignKey(User, related_name="contents", on_delete=models.CASCADE)
+    author_id: int
     type = models.CharField(max_length=20, default="article")
 
     class Meta:
@@ -73,6 +74,7 @@ class Article(BaseContent):
 class Comment(BaseContent):
     # can be recursive
     on_content = models.ForeignKey(BaseContent, related_name="comments", on_delete=models.CASCADE)
+    on_content_id: int
 
     class Meta:
         db_table = "comment"

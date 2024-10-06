@@ -1,5 +1,9 @@
 import pytest
 from tests.conftest import setup_service
+from utilmeta.core import orm
+from utilmeta.utils import exceptions
+from datetime import datetime
+from typing import List, Optional
 
 setup_service(__name__, async_param=False)
 
@@ -212,20 +216,343 @@ class TestSchemaQuery:
         assert articles[0].author_avg_articles_views == 6.5
         assert articles[0].author.followers_num == 2
 
+    def test_save(self):
+        from app.schema import ArticleSchema
+        from app.models import Article
+        article = ArticleSchema[orm.A](
+            title='My new article 1',
+            content='my new content',
+            creatable_field='a',
+            # test ignore on mode 'a'
+            author_id=1,
+            views=10
+        )
+        assert article.creatable_field == 'a'
+        assert article.slug == 'my-new-article-1'
+        article.save()
+        inst: Article = article.get_instance(fresh=True)
+        assert inst.slug == 'my-new-article-1'
+        assert inst.content == 'my new content'
+        assert inst.author.id == 1
+        assert inst.author.username == 'alice'
+
+        with pytest.raises(exceptions.BadRequest):
+            ArticleSchema[orm.A](
+                title='My new article 1',
+                content='my new content',
+                creatable_field='a',
+                author_id=1,
+                views=10
+            ).save()
+            # save again (with must_save=True by default) will raise IntegrityError, and re-throw as BadRequest
+
+        article.slug = 'my-new-article'
+        article.save(must_update=True)
+        inst2: Article = article.get_instance(fresh=True)
+        assert inst2.slug == 'my-new-article'
+
+        article2 = ArticleSchema[orm.W](
+            title='My new article 2',
+            content='my new content 2',
+            writable_field='w',
+            # test ignore on mode 'a'
+        )
+        with pytest.raises(orm.MissingPrimaryKey):
+            article2.save(must_update=True)
+
+        # article.pk = None
+        # article.save(must_create=True)
+        # assert inst.pk != article.pk
+
+    @pytest.mark.asyncio
+    async def test_async_save(self):
+        from app.schema import ArticleSchema
+        from app.models import Article
+        article = ArticleSchema[orm.A](
+            title='My new async article 1',
+            content='my new async content',
+            creatable_field='a',
+            # test ignore on mode 'a'
+            author_id=1,
+            views=10
+        )
+        assert article.creatable_field == 'a'
+        assert article.slug == 'my-new-async-article-1'
+        await article.asave()
+        # SQL: INSERT INTO "article" ("basecontent_ptr_id", "title",
+        # "description", "slug", "views") VALUES (%s, %s, %s, %s, %s) (193,
+        # 'My new async article 1', '', 'my-new-async-article-1', 10)
+        # >       for idx, rec in enumerate(cursor_description):
+        # E       TypeError: 'NoneType' object is not iterable
+
+        inst: Article = await article.aget_instance(fresh=True)
+        assert inst.slug == 'my-new-async-article-1'
+        assert inst.content == 'my new async content'
+        assert inst.author_id == 1
+
+        with pytest.raises(exceptions.BadRequest):
+            await ArticleSchema[orm.A](
+                title='My new async article 1',
+                content='my new async content',
+                creatable_field='a',
+                author_id=1,
+                views=10
+            ).asave()
+            # save again (with must_save=True by default) will raise IntegrityError, and re-throw as BadRequest
+
+        article.slug = 'my-new-async-article'
+        await article.asave(must_update=True)
+        inst2: Article = await article.aget_instance(fresh=True)
+        assert inst2.slug == 'my-new-async-article'
+
+        article2 = ArticleSchema[orm.W](
+            title='My new async article 2',
+            content='my new async content 2',
+            writable_field='w',
+            # test ignore on mode 'a'
+        )
+        with pytest.raises(orm.MissingPrimaryKey):
+            await article2.asave(must_update=True)
+
+    def test_save_with_relations(self):
+        from app.models import Article, User, Follow, BaseContent, Comment
+
+        class FollowSchema(orm.Schema[Follow]):
+            id: int
+            user_id: int
+            target_id: int
+            follow_time: datetime
+
+        class UserSchema(orm.Schema[User]):
+            id: int
+            username: str
+            followings: List[int] = orm.Field(mode='raw', default=None, defer_default=True)
+            user_followings: List[FollowSchema] = orm.Field(mode='rwa', default=None, defer_default=True)
+
+        user1 = UserSchema[orm.A](
+            username='new user 1',
+            followings=[1, 2]
+        )
+        user1.save(with_relations=True)
+        user1_inst: User = user1.get_instance(fresh=True)
+        assert user1_inst.username == 'new user 1'
+        assert set(Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)) == {1, 2}
+
+        user1 = UserSchema.init(user1_inst)
+        following_objs = list(user1.user_followings)
+        following_objs.sort(key=lambda x: x.target_id)
+        following_objs.pop(0)
+        following_objs.append({'target_id': 3})
+
+        user_update1 = UserSchema[orm.W](
+            id=user1.pk,
+            username='new user 2',
+            user_followings=following_objs,
+        )
+        user_update1.save(with_relations=True)
+        user1_inst: User = user1.get_instance(fresh=True)
+        assert user1_inst.username == 'new user 2'
+        assert set(Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)) == {2, 3}
+
+        # test with_relations=False
+        user_update2 = UserSchema[orm.W](
+            id=user1.pk,
+            username='new user 2',
+            user_followings=[]
+        )
+        user_update2.save(with_relations=False)
+        assert set(Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)) == {2, 3}
+
+        # test ignore relational errors
+        following_objs.pop(0)
+        following_objs.append({'target_id': 0})
+        user3 = UserSchema[orm.A](
+            username='new user 3',
+            user_followings=following_objs,
+        )
+        # 1. test transaction
+        with pytest.raises(exceptions.BadRequest):
+            user3.save(with_relations=True, transaction=True)
+        assert not User.objects.filter(username='new user 3').exists()
+
+        # 2. test ignore_relation_errors=True
+        user3.save(with_relations=True, transaction=False, ignore_relation_errors=True)
+        user3_inst: User = user3.get_instance(fresh=True)
+        assert user3_inst.username == 'new user 3'
+        assert set(Follow.objects.filter(user_id=user3.pk).values_list('target_id', flat=True)) == {3}
+
+        class BaseContentSchema(orm.Schema[BaseContent]):
+            id: int
+            content: str
+            type: str
+            author: UserSchema
+            author_id: int = orm.Field(mode='ra')
+            created_at: datetime
+
+        class CommentData(orm.Schema[Comment]):
+            on_content_id: int
+
+        class ArticleData(orm.Schema[Article]):
+            title: str
+            slug: str
+
+        class CommentSchema(BaseContentSchema[Comment]):
+            on_content_id: int
+            type: str = orm.Field(mode='r', default='comment')
+
+        class ContentSchema(BaseContentSchema):
+            comments: List[CommentSchema] = orm.Field(mode='rwa')
+
+            comment: Optional[CommentData] = orm.Field(mode='raw', default=None, defer_default=True)
+            article: Optional[ArticleData] = orm.Field(mode='raw', default=None, defer_default=True)
+        # test transaction=True
+
+        content = ContentSchema[orm.A](
+            type='comment',
+            content='my comment 1',
+            author_id=2,
+            comment=dict(on_content_id=3),
+            comments=[
+                dict(author_id=1, content='cm1'),
+                dict(author_id=2, content='cm2'),
+            ]
+        )
+        content.save(with_relations=True, transaction=True)
+        comment: Comment = Comment.objects.filter(pk=content.pk).first()
+        assert comment.on_content.pk == 3
+        assert comment.author.pk == 2
+        assert comment.content == 'my comment 1'
+        assert set(Comment.objects.filter(
+            on_content=comment).values_list('content', flat=True)) == {'cm1', 'cm2'}
+
+        # fixme: transaction won't work in bind_service (will cause the db hang)
+        # fixme: OneToOneRel with primary_key: cannot set?
+
+    # todo: add one-to-one-rel key
+
+    @pytest.mark.asyncio
+    async def test_async_save_with_relations(self):
+        from app.models import Article, User, Follow, BaseContent, Comment
+
+        class FollowSchema(orm.Schema[Follow]):
+            id: int
+            user_id: int
+            target_id: int
+            follow_time: datetime
+
+        class UserSchema(orm.Schema[User]):
+            id: int
+            username: str
+            followings: List[int] = orm.Field(mode='raw', default=None, defer_default=True)
+            user_followings: List[FollowSchema] = orm.Field(mode='rwa', default=None, defer_default=True)
+
+        user1 = UserSchema[orm.A](
+            username='async new user 1',
+            followings=[1, 2]
+        )
+        await user1.asave(with_relations=True)
+        user1_inst: User = await user1.aget_instance(fresh=True)
+        assert user1_inst.username == 'async new user 1'
+        assert {v async for v in Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)} == {1, 2}
+
+        user1 = await UserSchema.ainit(user1_inst)
+        following_objs = list(user1.user_followings)
+        following_objs.sort(key=lambda x: x.target_id)
+        following_objs.pop(0)
+        following_objs.append({'target_id': 3})
+
+        user_update1 = UserSchema[orm.W](
+            id=user1.pk,
+            username='async new user 2',
+            user_followings=following_objs,
+        )
+        await user_update1.asave(with_relations=True)
+        user1_inst: User = await user1.aget_instance(fresh=True)
+        assert user1_inst.username == 'async new user 2'
+        assert {v async for v in Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)} == {2, 3}
+
+        # test with_relations=False
+        user_update2 = UserSchema[orm.W](
+            id=user1.pk,
+            username='async new user 2',
+            user_followings=[]
+        )
+        await user_update2.asave(with_relations=False)
+        assert {v async for v in Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)} == {2, 3}
+
+        # test ignore relational errors
+        following_objs.pop(0)
+        following_objs.append({'target_id': 0})
+        user3 = UserSchema[orm.A](
+            username='async new user 3',
+            user_followings=following_objs,
+        )
+        # # 1. test transaction
+        with pytest.raises(exceptions.BadRequest):
+            await user3.asave(with_relations=True, transaction=True)
+        assert not await User.objects.filter(username='async new user 3').aexists()
+
+        # 2. test ignore_relation_errors=True
+        await user3.asave(with_relations=True, transaction=False, ignore_relation_errors=True)
+        user3_inst: User = await user3.aget_instance(fresh=True)
+        assert user3_inst.username == 'async new user 3'
+        assert {v async for v in Follow.objects.filter(user_id=user3.pk).values_list('target_id', flat=True)} == {3}
+
+        class BaseContentSchema(orm.Schema[BaseContent]):
+            id: int
+            content: str
+            type: str
+            author: UserSchema
+            author_id: int = orm.Field(mode='ra')
+            created_at: datetime
+
+        class CommentData(orm.Schema[Comment]):
+            on_content_id: int
+
+        class ArticleData(orm.Schema[Article]):
+            title: str
+            slug: str
+
+        class CommentSchema(BaseContentSchema[Comment]):
+            on_content_id: int
+            type: str = orm.Field(mode='r', default='comment')
+
+        class ContentSchema(BaseContentSchema):
+            comments: List[CommentSchema] = orm.Field(mode='rwa')
+
+            comment: Optional[CommentData] = orm.Field(mode='raw', default=None, defer_default=True)
+            article: Optional[ArticleData] = orm.Field(mode='raw', default=None, defer_default=True)
+
+        # test transaction=True
+
+        content = ContentSchema[orm.A](
+            type='comment',
+            content='my comment 1',
+            author_id=2,
+            comment=dict(on_content_id=3),
+            comments=[
+                dict(author_id=1, content='cm1'),
+                dict(author_id=2, content='cm2'),
+            ]
+        )
+        await content.asave(with_relations=True, transaction=True)
+        comment: Comment = await Comment.objects.filter(pk=content.pk).afirst()
+        assert comment.on_content_id == 3
+        assert comment.author_id == 2
+        assert comment.content == 'my comment 1'
+        assert {v async for v in Comment.objects.filter(
+            on_content=comment).values_list('content', flat=True)} == {'cm1', 'cm2'}
+
+    def test_bulk_save(self):
+        pass
+
+    @pytest.mark.asyncio
+    async def test_async_bulk_save(self):
+        pass
+
     def test_commit(self):
         pass
 
     @pytest.mark.asyncio
     async def test_async_commit(self):
-        pass
-
-    def test_save(self):
-        pass
-
-    @pytest.mark.asyncio
-    async def test_async_save(self):
-        pass
-
-    @pytest.mark.asyncio
-    async def test_async_bulk_save(self):
         pass

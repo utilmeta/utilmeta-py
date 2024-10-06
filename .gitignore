@@ -20,6 +20,7 @@ __pycache__/
 *.sqlite3
 db
 db_ops
+db-journal
 /tests/server/db
 /tests/server/db_ops
 */restats

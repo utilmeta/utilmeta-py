@@ -150,6 +150,9 @@ class ServerThread(threading.Thread):
         # from a2wsgi import WSGIMiddleware
         try:
             # Create the handler for serving static and media files
+            self.service._application = None
+            self.service.adaptor = None
+            self.service.set_backend(self.service.backend)
             app = self.service.application()
             # if self.service.asynchronous:
             #     self.asgi = Server(app)
@@ -226,7 +229,9 @@ def make_live_thread(backend, port: int = None, **kwargs):
             service.resolve_port()
 
         def run_service():
+            print('RUN SERVICE')
             service.application()
+            print('START RUN')
             service.run(**kwargs)
 
         from threading import Thread

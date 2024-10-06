@@ -5,22 +5,26 @@ class ModelRequired(ValueError):
 
 
 class MissingPrimaryKey(ValueError):
-    def __init__(self, msg: str, model=None):
+    def __init__(self, msg: str = None, model=None):
         self.model = model
         super().__init__(msg or 'orm.Error: pk is missing for update')
 
 
 class UpdateFailed(ValueError):
-    def __init__(self, msg: str, model=None):
+    def __init__(self, msg: str = None, model=None):
         self.model = model
         super().__init__(msg or 'orm.Error: must_update=True: failed to update')
 
 
 class EmptyQueryset(ValueError):
-    def __init__(self, msg: str, model=None):
+    def __init__(self, msg: str = None, model=None):
         self.model = model
         super().__init__(msg or 'orm.Error: result is empty')
 
 
 class InvalidMode(TypeError):
+    pass
+
+
+class InvalidSchema(TypeError):
     pass

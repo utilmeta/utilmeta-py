@@ -1,17 +1,16 @@
 import os
-
 from .config import Operations
 from .log import setup_locals, batch_save_logs, worker_logger
 from .monitor import get_sys_metrics
 import psutil
-from utilmeta.utils import time_now, replace_null, convert_time, Error, normalize, fast_digest
-import time
+from utilmeta.utils import time_now, replace_null, Error, normalize
 from datetime import timedelta, datetime, timezone
 from django.db import models
 from django.db.utils import OperationalError, ProgrammingError
 from .aggregation import aggregate_logs, aggregate_endpoint_logs
 from typing import Optional
 import random
+import time
 
 
 class BaseCycleTask:
@@ -20,13 +19,18 @@ class BaseCycleTask:
         self._stopped = False
         self._last_exec: Optional[datetime] = None
 
+        # fixme: using signal seems to cause tornado / starlette hangs
+        # import signal
+        # try:
+        #     signal.signal(signal.SIGTERM, self.exit_gracefully)
+        # except AttributeError:
+        #     pass
+
     def __call__(self, *args, **kwargs):
         raise NotImplementedError
 
     def start(self):
-        while True:
-            if self._stopped:
-                break
+        while not self._stopped:
             self._last_exec = time_now()
             try:
                 if not self():
@@ -35,11 +39,16 @@ class BaseCycleTask:
                 err = Error(e)
                 err.setup()
                 print(err.full_info)
+            if self._stopped:
+                break
             wait_for = max(0.0, self.interval - (time_now() - self._last_exec).total_seconds())
             if wait_for:
                 time.sleep(wait_for)
 
-    def stop(self):
+    def exit_gracefully(self, signum, frame):
+        self.stop(wait=False)
+
+    def stop(self, wait: bool = False):
         self._stopped = True
 
 
@@ -109,6 +118,12 @@ class OperationWorkerTask(BaseCycleTask):
         # update worker from every worker
         # to make sure that the connected workers has the primary role to execute the following
         self.update_workers()
+
+        if self._stopped:
+            # if this worker is stopped
+            # we exit right after collect all the memory-stored logs
+            # other process (aka. the restarted process) will be take care of the rest
+            return
 
         if self.is_worker_primary:
             # Is this worker the primary worker of the current instance
@@ -470,7 +485,10 @@ class OperationWorkerTask(BaseCycleTask):
 
         from .client import SupervisorClient
 
-        with SupervisorClient(node_id=self.node_id) as client:
+        with SupervisorClient(
+            node_id=self.node_id,
+            default_timeout=self.config.default_timeout
+        ) as client:
             resp = client.report_analytics(
                 data=dict(
                     time=current_time.astimezone(timezone.utc),

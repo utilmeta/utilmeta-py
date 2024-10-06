@@ -6,7 +6,7 @@ from utype.parser.field import ParserField
 from utype.parser.cls import ClassParser
 from utype.parser.rule import LogicalType
 from utype.types import *
-from utilmeta.utils import class_func
+from utilmeta.utils import class_func, SEG
 
 if TYPE_CHECKING:
     from ..backends.base import ModelAdaptor
@@ -28,6 +28,7 @@ class ParserQueryField(ParserField):
         self.related_model: Optional[ModelAdaptor] = None
         self.related_schema: Optional[Type['Schema']] = None
         self.related_single = None
+        self.relation_update_enabled = False
         self.isolated = self.field.isolated if isinstance(self.field, QueryField) else False
         self.fail_silently = self.field.fail_silently if isinstance(self.field, QueryField) else False
         self.many_included = False
@@ -35,6 +36,7 @@ class ParserQueryField(ParserField):
         self.primary_key = False
         self.func = None
         self.func_multi = False
+        self.type_override = False
 
     def reconstruct(self, model: 'ModelAdaptor'):
         return self.__class__(model, **self._kwargs)
@@ -209,8 +211,17 @@ class ParserQueryField(ParserField):
                                self.model.is_sub_model(self.model_field.field_model)
             # use is sub model, because pk might be its base model
 
-            if self.primary_key and self.model_field.is_auto:
-                self.required = False
+            if self.model_field.is_auto:
+                if not self.mode:
+                    # accept 'w' to identify object
+                    if self.primary_key or self.model_field.is_writable:
+                        self.mode = 'rw'
+
+                        if self.required is True:
+                            self.required = 'r'
+
+                    if not self.no_input:
+                        self.no_input = 'a'
 
             if not self.model_field.is_writable or self.model.cross_models(self.field_name):
                 # read only
@@ -218,13 +229,6 @@ class ParserQueryField(ParserField):
                     self.mode = 'r'
                     # do not set primary key field to mode='r'
                     # otherwise pk will not be settable in other mode
-            else:
-                if self.model_field.is_auto and not self.primary_key:
-                    # like auto_now
-                    if not self.mode:
-                        self.mode = 'rw'
-                    if not self.no_input:
-                        self.no_input = 'w'
 
             # this is too far...
             # maybe user wants to assign after initialization
@@ -251,17 +255,37 @@ class ParserQueryField(ParserField):
                 # if self.related_model or self.many_included:
                 if not self.mode:
                     self.mode = 'r'
+
+                elif 'a' in self.mode or 'w' in self.mode:
+                    # UPDATE ON RELATIONAL
+                    if options.mode and set(options.mode).issubset(self.mode):
+                        self.setup_relational_update(options)
+
                 # else:
                 #     self.isolated = False
                 # 1. for a common field (say, JSONField) with related schema, we does not say mode to 'r'
                 # 2. for serializing array field (pk_values) using related schema, isolated should be True
             else:
+                if self.mode and ('a' in self.mode or 'w' in self.mode):
+                    # update many fields
+                    # tags: [1, 4, 5]
+                    if not self.model.cross_models(self.field_name) and not self.model_field.is_concrete:
+                        if self.model_field.is_m2m or (self.model_field.is_o2 and self.model_field.is_2o):
+                            # 1. OneToOneRel
+                            # 2. ManyToManyField / ManyToManyRel
+                            self.relation_update_enabled = True
+
                 # if user has provided a related schema
                 # we do no need to merge the field rule
                 rule = self.model_field.rule
-                self.type = rule.merge_type(self.type)
-                # merge declared type and model field type
-
+                try:
+                    self.type = rule.merge_type(self.type)
+                    # merge declared type and model field type
+                except utype.exc.ConfigError as e:
+                    warnings.warn(f'orm.Schema[{self.model.model}] got model field: [{repr(self.name)}] '
+                                  f'with rule: {rule} '
+                                  f'conflicted to the declared type: {self.type}, using the declared type,'
+                                  f'error: {e}')
                 # fixme: do not merge for ForwardRef
 
         else:
@@ -271,9 +295,90 @@ class ParserQueryField(ParserField):
             if not self.no_input:
                 self.no_input = 'r'
             if not self.no_output:
+                # no output for write / create
                 self.no_output = 'aw'
-            # if not self.mode:
-            #     self.mode = 'r'
+
+    def override_required(self, options: utype.Options):
+        if not self.type_override:
+            if self.model_field and self.related_schema and not self.model.cross_models(self.field_name):
+                if 'a' in self.mode or 'w' in self.mode:
+                    # UPDATE ON RELATIONAL
+                    if options.mode and set(options.mode).issubset(self.mode):
+                        return True
+        return False
+
+    def setup_relational_update(self, options: utype.Options):
+        if not self.related_schema:
+            return None
+        if self.model.cross_models(self.field_name):
+            # CROSS MODEL FIELDS CANNOT USED IN UPDATE
+            self.no_output = self.no_output or options.mode
+            return
+        remote_field_name = self.model_field.remote_field.column_name   # +_id
+        from utilmeta.core.orm import Schema
+
+        self.related_schema = self.related_schema._get_relational_update_cls(
+            field=remote_field_name,
+            mode=options.mode
+        )
+        # can be cached
+
+        if isinstance(self.type, type) and issubclass(self.type, Rule):
+            # try to find List[schema]
+            origin = None
+            rule_args = []
+            rule_constraints = {}
+            if isinstance(self.type.__origin__, LogicalType) and self.type.__origin__.combinator:
+                args = []
+                for arg in self.type.__origin__.args:
+                    if isinstance(arg, type) and issubclass(arg, Schema):
+                        args.append(arg._get_relational_update_cls(
+                            field=remote_field_name,
+                            mode=options.mode
+                        ))
+                    else:
+                        args.append(arg)
+                origin = LogicalType.combine(self.type.__origin__.combinator, *args)
+                rule_args = self.type.__args__ or []
+            else:
+                if self.type.__origin__ and issubclass(self.type.__origin__, list) and self.type.__args__:
+                    arg = self.type.__args__[0]
+                    if isinstance(arg, type) and issubclass(arg, Schema):
+                        rule_args.append(arg._get_relational_update_cls(
+                            field=remote_field_name,
+                            mode=options.mode
+                        ))
+                    else:
+                        rule_args.append(arg)
+                    origin = self.type.__origin__
+
+            if origin:
+                for name, val, func in self.type.__validators__:
+                    rule_constraints[name] = getattr(self.type, name, val)
+
+                self.type = Rule.annotate(
+                    origin, *rule_args, constraints=rule_constraints
+                )
+        else:
+            if isinstance(self.type, type) and issubclass(self.type, Schema):
+                self.type = self.type._get_relational_update_cls(
+                    field=remote_field_name,
+                    mode=options.mode
+                )
+            else:
+                if isinstance(self.type, LogicalType) and self.type.combinator:
+                    args = []
+                    for arg in self.type.args:
+                        if isinstance(arg, type) and issubclass(arg, Schema):
+                            args.append(arg._get_relational_update_cls(
+                                field=remote_field_name,
+                                mode=options.mode
+                            ))
+                        else:
+                            args.append(arg)
+                    self.type = LogicalType.combine(self.type.combinator, *args)
+        self.type_override = True
+        self.relation_update_enabled = True
 
     @property
     def readable(self):

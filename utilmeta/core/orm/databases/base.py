@@ -1,4 +1,4 @@
-from typing import Type, TYPE_CHECKING
+from typing import Type, TYPE_CHECKING, List, Tuple
 
 if TYPE_CHECKING:
     from .config import Database
@@ -19,9 +19,8 @@ class BaseDatabaseAdaptor:
             return self.DEFAULT_ENGINES[self.config.engine.lower()]
         return self.config.engine
 
-    @classmethod
-    def get_constraints_error_cls(cls) -> Type[Exception]:
-        return Exception
+    def get_integrity_errors(self) -> Tuple[Type[Exception], ...]:
+        return ()
 
     def connect(self):
         raise NotImplementedError

@@ -10,6 +10,7 @@ class QueryContext(DataClass):
     recursion_map: Optional[dict] = None
     force_expressions: Optional[dict] = None
     force_raise_error: bool = False
+    integrity_error_cls: Optional[Type[Exception]] = None
 
     # @classmethod
     # def init(cls):

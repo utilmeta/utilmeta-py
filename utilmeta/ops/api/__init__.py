@@ -5,7 +5,7 @@ from ..models import Supervisor, AccessToken
 from .. import __spec_version__
 from ..key import decode_token
 from utilmeta.core.request import var
-from django.db import utils
+from django.db.utils import IntegrityError
 from utype.types import *
 from ..connect import save_supervisor
 from utilmeta.core.api.specs.openapi import OpenAPI
@@ -193,7 +193,7 @@ class OperationsAPI(api.API):
                         scope=scopes
                     )
                     token_obj.save()
-                except utils.IntegrityError:
+                except IntegrityError:
                     raise exceptions.BadRequest('Invalid token: id duplicated', state='token_expired')
 
             # set context vars

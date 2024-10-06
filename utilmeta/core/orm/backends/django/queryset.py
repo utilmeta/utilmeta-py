@@ -198,7 +198,8 @@ class AwaitableQuerySet(QuerySet):
             db = self.connections_cls.get(self.db)
             async with db.async_transaction(savepoint=False):
                 await self._insert_obj_parents(obj)
-                return await self._insert_obj(obj)
+                print('PARENTS:', obj.pk)
+                return await self._insert_obj(obj, raw=True)
         else:
             return await self._insert_obj(obj)
 
@@ -235,7 +236,7 @@ class AwaitableQuerySet(QuerySet):
                 if field.is_cached(obj):
                     field.delete_cached_value(obj)
 
-    async def _insert_obj(self, obj: Model, cls=None):
+    async def _insert_obj(self, obj: Model, cls=None, raw: bool = False):
         cls = cls or obj.__class__
         if getattr(cls, '_meta').proxy:
             cls = getattr(cls, '_meta').concrete_model
@@ -259,7 +260,8 @@ class AwaitableQuerySet(QuerySet):
         results = await self._async_insert(
             [obj],
             fields=fields, cls=cls,
-            returning_fields=returning_fields
+            returning_fields=returning_fields,
+            raw=raw
         )
         if results:
             obj_value = results[0]
@@ -341,7 +343,10 @@ class AwaitableQuerySet(QuerySet):
         query.insert_values(fields, objs, raw=raw)
         db = self.connections_cls.get(using)
         compiler = query.get_compiler(using)
-        compiler.returning_fields = returning_fields
+        compiler.returning_fields = returning_fields or [self.meta.pk]
+        # inherit models does not have returning_fields
+        # which will make cursor.description = None for sqlite backend in encode/databases
+        # causing errors, so we use [self.meta.pk] as default fallback
         values = []
         for q, params in compiler.as_sql():
             for val in await db.fetchall(q, params):
@@ -584,7 +589,7 @@ class AwaitableQuerySet(QuerySet):
                 async with db.async_transaction():
                     params = dict(resolve_callables(params))
                     return await self.acreate(**params), True
-            except db.get_adaptor(True).get_constraints_error_cls():
+            except db.get_adaptor(True).get_integrity_errors():
                 try:
                     return await self.aget(**kwargs), False
                 except self.model.DoesNotExist:

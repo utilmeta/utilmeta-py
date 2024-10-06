@@ -252,6 +252,10 @@ def adapt_async(func):
     return wrapper
 
 
+from contextvars import ContextVar
+from_thread = ContextVar('from_thread')
+
+
 def awaitable(syncfunc, bind_service: bool = False):
     '''
     Decorator that allows an asynchronous function to be paired with a
@@ -292,15 +296,20 @@ def awaitable(syncfunc, bind_service: bool = False):
             if from_coroutine():
                 return asyncfunc(*args, **kwargs)
             else:
-                if bind_service:
+                if bind_service and not from_thread.get(None):
                     try:
                         from utilmeta import service
                     except ImportError:
                         pass
                     else:
                         if service.asynchronous:
-                            return service.pool.get_result(sync_func, *args, **kwargs)
-
+                            def sync_func_wrapper(*_, **__):
+                                from_thread.set(True)
+                                try:
+                                    return sync_func(*_, **__)
+                                finally:
+                                    from_thread.set(False)
+                            return service.pool.get_result(sync_func_wrapper, *args, **kwargs)
                 return sync_func(*args, **kwargs)
         wrapper._syncfunc = sync_func
         wrapper._asyncfunc = asyncfunc

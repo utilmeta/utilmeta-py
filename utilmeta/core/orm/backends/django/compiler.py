@@ -99,6 +99,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             if pk is None:
                 continue
             if pk in pk_list:
+                # distinct here
                 continue
             pk_list.append(pk)
             pk_map[pk] = val
@@ -122,6 +123,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         self.process_fields()
         values = list(self.queryset.values(PK, *self.fields, **self.expressions))
         self.set_values(values)
+        # set values before query isolation fields
         if not self.values:
             return []
         self._resolve_recursion()

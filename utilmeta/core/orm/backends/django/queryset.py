@@ -342,10 +342,15 @@ class AwaitableQuerySet(QuerySet):
         query.insert_values(fields, objs, raw=raw)
         db = self.connections_cls.get(using)
         compiler = query.get_compiler(using)
-        compiler.returning_fields = returning_fields or [self.meta.pk]
-        # inherit models does not have returning_fields
-        # which will make cursor.description = None for sqlite backend in encode/databases
-        # causing errors, so we use [self.meta.pk] as default fallback
+
+        if not returning_fields and self.meta.parents and db.is_sqlite:
+            returning_fields = [self.meta.pk]
+            # inherit models does not have returning_fields
+            # which will make cursor.description = None for sqlite backend in encode/databases
+            # causing errors, so we use [self.meta.pk] as default fallback
+
+        compiler.returning_fields = returning_fields
+
         values = []
         for q, params in compiler.as_sql():
             for val in await db.fetchall(q, params):
@@ -480,9 +485,11 @@ class AwaitableQuerySet(QuerySet):
             r = await query.aget_aggregation(self.db, ['__count']) or {}
         else:
             r = await query.aget_aggregation(self.db, {"__count": Count("*")}) or {}
-        number = r.get('__count') or r.get('count') or 0
+        number = r.get('__count') or r.get('count') or r.get('COUNT(*)')
+        if number is None and r:
+            number = list(r.values())[0]
         # weird, don't know why now
-        return number
+        return number or 0
 
     async def aaggregate(self, *args, **kwargs):
         # --------------------------------------------

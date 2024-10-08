@@ -32,17 +32,16 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
             qs = qs.annotate(**self.annotates)
         if self.q:
             qs = qs.filter(self.q)
+        if self.distinct and not qs.query.distinct and \
+                not qs.query.combinator and \
+                not qs.query.is_sliced:
+            qs = qs.distinct()
         return qs
 
     def get_queryset(self, base=None) -> models.QuerySet:
         qs = self._get_unsliced_qs(base)
         if self.orders:
             qs = qs.order_by(*self.orders)
-        # if not qs.query.order_by and \
-        #         not qs.query.distinct and \
-        #         not qs.query.combinator and \
-        #         not qs.query.is_sliced:
-        #     qs = qs.distinct()
         if self.slice and not qs.query.is_sliced:
             qs = qs[self.slice]
         return qs

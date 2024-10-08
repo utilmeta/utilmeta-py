@@ -149,6 +149,29 @@ class TestSchemaQuery:
         assert user.followers_you_known[0].username == 'jack'
         assert user.followers_you_known[0].followers_num == 1
 
+    def test_queryset_generator(self):
+        from app.models import Article
+        from app.schema import ArticleQuery
+        from django.db import models
+        dup_qs = Article.objects.filter(models.Q(liked_bys__in=[1, 2, 3]) | models.Q(author__in=[1, 2, 3]) | models.Q(
+            author__followers__in=[1, 2, 3]), pk__lte=5)
+
+        query = ArticleQuery(limit=10)
+        assert query.count(dup_qs) == 4
+        assert query.get_queryset(dup_qs).count() == 4
+
+    @pytest.mark.asyncio
+    async def test_async_queryset_generator(self):
+        from app.models import Article
+        from app.schema import ArticleQuery
+        from django.db import models
+        dup_qs = Article.objects.filter(models.Q(liked_bys__in=[1, 2, 3]) | models.Q(author__in=[1, 2, 3]) | models.Q(
+            author__followers__in=[1, 2, 3]), pk__lte=5)
+
+        query = ArticleQuery(limit=10)
+        assert await query.acount(dup_qs) == 4
+        assert await query.get_queryset(dup_qs).acount() == 4
+
     @pytest.mark.asyncio
     async def test_async_init_users(self):
         from app.schema import UserSchema

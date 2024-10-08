@@ -13,10 +13,18 @@ if TYPE_CHECKING:
 
 
 class BaseQuerysetGenerator:
-    def __init__(self, parser: QueryClassParser, values: dict):
+    def __init__(self,
+                 parser: QueryClassParser,
+                 values: dict,
+                 # --- config params
+                 distinct: bool = False,
+                 **kwargs
+                 ):
         self.parser = parser
         self.model = parser.model
         self.values = values
+        self.distinct = distinct
+        self.kwargs = kwargs
 
         self.page = None
         self.limit = None

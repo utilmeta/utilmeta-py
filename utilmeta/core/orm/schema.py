@@ -170,6 +170,7 @@ class Schema(utype.Schema):
 
     @classmethod
     def serialize(cls: Type[T], queryset, context=None) -> List[T]:
+        # todo: add auto_distinct
         cls: Type[Schema]
         values = []
         for val in cls._get_compiler(queryset, context=context).get_values():
@@ -360,6 +361,7 @@ class Query(utype.Schema):
     __parser__: QueryClassParser
     __field__ = req.Query
     __model__ = None
+    __distinct__ = True
 
     # ----
     # consider this schema instance might be setattr/delattr after initialization
@@ -370,23 +372,26 @@ class Query(utype.Schema):
             __model__ = item
         return _class
 
+    def get_generator(self):
+        return self.__parser__.get_generator(self, distinct=self.__distinct__)
+
     def get_queryset(self, base=None):
         if not self.__parser__.model:
             raise NotImplementedError
-        return self.__parser__.get_generator(self).get_queryset(base)
+        return self.get_generator().get_queryset(base)
 
     def count(self, base=None) -> int:
         if not self.__parser__.model:
             raise NotImplementedError
-        return self.__parser__.get_generator(self).count(base)
+        return self.get_generator().count(base)
 
     async def acount(self, base=None) -> int:
         if not self.__parser__.model:
             raise NotImplementedError
-        return await self.__parser__.get_generator(self).acount(base)
+        return await self.get_generator().acount(base)
 
     def get_context(self):
-        return self.__parser__.get_generator(self).get_context()
+        return self.get_generator().get_context()
 
     def __call__(self, base=None):
         return self.get_queryset(base)

@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from databases.core import Transaction, Database
 
 
+# https://github.com/encode/databases/issues/594
 class _Transaction(Transaction):
     async def commit(self) -> None:
         async with self._connection._transaction_lock:

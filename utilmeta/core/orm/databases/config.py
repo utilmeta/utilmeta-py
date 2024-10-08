@@ -76,6 +76,22 @@ class Database(Config):
         return options
 
     @property
+    def is_sqlite(self):
+        return 'sqlite' in self.engine
+
+    @property
+    def is_postgresql(self):
+        return 'postgres' in self.engine
+
+    @property
+    def is_mysql(self):
+        return 'mysql' in self.engine
+
+    @property
+    def is_oracle(self):
+        return 'oracle' in self.engine
+
+    @property
     def alias(self):
         return self.adaptor.alias
 

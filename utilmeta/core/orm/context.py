@@ -11,6 +11,7 @@ class QueryContext(DataClass):
     force_expressions: Optional[dict] = None
     force_raise_error: bool = False
     integrity_error_cls: Optional[Type[Exception]] = None
+    # distinct: bool = False
 
     # @classmethod
     # def init(cls):

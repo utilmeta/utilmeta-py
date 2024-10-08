@@ -21,8 +21,8 @@ class QueryClassParser(ClassParser):
     def kwargs(self):
         return dict(model=self.model)
 
-    def get_generator(self, values: dict) -> 'BaseQuerysetGenerator':
-        return self.model.generator_cls(self, values)
+    def get_generator(self, values: dict, **kwargs) -> 'BaseQuerysetGenerator':
+        return self.model.generator_cls(self, values, **kwargs)
 
     @property
     def schema_annotations(self):

@@ -356,6 +356,7 @@ class TestAPI(api.API):
 from app.api import UserAPI
 
 
+@api.CORS(allow_origin='*')
 class RootAPI(api.API):
     test: TestAPI
     user: UserAPI

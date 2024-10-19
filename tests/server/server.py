@@ -43,6 +43,7 @@ service = UtilMeta(
 
 from utilmeta.core.server.backends.django import DjangoSettings
 from utilmeta.core.orm import DatabaseConnections, Database
+from utilmeta.core.cache import CacheConnections, Cache
 from utilmeta.ops.config import Operations
 
 service.use(DjangoSettings(
@@ -62,6 +63,11 @@ service.use(DatabaseConnections({
         # user=env.DB_USER,
         # password=env.DB_PASSWORD,
         # port=env.DB_PORT
+    )
+}))
+service.use(CacheConnections({
+    'default': Cache(
+        engine='locmem'
     )
 }))
 

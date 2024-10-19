@@ -33,14 +33,14 @@ class CacheSessionSchema(BaseSessionSchema):
         if not session_key:
             return False
         cache = self.get_cache()
-        return bool(cache.exists(session_key))
+        return bool(cache.exists(self.get_key(session_key)))
 
     # @awaitable(exists)
     async def aexists(self, session_key: str) -> bool:
         if not session_key:
             return False
         cache = self.get_cache()
-        return bool(await cache.exists(session_key))
+        return bool(await cache.exists(self.get_key(session_key)))
 
     def create(self):
         self._session_key = self._get_new_session_key()
@@ -114,7 +114,7 @@ class CacheSessionSchema(BaseSessionSchema):
                 return
             session_key = self.session_key
         if session_key:
-            self.get_cache().delete(session_key)
+            self.get_cache().delete(self.get_key(session_key))
 
     # @awaitable(delete)
     async def adelete(self, session_key: str = None):

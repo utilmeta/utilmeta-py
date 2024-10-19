@@ -61,12 +61,17 @@ class Cache(Config):
         return self.adaptor.alias
 
     def apply(self, alias: str, asynchronous: bool = None):
+
         if asynchronous:
             if self.async_adaptor_cls:
                 self.adaptor = self.async_adaptor_cls(self, alias)
         else:
             if self.sync_adaptor_cls:
                 self.adaptor = self.sync_adaptor_cls(self, alias)
+            else:
+                from .backends.django import DjangoCacheAdaptor
+                self.adaptor = DjangoCacheAdaptor(self, alias)
+
         self.asynchronous = asynchronous
         self.adaptor.check()
 

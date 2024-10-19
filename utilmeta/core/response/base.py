@@ -92,7 +92,10 @@ class Response:
         it's considered the best practice for SDK
         """
         class _response(cls):
-            result: item
+            if isinstance(item, int):
+                status = item
+            else:
+                result: item
 
         _response.__name__ = _response.__qualname__ = get_obj_name(item) + 'Response'
 

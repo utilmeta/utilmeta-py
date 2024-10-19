@@ -37,6 +37,7 @@ class ParserQueryField(ParserField):
         self.func = None
         self.func_multi = False
         self.type_override = False
+        self.original_type = None
 
     def reconstruct(self, model: 'ModelAdaptor'):
         return self.__class__(model, **self._kwargs)
@@ -141,6 +142,7 @@ class ParserQueryField(ParserField):
 
     def setup(self, options: utype.Options):
         super().setup(options)
+        self.original_type = self.type
 
         from ..backends.base import ModelAdaptor
         if not isinstance(self.model, ModelAdaptor):

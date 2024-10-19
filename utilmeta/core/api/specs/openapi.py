@@ -186,12 +186,25 @@ class ServerSchema(Schema):
     variables: dict = Field(default_factory=dict)
 
 
+class ComponentsSchema(Schema):
+    schemas: dict = Field(default=None, defer_default=True)
+    responses: dict = Field(default=None, defer_default=True)
+    parameters: dict = Field(default=None, defer_default=True)
+    examples: dict = Field(default=None, defer_default=True)
+    requestBodies: dict = Field(default=None, defer_default=True)
+    headers: dict = Field(default=None, defer_default=True)
+    securitySchemes: dict = Field(default=None, defer_default=True)
+    links: dict = Field(default=None, defer_default=True)
+    callbacks: dict = Field(default=None, defer_default=True)
+    pathItems: dict = Field(default=None, defer_default=True)
+
+
 class OpenAPISchema(Schema):
     openapi: str
     info: OpenAPIInfo
     paths: Dict[str, dict]
     servers: List[ServerSchema]
-    components: dict
+    components: ComponentsSchema
 
 
 _generated_document = None
@@ -593,8 +606,15 @@ class OpenAPI(BaseAPISpec):
         else:
             resp = response_cls or Response
 
-        resp_name = self.set_response(resp, routes=operation_names)
-        responses[resp.status or 200] = {'$ref': f'#/components/responses/{resp_name}'}
+        if resp is not Response:
+            #     responses.setdefault('default', {
+            #         "description": '',
+            #         "headers": {},
+            #         "content": {}
+            #     })
+            # else:
+            resp_name = self.set_response(resp, routes=operation_names)
+            responses[str(resp.status or 200)] = {'$ref': f'#/components/responses/{resp_name}'}
 
         if extra_params:
             # _params = dict(extra_params)

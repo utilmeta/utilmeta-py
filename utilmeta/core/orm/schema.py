@@ -18,6 +18,7 @@ class Schema(utype.Schema):
         mode='r',
         addition=True,
         ignore_required=True,
+        ignore_constraints=True     # skip constraints validation when querying from db
         # no_default=True,
         # no default, but default can be calculated when attr is called
     )

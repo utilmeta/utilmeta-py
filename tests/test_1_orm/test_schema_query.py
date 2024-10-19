@@ -7,6 +7,8 @@ from typing import List, Optional
 
 setup_service(__name__, async_param=False)
 
+INVALID_ID = 2147483647
+
 
 class TestSchemaQuery:
     def test_serialize_users(self, service):
@@ -370,7 +372,7 @@ class TestSchemaQuery:
         # ----
         user2 = UserSchema[orm.A](
             username='new user 2',
-            followings=[0, 2]
+            followings=[INVALID_ID, 2]
         )
         with pytest.raises(exceptions.BadRequest):
             user2.save(with_relations=True, transaction=True)
@@ -397,7 +399,7 @@ class TestSchemaQuery:
 
         # test ignore relational errors
         following_objs.pop(0)
-        following_objs.append({'target_id': 0})
+        following_objs.append({'target_id': INVALID_ID})
         user3 = UserSchema[orm.A](
             username='new user 3',
             user_followings=following_objs,
@@ -493,7 +495,7 @@ class TestSchemaQuery:
         # -------------
         user2 = UserSchema[orm.A](
             username='new async user 2',
-            followings=[0, 2]
+            followings=[INVALID_ID, 2]
         )
         with pytest.raises(exceptions.BadRequest):
             await user2.asave(with_relations=True, transaction=True)
@@ -527,7 +529,7 @@ class TestSchemaQuery:
 
         # test ignore relational errors
         following_objs.pop(0)
-        following_objs.append({'target_id': 0})
+        following_objs.append({'target_id': INVALID_ID})
         user3 = UserSchema[orm.A](
             username='async new user 3',
             user_followings=following_objs,

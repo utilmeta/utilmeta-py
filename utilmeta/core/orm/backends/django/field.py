@@ -4,7 +4,6 @@ from typing import Union, Optional, Type, TYPE_CHECKING, Tuple
 from django.db import models
 from django.db.models.fields.reverse_related import ForeignObjectRel
 from django.db.models.query_utils import DeferredAttribute
-from django.contrib.postgres.fields import ArrayField
 from django.core import exceptions
 from . import constant
 from . import expressions as exp
@@ -276,11 +275,18 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             target_field = self.target_field
             if target_field:
                 _args = [target_field.rule]
-        elif isinstance(field, ArrayField):
-            _type = list
-            if field.base_field:
-                base_field = self.__class__(field.base_field, model=self.model)
-                _args = [base_field.rule]
+        else:
+            try:
+                from django.contrib.postgres.fields import ArrayField
+            except (ImportError, ModuleNotFoundError):
+                # required psycopg2
+                pass
+            else:
+                if isinstance(field, ArrayField):
+                    _type = list
+                    if field.base_field:
+                        base_field = self.__class__(field.base_field, model=self.model)
+                        _args = [base_field.rule]
 
         if _type is None:
             # fallback to string field

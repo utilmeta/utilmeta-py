@@ -153,7 +153,7 @@ class SignatureAccess(BaseAuthentication):
         #     bearerFormat='JWT',
         # )
         return {
-            'type': 'apikey',
+            'type': 'apiKey',
             'name': self.access_key_header,
             'in': 'header',
             'description': self.description or '',

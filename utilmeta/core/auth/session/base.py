@@ -203,7 +203,7 @@ class BaseSession(BaseAuthentication):
 
     def openapi_scheme(self) -> dict:
         return {
-            'type': 'apikey',
+            'type': 'apiKey',
             'name': self.cookie_name,
             'in': 'cookie',
             'description': self.description or '',

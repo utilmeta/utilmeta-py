@@ -1,3 +1,5 @@
+import os
+
 
 class BaseClientGenerator:
     __version__ = None
@@ -17,5 +19,15 @@ class BaseClientGenerator:
     def generate(self):
         raise NotImplementedError
 
-    def __call__(self, *args, **kwargs):
-        return self.generate()
+    def __call__(self, file=None, console: bool = False):
+        content = self.generate()
+        if file:
+            file_path = file
+            if not os.path.isabs(file):
+                file_path = os.path.join(os.getcwd(), file)
+            with open(file, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return file_path
+        elif console:
+            print(content)
+        return content

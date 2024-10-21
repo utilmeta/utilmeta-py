@@ -124,8 +124,10 @@ class OpenAPIGenerator(JsonSchemaGenerator):
         # todo: headers wrapped
         if response.wrapped:
             props = {}
+            keys = {}
             if response.result_key:
                 props[response.result_key] = result_schema
+                keys.update({'x-response-result-key': response.result_key})
             if response.message_key:
                 msg = dict(self.generate_for_type(str))
                 msg.update(
@@ -133,6 +135,7 @@ class OpenAPIGenerator(JsonSchemaGenerator):
                     description='an error message of response',
                 )
                 props[response.message_key] = msg
+                keys.update({'x-response-message-key': response.message_key})
             if response.state_key:
                 state = dict(self.generate_for_type(str))
                 state.update(
@@ -140,6 +143,7 @@ class OpenAPIGenerator(JsonSchemaGenerator):
                     description='action state code of response',
                 )
                 props[response.state_key] = state
+                keys.update({'x-response-state-key': response.state_key})
             if response.count_key:
                 cnt = dict(self.generate_for_type(int))
                 cnt.update(
@@ -147,28 +151,34 @@ class OpenAPIGenerator(JsonSchemaGenerator):
                     description='a count of the total number of query result',
                 )
                 props[response.count_key] = cnt
+                keys.update({'x-response-count-key': response.count_key})
 
             data_schema = {
                 'type': 'object',
                 'properties': props,
                 'required': list(props)
             }
+            if keys:
+                data_schema.update(keys)
             content_type = JSON
         else:
             data_schema = result_schema
             if not content_type:
                 content_type = guess_content_type(data_schema)
 
-        return dict(
-            description=response.description,
-            headers=headers,
+        response_schema = dict(
             content={content_type: {
                 'schema': data_schema
             }},
         )
+        if headers:
+            response_schema.update(headers=headers)
+        if response.description:
+            response_schema.update(description=response.description)
+        if response.name:
+            response_schema.update({'x-response-name': response.name})
 
-    # def generate_for_authentication(self, auth: BaseAuthentication):
-    #     return auth.openapi_scheme()
+        return response_schema
 
 
 class OpenAPIInfo(Schema):
@@ -275,18 +285,20 @@ class OpenAPI(BaseAPISpec):
     def server(self):
         return dict(url=self.service.base_url)
 
-    def save(self, format: str = 'json'):
+    def save(self, file: str):
         schema = self()
 
-        if format == 'json':
-
-            return json.dumps(schema, ensure_ascii=False)
-        elif format == 'yaml':
-            import yaml     # requires pyyaml
-            return yaml.dump(schema)
-
+        if file.endswith('.yaml') or file.endswith('.yml'):
+            import yaml  # requires pyyaml
+            content = yaml.dump(schema)
         else:
-            raise ValueError(f'format: {repr(format)} not supported')
+            content = json.dumps(schema, ensure_ascii=False, indent=4)
+        with open(file, mode='w', encoding='utf-8') as f:
+            f.write(content)
+
+        if not os.path.isabs(file):
+            file = os.path.join(os.getcwd(), file)
+        return file
 
     @classmethod
     def as_api(cls, path: str = None, private: bool = True):
@@ -422,7 +434,7 @@ class OpenAPI(BaseAPISpec):
         for key, prop_holder in props.items():
             if not isinstance(prop_holder, ParserProperty):
                 continue
-
+            name = prop_holder.name
             field = prop_holder.field
             prop = prop_holder.prop
 
@@ -439,6 +451,7 @@ class OpenAPI(BaseAPISpec):
                 auth = prop
 
             generator = self.get_generator(field.type)
+            field_schema = generator.generate_for_field(field)
 
             if auth:
                 security_name = auth.name
@@ -458,8 +471,8 @@ class OpenAPI(BaseAPISpec):
 
                 if _in == 'body':
                     if field.is_required(generator.options):
-                        body_params_required.append(key)
-                    body_params[key] = field_schema = generator.generate_for_field(field)
+                        body_params_required.append(name)
+                    body_params[name] = field_schema
                     if field_schema:
                         if field_schema.get('type') == 'array':
                             if field_schema.get('items', {}).get('format') == 'binary':
@@ -470,10 +483,10 @@ class OpenAPI(BaseAPISpec):
                 elif _in in self.PARAMS_IN:
                     data = {
                         'in': _in,
-                        'name': key,
+                        'name': name,
                         'required': field.required,
                         # prop may be injected
-                        'schema': generator(),
+                        'schema': field_schema,
                     }
                     if prop.description:
                         data['description'] = prop.description
@@ -489,7 +502,7 @@ class OpenAPI(BaseAPISpec):
                     params.append(data)
 
             elif prop.__ident__ == 'body':
-                schema = generator()
+                schema = field_schema
                 # treat differently
                 content_type = getattr(prop, 'content_type', None)
                 if not content_type:
@@ -504,7 +517,7 @@ class OpenAPI(BaseAPISpec):
             elif prop.__ident__ in self.PARAMS_IN:
                 # all the params in this prop is in the __ident__
                 # should ex
-                schema = generator()
+                schema = field_schema
                 prop_schema = generator.get_schema(schema) or {}
                 schema_type = prop_schema.get('type')
 
@@ -514,12 +527,12 @@ class OpenAPI(BaseAPISpec):
 
                 props = prop_schema.get('properties') or {}
                 required = prop_schema.get('required') or []
-                for name, value in props.items():
+                for prop_name, value in props.items():
                     params.append({
                         'in': prop.__ident__,
-                        'name': name,
+                        'name': prop_name,
                         'schema': value,
-                        'required': name in required,
+                        'required': prop_name in required,
                         # 'style': 'form',
                         # 'explode': True
                     })
@@ -528,18 +541,18 @@ class OpenAPI(BaseAPISpec):
             if body_params:
                 generator = self.get_generator(None)
 
-                for key in list(media_types):
-                    schema: dict = media_types[key].get('schema')
+                for ct in list(media_types):
+                    schema: dict = media_types[ct].get('schema')
                     if not schema:
                         continue
                     body_schema = dict(generator.get_schema(schema))
                     body_props = body_schema.get('properties') or {}
                     body_props.update(body_params)
                     body_schema['properties'] = body_props
-                    media_types[key]['schema'] = body_schema
+                    media_types[ct]['schema'] = body_schema
 
-                    if body_form and key != MULTIPART:
-                        media_types[MULTIPART] = media_types.pop(key)
+                    if body_form and ct != MULTIPART:
+                        media_types[MULTIPART] = media_types.pop(ct)
 
         elif body_params:
             # content type is default to be json
@@ -558,9 +571,10 @@ class OpenAPI(BaseAPISpec):
         if media_types:
             body = dict(
                 content=media_types,
-                description=body_description,
                 required=body_required
             )
+            if body_description:
+                body.update(description=body_description)
         return params, body, auth_requirements
 
     def from_endpoint(self, endpoint: Endpoint,

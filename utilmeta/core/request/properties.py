@@ -79,6 +79,7 @@ class Body(Property):
     OCTET_STREAM = 'application/octet-stream'
 
     __ident__ = 'body'
+    __name_prefix__ = 'request'
     __no_default__ = True
 
     content_type = None
@@ -199,6 +200,7 @@ class ObjectProperty(Property):
 
 class Query(ObjectProperty):
     __ident__ = 'query'
+    __name_prefix__ = 'request'
     __type__ = dict
     __no_default__ = True
 
@@ -245,6 +247,7 @@ class Query(ObjectProperty):
 
 class Headers(ObjectProperty):
     __ident__ = 'header'  # according to OpenAPI, not "headers"
+    __name_prefix__ = 'request'
     __type__ = dict
     __no_default__ = True
 
@@ -273,6 +276,7 @@ class Headers(ObjectProperty):
 
 class Cookies(ObjectProperty):
     __ident__ = 'cookie'  # according to OpenAPI, not "cookies"
+    __name_prefix__ = 'request'
 
     @classmethod
     def getter(cls, request: Request, field: ParserField = None):
@@ -280,6 +284,8 @@ class Cookies(ObjectProperty):
 
 
 class RequestParam(Property):
+    __name_prefix__ = 'request'
+
     def get_value(self, data: Mapping, field: ParserField):
         if isinstance(data, Mapping):
             if self.case_insensitive:

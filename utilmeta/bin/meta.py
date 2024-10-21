@@ -1,4 +1,4 @@
-from .base import command
+from .base import command, Arg
 from .commands.setup import SetupCommand
 from .commands.base import BaseServiceCommand
 from utilmeta import __version__
@@ -32,6 +32,44 @@ class MetaCommand(BaseServiceCommand):
         print('use meta -h for help')
         cls.help()
 
+    @command()
+    def gen_openapi(self, to: str = Arg(alias='--to', default='openapi.json')):
+        """
+        Generate OpenAPI document file for current service
+        """
+        self.service.setup()  # setup here
+        print(f'generate openapi document file for service: [{self.service.name}]')
+        from utilmeta.core.api.specs.openapi import OpenAPI
+        path = OpenAPI(self.service).save(to)
+        print(f'OpenAPI document generated at {path}')
+
+    @command()
+    def gen_client(self,
+                   openapi: str = Arg(alias='--openapi', default=None),
+                   to: str = Arg(alias='--to', default='client.py'),
+                   split_body_params: str = Arg(alias='--split-body-params', default=True),
+                   black: str = Arg(alias='--black', default=True),
+                   space_indent: str = Arg(alias='--spaces-indent', default=True),
+                   ):
+        """
+        Generate UtilMeta Client code for current service or specified OpenAPI document (url or file)
+        """
+        from utilmeta.core.cli.specs.openapi import OpenAPIClientGenerator
+        if openapi:
+            print(f'generate client file based on openapi: {repr(openapi)}')
+            generator = OpenAPIClientGenerator.generate_from(openapi)
+        else:
+            self.service.setup()  # setup here
+            print(f'generate client file for service: [{self.service.name}]')
+            from utilmeta.core.api.specs.openapi import OpenAPI
+            openapi_docs = OpenAPI(self.service)()
+            generator = OpenAPIClientGenerator(openapi_docs)
+        generator.space_ident = space_indent
+        generator.black_format = black
+        generator.split_body_params = split_body_params
+        path = generator(to)
+        print(f'Client file generated at {path}')
+
     @command('-v', 'version')
     def version(self):
         """
@@ -59,7 +97,7 @@ class MetaCommand(BaseServiceCommand):
         run the api server and start to serve requests (for debug only)
         """
         print(f'UtilMeta service {BLUE % self.service.name} running at {self.main_file}')
-        run(f'python {self.main_file}')
+        run(f'{sys.executable} {self.main_file}')
 
 
 def main():

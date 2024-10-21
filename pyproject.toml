@@ -39,7 +39,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "utype>=0.5.3",
+    "utype>=0.5.6",
     "django>=4.1.0",
     "databases>=0.7.0",
     "jwcrypto>=1.5.4",

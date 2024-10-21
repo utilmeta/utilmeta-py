@@ -14,5 +14,5 @@ class BaseAPISpec:
     def __call__(self):
         raise NotImplementedError
 
-    def save(self, format: str = None):
+    def save(self, file: str):
         pass

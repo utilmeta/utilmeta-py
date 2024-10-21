@@ -23,8 +23,8 @@ class DjangoCommand(BaseServiceCommand):
     @command
     def add(self, name: str):
         """
-        <name>: add an application to this service, if your service specify an <apps_dir> in config,
-                new application packages will create at there, elsewhere will create at current directory
+        add an django application named <name> to this service, if your service specify an <apps_dir> in config,
+        new application packages will create at there, elsewhere will create at current directory
         """
         path = self.settings.apps_path or self.cwd
         app = os.path.join(path, name)
@@ -49,6 +49,9 @@ class DjangoCommand(BaseServiceCommand):
 
     @command
     def makemigrations(self, app_label: str = None, all: bool = Arg('--all', '-a', default=False)):
+        """
+        execute django makemigrations command to generate migrations files
+        """
         if app_label == '*':
             all = True
         args = ['meta', 'makemigrations']
@@ -65,6 +68,9 @@ class DjangoCommand(BaseServiceCommand):
 
     @command
     def mergemigrations(self, app_name: str):
+        """
+        merge all migrations files to minimum for django apps
+        """
         from django.apps.registry import apps, AppConfig
         dbs = self.service.get_config(DatabaseConnections)
 

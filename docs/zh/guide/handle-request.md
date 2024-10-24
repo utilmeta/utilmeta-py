@@ -435,3 +435,15 @@ POST /api/operation HTTP/1.1
 
 Cookie: csrftoken=xxxx; sessionid=xxxx;
 ```
+
+
+## 自定义请求参数
+
+```python
+class QueryParam(RequestParam):
+    __in__ = Query
+
+    @classmethod
+    def get_mapping(cls, request: Request):
+        return request.query
+```

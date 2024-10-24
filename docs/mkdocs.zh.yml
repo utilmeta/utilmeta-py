@@ -48,6 +48,7 @@ nav:
       - guide/client.md
       - guide/config-run.md
       - guide/migration.md
+      - guide/plugin-extension.md
       - guide/ops.md
   - 案例教程:
       - tutorials/bmi-calc.md

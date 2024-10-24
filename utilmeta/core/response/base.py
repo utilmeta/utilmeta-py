@@ -76,7 +76,7 @@ class Response:
         quickly generate a new Response class with such result type
 
         class response(Response):
-            result_data_key: str = 'data'
+            result_key: str = 'data'
 
         def operationA(self) -> response[OperationAResult]: pass
         def operationB(self) -> response[OperationBResult]: pass
@@ -91,13 +91,25 @@ class Response:
         and since the SDK code is basically auto-generated,
         it's considered the best practice for SDK
         """
+        if not item:
+            return cls
+
+        response_name = cls.__name__
+        if not isinstance(item, int):
+            if isinstance(item, str):
+                name = item
+            else:
+                name = get_obj_name(item)
+            response_name = f'{cls.__name__}_{name}'
+
         class _response(cls):
             if isinstance(item, int):
                 status = item
             else:
                 result: item
 
-        _response.__name__ = _response.__qualname__ = get_obj_name(item) + 'Response'
+        _response.__name__ = response_name
+        _response.__qualname__ = '.'.join(cls.__qualname__.split('.')[:-1] + [response_name])
 
         return _response
 
@@ -276,6 +288,8 @@ class Response:
         if self.strict:
             field = self.__parser__.fields.get('headers')
             if field:
+                # resolve before parse
+                self.__parser__.resolve_forward_refs()
                 headers = field.parse_value(headers, context=self.__parser__.options.make_context())
         self.headers = Headers(headers or {})
 
@@ -292,6 +306,8 @@ class Response:
         if self.strict:
             field = self.__parser__.fields.get('result')
             if field:
+                # resolve before parse
+                self.__parser__.resolve_forward_refs()
                 result = field.parse_value(result, context=self.__parser__.options.make_context())
 
         if not self.adaptor and self.response_like(result):

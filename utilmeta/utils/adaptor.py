@@ -38,7 +38,7 @@ class BaseAdaptor:
         to = cls.recursively_dispatch(cls, obj, *args, **kwargs)
         if to:
             return to
-        raise NotImplementedError(f'{cls}: adaptor for {obj} is not implemented')
+        raise NotImplementedError(f'{cls}: adaptor for {obj}: {repr(name)} is not implemented')
 
     @classmethod
     def recursively_dispatch(cls, base, obj, *args, **kwargs):

@@ -10,10 +10,12 @@ from http.cookies import SimpleCookie
 from .backends.base import ClientRequestAdaptor
 from utilmeta.core.response import Response
 from utilmeta.core.response.base import Headers
-from .endpoint import ClientEndpoint
-from utilmeta.core.request import Request, properties
-from utilmeta.utils.context import Property
-
+from .endpoint import ClientEndpoint, ClientRoute
+from utilmeta.core.request import Request
+from utilmeta.core.api import decorator
+from utype.utils.compat import is_annotated
+from utype import Schema
+from .hook import Hook
 import urllib
 from urllib.parse import urlsplit, urlunsplit, urlencode
 from utilmeta import UtilMeta
@@ -26,19 +28,6 @@ setup_class = PluginEvent('setup_class', synchronous_only=True)
 process_request = PluginEvent('process_request', streamline_result=True)
 handle_error = PluginEvent('handle_error')
 process_response = PluginEvent('process_response', streamline_result=True)
-
-
-def prop_is(prop: Property, ident):
-    return prop.__ident__ == ident
-
-
-def prop_in(prop: Property, ident):
-    if not prop.__in__:
-        return False
-    in_ident = getattr(prop.__in__, '__ident__', None)
-    if in_ident:
-        return in_ident == ident
-    return prop.__in__ == ident
 
 
 def parse_proxies(proxies: Union[str, List[str], Dict[str, str]], scheme=None) -> Dict[str, List[str]]:
@@ -70,9 +59,33 @@ def parse_proxies(proxies: Union[str, List[str], Dict[str, str]], scheme=None) -
     return {}
 
 
+class ClientParameters(Schema):
+    base_url: Union[str, List[str], None]
+    backend: Any
+    append_slash: Optional[bool]
+    base_headers: Optional[Dict[str, str]]
+    base_cookies: SimpleCookie
+    base_query: Optional[Dict[str, Any]]
+    allow_redirects: Optional[bool]
+    charset: Optional[str]
+
+    # --
+    # request_cls: Any
+    service: Any
+    mock: Optional[bool]
+    internal: Optional[bool]
+    plugins: list = ()
+    fail_silently: Optional[bool]
+    default_timeout: Union[float, int, timedelta, None]
+    proxies: Optional[dict]
+
+
 class Client(PluginTarget):
     _endpoint_cls: Type[ClientEndpoint] = ClientEndpoint
     _request_cls: Type[Request] = Request
+    _clients: Dict[str, ClientRoute] = {}
+    _hook_cls = Hook
+    _route_cls = ClientRoute
 
     def __init_subclass__(cls, **kwargs):
         if not issubclass(cls._request_cls, Request):
@@ -86,30 +99,71 @@ class Client(PluginTarget):
 
     @classonlymethod
     def _generate_endpoints(cls):
+        endpoints = []
+        hooks = []
+        clients = {}
+
+        for key, api in cls.__annotations__.items():
+            if key.startswith('_'):
+                continue
+            val = cls.__dict__.get(key)
+
+            if is_annotated(api):
+                # param: Annotated[str, request.QueryParam()]
+                api = getattr(api, '__origin__', None)
+
+            if inspect.isclass(api) and issubclass(api, Client):
+                kwargs = dict(route=key, name=key, parent=cls)
+                if not val:
+                    val = getattr(api, '_generator', None)
+                if isinstance(val, decorator.APIGenerator):
+                    kwargs.update(val.kwargs)
+                elif inspect.isfunction(val):
+                    raise TypeError(f'{cls.__name__}: generate route [{repr(key)}] failed: conflict api and endpoint')
+                route = cls._route_cls(api, **kwargs)
+                clients[key] = route
+
         for key, val in cls.__dict__.items():
             if not inspect.isfunction(val):
                 continue
 
             if inspect.isfunction(val):
-                if key.lower() in COMMON_METHODS:
-                    continue
-
                 method = getattr(val, EndpointAttr.method, None)
-                # hook_type = getattr(val, EndpointAttr.hook, None)
+                hook_type = getattr(val, EndpointAttr.hook, None)
 
                 if method:
+                    if hasattr(Client, key):
+                        if key.lower() in COMMON_METHODS:
+                            raise TypeError(f'{cls.__name__}: generate route for {repr(key)} failed: HTTP method '
+                                            f'name is reserved for Client class, please use @api.{key.lower()}("/")')
+                        else:
+                            raise TypeError(f'{cls.__name__}: generate route for {repr(key)} failed: '
+                                            f'name conflicted with Client method')
+
                     # a sign to wrap it in Unit
                     # 1. @api.get                (method='get')
                     # 2. @api.parser             (method=None)
                     # 3. def get(self):          (method='get')
                     # 4. @api(method='CUSTOM')   (method='custom')
                     val = cls._endpoint_cls.apply_for(val, cls)
-                # elif hook_type:
-                #     val = cls._hook_cls.dispatch_for(val, hook_type)
+                elif hook_type:
+                    val = cls._hook_cls.dispatch_for(val, hook_type, target_type='client')
                 else:
                     continue
-
                 setattr(cls, key, val)  # reset value
+
+            if isinstance(val, ClientEndpoint):
+                endpoints.append(val)
+            if isinstance(val, Hook):
+                hooks.append(val)
+
+        for hook in hooks:
+            for route in clients.values():
+                route.hook(hook)
+            for endpoint in endpoints:
+                endpoint.client_route.hook(hook)
+
+        cls._clients = clients
 
     def __init__(self,
                  base_url: Union[str, List[str]] = None,
@@ -135,12 +189,11 @@ class Client(PluginTarget):
 
         super().__init__(plugins=plugins)
 
-        self._internal = internal
-        self._mock = mock
-
         if not backend:
             backend = urllib
-        self._backend = backend
+
+        self._internal = internal
+        self._mock = mock
 
         # backend_name = None
         if isinstance(backend, str):
@@ -151,6 +204,8 @@ class Client(PluginTarget):
             raise TypeError(f'Invalid backend: {repr(backend)}, must be a module or str')
 
         self._backend_name = backend_name
+        self._backend = backend
+
         self._service = service
         self._base_url = base_url
         self._default_timeout = default_timeout
@@ -188,9 +243,24 @@ class Client(PluginTarget):
         self._original_headers = dict(self._base_headers)
         self._original_query = dict(self._base_query)
 
+        self._client_route: Optional['ClientRoute'] = None
+
         for key, val in self.__class__.__dict__.items():
             if isinstance(val, ClientEndpoint):
                 setattr(self, key, partial(val, self))
+
+        if self._clients:
+            params = self._get_params()
+            for name, client_route in self._clients.items():
+                client_base_url = url_join(self._base_url, client_route.route)
+                client_cls = client_route.handler
+                params = dict(params)
+                params.update(base_url=client_base_url)
+                client = client_cls(**params)
+                client._client_route = client_route.merge_hooks(self._client_route)
+                client._cookies = self._cookies
+                client._context = self._context
+                setattr(self, name, client)
 
     def __enter__(self: T) -> T:
         return self
@@ -199,6 +269,33 @@ class Client(PluginTarget):
         self._cookies = SimpleCookie(self._original_cookies)
         self._base_headers = dict(self._original_headers)
         self._base_query = dict(self._original_query)
+
+    @classonlymethod
+    def __reproduce_with__(cls, generator: decorator.APIGenerator):
+        plugins = generator.kwargs.get('plugins')
+        if plugins:
+            cls._add_plugins(*plugins)
+        cls._generator = generator
+        return cls
+
+    def _get_params(self):
+        return ClientParameters(
+            base_url=self._base_url,
+            backend=self._backend,
+            service=self._service,
+            base_headers=self._base_headers,
+            base_query=self._base_query,
+            base_cookies=self._cookies,     # use cookies as base_cookies to pass session to sub client
+            append_slash=self._append_slash,
+            allow_redirects=self._allow_redirects,
+            proxies=self._proxies,
+            charset=self._charset,
+            default_timeout=self._default_timeout,
+            fail_silently=self._fail_silently,
+            mock=self._mock,
+            internal=self._internal,
+            plugins=self._plugins,
+        )
 
     def update_cookies(self, cookies: dict):
         if isinstance(cookies, dict):
@@ -274,32 +371,6 @@ class Client(PluginTarget):
                        # form: dict = None,
                        headers: dict = None,
                        cookies=None):
-        # body = None
-        # headers = Headers(headers or {})
-        # content_type = headers.get('content-type')
-        # if isinstance(form, dict) and form:
-        #     if any(file_like(val) for val in form.values()):
-        #         body = encode_multipart_form(form)
-        #         content_type = RequestType.FORM_DATA
-        #     else:
-        #         body = urlencode(form).encode(self._charset)
-        #         content_type = RequestType.FORM_URLENCODED
-        #
-        # elif data:
-        #     if isinstance(data, (dict, list, tuple)):
-        #         if isinstance(data, dict) and any(file_like(val) for val in data.values()):
-        #             body = encode_multipart_form(data)
-        #             content_type = RequestType.FORM_DATA
-        #         else:
-        #             content_type = RequestType.JSON
-        #             body = json_dumps(data).encode(self._charset)
-        #     elif isinstance(data, (bytes, io.BytesIO)):
-        #         body = data
-        #         content_type = RequestType.OCTET_STREAM
-        #     else:
-        #         content_type = RequestType.PLAIN
-        #         body = str(data).encode(self._charset)
-        #
         url = self._build_url(
             path=path,
             query=query
@@ -318,14 +389,13 @@ class Client(PluginTarget):
             backend=self._backend
         )
 
-    def __request__(self, endpoint: ClientEndpoint, *args, **kwargs):
+    def __request__(self, endpoint: ClientEndpoint, request: Request):
         if self._mock:
             if endpoint.response_types:
                 resp = endpoint.response_types[0]
                 return resp.mock()
             return None
 
-        request = self._build_function_request(endpoint, args, kwargs)
         retry_index = 0
         start_time = request.time
         while True:
@@ -375,14 +445,13 @@ class Client(PluginTarget):
             raise TimeoutError(f'No response')
         return response
 
-    async def __async_request__(self, endpoint: ClientEndpoint, *args, **kwargs):
+    async def __async_request__(self, endpoint: ClientEndpoint, request: Request):
         if self._mock:
             if endpoint.response_types:
                 resp = endpoint.response_types[0]
                 return resp.mock()
             return None
 
-        request = self._build_function_request(endpoint, args, kwargs)
         retry_index = 0
         start_time = request.time
         while True:
@@ -458,92 +527,6 @@ class Client(PluginTarget):
                 continue
 
         return type_transform(response, Response)
-
-    def _build_function_request(self, endpoint: ClientEndpoint, args: tuple, kwargs: dict) -> Request:
-        # get Call object from kwargs
-        args, kwargs = endpoint.parser.parse_params(args, kwargs, context=endpoint.parser.options.make_context())
-        for i, arg in enumerate(args):
-            kwargs[endpoint.parser.pos_key_map[i]] = arg
-
-        url = url_join(self._base_url or '', endpoint.route, append_slash=self._append_slash)
-        query = dict(self._base_query or {})
-        headers = dict(self._base_headers or {})
-        cookies = SimpleCookie(self._cookies or {})
-        body = None
-        path_params = {}
-
-        for name, value in kwargs.items():
-            if name in endpoint.path_args:
-                path_params[name] = value
-                continue
-
-            inst = endpoint.wrapper.attrs.get(name)
-            if not inst:
-                continue
-
-            prop = inst.prop
-            key = inst.name  # this is FINAL alias key name instead of attname
-
-            if not prop:
-                continue
-
-            if prop_in(prop, 'path'):
-                # PathParam
-                path_params[key] = value
-            elif prop_in(prop, 'query'):
-                # QueryParam
-                query[key] = value
-            elif prop_is(prop, 'query'):
-                # Query
-                if isinstance(value, Mapping):
-                    query.update(value)
-            elif prop_in(prop, 'body'):
-                # BodyParam
-                if isinstance(body, dict):
-                    body[key] = value
-                else:
-                    body = {key: value}
-                if isinstance(prop, properties.Body):
-                    if prop.content_type:
-                        headers.update({'content-type': prop.content_type})
-            elif prop_is(prop, 'body'):
-                # Body
-                if isinstance(body, dict) and isinstance(value, Mapping):
-                    body.update(value)
-                else:
-                    body = value
-            elif prop_in(prop, 'header'):
-                # HeaderParam
-                headers[key] = value
-            elif prop_is(prop, 'header'):
-                # Headers
-                if isinstance(value, Mapping):
-                    headers.update(value)
-            elif prop_in(prop, 'cookie'):
-                # CookieParam
-                cookies[key] = value
-            elif prop_is(prop, 'cookie'):
-                # Cookies
-                if isinstance(value, Mapping):
-                    cookies.update(value)
-
-        for key, val in path_params.items():
-            unit = '{%s}' % key
-            url = url.replace(unit, str(val))
-
-        if isinstance(cookies, SimpleCookie) and cookies:
-            headers.update({
-                'cookie': ';'.join([f'{key}={val.value}' for key, val in cookies.items() if val.value])
-            })
-
-        return self._request_cls(
-            method=endpoint.method,
-            url=url,
-            query=query,
-            data=body,
-            headers=headers,
-            backend=self._backend
-        )
 
     def _process_request(self, request: Request):
         request = self.process_request(request)

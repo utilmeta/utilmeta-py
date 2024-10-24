@@ -26,29 +26,29 @@ class UserResponse(response.Response):
 
 
 class UserClient(cli.Client):
-    @api.post('user/jwt_login')
+    @api.post('jwt_login')
     def jwt_login(self, username: str = request.BodyParam(),
                   password: str = request.BodyParam()) -> Union[UserResponse, response.Response]:
         pass
 
-    @api.get('user/user_by_jwt')
+    @api.get('user_by_jwt')
     def jwt_get(self, token: str = request.HeaderParam('authorization')) -> Union[UserResponse, response.Response]:
         pass
 
-    @api.post('user/session_login')
+    @api.post('session_login')
     def session_login(self, username: str = request.BodyParam(),
                       password: str = request.BodyParam()) -> Union[UserResponse, response.Response]:
         pass
 
-    @api.get('user/user_by_session')
+    @api.get('/user_by_session')
     def session_get(self) -> Union[UserResponse, response.Response]:
         pass
 
-    @api.post('user/session_logout')
+    @api.post('/session_logout')
     def session_logout(self):
         pass
 
-    @api.patch('user')
+    @api.patch('/')
     def update_user(self,
                     username: str = request.BodyParam(required=False),
                     password: str = request.BodyParam(required=False),
@@ -84,8 +84,11 @@ class TestClient(cli.Client):
         page: int = utype.Field(ge=1, le=10)
         item: Optional[str] = utype.Field(min_length=3, max_length=10)
 
+    class QuerySchemaResponse(response.Response):
+        result: 'TestClient.QuerySchema'
+
     @api.get
-    def query_schema(self, query: QuerySchema = request.Query) -> response.Response[QuerySchema]: pass
+    def query_schema(self, query: QuerySchema = request.Query) -> QuerySchemaResponse: pass
 
     class MultiFormData(utype.Schema):
         name: str
@@ -122,3 +125,30 @@ class TestClient(cli.Client):
 
     @api.get('retry')
     def get_retry(self) -> response.Response: pass
+
+    @api.before(get_file, get_retry)
+    def before_process_request(self, req: request.Request):
+        pass
+
+
+@api.route('articles/{slug}/comments')
+class CommentClient(cli.Client):
+    @api.get("/{id}")
+    def get_comment(self, id: int, slug: str = request.PathParam) -> response.Response: pass
+
+
+@api.route('articles')
+class ArticlesClient(cli.Client):
+    @api.get("/{slug}")
+    def get_article(self, slug: str = request.PathParam) -> response.Response: pass
+
+
+class APIClient(cli.Client):
+    test: TestClient
+    user: UserClient
+    comments: CommentClient
+
+    @api.after(TestClient)
+    def process_test_response(self, resp: response.Response):
+        resp.headers['test-response-header'] = 'test'
+        return resp

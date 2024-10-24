@@ -1,7 +1,6 @@
 from utilmeta.core.cli import Client
 from utilmeta.core.file import File
 from tests.conftest import make_live_process, make_server_thread, setup_service
-from client import TestClient, DataSchema
 import pytest
 
 setup_service(__name__, backend='django', async_param=[False])
@@ -9,7 +8,7 @@ setup_service(__name__, backend='django', async_param=[False])
 #     backend='django',
 #     port=8666
 # )
-
+from client import TestClient, APIClient, DataSchema
 server_thread = make_server_thread(
     backend='django',
     port=8666
@@ -60,6 +59,27 @@ class TestClientClass:
             tr = client.get_retry()
             assert tr.status == 500
             assert 'MaxRetriesTimeoutExceed' in tr.text
+
+    def test_live_server_with_mount(self, server_thread):
+        with APIClient(
+            base_url='http://127.0.0.1:8666/api',
+        ) as client:
+            v = client.test.get_doc(
+                category='finance',
+                page=3
+            )
+            assert v.status == 200
+            assert v.data == {'finance': 3}
+            assert v.headers['test-response-header'] == 'test'
+
+            pg = client.test.query_schema(
+                query={'page': 3, 'item': 'test'}
+            )
+            assert pg.status == 200
+            assert pg.result.page == 3
+            assert pg.result.item == 'test'
+
+            assert pg.headers['test-response-header'] == 'test'
 
     @pytest.mark.asyncio
     async def test_live_server_async(self, server_thread):

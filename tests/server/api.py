@@ -290,11 +290,11 @@ class TestAPI(api.API):
 
     @api.handle('*', exceptions.BadRequest)
     def handle_bad_request(self, e):
-        return HookResponse(error=e, status=422)
+        return HookResponse(str(e), error=e, status=422)
 
     @api.handle('*', Exception)
     def handle_errors(self, e):
-        return HookResponse(error=e)
+        return HookResponse(str(e), error=e)
 
     @api.after('*')
     def add_response(self) -> HookResponse: pass
@@ -368,3 +368,7 @@ class RootAPI(api.API):
     @api.get
     def hello(self):
         return self.request.path
+
+    @api.get
+    def plus(self, a: int, b: int) -> int:
+        return a + b

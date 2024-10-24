@@ -16,16 +16,21 @@ if TYPE_CHECKING:
 class Hook:
     parser_cls = FunctionParser
     hook_type = None
+    target_type = None
     parse_params = False
     parse_result = False
 
     @classmethod
-    def dispatch_for(cls, func: Callable, hook_type: str) -> 'Hook':
+    def dispatch_for(cls, func: Callable, hook_type: str, target_type: str = 'api') -> 'Hook':
         for hook in cls.__subclasses__():
             hook: Type[Hook]
-            if hook.hook_type == hook_type:
-                return hook.apply_for(func)
-        return cls.apply_for(func)
+            try:
+                return hook.dispatch_for(func, hook_type, target_type)
+            except NotImplementedError:
+                continue
+        if cls.hook_type == hook_type and cls.target_type == target_type:
+            return cls.apply_for(func)
+        raise NotImplementedError(f'{cls}: cannot dispatch for hook: {hook_type} in target: {repr(target_type)}')
 
     @classmethod
     def apply_for(cls, func: Callable) -> 'Hook':
@@ -95,6 +100,7 @@ class Hook:
 
 class BeforeHook(Hook):
     hook_type = utils.EndpointAttr.before_hook
+    target_type = 'api'
     wrapper_cls = RequestContextWrapper
     # parse_params = False
     # already pared for request
@@ -141,7 +147,7 @@ class BeforeHook(Hook):
 
     def serve(self, api: 'API'):
         args, kwargs = self.parse_request(api.request)
-        return self(api, **kwargs)
+        return self(api, *args, **kwargs)
 
     @utils.awaitable(serve)
     async def serve(self, api: 'API'):
@@ -151,6 +157,7 @@ class BeforeHook(Hook):
 
 class AfterHook(Hook):
     hook_type = utils.EndpointAttr.after_hook
+    target_type = 'api'
     parse_params = True
     # parse_result = True
 
@@ -193,6 +200,7 @@ class AfterHook(Hook):
 
 class ErrorHook(Hook):
     hook_type = utils.EndpointAttr.error_hook
+    target_type = 'api'
     parse_params = True
 
     @classmethod

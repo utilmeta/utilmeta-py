@@ -1,14 +1,20 @@
 from utilmeta import utils
 from utilmeta.utils import exceptions as exc
-from typing import Callable, Type, TYPE_CHECKING, List
-from utilmeta.utils.plugin import PluginEvent
 import inspect
 from utilmeta.core.api.endpoint import BaseEndpoint
 # from utilmeta.core.response import Response
 # from utype.parser.rule import LogicalType
 
+from utilmeta.utils import PluginEvent, Error
+from utype.types import *
+from http.cookies import SimpleCookie
+from utilmeta.core.request import Request, properties
+from utilmeta.core.api.route import BaseRoute
+from .hook import ClientErrorHook, ClientAfterHook, ClientBeforeHook
+
 if TYPE_CHECKING:
     from .base import Client
+
 
 process_request = PluginEvent('process_request', streamline_result=True)
 handle_error = PluginEvent('handle_error')
@@ -17,9 +23,46 @@ enter_endpoint = PluginEvent('enter_endpoint')
 exit_endpoint = PluginEvent('exit_endpoint')
 
 
+def prop_is(prop: properties.Property, ident):
+    return prop.__ident__ == ident
+
+
+def prop_in(prop: properties.Property, ident):
+    if not prop.__in__:
+        return False
+    in_ident = getattr(prop.__in__, '__ident__', None)
+    if in_ident:
+        return in_ident == ident
+    return prop.__in__ == ident
+
+
+class ClientRoute(BaseRoute):
+    def __init__(
+        self,
+        handler: Union[Type['Client'], 'ClientEndpoint'],
+        route: str,
+        name: str,
+        parent=None,
+        before_hooks: List[ClientBeforeHook] = (),
+        after_hooks: List[ClientAfterHook] = (),
+        error_hooks: Dict[Type[Exception], ClientErrorHook] = None
+    ):
+        super().__init__(
+            handler,
+            route=route,
+            name=name,
+            parent=parent,
+            before_hooks=before_hooks,
+            after_hooks=after_hooks,
+            error_hooks=error_hooks
+        )
+
+
 class ClientEndpoint(BaseEndpoint):
     PATH_REGEX = utils.PATH_REGEX
     ASYNCHRONOUS = None
+    route_cls = ClientRoute
+    error_cls = Error
 
     @classmethod
     def apply_for(cls, func: Callable, client: Type['Client'] = None):
@@ -62,6 +105,11 @@ class ClientEndpoint(BaseEndpoint):
         )
         # self.is_async = self.parser.is_asynchronous
         self.client = client
+        self.client_route = self.route_cls(
+            self,
+            route=self.route,
+            name=self.name,
+        )
         self.path_args = self.PATH_REGEX.findall(self.route)
 
         # if self.parser.is_asynchronous:
@@ -77,7 +125,7 @@ class ClientEndpoint(BaseEndpoint):
             return f'{self.module_name}.{self.f.__name__}'
         return self.f.__name__
 
-    def __call__(self, client: 'Client', *args, **kwargs):
+    def __call__(self, client: 'Client', /, *args, **kwargs):
         if not self.is_passed:
             return self.executor(client, *args, **kwargs)
         if self.parser.is_asynchronous:
@@ -85,20 +133,130 @@ class ClientEndpoint(BaseEndpoint):
         else:
             return client.__request__(self, *args, **kwargs)
 
+    def build_request(self, client: 'Client', /, *args, **kwargs) -> Request:
+        # get Call object from kwargs
+        args, kwargs = self.parser.parse_params(args, kwargs, context=self.parser.options.make_context())
+        for i, arg in enumerate(args):
+            kwargs[self.parser.pos_key_map[i]] = arg
+
+        client_params = client._get_params()
+        url = utils.url_join(client_params.base_url or '', self.route, append_slash=client_params.append_slash)
+        query = dict(client_params.base_query or {})
+        headers = dict(client_params.base_headers or {})
+        cookies = SimpleCookie(client_params.base_cookies or {})
+        # client_params.base_cookies = client.cookies
+        # use the latest cookies instead of params
+        body = None
+        path_params = {}
+
+        for name, value in kwargs.items():
+            if name in self.path_args:
+                path_params[name] = value
+                continue
+
+            inst = self.wrapper.attrs.get(name)
+            if not inst:
+                continue
+
+            prop = inst.prop
+            key = inst.name  # this is FINAL alias key name instead of attname
+
+            if not prop:
+                continue
+
+            if prop_in(prop, 'path'):
+                # PathParam
+                path_params[key] = value
+            elif prop_in(prop, 'query'):
+                # QueryParam
+                query[key] = value
+            elif prop_is(prop, 'query'):
+                # Query
+                if isinstance(value, Mapping):
+                    query.update(value)
+            elif prop_in(prop, 'body'):
+                # BodyParam
+                if isinstance(body, dict):
+                    body[key] = value
+                else:
+                    body = {key: value}
+                if isinstance(prop, properties.Body):
+                    if prop.content_type:
+                        headers.update({'content-type': prop.content_type})
+            elif prop_is(prop, 'body'):
+                # Body
+                if isinstance(body, dict) and isinstance(value, Mapping):
+                    body.update(value)
+                else:
+                    body = value
+            elif prop_in(prop, 'header'):
+                # HeaderParam
+                headers[key] = value
+            elif prop_is(prop, 'header'):
+                # Headers
+                if isinstance(value, Mapping):
+                    headers.update(value)
+            elif prop_in(prop, 'cookie'):
+                # CookieParam
+                cookies[key] = value
+            elif prop_is(prop, 'cookie'):
+                # Cookies
+                if isinstance(value, Mapping):
+                    cookies.update(value)
+
+        for key, val in path_params.items():
+            unit = '{%s}' % key
+            url = url.replace(unit, str(val))
+
+        if isinstance(cookies, SimpleCookie) and cookies:
+            headers.update({
+                'cookie': ';'.join([f'{key}={val.value}' for key, val in cookies.items() if val.value])
+            })
+
+        return client._request_cls(
+            method=self.method,
+            url=url,
+            query=query,
+            data=body,
+            headers=headers,
+            backend=client_params.backend
+        )
+
 
 class SyncClientEndpoint(ClientEndpoint):
     ASYNCHRONOUS = False
 
     def __call__(self, client: 'Client', *args, **kwargs):
-        # with self:
-        r = None
-        if not self.is_passed:
-            r = self.executor(client, *args, **kwargs)
-            if inspect.isawaitable(r):
-                raise exc.ServerError('awaitable detected in sync function')
-        if r is None:
-            r = client.__request__(self, *args, **kwargs)
-        return r
+        with self.client_route.merge_hooks(client._client_route) as route:
+            r = None
+            request = None
+            try:
+                request = self.build_request(client, *args, **kwargs)
+
+                for hook in route.before_hooks:
+                    hook.serve(client, request)
+
+                if not self.is_passed:
+                    r = self.executor(client, *args, **kwargs)
+                    if inspect.isawaitable(r):
+                        raise exc.ServerError('awaitable detected in sync function')
+
+                if r is None:
+                    r = client.__request__(self, request)
+
+                for hook in route.after_hooks:
+                    r = hook(client, r) or r
+
+            except Exception as e:
+                error = self.error_cls(e, request=request)
+                hook = error.get_hook(route.error_hooks, exact=isinstance(error.exception, exc.Redirect))
+                # hook applied before handel_error plugin event
+                if hook:
+                    r = hook(self, error)
+                else:
+                    raise error.throw()
+
+            return r
 
 
 class AsyncClientEndpoint(ClientEndpoint):
@@ -106,15 +264,42 @@ class AsyncClientEndpoint(ClientEndpoint):
 
     async def __call__(self, client: 'Client', *args, **kwargs):
         # async with self:
-        r = None
-        if not self.is_passed:
-            r = self.executor(client, *args, **kwargs)
-            while inspect.isawaitable(r):
-                # executor is maybe a sync function, which will not need to await
-                r = await r
-        if r is None:
-            r = await client.__async_request__(self, *args, **kwargs)
-        return r
+        with self.client_route.merge_hooks(client._client_route) as route:
+            r = None
+            request = None
+            try:
+                request = self.build_request(client, *args, **kwargs)
+                for hook in route.before_hooks:
+                    _ = hook.serve(client, request)
+                    if inspect.isawaitable(_):
+                        await _
+
+                if not self.is_passed:
+                    r = self.executor(client, *args, **kwargs)
+                    while inspect.isawaitable(r):
+                        # executor is maybe a sync function, which will not need to await
+                        r = await r
+
+                if r is None:
+                    r = await client.__async_request__(self, request)
+
+                for hook in route.after_hooks:
+                    r = hook(client, r) or r
+                    if inspect.isawaitable(r):
+                        await r
+
+            except Exception as e:
+                error = self.error_cls(e, request=request)
+                hook = error.get_hook(route.error_hooks, exact=isinstance(error.exception, exc.Redirect))
+                # hook applied before handel_error plugin event
+                if hook:
+                    r = hook(self, error)
+                    if inspect.isawaitable(r):
+                        await r
+                else:
+                    raise error.throw()
+
+            return r
 
 
 enter_endpoint.register(ClientEndpoint)

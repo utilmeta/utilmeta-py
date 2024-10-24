@@ -14,7 +14,7 @@ server_thread = make_server_thread(
 class TestLiveAuth:
     def test_live_auth(self, server_thread):
         with UserClient(
-            base_url='http://127.0.0.1:8555/api',
+            base_url='http://127.0.0.1:8555/api/user',
         ) as client:
             # test
             v = client.jwt_login(

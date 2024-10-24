@@ -14,15 +14,15 @@ import hashlib
 
 
 class Operations(Config):
-    __eager__ = True
+    __eager__: ClassVar = True
     # setup need to execute before django settings
 
-    NAME = 'ops'
-    REF = 'utilmeta.ops'
-    HOST = 'utilmeta.com'
-    ROUTER_NAME = '_OperationsDatabaseRouter'
+    NAME: ClassVar = 'ops'
+    REF: ClassVar = 'utilmeta.ops'
+    HOST: ClassVar = 'utilmeta.com'
+    ROUTER_NAME: ClassVar = '_OperationsDatabaseRouter'
 
-    database = Database
+    Database: ClassVar = Database
 
     def __init__(self,
                  route: str,
@@ -44,7 +44,7 @@ class Operations(Config):
                  # - save the logs
                  # - save the worker monitor
                  # - the main (with min pid) worker will do the monitor tasks
-                 external_openapi: dict = None,     # openapi paths
+                 openapi: Union[str, dict] = None,     # openapi paths
                  max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
                  ):
         super().__init__(**locals())
@@ -69,6 +69,8 @@ class Operations(Config):
         self.worker_cycle = worker_cycle
         self.worker_task_cls_string = worker_task_cls
         self.max_backlog = max_backlog
+        self.openapi = openapi
+
         self._base_url = base_url
 
         if self.HOST not in self.trusted_hosts:

@@ -13,7 +13,112 @@ if TYPE_CHECKING:
     from .base import API
 
 
-class APIRoute:
+class BaseRoute:
+    def __init__(self,
+                 handler,
+                 route: Union[str, tuple],
+                 name: str,
+                 parent=None,
+                 before_hooks: List[BeforeHook] = (),
+                 after_hooks: List[AfterHook] = (),
+                 error_hooks: Dict[Type[Exception], ErrorHook] = None):
+
+        self.name = name
+        self.handler = handler
+        self.parent = parent
+
+        if isinstance(route, str):
+            route = str(route).strip('/')
+        elif isinstance(route, tuple):
+            route = self.from_routes(*route)
+        else:
+            raise TypeError(f'Invalid route: {route}')
+
+        self.route = route
+        self.before_hooks = before_hooks or []
+        self.after_hooks = after_hooks or []
+        self.error_hooks = error_hooks or {}
+
+    @classmethod
+    def from_routes(cls, *routes):
+        # meant to be inherited
+        return '/'.join([str(v).strip('/') for v in routes])
+
+    def match_targets(self, targets: list):
+        if self.route in targets:
+            # str
+            return True
+        if isinstance(self.handler, Endpoint):
+            return self.handler in targets or self.handler.f in targets
+        # otherwise, we only accept the
+        # route: someAPI = api(...)(someAPI)
+        return self.handler in targets
+
+    def match_hook(self, hook: Hook):
+        if hook.hook_all:
+            if hook.hook_excludes:
+                if self.match_targets(hook.hook_excludes):
+                    return False
+            return True
+        return self.match_targets(hook.hook_targets)
+
+    def hook(self, hook):
+        if not self.match_hook(hook):
+            # not hook to this route
+            return False
+        if isinstance(hook, BeforeHook):
+            self.before_hooks.append(hook)
+        elif isinstance(hook, AfterHook):
+            self.after_hooks.append(hook)
+        elif isinstance(hook, ErrorHook):
+            self.error_hooks.update({err: hook for err in hook.hook_errors})
+        return True
+
+    def __enter__(self):
+        """
+        Context management can be implied
+        like a transaction across the hooks
+        :return:
+        """
+        # enter_route()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+        # exit_route(self, exc_type, exc_val, exc_tb)
+
+    def clone(self):
+        return self.__class__(
+            self.handler,
+            route=self.route,
+            name=self.name,
+            parent=self.parent,
+            before_hooks=list(self.before_hooks),
+            after_hooks=list(self.after_hooks),
+            error_hooks=dict(self.error_hooks)
+        )
+
+    @property
+    def no_hooks(self):
+        return not self.before_hooks and not self.after_hooks and not self.error_hooks
+
+    def merge_hooks(self, route: 'BaseRoute'):
+        # self: near
+        # route: far
+        if not route or not isinstance(route, BaseRoute):
+            return self
+        if route.no_hooks:
+            return self
+        new_route = self.clone()
+        new_route.before_hooks = route.before_hooks + self.after_hooks
+        new_route.after_hooks = self.after_hooks + route.after_hooks
+        error_hooks = dict(route.error_hooks)
+        error_hooks.update(self.error_hooks)
+        new_route.error_hooks = error_hooks
+        return new_route
+
+
+class APIRoute(BaseRoute):
     PATH_REGEX = PATH_REGEX
     DEFAULT_PATH_REGEX = '[^/]+'
 
@@ -31,8 +136,8 @@ class APIRoute:
                  after_hooks: List[AfterHook] = (),
                  error_hooks: Dict[Type[Exception], ErrorHook] = None, **kwargs):
 
-        from .base import API
         self.method = None
+        from .base import API
         if isinstance(handler, Endpoint):
             self.method = handler.method
             if handler.is_method and route:
@@ -47,31 +152,24 @@ class APIRoute:
             raise TypeError(f'{self.__class__}: invalid api class or function: {handler}, must be a '
                             f'Endpoint instance of subclass of API')
 
-        self.name = name
-        self.handler = handler
-        self.parent = parent
+        super().__init__(
+            handler,
+            route=route,
+            name=name,
+            parent=parent,
+            before_hooks=before_hooks,
+            after_hooks=after_hooks,
+            error_hooks=error_hooks
+        )
+
+        self.kwargs = kwargs
         self.summary = summary
         self.description = description or get_doc(handler)
         self.deprecated = deprecated
         self.private = private or handler.__name__.startswith('_')
         self.priority = priority
-        self.kwargs = kwargs
-
-        if isinstance(route, str):
-            route = str(route).strip('/')
-        elif isinstance(route, tuple):
-            route = self.from_routes(*route)
-        else:
-            raise TypeError(f'Invalid route: {route}')
-
-        self.route = route
         self.regex_list = []
         self.kwargs_regex = {}
-
-        self.before_hooks = before_hooks or []
-        self.after_hooks = after_hooks or []
-        self.error_hooks = error_hooks or {}
-
         self.header_names = []
         self.init_headers()
 
@@ -92,11 +190,6 @@ class APIRoute:
                     headers = getattr(val.prop, 'headers', None)
                     if headers and multi(headers):
                         distinct_add(self.header_names, [str(v).lower() for v in headers])
-
-    @classmethod
-    def from_routes(cls, *routes):
-        # meant to be inherited
-        return '/'.join([str(v).strip('/') for v in routes])
 
     def get_field(self, name: str) -> Optional[Field]:
         if isinstance(self.handler, Endpoint):
@@ -255,49 +348,6 @@ class APIRoute:
                 return True
         return False
 
-    def match_targets(self, targets: list):
-        if self.route in targets:
-            # str
-            return True
-        if isinstance(self.handler, Endpoint):
-            return self.handler in targets or self.handler.f in targets
-        # otherwise, we only accept the
-        # route: someAPI = api(...)(someAPI)
-        return self.handler in targets
-
-    def match_hook(self, hook: Hook):
-        if hook.hook_all:
-            if hook.hook_excludes:
-                if self.match_targets(hook.hook_excludes):
-                    return False
-            return True
-        return self.match_targets(hook.hook_targets)
-
-    def hook(self, hook):
-        if not self.match_hook(hook):
-            # not hook to this route
-            return False
-        if isinstance(hook, BeforeHook):
-            self.before_hooks.append(hook)
-        elif isinstance(hook, AfterHook):
-            self.after_hooks.append(hook)
-        elif isinstance(hook, ErrorHook):
-            self.error_hooks.update({err: hook for err in hook.hook_errors})
-        return True
-
-    def __enter__(self) -> 'APIRoute':
-        """
-        Context management can be implied
-        like a transaction across the hooks
-        :return:
-        """
-        # enter_route()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-        # exit_route(self, exc_type, exc_val, exc_tb)
-
     def __call__(self, api: 'API'):
         # ---
         names_var = var.operation_names.setup(api.request)
@@ -350,9 +400,3 @@ class APIRoute:
             result = hook.process_result(result)
 
         return result
-
-    def generate(self):
-        pass
-
-    def clone(self):
-        pass

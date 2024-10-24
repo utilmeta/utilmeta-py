@@ -141,6 +141,7 @@ class API(PluginTarget):
     @classonlymethod
     def _generate_routes(cls):
         routes = []
+        hooks = []
         handlers = []
         default_error_hooks = {}
 
@@ -267,19 +268,7 @@ class API(PluginTarget):
                 continue
 
             if isinstance(val, Hook):
-                if not any([endpoint.hook(val) for endpoint in routes]):
-                    # hook the function for every endpoint
-                    # .hook() return a bool to indicate whether hooked
-                    # if not any() hooked, the target expression of the hook maybe invalid
-                    # we will give it a warning
-                    msg = f'{cls}: unmatched hook: {val} with targets: {val.hook_targets}'
-                    warnings.warn(msg)
-                    # from utilmeta.conf import config
-                    # if config.preference.ignore_unmatched_hooks:
-                    #     warnings.warn(msg)
-                    # else:
-                    # raise ValueError(msg)
-
+                hooks.append(val)
                 if isinstance(val, ErrorHook) and val.hook_all:
                     for err in val.hook_errors:
                         default_error_hooks[err] = val
@@ -292,8 +281,24 @@ class API(PluginTarget):
                 # only key: <type> = <prop> in class is consider a valid api property
                 cls._make_property(key, val)
 
+        for hook in hooks:
+            if not any([route.hook(hook) for route in routes]):
+                # hook the function for every endpoint
+                # .hook() return a bool to indicate whether hooked
+                # if not any() hooked, the target expression of the hook maybe invalid
+                # we will give it a warning
+                msg = f'{cls}: unmatched hook: {hook} with targets: {hook.hook_targets}'
+                warnings.warn(msg)
+                # from utilmeta.conf import config
+                # if config.preference.ignore_unmatched_hooks:
+                #     warnings.warn(msg)
+                # else:
+                # raise ValueError(msg)
+
+        # compile route after mount hooks
         for route in routes:
             route.compile_route()
+
         cls._routes.extend(routes)
         cls._default_error_hooks.update(default_error_hooks)
 

@@ -485,6 +485,30 @@ class HeaderParam(RequestParam):
     def alias_generator(cls, key: str):
         return key.replace('_', '-')
 
+#
+# class Authorization(HeaderParam):
+#     def __init__(self,
+#                  scheme: str = 'bearer',
+#                  default=unprovided,
+#                  required: bool = None,
+#                  style: str = None,
+#                  **kwargs):
+#         super().__init__(
+#             alias='authorization',
+#             default=default,
+#             required=required,
+#             style=style,
+#             **kwargs
+#         )
+#         self.scheme = scheme
+#
+#     def get_value(self, data: Mapping, field: ParserField):
+#         value = super().get_value(data, field)
+#         if isinstance(value, str):
+#             if ' ' in value:
+#                 return value.split(' ')[1]
+#         return value
+
 
 class CookieParam(RequestParam):
     __in__ = Cookies

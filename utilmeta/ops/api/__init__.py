@@ -6,6 +6,7 @@ from .. import __spec_version__
 from ..key import decode_token
 from utilmeta.core.request import var
 from django.db.utils import IntegrityError
+from django.core.exceptions import EmptyResultSet
 from utype.types import *
 from ..connect import save_supervisor
 from utilmeta.core.api.specs.openapi import OpenAPI
@@ -15,6 +16,7 @@ from .servers import ServersAPI
 from .token import TokenAPI
 from .utils import opsRequire, WrappedResponse, config, supervisor_var, \
     SupervisorObject, resources_var, access_token_var
+from ..log import request_logger, Logger
 
 LOCAL_OPERATIONS = [
     'api.view',
@@ -37,15 +39,26 @@ class OperationsAPI(api.API):
     servers: ServersAPI
     data: DataAPI
     logs: LogAPI
-
     token: TokenAPI
-    openapi: opsRequire('api.view')(OpenAPI.as_api(private=False))
+
+    openapi: opsRequire('api.view')(
+        OpenAPI.as_api(private=False, external_docs=config.external_openapi)
+    ) = api.route(
+        alias=['openapi.json', 'openapi.yaml', 'openapi.yml'],
+    )
+
     response = WrappedResponse
     # @api.get
     # @opsRequire('api.view')
     # def openapi(self):
     #     from utilmeta import service
     #     openapi = OpenAPI(service)()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        logger: Logger = request_logger.getter(self.request)
+        if logger:
+            logger.make_events_only(True)
 
     # @orm.Atomic(config.db_alias)
     @adapt_async
@@ -72,6 +85,34 @@ class OperationsAPI(api.API):
             timestamp=int(self.request.time.timestamp() * 1000),
         )
 
+    @adapt_async
+    @opsRequire('service.delete')
+    def delete(self):
+        supervisor: SupervisorObject = supervisor_var.getter(self.request)
+        if supervisor:
+            if supervisor.init_key:
+                # this supervisor is not marked as delete
+                raise exceptions.BadRequest('Supervisor not marked as deleted', state='delete_failed')
+            if supervisor.node_id:
+                from utilmeta import service
+                from utilmeta.ops import models
+                for model in models.supervisor_related_models:
+                    try:
+                        model.objects.filter(
+                            node_id=supervisor.node_id,
+                        ).update(
+                            node_id=None,
+                            service=service.name
+                        )
+                    except EmptyResultSet:
+                        continue
+            if config.node_id:
+                from utilmeta.bin.utils import update_meta_ini_file
+                update_meta_ini_file(node=None)     # clear local node_id
+            Supervisor.objects.filter(pk=supervisor.id).delete()
+            return 1
+        raise exceptions.NotFound('Supervisor not found', state='supervisor_not_found')
+
     @api.before('*', excludes=(get, post))
     def handle_token(self, node_id: str = request.HeaderParam('X-Node-ID', default=None)):
         type, token = self.request.authorization
@@ -82,7 +123,6 @@ class OperationsAPI(api.API):
                     # LOCAL -> LOCAL MANAGE
                     try:
                         supervisor = SupervisorObject.init(Supervisor.objects.filter(
-                            service=service.name,
                             node_id=node_id,
                             disabled=False,
                             local=True,
@@ -110,11 +150,11 @@ class OperationsAPI(api.API):
         if not node_id:
             raise exceptions.BadRequest('Node ID required', state='node_required')
         validated = False
-        from utilmeta import service
         for supervisor in SupervisorObject.serialize(
             Supervisor.objects.filter(
-                service=service.name,
                 node_id=node_id,
+                # we don't use service name as identifier
+                # that might not be synced
                 disabled=False,
                 public_key__isnull=False
             )

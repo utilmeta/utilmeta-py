@@ -302,6 +302,15 @@ class API(PluginTarget):
         cls._routes.extend(routes)
         cls._default_error_hooks.update(default_error_hooks)
 
+    @classmethod
+    def _get_route_pattern(cls):
+        patterns = []
+        for route in cls._routes:
+            patterns.extend(route.get_patterns())
+        if not patterns:
+            return ''
+        return '^(%s)$' % '|'.join(patterns)
+
     @classonlymethod
     def _global_vars(cls):
         import sys
@@ -394,6 +403,7 @@ class API(PluginTarget):
             service = backend
         else:
             service = UtilMeta(None, backend=backend, name=route.strip('/'))
+            service._auto_created = True
         # backend can be a module name or application
         adaptor = ServerAdaptor.dispatch(service)
         return adaptor.adapt(cls, route=route, asynchronous=asynchronous)

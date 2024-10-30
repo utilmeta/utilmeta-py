@@ -28,7 +28,8 @@ FIELDS_TYPE = {
     ('BooleanField', 'NullBooleanField',): bool,
     ('CommaSeparatedIntegerField', 'ArrayField', 'ManyToManyField',
      'ManyToOneRel', 'ManyToManyRel'): list,
-    ('JSONField', 'HStoreField'): dict,
+    ('HStoreField',): dict,
+    ('JSONField',): Any,
     ('BinaryField',): bytes
 }
 

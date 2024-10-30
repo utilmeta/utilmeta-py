@@ -5,6 +5,7 @@ if TYPE_CHECKING:
 
 
 class BaseAPISpec:
+    spec = None
     __version__ = None
 
     def __init__(self, service: 'UtilMeta'):

@@ -24,10 +24,10 @@ class Time(Config):
                  datetime_format: str = DATETIME_DEFAULT,
                  # to_timestamp: bool = False,
                  # to_ms_timestamp: bool = False,
-                 use_tz: Optional[bool] = None,
+                 use_tz: Optional[bool] = True,
                  time_zone: Optional[str] = None,
                  ):
-        super().__init__(**locals())
+        super().__init__(locals())
         self.time_format = time_format
         self.date_format = date_format
         self.datetime_format = datetime_format

@@ -30,7 +30,7 @@ class ServersAPI(api.API):
     @api.get
     @adapt_async
     def metrics(self, query: ServerMonitorQuery, limit: int = utype.Param(None)):
-        server = Resource.objects.filter(
+        server = Resource.filter(
             type='server',
             node_id=self.supervisor.node_id,
             remote_id=query.server_id
@@ -45,7 +45,7 @@ class ServersAPI(api.API):
         result = ServerMonitorSchema.serialize(qs)
         if limit:
             result.reverse()
-        return convert_data_frame(result)
+        return convert_data_frame(result, keys=list(ServerMonitorSchema.__parser__.fields))
 
     class WorkerQuery(orm.Query[Worker]):
         # instance_id: str = orm.Filter('instance.remote_id')

@@ -2,6 +2,9 @@
 Implement OpenAPI document generation
 """
 import inspect
+import warnings
+
+import utype.utils.exceptions
 
 from ..endpoint import Endpoint
 from utilmeta.core.api.base import API
@@ -14,15 +17,18 @@ from utilmeta.core.auth.properties import User
 from utilmeta.core.response.base import Headers, JSON, OCTET_STREAM, PLAIN
 from utilmeta.utils.context import Property, ParserProperty
 from utilmeta.utils.constant import HAS_BODY_METHODS
+from utilmeta.utils import valid_url, json_dumps
 from utype import Schema, Field, JsonSchemaGenerator
 from utype.parser.field import ParserField
 from utype.parser.rule import LogicalType
 from utype.utils.datastructures import unprovided
 from utype.utils.functional import get_obj_name
-from typing import Type, Tuple, Dict, List, TYPE_CHECKING, Optional
+from typing import Type, Tuple, Dict, List, Union, TYPE_CHECKING, Optional, Callable
 from .base import BaseAPISpec
 import os
 import json
+import re
+
 
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
@@ -47,6 +53,19 @@ def guess_content_type(schema: dict):
         return OCTET_STREAM
 
     return PLAIN
+
+
+def get_operation_id(method: str, path: str, excludes: list = (), attribute: bool = False):
+    ident = f'{method.lower()}:{path.strip("/")}'
+    if attribute:
+        ident = re.sub('[^A-Za-z0-9]+', '_', ident).strip('_')
+    if excludes:
+        i = 1
+        origin = ident
+        while ident in excludes:
+            ident = f'{origin}_{i}'
+            i += 1
+    return ident
 
 
 class OpenAPIGenerator(JsonSchemaGenerator):
@@ -184,7 +203,7 @@ class OpenAPIGenerator(JsonSchemaGenerator):
 class OpenAPIInfo(Schema):
     title: str
     version: str
-    description: str
+    description: str = Field(default='')
     term_of_service: str = Field(alias='termsOfService', alias_from=['tos'], default='')
     contact: dict = Field(default_factory=dict)
     license: dict = Field(default_factory=dict)
@@ -210,26 +229,36 @@ class ComponentsSchema(Schema):
 
 
 class OpenAPISchema(Schema):
+    __options__ = utype.Options(addition=True)
+
     openapi: str
     info: OpenAPIInfo
-    paths: Dict[str, dict]
-    servers: List[ServerSchema]
-    components: ComponentsSchema
+    paths: Dict[str, dict] = utype.Field(default_factory=dict)
+    servers: List[ServerSchema] = utype.Field(default_factory=list)
+    components: ComponentsSchema = utype.Field(default_factory=dict)
+    security: list = utype.Field(default_factory=list)
+    tags: list = utype.Field(default_factory=list)
 
 
 _generated_document = None
 
 
 class OpenAPI(BaseAPISpec):
+    spec = 'openapi'
     __version__ = '3.1.0'
     generator_cls = OpenAPIGenerator
+    schema_cls = OpenAPISchema
     FORMATS = ['json', 'yaml']
     PARAMS_IN = ['path', 'query', 'header', 'cookie']
+    URL_FETCH_TIMEOUT = 5
     # None -> dict
     # json -> json string
     # yml -> yml string
 
-    def __init__(self, service: 'UtilMeta'):
+    def __init__(self, service: 'UtilMeta',
+                 external_docs: Union[str, dict, Callable] = None,
+                 base_url: str = None,
+                 ):
         super().__init__(service)
         self.defs = {}
         self.names = {}
@@ -238,6 +267,8 @@ class OpenAPI(BaseAPISpec):
         self.paths: Dict[str, dict] = {}
         self.security_schemas = {}
         self.operations = set()
+        self.external_docs = external_docs
+        self.base_url = base_url
         # self.operations = {}
 
     def get_def_name(self, t: type):
@@ -260,15 +291,190 @@ class OpenAPI(BaseAPISpec):
             resp[name] = values
         return resp
 
+    def merge_openapi_docs(self, *docs: dict) -> OpenAPISchema:
+        components = ComponentsSchema()
+        paths = {}
+        additions = {}
+        security = []
+        tags = []
+        info = None
+        servers = []
+        for doc in docs:
+            if not isinstance(doc, OpenAPISchema):
+                doc = self.schema_cls(doc)
+            if not info or doc.info.title:
+                info = doc.info
+            doc_paths = doc.paths
+            if not self.base_url:
+                for server in doc.servers:
+                    if not any(s.url == server.url for s in servers):
+                        servers.append(server)
+            elif doc.servers:
+                server = doc.servers[0]
+                if server.url != self.base_url:
+                    doc_paths = self.get_rel_paths(doc_paths, server.url, self.base_url)
+
+            for key, values in doc.components.items():
+                if components.get(key):
+                    components[key].update(values)
+                else:
+                    components[key] = dict(values)
+
+            for path, values in doc_paths.items():
+                if path in paths:
+                    paths[path].update(values)
+                else:
+                    paths[path] = dict(values)
+
+            security.extend(doc.security)
+            tags.extend(doc.tags)
+            for key, val in doc.items():
+                if key not in self.schema_cls.__parser__.fields:
+                    additions[key] = val
+        return self.schema_cls(
+            openapi=self.__version__,
+            info=info,
+            paths=paths,
+            servers=[self.server] if self.base_url else servers,
+            components=components,
+            security=security,
+            tags=tags,
+            **additions
+        )
+
+    def get_external_docs(self) -> Optional[OpenAPISchema]:
+        if not self.external_docs:
+            return None
+        docs = self.external_docs
+        if callable(docs):
+            try:
+                docs = docs(self.service)
+            except Exception as e:
+                warnings.warn(f'call external docs function: {self.external_docs} failed: {e}')
+                return None
+
+        if isinstance(docs, dict):
+            try:
+                return OpenAPISchema(docs)
+            except utype.exc.ParseError as e:
+                warnings.warn(f'parse external docs object failed: {e}')
+                return None
+        if isinstance(docs, str):
+            if valid_url(docs):
+                from urllib.request import urlopen
+                from http.client import HTTPResponse
+                try:
+                    resp: HTTPResponse = urlopen(docs, timeout=self.URL_FETCH_TIMEOUT)
+                except Exception as e:
+                    warnings.warn(f'parse external docs url: {docs} failed: {e}')
+                    return None
+                if resp.status == 200:
+                    content_type = resp.getheader('Content-Type') or ''
+                    if 'yaml' in content_type or 'json' in content_type:
+                        import yaml
+                        obj = yaml.safe_load(resp.read())
+                    else:
+                        obj = json.loads(resp.read())
+                else:
+                    return None
+                resp.close()
+            elif os.path.exists(docs):
+                try:
+                    docs_content = open(docs, 'r', errors='ignore').read()
+                except Exception as e:
+                    warnings.warn(f'parse external docs file: {docs} failed: {e}')
+                    return None
+                if docs.endswith('.yaml') or docs.endswith('.yml'):
+                    import yaml
+                    obj = yaml.safe_load(docs_content)
+                else:
+                    obj = json.loads(docs_content)
+            else:
+                # try to load external_docs as content
+                try:
+                    obj = json.loads(docs)
+                except json.JSONDecodeError:
+                    try:
+                        import yaml
+                        obj = yaml.safe_load(docs)
+                    except Exception as e:
+                        warnings.warn(f'parse external docs content failed with error: {e}')
+                        return None
+            if obj:
+                try:
+                    return OpenAPISchema(obj)
+                except utype.exc.ParseError as e:
+                    warnings.warn(f'parse external docs failed: {e}')
+                    return None
+
+        return None
+
+    @classmethod
+    def get_rel_paths(cls, paths: dict, current_base_url: str, base_url: str) -> dict:
+        # current: http://127.0.0.1:8000/api
+        # 1, base_url: http://127.0.0.1:8000
+        # 2, base_url: http://new.location.com/some/route
+        # 3, base_url: http://new.location.com
+        if not current_base_url or not base_url or current_base_url == base_url:
+            return paths
+        prefix = ''
+        # only support prefix
+        if current_base_url.startswith(base_url):
+            prefix = current_base_url[len(base_url):]
+        else:
+            from urllib.parse import urlparse
+            current_parsed = urlparse(current_base_url)
+            url_parsed = urlparse(base_url)
+            if current_parsed.path.startswith(url_parsed.path):
+                prefix = current_parsed.path[len(url_parsed.path):]
+            elif current_parsed.path:
+                # todo: deal with this situation
+                prefix = current_parsed.path
+        prefix = prefix.strip('/')
+
+        if not prefix:
+            return paths
+
+        new_paths = {}
+        for key, path in paths.items():
+            new_path = '/' + (prefix + '/' + str(key).lstrip('/')).strip('/')
+            new_paths[new_path] = path
+        return new_paths
+
     def __call__(self):
+        # consider merge the UtilMeta docs with the application docs
+        try:
+            # generated from the inner app
+            adaptor_docs = self.service.adaptor.generate(spec=self.spec)
+        except NotImplementedError:
+            adaptor_docs = None
+        except Exception as e:
+            warnings.warn(f'generate OpenAPI docs for [{self.service.backend_name}] failed: {e}')
+            adaptor_docs = None
+
         self.generate_paths()
-        return OpenAPISchema(
+        paths = self.paths
+        if self.base_url:
+            if self.service.base_url != self.base_url:
+                paths = self.get_rel_paths(paths, self.service.base_url, self.base_url)
+
+        utilmeta_docs = OpenAPISchema(
             openapi=self.__version__,
             info=self.generate_info(),
             components=self.components,
-            paths=self.paths,
+            paths=paths,
             servers=[self.server]
         )
+        docs = [utilmeta_docs]
+        if adaptor_docs:
+            docs.append(adaptor_docs)
+        if self.external_docs:
+            external_docs = self.get_external_docs()
+            if external_docs:
+                docs.append(external_docs)
+        if len(docs) == 1:
+            return docs[0]
+        return self.merge_openapi_docs(*docs)
 
     def get_generator(self, t, output: bool = False):
         return self.generator_cls(t, defs=self.defs, names=self.names, output=output)
@@ -283,7 +489,7 @@ class OpenAPI(BaseAPISpec):
 
     @property
     def server(self):
-        return dict(url=self.service.base_url)
+        return dict(url=self.base_url or self.service.base_url)
 
     def save(self, file: str):
         schema = self()
@@ -292,7 +498,7 @@ class OpenAPI(BaseAPISpec):
             import yaml  # requires pyyaml
             content = yaml.dump(schema)
         else:
-            content = json.dumps(schema, ensure_ascii=False, indent=4)
+            content = json_dumps(schema, indent=4)
         with open(file, mode='w', encoding='utf-8') as f:
             f.write(content)
 
@@ -301,7 +507,7 @@ class OpenAPI(BaseAPISpec):
         return file
 
     @classmethod
-    def as_api(cls, path: str = None, private: bool = True):
+    def as_api(cls, path: str = None, private: bool = True, external_docs=None):
         from utilmeta.core import api
 
         # if path is not specified, use local mem instead
@@ -312,28 +518,36 @@ class OpenAPI(BaseAPISpec):
             def get(self):
                 from utilmeta import service
 
-                # if path:
-                #     file_path = os.path.join(service.project_dir, path)
-                #     if os.path.exists(file_path):
-                #         return self.response(file=open(file_path, 'r'))
-
                 global _generated_document
                 if _generated_document:
                     return _generated_document
 
-                openapi = cls(service)
+                # external_docs = None
+                # from utilmeta.ops import Operations
+                # ops_config = service.get_config(Operations)
+                # if ops_config:
+                #     external_docs = ops_config.openapi
+                openapi = cls(service, external_docs=external_docs)
                 # generate document
                 _generated_document = openapi()
+                # _path = path
+                # if not _path:
+                #     _path = self.request.path
                 if path:
                     file_path = os.path.join(service.project_dir, path)
                     if path.endswith('.yml'):
                         import yaml  # requires pyyaml
                         content = yaml.dump(_generated_document)
                     else:
-                        content = json.dumps(_generated_document, ensure_ascii=False)
+                        content = json_dumps(_generated_document)
                     with open(file_path, 'w') as f:
                         f.write(content)
                     return content
+                else:
+                    if '.yaml' in self.request.path or '.yml' in self.request.path:
+                        import yaml  # requires pyyaml
+                        content = yaml.dump(_generated_document)
+                        return content
 
                 return _generated_document
 
@@ -345,8 +559,8 @@ class OpenAPI(BaseAPISpec):
 
     def generate_info(self) -> OpenAPIInfo:
         data = dict(
-            title=self.service.title or self.service.name or self.service.description,
-            description=self.service.description or self.service.title,
+            title=self.service.title or self.service.name,
+            description=self.service.description or self.service.title or '',
             version=self.service.version_str
         )
         if self.service.info:

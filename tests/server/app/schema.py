@@ -4,7 +4,7 @@ from .models import User, Article, Comment, BaseContent
 from utype import Field
 from utilmeta.core.orm.backends.django import expressions as exp
 from utilmeta.utils import awaitable
-import sys
+from django.db import models
 
 
 __all__ = ["UserSchema", "ArticleSchema", "CommentSchema",
@@ -130,6 +130,7 @@ class ArticleBase(orm.Schema[Article]):
     id: int
     title: str
     slug: str
+    views: int
 
 
 class ContentBase(orm.Schema[BaseContent]):
@@ -140,7 +141,7 @@ class ContentBase(orm.Schema[BaseContent]):
 
 class UserSchema(UserBase):
     @classmethod
-    def get_top_articles(cls, *pks):
+    def get_top_2_articles(cls, *pks):
         pk_map = {}
         for pk in pks:
             pk_map.setdefault(pk, list(
@@ -148,15 +149,37 @@ class UserSchema(UserBase):
         return pk_map
 
     @classmethod
-    @awaitable(get_top_articles)
-    async def get_top_articles(cls, *pks):
+    @awaitable(get_top_2_articles)
+    async def get_top_2_articles(cls, *pks):
         pk_map = {}
         for pk in pks:
             pk_map.setdefault(pk, [val async for val in Article.objects.filter(
                 author_id=pk).order_by('-views')[:2].values_list('pk', flat=True)])
         return pk_map
 
-    top_articles: List[ArticleSchema] = orm.Field(get_top_articles)
+    top_2_articles: List[ArticleSchema] = orm.Field(get_top_2_articles)
+    top_2_likes_articles: List[ArticleSchema] = orm.Field(
+        lambda user_id: Article.objects.annotate(
+            likes_num=models.Count('liked_bys')
+        ).filter(
+            author_id=user_id
+        ).order_by('-likes_num')[:2]
+    )
+
+    top_articles: List[ArticleBase] = orm.Field(
+        'contents__article',
+        queryset=Article.objects.filter(
+            views__gt=0
+        ).order_by('-views')
+    )
+    top_article: Optional[ArticleSchema] = orm.Field(
+        Article.objects.annotate(
+            likes_num=models.Count('liked_bys')
+        ).filter(
+            author_id=models.OuterRef('pk')
+        ).order_by('-likes_num')[:1]
+    )   # relate single
+
     # field point to contents but module is subclass of contents.related_model
     # so field.related_model is orm.model if module is provided so that limit can be correctly applied
 

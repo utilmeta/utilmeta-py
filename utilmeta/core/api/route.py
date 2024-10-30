@@ -216,6 +216,29 @@ class APIRoute(BaseRoute):
             return self.handler.parser.options
         return self.handler.__options__
 
+    def get_patterns(self):
+        pattern = self.route
+        for arg in self.path_args:
+            pattern = pattern.replace('{%s}' % arg, self.DEFAULT_PATH_REGEX)
+        patterns = [pattern]
+        if not self.is_endpoint:
+            patterns.append(f'{pattern}/.*')
+        return patterns
+
+    @classmethod
+    def get_pattern(cls, path: str):
+        path = path.strip('/')
+        params: List[str] = cls.PATH_REGEX.findall(path)
+
+        if not params:
+            return re.compile(path)
+
+        pattern = path
+        for arg in params:
+            pattern = pattern.replace('{%s}' % arg, cls.DEFAULT_PATH_REGEX)
+
+        return re.compile(pattern)
+
     def compile_route(self):
         if not self.route:
             self.regex_list = [re.compile('')]

@@ -1,12 +1,13 @@
 import warnings
-from typing import Union, Callable, Type, TypeVar, Optional
+from typing import Union, Type, TypeVar, Optional
 import sys
 import os
-from utilmeta.utils import import_obj, awaitable, search_file, cached_property
+from utilmeta.utils import (import_obj, awaitable, search_file,
+                            cached_property, get_origin, load_ini, read_from)
 from utilmeta.conf.base import Config
 import inspect
 from utilmeta.core.api import API
-
+from pathlib import Path
 # if TYPE_CHECKING:
 #     from utilmeta.core.api.specs.base import BaseAPISpec
 
@@ -52,11 +53,18 @@ class UtilMeta:
         # 1. find meta.ini
         # 2. os.path.dirname(self.module.__file__)
         # 3. sys.path[0] / os.getcwd()
-        self.meta_path = search_file('meta.ini')
-        self.project_dir = os.path.dirname(self.meta_path) if self.meta_path else os.getcwd()
-
+        self.meta_path = None
+        self.project_dir = Path(os.getcwd())
+        self.meta_config = {}
         self.root_api = api
         self.root_url = str(route or '').strip('/')
+
+        if self.root_url:
+            from urllib.parse import urlparse
+            if urlparse(self.root_url).scheme:
+                raise ValueError(f'UtilMeta service route: {repr(route)} must be a relative url, you can specify '
+                                 f'the absolute url origin by <origin> parameter')
+
         # self.root_url = str(root_url).strip('/')
         self.production = production
         self.version = version
@@ -83,8 +91,9 @@ class UtilMeta:
         self.document = None
         # generated API document will be here
 
-        self._origin = origin
+        self._origin = get_origin(origin) if origin else None
         self._application = None
+        self._auto_created = False
         self._ready = False
 
         import utilmeta
@@ -104,7 +113,23 @@ class UtilMeta:
         from utilmeta.core.server.backends.base import ServerAdaptor
         self.adaptor: Optional[ServerAdaptor] = None
         self.set_backend(backend)
+
+        self.load_meta()
         self._pool = None
+
+    def load_meta(self):
+        self.meta_path = search_file('utilmeta.ini') or search_file('meta.ini')
+
+        if self.meta_path:
+            self.project_dir = Path(os.path.dirname(self.meta_path))
+            try:
+                config = load_ini(read_from(self.meta_path), parse_key=True)
+            except Exception as e:
+                warnings.warn(f'load ini file: {self.meta_path} failed with error: {e}')
+            else:
+                self.meta_config = config.get('utilmeta') or config.get('service') or {}
+                if not isinstance(self.meta_config, dict):
+                    self.meta_config = {}
 
     def set_asynchronous(self, asynchronous: bool):
         if asynchronous is None:
@@ -122,7 +147,7 @@ class UtilMeta:
         dbs = self.get_config(DatabaseConnections)
         if dbs:
             for alias, database in dbs.databases.items():
-                database.apply(alias, asynchronous)
+                database.apply(alias, asynchronous, project_dir=self.project_dir)
         caches = self.get_config(CacheConnections)
         if caches:
             for alias, cache in caches.caches.items():
@@ -260,7 +285,8 @@ class UtilMeta:
                 config.setup(self)
 
         # ------- COMMON ---
-        for cls, config in self.configs.items():
+        for cls in list(self.configs):
+            config = self.configs[cls]
             if isinstance(config, Config) and not config.__eager__:
                 config.setup(self)
 
@@ -422,6 +448,10 @@ class UtilMeta:
         if self.root_url:
             return self.origin + '/' + self.root_url
         return self.origin
+
+    @property
+    def auto_created(self):
+        return self._auto_created
 
     @property
     def pool(self):

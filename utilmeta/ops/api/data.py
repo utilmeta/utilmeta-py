@@ -45,7 +45,12 @@ class DataAPI(api.API):
         # this is to prevent model from importing the packages outside the project
         # (that may cause security issues)
         if not os.path.exists(model_file) and not os.path.exists(model_file + '.py'):
-            raise exceptions.BadRequest(f'Invalid model: {self.model}')
+            package = packages[0]
+            if package and any([package == p for p in config.trusted_packages]):
+                # this package is trusted
+                pass
+            else:
+                raise exceptions.BadRequest(f'Invalid model: {self.model}')
         # package.file.modelName
         try:
             return import_obj(self.model)

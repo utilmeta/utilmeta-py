@@ -12,6 +12,7 @@ class SupervisorObject(orm.Schema[Supervisor]):
     node_id: Optional[str]
     url: Optional[str] = None
     public_key: Optional[str] = None
+    init_key: Optional[str] = None
     ops_api: str
     ident: Optional[str]
     base_url: Optional[str] = None

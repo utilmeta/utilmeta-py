@@ -128,6 +128,32 @@ service = UtilMeta(
 
 如果你希望编写异步（`async def` ）接口，请选择一个默认支持异步的运行时框架，这样可以发挥出你的异步接口的性能，如果你选择的运行时框架默认不启用异步（如 `django` / `flask`），则需要开启  `asynchronous=True` 选项，否则将无法执行其中的异步函数
 
+
+### 设置服务的访问地址
+
+UtilMeta 服务还有一个 `origin` 参数可以指定这个服务提供公开访问的源地址，比如
+`
+```python hl_lines="10"
+from utilmeta import UtilMeta
+import django
+
+service = UtilMeta(
+    __name__,
+    name='blog',
+    backend=django,
+    api='service.api.RootAPI',
+    route='/api',
+    origin='https://blog.mysite.com',
+)
+```
+
+由于一个请求在抵达后端服务前可能经过很多网关或负载均衡，所以后端服务部署的地址往往不是互联网能直接访问到的地址，服务的 `origin` 参数让我们可以设置服务提供访问的地址
+
+比如例子中的 blog 服务的基准 URL 就是 `https://blog.mysite.com/api`，也会体现在生成的 OpenAPI 文档中
+
+!!! tip
+	`origin` 参数提供的地址需要满足 “源（Origin）” 的定义，即包含网络协议，主机，端口号（如果有），但不包含 URL 路径，根路径应该体现在 `route` 参数中
+
 ## 服务的方法与钩子
 
 实例化的 UtilMeta 服务还有一些方法或钩子可以使用
@@ -171,6 +197,8 @@ UtilMeta 内置的常用配置有
 !!! warning
 	一个类型的配置只能使用 `use` 注入一次
 
+
+UtilMeta 提供了一个 `DjangoSettings` 配置，能够方便地对 Django 项目和需要使用 Django ORM 的项目进行 Django 配置
 
 ### `setup()` 配置的安装
 
@@ -315,6 +343,57 @@ def clean_up():
     # clean up
     print('done!')
 ```
+
+## 常用配置
+
+### `DjangoSettings` 配置
+
+UtilMeta 提供了一个 `DjangoSettings` 配置，可以为所有使用 Django 作为 `backend` 的项目和使用 django ORM 的项目提供声明式的 django 配置 
+
+* module_name
+* root_urlconf
+* secret_key
+* apps_package
+* apps
+* database_routers
+* allowed_hosts
+* middleware
+* wsgi_application
+* append_slash
+* `extra`：可以传入一个字典指定额外的 Django 配置
+
+
+另外，如果你没有为 `DjangoSettings` 指定 `module_name`，它将默认使用 UtilMeta 服务所在的模块作为配置，所以你也可以在服务 `setup()` **之前** 直接在文件中声明 django 配置，用法与原生 django 配置一样
+
+```python
+from utilmeta import UtilMeta
+from config.conf import configure 
+import django
+
+DATA_UPLOAD_MAX_NUMBER_FILES = 1000
+
+service = UtilMeta(__name__, name='demo', backend=django)
+configure(service)
+
+service.setup()
+```
+
+!!! warning
+	`service.setup()` 也会同步触发 `DjangoSettings` 的 `setup()` 从而加载所有 django 设置，所以在它之后进行的 django 配置无法被加载
+
+### `DatabaseConnections` 数据库配置
+
+**异步数据库实现**
+
+### `CacheConnections` 缓存配置
+
+#### DjangoCache
+
+#### RedisCache
+
+
+### `Time` 时间与时区配置
+
 
 ## 环境变量管理
 

@@ -3,6 +3,10 @@ from utilmeta.core.api import API
 from utilmeta.core import response
 import pytest
 from .params import get_requests
+from tests.conftest import setup_service
+
+
+setup_service(__name__, backend='django')
 
 
 class TestAPIClass:

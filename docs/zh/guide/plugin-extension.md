@@ -66,6 +66,19 @@ class MyExtensionConfig(Config):
 ```
 
 
+#### 命令行注入
+
+```python
+from utilmeta.conf import Config
+from utilmeta import UtilMeta
+
+
+class MyExtensionConfig(Config):
+    def hook(self, service: UtilMeta):
+        from .cmd import MyCommand
+        service.register_command(MyCommand)
+```
+
 
 ## 内置插件与扩展
 

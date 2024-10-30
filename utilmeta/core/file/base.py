@@ -36,7 +36,7 @@ class File:
     max_length = None
     type = None
 
-    def __init__(self, file):
+    def __init__(self, file, *, filename: str = None, content_type: str = None):
         if isinstance(file, File):
             self.adaptor = file.adaptor
             self.file = file.file
@@ -47,6 +47,8 @@ class File:
         else:
             self.adaptor = FileAdaptor.dispatch(file)
             self.file = self.adaptor.object
+        self._filename = filename
+        self._content_type = content_type
         self.validate()
 
     def validate(self):
@@ -94,11 +96,11 @@ class File:
 
     @property
     def content_type(self) -> str:
-        return self.adaptor.content_type
+        return self._content_type or self.adaptor.content_type
 
     @property
     def filename(self) -> str:
-        return self.adaptor.filename
+        return self._filename or self.adaptor.filename
 
     @property
     def size(self) -> int:

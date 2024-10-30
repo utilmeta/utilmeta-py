@@ -95,7 +95,8 @@ if asynchronous is not None:
     service.set_asynchronous(asynchronous)
 # --------
 
-# app = service.application()
+# if service.backend_name == 'sanic':
+# sanic required to load app outside of the __main__ block
 app = service.application()
 
 if __name__ == '__main__':

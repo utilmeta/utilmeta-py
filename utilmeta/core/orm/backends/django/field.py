@@ -1,6 +1,6 @@
 from utilmeta.utils import multi
 from ..base import ModelFieldAdaptor
-from typing import Union, Optional, Type, TYPE_CHECKING, Tuple
+from typing import Union, Optional, Type, TYPE_CHECKING, Tuple, Any
 from django.db import models
 from django.db.models.fields.reverse_related import ForeignObjectRel
 from django.db.models.query_utils import DeferredAttribute
@@ -78,12 +78,12 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     def title(self) -> Optional[str]:
         name = self.field.verbose_name
         if name != self.field.name:
-            return name
+            return str(name)
         return None
 
     @property
     def description(self) -> Optional[str]:
-        return self.field.help_text or None
+        return str(self.field.help_text or '') or None
 
     @classmethod
     def qualify(cls, obj):
@@ -259,9 +259,10 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             _type = self._get_type(self.field)
             # todo: deal with JSONField: its type include dict/list/null and other types that can be serialized
 
-            if _type and self.is_nullable:
-                from utype.parser.rule import LogicalType
-                _type = LogicalType.any_of(_type, type(None))
+            if _type != Any:
+                if _type and self.is_nullable:
+                    from utype.parser.rule import LogicalType
+                    _type = LogicalType.any_of(_type, type(None))
 
         elif self.is_exp:
             if isinstance(self.field, exp.Count):
@@ -287,10 +288,6 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
                     if field.base_field:
                         base_field = self.__class__(field.base_field, model=self.model)
                         _args = [base_field.rule]
-
-        if _type is None:
-            # fallback to string field
-            _type = str
 
         params = self._get_params(field)
         kwargs = {}
@@ -334,6 +331,10 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             else:
                 kwargs['ge'] = -constant.MD
                 kwargs['le'] = constant.MD
+
+        if _type is None:
+            # fallback to string field
+            _type = str
 
         return Rule.annotate(_type, *_args, constraints=kwargs)
 

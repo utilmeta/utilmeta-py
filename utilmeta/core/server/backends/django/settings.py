@@ -2,12 +2,15 @@ import django
 import os
 import sys
 from typing import Union, List
+
 from utilmeta import UtilMeta
-from utilmeta.utils import import_obj
+from utilmeta.utils import import_obj, multi
 from utilmeta.conf.base import Config
 from utilmeta.conf.time import Time
 from utilmeta.core.orm.databases import DatabaseConnections, Database
 from utilmeta.core.cache.config import CacheConnections, Cache
+from django.conf import Settings, LazySettings
+from django.core.exceptions import ImproperlyConfigured
 
 DEFAULT_MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -86,8 +89,15 @@ class DjangoSettings(Config):
             extra: dict = None,
             # urlpatterns: list = None,
     ):
-        super().__init__(**locals())
+        super().__init__(locals())
         self.module_name = module_name
+        self.django_settings = None
+        # if module_name:
+        #     if isinstance(module_name, str):
+        #         self.module_name = module_name
+        #     elif isinstance(module_name, (Settings, LazySettings)):
+        #         self.django_settings = module_name
+
         self.secret_key = secret_key
         self.apps_package = apps_package
         self.apps = list(apps)
@@ -105,6 +115,7 @@ class DjangoSettings(Config):
         self.url_conf = None
         self.database_routers = list(database_routers)
         # self.urlpatterns = urlpatterns
+        self._setup = False
         self._settings = {}
         self._extra_settings = extra
         self._plugin_settings = {}
@@ -191,6 +202,15 @@ class DjangoSettings(Config):
         }
 
     @classmethod
+    def get_time(cls, time_config: Time):
+        return {
+            'DATETIME_FORMAT': time_config.datetime_format,
+            'DATE_FORMAT': time_config.date_format,
+            'TIME_ZONE': time_config.time_zone or DEFAULT_TIME_ZONE,
+            'USE_TZ': time_config.use_tz,
+        }
+
+    @classmethod
     def get_database(cls, db: Database, service: UtilMeta):
         engine = db.engine
         if '.' not in db.engine:
@@ -222,7 +242,9 @@ class DjangoSettings(Config):
             'PASSWORD': db.password,
             'CONN_MAX_AGE': db.max_age,
             'DISABLE_SERVER_SIDE_CURSORS': db.pooled,
-            'OPTIONS': options
+            'OPTIONS': options,
+            # 'ATOMIC_REQUESTS': False,
+            # 'AUTOCOMMIT': True,
         }
 
     def hook(self, service: UtilMeta):
@@ -233,18 +255,251 @@ class DjangoSettings(Config):
             service.adaptor.settings = self
             # replace settings
 
-    def setup(self, service: UtilMeta):
-        if self._settings:
-            # already configured
-            return
+    def apply_settings(self, service: UtilMeta, django_settings: Union[Settings, LazySettings]):
+        self.django_settings = django_settings
 
-        # print('SETUP:', service.module, self.apps)
+        adaptor = service.adaptor
+        from .adaptor import DjangoServerAdaptor
+        if isinstance(adaptor, DjangoServerAdaptor):
+            adaptor.settings = self
+
+        databases = getattr(django_settings, 'DATABASES', {})
+        if not isinstance(databases, dict):
+            databases = {}
+        caches = getattr(django_settings, 'CACHES', {})
+        if not isinstance(caches, dict):
+            caches = {}
+
+        db_config = service.get_config(DatabaseConnections)
+        if not db_config:
+            db_config = DatabaseConnections({})
+            service.use(db_config)
+
+        cache_config = service.get_config(CacheConnections)
+        if not cache_config:
+            cache_config = CacheConnections({})
+            service.use(cache_config)
+
+        if databases:
+            for key, val in databases.items():
+                val = {str(k).lower(): v for k, v in val.items()} if isinstance(val, dict) else {}
+                if not val:
+                    continue
+                if key not in db_config.databases:
+                    db_config.add_database(service, alias=key, database=Database(
+                        name=val.get('name'),
+                        user=val.get('user'),
+                        password=val.get('password'),
+                        engine=val.get('engine'),
+                        host=val.get('host'),
+                        port=val.get('port'),
+                        options=val.get('options'),
+                    ))
+
+        if caches:
+            for key, val in caches.items():
+                val = {str(k).lower(): v for k, v in val.items()} if isinstance(val, dict) else {}
+                if not val:
+                    continue
+                if key not in cache_config.caches:
+                    options = val.get('options') or {}
+                    cache_config.add_cache(service, alias=key, cache=Cache(
+                        engine=val.get('backend'),
+                        host=val.get('host'),
+                        port=val.get('port'),
+                        options=val.get('options'),
+                        timeout=val.get('timeout'),
+                        location=val.get('location'),
+                        prefix=val.get('key_prefix'),
+                        max_entries=val.get('max_entries') or options.get('MAX_ENTRIES'),
+                        key_function=val.get('key_function')
+                    ))
+
+        db_changed = False
+        cached_changed = False
+
+        from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
+        for name, db in db_config.databases.items():
+            if not db.sync_adaptor_cls:
+                db.sync_adaptor_cls = DjangoDatabaseAdaptor
+            if name not in databases:
+                db_changed = True
+                databases[name] = self.get_database(db, service)
+
+        from utilmeta.core.cache.backends.django import DjangoCacheAdaptor
+        for name, cache in cache_config.caches.items():
+            if not cache.sync_adaptor_cls:
+                cache.sync_adaptor_cls = DjangoCacheAdaptor
+            if name not in caches:
+                cached_changed = True
+                caches[name] = self.get_cache(cache)
+
+        if db_changed:
+            self.change_settings('DATABASES', databases, force=True)
+            from django.db import connections
+            connections._settings = connections.settings = connections.configure_settings(None)
+
+        if cached_changed:
+            self.change_settings('CACHES', caches, force=True)
+
+        hosts = list(self.allowed_hosts)
+        if service.origin:
+            from urllib.parse import urlparse
+            hosts.append(urlparse(service.origin).hostname)
+
+        self.merge_list_settings('MIDDLEWARE', self.middleware)
+        self.merge_list_settings('ALLOWED_HOSTS', hosts)
+        self.merge_list_settings('DATABASE_ROUTERS', self.database_routers)
+
+        if self.append_slash:
+            self.change_settings('APPEND_SLASH', self.append_slash, force=True)
+
+        try:
+            if not getattr(django_settings, 'SECRET_KEY', None):
+                self.change_settings('SECRET_KEY', self.get_secret(service), force=False)
+        except ImproperlyConfigured:
+            self.change_settings('SECRET_KEY', self.get_secret(service), force=False)
+
+        if service.production:
+            # elsewhere we keep the original settings
+            self.change_settings('DEBUG', False, force=True)
+        else:
+            if getattr(django_settings, 'DEBUG', None) is False:
+                service.production = True
+
+        time_config = Time.config()
+        if time_config:
+            for key, val in self.get_time(time_config).items():
+                self.change_settings(key, val)
+        else:
+            # the default django DATETIME_FORMAT is N j, Y, P
+            # which is not a valid datetime string
+            service.use(Time(
+                time_zone=getattr(django_settings, 'TIME_ZONE', None),
+                use_tz=getattr(django_settings, 'USE_TZ', True),
+                # date_format=getattr(django_settings, 'DATE_FORMAT', Time.DATE_DEFAULT),
+                # datetime_format=getattr(django_settings, 'DATETIME_FORMAT', Time.DATETIME_DEFAULT),
+                # time_format=getattr(django_settings, 'TIME_FORMAT', Time.TIME_DEFAULT),
+            ))
+
+        if self.apps:
+            new_apps = self.merge_list_settings('INSTALLED_APPS', self.apps)
+            from django.apps import apps
+            if apps.ready:
+                # apps already setup
+                apps.ready = False
+                apps.loading = False
+                apps.populate(new_apps)
+
+        if self._plugin_settings:
+            for key, val in self._plugin_settings.items():
+                if not hasattr(django_settings, key):
+                    setattr(django_settings, key, val)
+
+        if isinstance(self._extra_settings, dict):
+            for key, val in self._extra_settings.items():
+                if not hasattr(django_settings, key):
+                    setattr(django_settings, key, val)
+
+        module_name = os.environ.get(SETTINGS_MODULE)
+        if module_name:
+            self.module_name = module_name
+            self.module = sys.modules[self.module_name]
+        else:
+            self.module_name = service.module_name
+            self.module = service.module
+            os.environ[SETTINGS_MODULE] = self.module_name
+
+        self.wsgi_application = (getattr(django_settings, WSGI_APPLICATION, None) or
+                                 self.wsgi_application or self.get_service_wsgi_app(service))
+        self.root_urlconf = getattr(django_settings, ROOT_URLCONF, None) or self.root_urlconf
+        if self.root_urlconf:
+            self.url_conf = sys.modules.get(self.root_urlconf) or import_obj(self.root_urlconf)
+        else:
+            # raise ValueError(f'Invalid root urlconf: {self.root_urlconf}')
+            self.root_urlconf = service.module_name or self.module_name
+            self.url_conf = service.module or self.module
+
+        self.change_settings(WSGI_APPLICATION, self.wsgi_application, force=False)
+        self.change_settings(ROOT_URLCONF, self.root_urlconf, force=False)
+
+        django.setup(set_prefix=False)
+        self._setup = True
+
+    def change_settings(self, settings_name, value, force=False):
+        try:
+            if not force and hasattr(self.django_settings, settings_name):
+                return
+            if (hasattr(self.django_settings, settings_name) and
+                    getattr(self.django_settings, settings_name) != value):
+                pass
+            else:
+                return
+        except ImproperlyConfigured:
+            pass
+        setattr(self.django_settings, settings_name, value)
+        from django.core.signals import setting_changed
+        setting_changed.send(
+            sender=self.__class__,
+            setting=settings_name,
+            value=value,
+            enter=False,
+        )
+
+    def merge_list_settings(self, settings_name: str, settings_list: list):
+        if not settings_list or not settings_name or not self.django_settings:
+            return
+        settings = getattr(self.django_settings, settings_name, [])
+        if not multi(settings):
+            settings = []
+        else:
+            settings = list(settings)
+        new_values = []
+        for value in settings_list:
+            if value not in settings:
+                settings.append(value)
+                new_values.append(value)
+        if new_values:
+            self.change_settings(settings_name, settings, force=True)
+        return new_values
+
+    @classmethod
+    def get_service_wsgi_app(cls, service: UtilMeta):
+        app = service.meta_config.get('app')
+        if not app:
+            return f'{service.module_name}.app'
+        return str(app).replace(':', '.')
+
+    def setup(self, service: UtilMeta):
+        # django_settings = None
+        # reset_module = False
+        module_name = os.environ.get(SETTINGS_MODULE)
+        try:
+            from django.conf import settings
+            _ = settings.INSTALLED_APPS
+            # if the settings is not configured, this will trigger ImproperlyConfigured
+        except (ImportError, ImproperlyConfigured):
+            pass
+        else:
+            self.django_settings = settings
+            if self._setup:
+                # already configured
+                return
+            # if apps:
+            # django_settings = settings
+            # this is a django application with settings configured
+            # or a UtilMeta service with django settings and setup before Operations setup
+            return self.apply_settings(service, settings)
+            # if apps is not set
+            # this is probably the default settings, we override it
+
         # from utilmeta.ops.config import Operations
         # ops_config = service.get_config(Operations)
         # if ops_config:
         #     ops_config.setup(service)
         #     return
-
+        if module_name:
+            self.module_name = module_name
         if self.module_name:
             module = sys.modules[self.module_name]
         else:
@@ -258,6 +513,15 @@ class DjangoSettings(Config):
         caches = {}
 
         if db_config:
+            if db_config.databases and 'default' not in db_config.databases:
+                # often: a no-db service add Operations()
+                # we need to define a '__ops' db, but django will force us to
+                # define a 'default' db
+                db_config.add_database(service, 'default', database=Database(
+                    name=os.path.join(service.project_dir, '__default_db'),
+                    engine='sqlite3'
+                ))
+
             from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
             for name, db in db_config.databases.items():
                 if not db.sync_adaptor_cls:
@@ -275,6 +539,7 @@ class DjangoSettings(Config):
         adaptor = service.adaptor
         from .adaptor import DjangoServerAdaptor
         if isinstance(adaptor, DjangoServerAdaptor):
+            adaptor.settings = self
             middleware_func = adaptor.middleware_func
             if middleware_func:
                 setattr(self.module, middleware_func.__name__, middleware_func)
@@ -284,7 +549,7 @@ class DjangoSettings(Config):
         if service.origin:
             from urllib.parse import urlparse
             hosts.append(urlparse(service.origin).hostname)
-
+        self.wsgi_application = self.wsgi_application or self.get_service_wsgi_app(service)
         settings = {
             'DEBUG': not service.production,
             'SECRET_KEY': self.get_secret(service),
@@ -300,7 +565,7 @@ class DjangoSettings(Config):
             # 'DATABASES': databases,
             # 'CACHES': caches,
             ROOT_URLCONF: self.root_urlconf or service.module_name,
-            WSGI_APPLICATION: self.wsgi_application or f'{service.module_name}.app',
+            WSGI_APPLICATION: self.wsgi_application
         }
 
         if databases:
@@ -310,12 +575,7 @@ class DjangoSettings(Config):
 
         time_config = Time.config()
         if time_config:
-            settings.update({
-                'DATETIME_FORMAT': time_config.datetime_format,
-                'DATE_FORMAT': time_config.date_format,
-                'TIME_ZONE': time_config.time_zone or DEFAULT_TIME_ZONE,
-                'USE_TZ': time_config.use_tz,
-            })
+            settings.update(self.get_time(time_config))
         else:
             # mandatory
             settings.update({
@@ -331,10 +591,14 @@ class DjangoSettings(Config):
         self._settings = settings
         for attr, value in settings.items():
             setattr(module, attr, value)
+            if self.django_settings is not None:
+                self.change_settings(attr, value, force=True)
+                # setattr(self.django_settings, attr, value)
 
         os.environ[SETTINGS_MODULE] = self.module_name or service.module_name
         # not using setdefault to prevent IDE set the wrong value by default
         django.setup(set_prefix=False)
+        self._setup = True
 
         # import root url conf after the django setup
         if self.root_urlconf:
@@ -346,17 +610,27 @@ class DjangoSettings(Config):
         # if self.urlpatterns:
         #     urlpatterns = urlpatterns + self.urlpatterns
         setattr(self.url_conf, 'urlpatterns', urlpatterns or [])
+        # this set is required, otherwise url_conf.urlpatterns is not exists
+
+        try:
+            from django.conf import settings
+        except (ImportError, ImproperlyConfigured) as e:
+            raise ImproperlyConfigured(f'DjangoSettings: configure django failed: {e}') from e
+        else:
+            self.django_settings = settings
 
     @property
     def wsgi_module_ref(self):
-        wsgi_app_ref = self._settings.get(WSGI_APPLICATION)
-        if isinstance(wsgi_app_ref, str) and '.' in wsgi_app_ref:
-            return '.'.join(wsgi_app_ref.split('.')[:-1])
-        return None
+        wsgi_app_ref = self.wsgi_application
+        if not wsgi_app_ref:
+            return None
+        if ':' in wsgi_app_ref:
+            return wsgi_app_ref.split(':')[0]
+        return '.'.join(wsgi_app_ref.split('.')[:-1])
 
     @property
     def wsgi_app_attr(self):
-        wsgi_app_ref = self._settings.get(WSGI_APPLICATION)
+        wsgi_app_ref = self.wsgi_application
         if isinstance(wsgi_app_ref, str) and '.' in wsgi_app_ref:
             return wsgi_app_ref.split('.')[-1]
         return None
@@ -375,7 +649,7 @@ class DjangoSettings(Config):
 
     @property
     def wsgi_app(self):
-        wsgi_app_ref = self._settings.get(WSGI_APPLICATION)
+        wsgi_app_ref = self.wsgi_application
         if wsgi_app_ref:
             try:
                 return import_obj(wsgi_app_ref)

@@ -76,6 +76,16 @@ class FlaskServerAdaptor(ServerAdaptor):
         finally:
             self.config.shutdown()
 
+    @property
+    def backend_views_empty(self) -> bool:
+        for val in self.app.view_functions.values():
+            wrapped = getattr(val, '__wrapped__', None)
+            if wrapped and isinstance(wrapped, type) and issubclass(wrapped, API):
+                pass
+            else:
+                return False
+        return True
+
     def add_api(self, app: Flask, utilmeta_api_class, route: str = '', asynchronous: bool = False):
         """
         Mount a API class
@@ -133,6 +143,8 @@ class FlaskServerAdaptor(ServerAdaptor):
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
                 _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
+        f.__wrapped__ = utilmeta_api_class
+        return f
 
     def wsgi_app(self, environ: dict, start_response):
         """The actual WSGI application. This is not implemented in

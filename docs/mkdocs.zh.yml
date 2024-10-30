@@ -1,4 +1,4 @@
-site_name: UtilMeta Python 框架文档
+site_name: UtilMeta 框架文档
 site_description: UtilMeta | 面向后端 API 服务的 Python 渐进式元框架 | 使用文档
 site_url: https://docs.utilmeta.com/py/zh
 docs_dir: zh
@@ -47,6 +47,7 @@ nav:
       - guide/auth.md
       - guide/client.md
       - guide/config-run.md
+      - guide/cmd.md
       - guide/migration.md
       - guide/plugin-extension.md
       - guide/ops.md
@@ -54,10 +55,13 @@ nav:
       - tutorials/bmi-calc.md
       - tutorials/user-auth.md
       - tutorials/realworld-blog.md
-  - 扩展插件:
-      - plugins/atomic.md
-      - plugins/cors.md
-      - plugins/retry.md
+  - 社区资源:
+      - community/contributing.md
+      - community/contributors.md
+      - community/faq.md
+      - community/release.md
+      - community/roadmap.md
+      - community/resources.md
   - 切换语言:
       - English: /py/en/
       - 中文: /py/zh/

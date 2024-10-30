@@ -8,7 +8,7 @@
 别紧张，实现出以上全部功能的 UtilMeta 代码不到 600 行，下面将一步步从创建项目开始教会你如何实现它
 
 !!! tip
-	我们将会按照  [Realworld API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints) 的要求开发这个案例项目，项目的完整源代码在 [案例源码 Github](https://github.com/utilmeta/utilmeta-py-realworld-example-app)
+	我们将会按照  [Realworld API 文档](https://realworld-docs.netlify.app/specifications/backend/endpoints/) 的要求开发这个案例项目，项目的完整源代码在 [案例源码 Github](https://github.com/utilmeta/utilmeta-py-realworld-example-app)
 
 ## 1. 创建项目
 
@@ -74,7 +74,7 @@ meta.ini
 
 ## 2. 编写数据模型
 
-对于博客这样以数据的增删改查为核心的 API 系统，我们往往从数据模型开始开发，通过对  [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints) 的分析我们可以得出需要编写用户，文章，评论等模型
+对于博客这样以数据的增删改查为核心的 API 系统，我们往往从数据模型开始开发，通过对  [API 文档](https://realworld-docs.netlify.app/specifications/backend/endpoints/) 的分析我们可以得出需要编写用户，文章，评论等模型
 
 ### 创建领域应用
 
@@ -107,7 +107,7 @@ meta add article
 
 ### 用户模型
 
-我们将按照 [API 文档：User](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#users-for-authentication) 中对用户数据结构的说明编写数据模型，我们打开 `domain/user/models.py`，编写用户的模型
+我们将按照 [API 文档：User](https://realworld-docs.netlify.app/specifications/backend/api-response-format/#users-for-authentication) 中对用户数据结构的说明编写数据模型，我们打开 `domain/user/models.py`，编写用户的模型
 ```python
 from django.db import models
 from utilmeta.core.orm.backends.django.models import PasswordField, AwaitableModel
@@ -126,7 +126,7 @@ class User(AwaitableModel):
 
 ### 文章与评论模型
 
-我们按照 [API 文档：Article](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format/#single-article) 编写文章与评论模型，打开 `domain/article/models.py`，编写
+我们按照 [API 文档：Article](https://realworld-docs.netlify.app/specifications/backend/api-response-format/#single-article) 编写文章与评论模型，打开 `domain/article/models.py`，编写
 ```python
 from django.db import models
 from utilmeta.core.orm.backends.django import models as amodels
@@ -396,7 +396,7 @@ env = ServiceEnvironment(sys_env='CONDUIT_')
 
 我们编写的 AuthenticationAPI 继承自之前在 `config/auth.py` 中定义的 API 类，在用户注册的 `post` 接口中，当用户完成注册后使用了 `self.user_config.login_user` 方法直接将用户登录当前的请求（即生成对应的 JWT Token 然后更新用户的 `token` 字段）
 
-另外由于 [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#users-for-authentication) 中对于请求与响应体结构的要求，我们声明请求体参数使用的是 `request.BodyParam`，这样参数名 `user` 会作为对应的模板键，而我们的响应也使用了响应模板中的 `result_key` 指定了 `'user'` 作为结果的模板键，于是用户接口的请求和响应的结构就与文档一致了
+另外由于 [API 文档](https://realworld-docs.netlify.app/specifications/backend/endpoints/#authentication)中对于请求与响应体结构的要求，我们声明请求体参数使用的是 `request.BodyParam`，这样参数名 `user` 会作为对应的模板键，而我们的响应也使用了响应模板中的 `result_key` 指定了 `'user'` 作为结果的模板键，于是用户接口的请求和响应的结构就与文档一致了
 
 ```json
 {
@@ -411,7 +411,7 @@ env = ServiceEnvironment(sys_env='CONDUIT_')
 ```
 
 ### Profile API
-根据 [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#get-profile)，Realworld 博客项目还需要开发一个获取用户详情，关注与取消关注的 Profile 接口
+根据 [API 文档](https://realworld-docs.netlify.app/specifications/backend/endpoints/#get-profile)，Realworld 博客项目还需要开发一个获取用户详情，关注与取消关注的 Profile 接口
 
 === "domain/user/api.py"
 	```python
@@ -480,7 +480,7 @@ env = ServiceEnvironment(sys_env='CONDUIT_')
 !!! tip "钩子函数"
 	钩子函数是 UtilMeta API 类中的特殊函数，可以在给定的 API 接口执行前/后/出错时调用，从而更好的复用逻辑，具体用法可以参考 [APi 类与路由](guide/api-route) 中的【钩子机制】
 
-另外对于接口需要返回的 Profile 对象，[API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#profile) 中需要返回一个并非来着用户模型的动态字段 `following`，这个字段应该返回【**当前请求的用户**】是否关注了目标用户，所以它的查询表达式无法在 Schema 类中直接编写
+另外对于接口需要返回的 Profile 对象，[API 文档](https://realworld-docs.netlify.app/specifications/backend/api-response-format/#profile) 中需要返回一个并非来着用户模型的动态字段 `following`，这个字段应该返回【**当前请求的用户**】是否关注了目标用户，所以它的查询表达式无法在 Schema 类中直接编写
 
 所以在 `domain/user/schema.py` 中，我们为 `ProfileSchema` 定义一个动态查询函数 `get_runtime`，传入当前请求的用户，根据请求用户生成对应的查询表达式，再返回新的类即可
 
@@ -497,7 +497,7 @@ class ProfileAPI(API):
 
 ### 文章接口结构
 
-根据 [API 文档 | 文章接口](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#get-article) 部分的定义，我们可以先开发接口的基本结构
+根据 [API 文档 | 文章接口](https://realworld-docs.netlify.app/specifications/backend/endpoints/#get-article) 部分的定义，我们可以先开发接口的基本结构
 ```python
 from utilmeta.core import api, request, orm, response
 from config.auth import API
@@ -611,7 +611,7 @@ class ArticleSchema(orm.Schema[Article]):
 
 你可以组合模式字母来表示字段支持多种模式，默认 UtilMeta 会根据模型字段的性质自动赋予模式
 
-!!! tip ”自动模式赋予“
+!!! tip "自动模式赋予"
 	即使你没有声明模式，UtilMeta 也会根据模型字段的特性自动为字段赋予模式，比如类似 `created_at` 这样被自动创建的字段就无法被修改，也无需在创建中提供，其模式会自动被赋予为 `'r'`（只读），你可以通过显式声明 `mode` 参数来覆盖默认的模式赋予
 
 举例来说，字段
@@ -671,7 +671,7 @@ class ArticleSchema(orm.Schema[Article]):
 
 ### 文章查询接口
 
-我们以查询文章列表的接口为例了解如何使用 UtilMeta 编写查询接口，参考 [API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints/#list-articles) 
+我们以查询文章列表的接口为例了解如何使用 UtilMeta 编写查询接口，参考 [API 文档](https://realworld-docs.netlify.app/specifications/backend/endpoints/#list-articles) 
 ```python
 class MultiArticlesResponse(response.Response):
     result_key = 'articles'
@@ -705,7 +705,7 @@ class ArticleAPI(API):
 * `offset`：使用 `orm.Offset` 定义了一个标准的起始量字段，默认为 0
 * `limit`：使用 `orm.Limit` 定义了结果的返回数量限制，默认为 20，最高为 100
 
-!!! tip “分片控制参数”
+!!! tip "分片控制参数"
 	`offset` 和 `limit` 是 API 开发中常用的结果分片控制参数，当请求同时提供 `offset` 和 `limit` 时，最后生成的查询集用 Python 切片的方式可以表示为 `queryset[offset: offset + limit]`，这样客户端可以一次只查询结果中的一小部分，并且根据结果的数量调整下一次查询的 `offset`
 
 `orm.Query` 模板类作为 API 函数参数的类型声明默认将自动解析请求的查询参数，它有几个常用方法
@@ -798,7 +798,7 @@ class ArticleAPI(API):
 
 ### 评论接口
 
-接下来我们开发评论接口，从 [评论接口的 API 文档](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#add-comments-to-an-article) 可以发现，评论接口都是以 `/api/articles/:slug/comments` 作为路径开端的，并且路径位于文章接口的子目录，也就是说评论接口的 API 类需要挂载到文章接口的 API 类上，我们在 `domain/article/api.py` 中添加评论接口的代码
+接下来我们开发评论接口，从 [评论接口的 API 文档](https://realworld-docs.netlify.app/specifications/backend/endpoints/#add-comments-to-an-article) 可以发现，评论接口都是以 `/api/articles/:slug/comments` 作为路径开端的，并且路径位于文章接口的子目录，也就是说评论接口的 API 类需要挂载到文章接口的 API 类上，我们在 `domain/article/api.py` 中添加评论接口的代码
 
 ```python
 from utilmeta.core import api, request, orm, response
@@ -924,7 +924,7 @@ class RootAPI(api.API):
         return ErrorResponse(detail, error=e, status=status)
 ```
 
-我们声明了 `handle_errors` 错误处理钩子，使用 `@api.handle('*', Exception)` 表示会处理所有接口的所有错误，根据 [API 文档 | 错误处理](https://realworld-docs.netlify.app/docs/specs/backend-specs/error-handling) 的要求我们将校验失败的错误类型 `exceptions.BadRequest` 的响应状态码调整为 422 （默认为 400），并且通过错误实例的 `detail` 属性获取详细的报错信息
+我们声明了 `handle_errors` 错误处理钩子，使用 `@api.handle('*', Exception)` 表示会处理所有接口的所有错误，根据 [API 文档 | 错误处理](https://realworld-docs.netlify.app/specifications/backend/error-handling/) 的要求我们将校验失败的错误类型 `exceptions.BadRequest` 的响应状态码调整为 422 （默认为 400），并且通过错误实例的 `detail` 属性获取详细的报错信息
 
 比如当我们试图访问 `GET /api/articles?limit=x` 时，响应结果就会清晰的反映出出错的参数和原因
 ```json

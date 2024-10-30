@@ -276,7 +276,10 @@ class ModelAdaptor(BaseAdaptor):
     async def aget_instance(self, q=None, **filters):
         raise NotImplementedError
 
-    def check_related_queryset(self, qs):
+    def check_subquery(self, qs):
+        raise NotImplementedError
+
+    def check_queryset(self, qs, check_model: bool = False):
         raise NotImplementedError
 
     def get_model(self, qs) -> 'ModelAdaptor':

@@ -7,6 +7,8 @@ import sys
 
 
 class BaseServiceCommand(BaseCommand):
+    META_INI = META_INI
+
     def __init__(self, exe: str = None, *args: str, cwd: str = os.getcwd()):
         self.exe = exe      # absolute path of meta command tool
         self.sys_args = list(args)
@@ -17,10 +19,11 @@ class BaseServiceCommand(BaseCommand):
             cwd = path_join(os.getcwd(), cwd)
 
         self.cwd = cwd.replace('\\', '/')
-        self.ini_path = search_file(META_INI, path=cwd)
+        self.ini_path = search_file('utilmeta.ini', path=cwd) or search_file(META_INI, path=cwd)
         self.base_path = os.path.dirname(self.ini_path) if self.ini_path else self.cwd
         self.service_config = {}
         self._service = None
+        self._application = None
 
         if self.ini_path:
             self.service_config = self.load_meta()
@@ -32,7 +35,7 @@ class BaseServiceCommand(BaseCommand):
 
     def load_meta(self) -> dict:
         config = load_ini(read_from(self.ini_path), parse_key=True)
-        return config.get('service') or {}
+        return config.get('utilmeta') or config.get('service') or {}
 
     @property
     def service_ref(self):
@@ -51,19 +54,40 @@ class BaseServiceCommand(BaseCommand):
     def application_ref(self):
         return self.service_config.get('app')
 
+    def load_service(self):
+        import utilmeta
+        utilmeta._cmd_env = True
+
+        if not self.service_ref:
+            if self.application_ref:
+                self._application = import_obj(self.application_ref)
+                try:
+                    from utilmeta import service
+                except ImportError:
+                    raise RuntimeError('UtilMeta service not configured, '
+                                       'make sure you are inside a path with meta.ini, '
+                                       'and service is declared in meta.ini')
+                else:
+                    self._service = service
+                    return service
+            else:
+                raise RuntimeError('UtilMeta service not configured, make sure you are inside a path with meta.ini')
+
+        service = import_obj(self.service_ref)
+        if not isinstance(service, UtilMeta):
+            raise RuntimeError(f'Invalid UtilMeta service: {self.service}, should be an UtilMeta instance')
+        self._service = service
+        return service
+
     @property
     def service(self) -> UtilMeta:
         if self._service:
             return self._service
-        self.check_service()
-        self._service = import_obj(self.service_ref)
-        if not isinstance(self.service, UtilMeta):
-            raise TypeError(f'Invalid UtilMeta service: {self.service}, should be an UtilMeta instance')
-        return self._service
+        return self.load_service()
 
-    def check_service(self):
-        if not self.service_ref:
-            raise RuntimeError('UtilMeta service not configured, make sure you are inside a path with meta.ini')
+    # def check_service(self):
+    #     if not self.service_ref:
+    #         raise RuntimeError('UtilMeta service not configured, make sure you are inside a path with meta.ini')
 
     @classmethod
     @command('-h')

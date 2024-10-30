@@ -43,7 +43,8 @@ dependencies = [
     "django>=4.1.0",
     "databases>=0.7.0",
     "jwcrypto>=1.5.4",
-    "psutil>=5.8.0"
+    "psutil>=5.8.0",
+    "user_agents>=2.2.0"
 ]
 
 dynamic = ["version"]
@@ -76,3 +77,4 @@ packages = ["utilmeta"]
 
 [project.scripts]
 meta = "utilmeta.bin.meta:main"
+utilmeta = "utilmeta.bin.meta:main"

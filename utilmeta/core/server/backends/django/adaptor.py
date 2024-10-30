@@ -7,8 +7,9 @@ import sys
 from functools import update_wrapper
 from django.http.response import HttpResponseBase
 from django.core.management import execute_from_command_line
+from django.core.handlers.base import BaseHandler
 from django.utils.deprecation import MiddlewareMixin
-from django.urls import re_path
+from django.urls import re_path, URLPattern, path, include
 
 from utilmeta import UtilMeta
 from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
@@ -47,22 +48,37 @@ class DjangoServerAdaptor(ServerAdaptor):
     URLPATTERNS = 'urlpatterns'
     DEFAULT_PORT = 8000
     DEFAULT_HOST = '127.0.0.1'
+    settings_cls = DjangoSettings
 
     def __init__(self, config: UtilMeta):
         super().__init__(config)
         self._ready = False
-        self.settings = config.get_config(DjangoSettings) or DjangoSettings()
-        self.app = None
+        self.settings = config.get_config(self.settings_cls) or self.settings_cls()
+        self.app = config._application if isinstance(config._application, BaseHandler) else None
+        self._mounts = {}
+
+    def load_route(self, path: str):
+        return (path or '').strip('/')
 
     def setup(self):
         if self._ready:
             return
+        self.settings = self.config.get_config(self.settings_cls) or self.settings
         self.settings.setup(self.config)
+
+        root_api = self.config.resolve()
+        if self.config.root_url:
+            url_pattern = rf'^{self.config.root_url}(\/.*)?$'
+        else:
+            url_pattern = root_api._get_route_pattern()
+
         self.add_api(
-            self.config.resolve(),
-            route='(.*)',
-            asynchronous=self.asynchronous
+            root_api,
+            route=url_pattern,
+            asynchronous=self.asynchronous,
+            top=bool(url_pattern)
         )
+        self.setup_middlewares()
         self.apply_fork()
         # check wsgi application
         self._ready = True
@@ -75,14 +91,30 @@ class DjangoServerAdaptor(ServerAdaptor):
         if not func:
             return
 
-        from django.conf import settings
-        middlewares = getattr(settings, 'MIDDLEWARE', None) or []
-        if not hasattr(self.settings.module, func.__name__):
-            setattr(self.settings.module, func.__name__, func)
-            middlewares.append(
-                f'{self.settings.module_name}.{func.__name__}'
-            )
-            setattr(settings, 'MIDDLEWARE', middlewares)
+        if self.settings.django_settings and self.settings.module:
+            if not hasattr(self.settings.module, func.__name__):
+                setattr(self.settings.module, func.__name__, func)
+                self.settings.merge_list_settings(
+                    'MIDDLEWARE', [f'{self.settings.module_name}.{func.__name__}']
+                )
+                if self.app:
+                    self.app.load_middleware()
+        else:
+            raise ValueError(f'setup django middleware failed: settings not loaded')
+
+    @property
+    def backend_views_empty(self) -> bool:
+        if self._mounts:
+            return False
+        urls = getattr(self.settings.url_conf, self.URLPATTERNS, [])
+        for url in urls:
+            if isinstance(url, URLPattern):
+                wrapped = getattr(url.callback, '__wrapped__', None)
+                if wrapped and isinstance(wrapped, type) and issubclass(wrapped, API):
+                    pass
+                else:
+                    return False
+        return True
 
     @property
     def middleware_func(self):
@@ -156,16 +188,19 @@ class DjangoServerAdaptor(ServerAdaptor):
             else:
                 wsgi_module = self.settings.wsgi_module
                 if not wsgi_module:
-                    raise ValueError('Django WSGI_APPLICATION not specified or invalid')
+                    if self.settings.wsgi_application:
+                        raise ValueError(f'Invalid Django WSGI_APPLICATION: '
+                                         f'{repr(self.settings.wsgi_application)}')
+                    raise ValueError(f'Django WSGI_APPLICATION not specified')
                 if not self.settings.wsgi_app_attr:
-                    raise ValueError('Django WSGI_APPLICATION not specified or invalid')
+                    raise ValueError(f'Django WSGI_APPLICATION not specified or invalid:'
+                                     f' {repr(self.settings.wsgi_application)}')
                 warnings.warn('Django application not specified, auto-assigning, you should use '
                               f'{self.settings.wsgi_app_attr or "app"} = service.application() '
                               f'in {self.settings.wsgi_module_ref or "your service file"} at production')
                 setattr(wsgi_module, self.settings.wsgi_app_attr, self.application())
 
     def mount(self, app, route: str):
-        from django.urls import path, include, URLPattern
         urls_attr = getattr(app, 'urls', None)
         if not urls_attr or not isinstance(urls_attr, (list, tuple)):
             raise TypeError('Invalid application to mount to django, anyone with "urls" attribute is supported, '
@@ -179,20 +214,34 @@ class DjangoServerAdaptor(ServerAdaptor):
             path(route.strip('/') + '/', urls_attr)
         )
         setattr(self.settings.url_conf, self.URLPATTERNS, urls)
+        self._mounts[route] = app
 
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
-        func = self._get_api(api, asynchronous=asynchronous)
-        path = f'{route.strip("/")}/(.*)' if route.strip('/') else '(.*)'
-        return re_path(path, func)
+        # func = self._get_api(api, asynchronous=asynchronous)
+        # path = f'{route.strip("/")}/(.*)' if route.strip('/') else '(.*)'
+        # return re_path(path, func)
+        self.add_api(api, route=route, asynchronous=asynchronous)
 
-    def add_api(self, utilmeta_api_class, route: str = '', asynchronous: bool = False):
+    def add_api(self, utilmeta_api_class, route: str = '', asynchronous: bool = False, top: bool = False):
         api = self._get_api(utilmeta_api_class, asynchronous=asynchronous)
-        api_path = re_path(route, api)
         urls = getattr(self.settings.url_conf, self.URLPATTERNS, [])
-        # fixme: if add_api is called duplicate, urls may be also duplicate
-        if api_path not in urls:
+        find = False
+        for url in urls:
+            if isinstance(url, URLPattern):
+                if str(url.pattern) == str(route):
+                    wrapped = getattr(url.callback, '__wrapped__', None)
+                    if wrapped:
+                        if wrapped == utilmeta_api_class or wrapped.__qualname__ == utilmeta_api_class.__qualname__:
+                            find = True
+                            break
+        if find:
+            return
+        api_path = re_path(route, api)
+        if top:
+            urls.insert(0, api_path)
+        else:
             urls.append(api_path)
         setattr(self.settings.url_conf, self.URLPATTERNS, urls)
 
@@ -210,12 +259,12 @@ class DjangoServerAdaptor(ServerAdaptor):
                 req = None
                 try:
                     req = _current_request.get(None)
-                    path = self.load_route(route)
+                    route = self.load_route(route)
 
                     if not isinstance(req, Request):
-                        req = Request(self.request_adaptor_cls(request, path, *args, **kwargs))
+                        req = Request(self.request_adaptor_cls(request, route, *args, **kwargs))
                     else:
-                        req.adaptor.route = path
+                        req.adaptor.route = route
                         req.adaptor.request = request
 
                     root = utilmeta_api_class(req)
@@ -229,12 +278,12 @@ class DjangoServerAdaptor(ServerAdaptor):
                 req = None
                 try:
                     req = _current_request.get(None)
-                    path = self.load_route(route)
+                    route = self.load_route(route)
 
                     if not isinstance(req, Request):
-                        req = Request(self.request_adaptor_cls(request, path, *args, **kwargs))
+                        req = Request(self.request_adaptor_cls(request, route, *args, **kwargs))
                     else:
-                        req.adaptor.route = path
+                        req.adaptor.route = route
                         req.adaptor.request = request
 
                     root = utilmeta_api_class(req)
@@ -329,3 +378,52 @@ class DjangoServerAdaptor(ServerAdaptor):
         if not self.config.auto_reload:
             argv.append('--noreload')
         execute_from_command_line(argv)
+
+    @classmethod
+    def get_drf_openapi(
+        cls,
+        title=None, url=None, description=None, version=None
+    ):
+        from rest_framework.schemas.openapi import SchemaGenerator
+        generator = SchemaGenerator(title=title, url=url, description=description, version=version)
+
+        def generator_func(service: 'UtilMeta'):
+            return generator.get_schema(public=True)
+
+        return generator_func
+
+    @classmethod
+    def get_django_ninja_openapi(cls):
+        from ninja.openapi.schema import get_schema
+        from ninja import NinjaAPI
+
+        def generator_func(service: 'UtilMeta'):
+            app = service.application()
+            if isinstance(app, NinjaAPI):
+                return get_schema(app)
+            raise TypeError(f'Invalid application: {app} for django ninja. NinjaAPI() instance expected')
+
+        return generator_func
+
+    def generate(self, spec: str = 'openapi'):
+        if spec == 'openapi':
+            if self.settings.django_settings:
+                if 'rest_framework' in self.settings.django_settings.INSTALLED_APPS:
+                    # 1. try drf
+                    from rest_framework.schemas.openapi import SchemaGenerator
+                    generator = SchemaGenerator(
+                        title=self.config.title,
+                        description=self.config.description,
+                        version=self.config.version
+                    )
+
+                    return generator.get_schema(public=True)
+
+                # 2. try django-ninja
+                try:
+                    from ninja import NinjaAPI
+                except (ModuleNotFoundError, ImportError):
+                    pass
+                else:
+                    if NinjaAPI._registry:
+                        pass

@@ -8,11 +8,11 @@ async def read_item(item_id):
     return {"item_id": item_id}
 
 from utilmeta.ops import Operations
-
+import os
 Operations(
     route='v1/ops',
-    database=Operations.database(
-        name='db_ops',
+    database=Operations.Database(
+        name=os.path.join(os.path.dirname(__file__), 'db_ops'),
         engine='sqlite3'
     ),
     secure_only=False,

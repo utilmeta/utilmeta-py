@@ -1,11 +1,19 @@
-from utype import DataClass
 from typing import Type, TypeVar, Optional
+from utype import DataClass
+from utilmeta.utils import pop
 
 T = TypeVar('T')
 
 
 class Config(DataClass):
     __eager__ = False
+
+    def __init__(self, kwargs=None):
+        if kwargs:
+            pop(kwargs, '__class__')
+            pop(kwargs, 'self')
+        self._kwargs = kwargs or {}
+        super().__init__(**self._kwargs)
 
     @classmethod
     def config(cls: Type[T]) -> Optional[T]:

@@ -47,8 +47,11 @@ class _Transaction(Transaction):
             try:
                 await self.commit()
             except Exception as e:
-                await self.rollback()
-                raise e
+                try:
+                    await self.rollback()
+                finally:
+                    # raise e no matter rollback failed or succeed
+                    raise e
 
 
 class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):

@@ -5,9 +5,11 @@ from . import __spec_version__
 import utilmeta
 from utilmeta.core.api.specs.openapi import OpenAPISchema
 from .models import ServiceLog, AccessToken, Worker, WorkerMonitor, \
-    ServerMonitor, DatabaseMonitor, CacheMonitor, InstanceMonitor
+    ServerMonitor, InstanceMonitor
 from utilmeta.core import orm
-from django.db import models
+import sys
+
+language_version = f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
 
 
 class SupervisorBasic(Schema):
@@ -35,14 +37,15 @@ class NodeMetadata(Schema):
     ops_api: str
     name: str
     base_url: str
-    title: str = None
-    description: str = None
+    title: Optional[str] = None
+    description: str = ''
 
     version: Optional[str] = None
     spec_version: str = __spec_version__
     production: bool = False
 
     language: str = 'python'
+    language_version: str = language_version
     utilmeta_version: str = utilmeta.__version__
 
 
@@ -99,7 +102,7 @@ class ServerSchema(ResourceBase):
     ip: str
     # public_ip: Optional[str] = None
     # domain: Optional[str] = None
-    mac: Optional[str] = Field(required=False)
+    mac: str
     system: str = Field(required=False)
     platform: dict = Field(default_factory=dict)
 
@@ -130,7 +133,7 @@ class DatabaseSchema(ResourceBase):
     port: int
     name: str
     user: str
-    server: Optional[str] = None   # ip
+    server: Optional[str] = utype.Field(alias_from=['ip', 'server_ip'], default=None)   # ip
     hostname: Optional[str] = None
     ops: bool = False
     test: bool = False
@@ -142,7 +145,7 @@ class CacheSchema(ResourceBase):
     alias: str
     engine: str
     port: int
-    server: Optional[str] = None   # ip
+    server: Optional[str] = utype.Field(alias_from=['ip', 'server_ip'], default=None)   # ip
     hostname: Optional[str] = None
 
     max_memory: Optional[int] = None
@@ -168,6 +171,8 @@ class ResourceData(utype.Schema):
     type: str
     ident: str
     route: str
+    ref: Optional[str] = utype.Field(default=None, defer_default=True)
+    data: dict = utype.Field(default_factory=dict)
 
 
 class ResourcesData(utype.Schema):

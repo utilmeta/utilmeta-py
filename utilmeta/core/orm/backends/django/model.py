@@ -163,12 +163,27 @@ class DjangoModelAdaptor(ModelAdaptor):
             setattr(obj, 'id', obj.pk or pk)
         return obj
 
-    def check_related_queryset(self, qs):
+    def check_subquery(self, qs):
         if not isinstance(qs, self.queryset_cls):
             return False
         if len(qs.query.select) > 1:
             # django.core.exceptions.FieldError: Cannot resolve expression type, unknown output_field
             raise ValueError(f'Multiple fields selected in related queryset: {qs}')
+        if qs.query.is_sliced:
+            hi = qs.query.high_mark
+            lo = qs.query.low_mark
+            if hi is not None and lo is not None:
+                if hi - lo == 1:
+                    return True
+        raise ValueError('subquery result must be limited to 1 result')
+
+    def check_queryset(self, qs, check_model: bool = False):
+        if not isinstance(qs, self.queryset_cls):
+            return False
+        if check_model:
+            model = qs.model
+            if not issubclass(self.model, model):
+                return False
         return True
 
     def get_model(self, qs: models.QuerySet):

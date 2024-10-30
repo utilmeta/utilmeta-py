@@ -1,3 +1,5 @@
+import os.path
+
 from .base import command, Arg
 from .commands.setup import SetupCommand
 from .commands.base import BaseServiceCommand
@@ -16,7 +18,9 @@ class MetaCommand(BaseServiceCommand):
         self.load_commands()
 
     def load_commands(self):
-        if not self.service_ref:
+        try:
+            self.load_service()
+        except RuntimeError:
             return
         for name, cmd in self.service.commands.items():
             if not name:
@@ -31,6 +35,35 @@ class MetaCommand(BaseServiceCommand):
         print(f'UtilMeta v{__version__} Management Command Line Tool')
         print('use meta -h for help')
         cls.help()
+
+    @command('init')
+    def init(self,
+             app: str = Arg(alias='--app', required=True),
+             service: str = Arg(alias='--service', default=None),
+             main_file: str = Arg(alias='--main', default=None),
+             ):
+        """
+        Initialize utilmeta project with a meta.ini file
+        """
+        if not self.ini_path:
+            self.ini_path = os.path.join(self.cwd, self.META_INI)
+            print(f'Initialize UtilMeta project with {self.ini_path}')
+        else:
+            config = self.service_config
+            if config:
+                print('UtilMeta project already initialized at {}'.format(self.ini_path))
+                return
+            print(f'Re-initialize UtilMeta project at {self.ini_path}')
+        settings = dict(app=app)
+        if service:
+            settings['service'] = service
+        if main_file:
+            settings['main'] = main_file
+
+        from utilmeta.utils import write_config
+        write_config({
+            'utilmeta': settings
+        }, self.ini_path)
 
     @command()
     def gen_openapi(self, to: str = Arg(alias='--to', default='openapi.json')):
@@ -80,7 +113,7 @@ class MetaCommand(BaseServiceCommand):
         from utilmeta.bin.constant import BLUE, GREEN, DOT
         print(f'     UtilMeta: v{ __version__}')
         try:
-            self.check_service()
+            _ = self.service
         except RuntimeError:
             # service not detect
             print(f'      service:', 'not detected')

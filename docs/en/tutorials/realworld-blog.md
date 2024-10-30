@@ -8,7 +8,7 @@ This tutorial will takes you through the implementation of a classic blog projec
 Don’t worry, the UtilMeta code that does all of the above is less than 600 lines. Here’s a step-by-step guide on how to do it, starting with the creation of your project
 
 !!! tip
-	We will implement the APIs based on [Realworld API Docs](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints), The code of this tutorial is in [this Github repo](https://github.com/utilmeta/utilmeta-py-realworld-example-app)
+	We will implement the APIs based on [Realworld API Docs](https://realworld-docs.netlify.app/specifications/backend/endpoints), The code of this tutorial is in [this Github repo](https://github.com/utilmeta/utilmeta-py-realworld-example-app)
 ## 1. Create project
 
 ### Install dependencies
@@ -71,7 +71,7 @@ The recommended corresponding usage are:
 
 ## 2. Write the data model
 
-For an API system like blog, which focuses on the data CRUD, we often start to develop from the data models. In the [API Specs](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints), we can conclude that we need to write user, article, comment and other models.
+For an API system like blog, which focuses on the data CRUD, we often start to develop from the data models. In the [API Specs](https://realworld-docs.netlify.app/specifications/backend/endpoints), we can conclude that we need to write user, article, comment and other models.
 
 ### Create an application
 
@@ -104,7 +104,7 @@ meta add article
 
 ### User model
 
-We will write the data model as described for the user data structure in [API Documentation: User](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#users-for-authentication) . We open `domain/user/models.py` and write the user’s model.
+We will write the data model as described for the user data structure in [API Documentation: User](https://realworld-docs.netlify.app/specifications/backend/api-response-format#users-for-authentication) . We open `domain/user/models.py` and write the user’s model.
 ```python
 from django.db import models
 from utilmeta.core.orm.backends.django.models import PasswordField, AwaitableModel
@@ -123,7 +123,7 @@ class User(AwaitableModel):
 
 ### Article & Comment Model
 
-We follow the [API Documentation: Article](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format/#single-article) to write article and comment models, open `domain/article/models.py` and write.
+We follow the [API Documentation: Article](https://realworld-docs.netlify.app/specifications/backend/api-response-format/#single-article) to write article and comment models, open `domain/article/models.py` and write.
 ```python
 from django.db import models
 from utilmeta.core.orm.backends.django import models as amodels
@@ -392,7 +392,7 @@ For users, we need to implement the user’s signup, login, query and update the
 The `AuthenticationAPI` iherits from the API class defined in `config/auth.py`. In the user-signup `post` endpoint, After the user is registered, we directly login the user to the current request using `alogin_user` method
 (that is, generate the corresponding JWT Token and then update the user `token`’s field).
 
-In addition, according to the requirement of the request and response body structure in [API Specs](https://realworld-docs.netlify.app/docs/specs/backend-specs/api-response-format#users-for-authentication), we declare that the request body parameter using `request.BodyParam`, so that the parameter name `user` will be used as the corresponding key. Our response also uses the template key specified `'user'` as the result in `result_key` of the response template, so the structure of the request and response of the user interface is consistent with the documentm, like
+In addition, according to the requirement of the request and response body structure in [API Specs](https://realworld-docs.netlify.app/specifications/backend/api-response-format#users-for-authentication), we declare that the request body parameter using `request.BodyParam`, so that the parameter name `user` will be used as the corresponding key. Our response also uses the template key specified `'user'` as the result in `result_key` of the response template, so the structure of the request and response of the user interface is consistent with the documentm, like
 
 ```json
 {
@@ -407,7 +407,7 @@ In addition, according to the requirement of the request and response body struc
 ```
 
 ### Profile API
-According to [API Specs](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#get-profile), the Realworld blog project also needs to develop a Profile API to get user details, follow and unfollow
+According to [API Specs](https://realworld-docs.netlify.app/specifications/backend/endpoints#get-profile), the Realworld blog project also needs to develop a Profile API to get user details, follow and unfollow
 
 === "domain/user/api.py"
 	```python
@@ -494,7 +494,7 @@ class ProfileAPI(API):
 
 ### Article API structure
 
-Based on [API Documentation | Article API](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#get-article) , we can develop the basic structure of the APIs at the begining
+Based on [API Documentation | Article API](https://realworld-docs.netlify.app/specifications/backend/endpoints#get-article) , we can develop the basic structure of the APIs at the begining
 ```python
 from utilmeta.core import api, request, orm, response
 from config.auth import API
@@ -669,7 +669,7 @@ We write a `get_runtime` class function that takes the user’s ID as input to g
 
 ### Article Query API
 
-We can article list API as an example of how to write a query API. refer to [API docs](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints/#list-articles) 
+We can article list API as an example of how to write a query API. refer to [API docs](https://realworld-docs.netlify.app/specifications/backend/endpoints/#list-articles) 
 ```python
 class MultiArticlesResponse(response.Response):
     result_key = 'articles'
@@ -796,7 +796,7 @@ We defined several hook functions in our example.
 
 ### Comment API
 
-Next we'll develop the comment APIs, from [API documentation for the comment APIs](https://realworld-docs.netlify.app/docs/specs/backend-specs/endpoints#add-comments-to-an-article), we can see that the comment endpoints are all started with `/api/articles/:slug/comments`, and the path is located in the subdirectory of the article API, that is to say, the API class of the comment API needs to be mounted on the API class of the article API. We open `domain/article/api.py` and add the code for the comment API
+Next we'll develop the comment APIs, from [API documentation for the comment APIs](https://realworld-docs.netlify.app/specifications/backend/endpoints#add-comments-to-an-article), we can see that the comment endpoints are all started with `/api/articles/:slug/comments`, and the path is located in the subdirectory of the article API, that is to say, the API class of the comment API needs to be mounted on the API class of the article API. We open `domain/article/api.py` and add the code for the comment API
 
 ```python
 from utilmeta.core import api, request, orm, response
@@ -922,7 +922,7 @@ class RootAPI(api.API):
         return ErrorResponse(detail, error=e, status=status)
 ```
 
-We have write `handle_errors` as the error handling hook, using `@api.handle('*', Exception)` to indicates that all errors of all APIs will be handled. According to the requirements of [API Documentation | Error Handling](https://realworld-docs.netlify.app/docs/specs/backend-specs/error-handling), we adjust the response status code of the error type `exceptions.BadRequest` to 422 (400 by default). And return detailed error information obtained through `detail` of the Error instance.
+We have write `handle_errors` as the error handling hook, using `@api.handle('*', Exception)` to indicates that all errors of all APIs will be handled. According to the requirements of [API Documentation | Error Handling](https://realworld-docs.netlify.app/specifications/backend/error-handling), we adjust the response status code of the error type `exceptions.BadRequest` to 422 (400 by default). And return detailed error information obtained through `detail` of the Error instance.
 
 For example, when we try to access `GET/api/articles?limit=x`, the response results will clearly reflect the parameters and reasons for the error.
 ```json

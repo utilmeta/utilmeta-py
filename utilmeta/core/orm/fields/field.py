@@ -32,7 +32,9 @@ class ParserQueryField(ParserField):
         self.isolated = self.field.isolated if isinstance(self.field, QueryField) else False
         self.fail_silently = self.field.fail_silently if isinstance(self.field, QueryField) else False
         self.many_included = False
-        self.queryset = None
+        self.subquery = None
+        self.queryset = self.field.queryset if isinstance(self.field, QueryField) else None
+        self.reverse_lookup = None
         self.primary_key = False
         self.func = None
         self.func_multi = False
@@ -126,18 +128,20 @@ class ParserQueryField(ParserField):
     def process_annotate_meta(cls, m, model: 'ModelAdaptor' = None, **kwargs):
         from ..backends.base import ModelAdaptor
         if isinstance(model, ModelAdaptor):
-            if model.field_adaptor_cls.qualify(m) or \
-                    model.check_related_queryset(m):
+            if model.field_adaptor_cls.qualify(m):
                 return QueryField(m)
+            if model.check_queryset(m):
+                return QueryField(queryset=m)
         return super().process_annotate_meta(m, **kwargs)
 
     @classmethod
     def get_field(cls, annotation: Any, default, model: 'ModelAdaptor' = None, **kwargs):
         from ..backends.base import ModelAdaptor
         if isinstance(model, ModelAdaptor):
-            if model.field_adaptor_cls.qualify(default) or \
-                    model.check_related_queryset(default):
+            if model.field_adaptor_cls.qualify(default):
                 return QueryField(default)
+            if model.check_queryset(default):
+                return QueryField(queryset=default)
         return super().get_field(annotation, default, **kwargs)
 
     def setup(self, options: utype.Options):
@@ -184,13 +188,15 @@ class ParserQueryField(ParserField):
             self.get_query_schema()
             return
 
-        if self.model.check_related_queryset(self.field_name):
-            self.queryset = self.field_name
+        if self.model.check_subquery(self.field_name):
+            self.subquery = self.field_name
             if not self.mode:
                 self.mode = 'r'
-            self.related_model = self.model.get_model(self.queryset)
+            self.related_model = self.model.get_model(self.subquery)
             if not self.related_model:
-                raise ValueError(f'No model detected in queryset: {self.queryset}')
+                raise ValueError(f'No model detected in queryset: {self.subquery}')
+            if self.queryset is not None:
+                raise ValueError(f'specify subquery field and queryset at the same time is not supported')
 
             self.get_query_schema()
 
@@ -198,6 +204,7 @@ class ParserQueryField(ParserField):
                 warnings.warn(f'{self.model} schema field: {repr(self.name)} is a multi-relation with a subquery, '
                               f'you need to make sure that only 1 row of the query is returned, '
                               f'otherwise use query function instead')
+
             self.isolated = True
             # force isolated for queryset query (even without schema)
             return
@@ -250,6 +257,18 @@ class ParserQueryField(ParserField):
 
             elif not self.model_field.is_concrete:
                 self.isolated = True
+
+            if self.queryset is not None:
+                if not self.related_model:
+                    raise ValueError(f'Invalid queryset for field: {repr(self.model_field.name)}, '
+                                     f'no related model')
+                if not self.related_model.check_queryset(self.queryset, check_model=True):
+                    raise ValueError(f'Invalid queryset for field: {repr(self.model_field.name)}, '
+                                     f'must be a queryset of model {self.related_model.model}')
+                self.reverse_lookup, c = self.model.get_reverse_lookup(self.field_name)
+                if c or not self.reverse_lookup:
+                    raise ValueError(f'Invalid queryset for field: {repr(self.model_field.name)}, '
+                                     f'invalid reverse lookup: {self.reverse_lookup}, {c}')
 
             if self.related_schema:
                 # even for fk schema
@@ -386,6 +405,8 @@ class ParserQueryField(ParserField):
     def readable(self):
         if self.func:
             return True
+        if self.subquery is not None:
+            return True
         if self.queryset is not None:
             return True
         if not self.model_field:
@@ -457,6 +478,7 @@ class QueryField(Field):
     parser_field_cls = ParserQueryField
 
     def __init__(self, field=None, *,
+                 queryset=None,
                  fail_silently: bool = None,
                  auth: dict = None,
                  # filter=None,
@@ -472,6 +494,7 @@ class QueryField(Field):
         self.field = field
         self.fail_silently = fail_silently
         self.isolated = isolated
+        self.queryset = queryset
         # self.filter = filter
         # self.order_by = order_by
         # self.limit = limit

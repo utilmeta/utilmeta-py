@@ -142,7 +142,7 @@ def test_prepare_data(service):
     comment_7 = Comment.objects.get(id=7)
 
     article_1.liked_bys.set([1, 3, 4])
-    article_2.liked_bys.set([1, 3, 5])
+    article_2.liked_bys.set([5])
     article_3.liked_bys.set([2, 5])
     article_4.liked_bys.set([1, 2])
     comment_6.liked_bys.set([1, 2, 4, 5])

@@ -40,6 +40,7 @@ jobs:
           pip install databases[aiosqlite]
           pip install django==${{ matrix.django-version }}
           pip install flask fastapi sanic tornado aiohttp uvicorn httpx requests python-multipart
+          pip install django-ninja djangorestframework apiflask
       - name: Run lint
         run: |
           flake8 utilmeta --count --select=E9,F63,F7,F82 --show-source --statistics

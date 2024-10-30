@@ -1,11 +1,13 @@
+import warnings
+
 from utilmeta.core.response import Response
 from utilmeta.core.request import var, Request
-from utilmeta.core.file import File
 from utilmeta.utils.context import ContextProperty, Property
 from typing import List, Optional, Union
 from utilmeta.core.server import ServiceMiddleware
-from utilmeta.utils import file_like, SECRET, Header, \
-    HTTPMethod, normalize, time_now, Error, ignore_errors, replace_null, parse_user_agents
+from utilmeta.utils import (file_like, SECRET,
+                            HTTPMethod, normalize, time_now, Error, ignore_errors,
+                            replace_null, parse_user_agents, HTTP_METHODS_LOWER)
 from .config import Operations
 import threading
 import contextvars
@@ -17,11 +19,14 @@ from django.db import models
 
 _responses_queue: List[Response] = []
 _endpoints_map: dict = {}
+_endpoints_patterns: dict = {}
 _worker = None
 _server = None
 _version = None
 _supervisor = None
 _instance = None
+_openapi = None
+_path_prefix = ''
 _logger = contextvars.ContextVar('_logger')
 
 
@@ -208,43 +213,44 @@ def level_log(f):
 
 
 def setup_locals(config: Operations):
-    from .models import VersionLog, Resource, Worker, Supervisor
+    from .models import Resource, Worker, Supervisor
     from utilmeta import service
 
-    global _worker, _version, _supervisor, _instance, _server, _endpoints_map
-    node_id = None
-    if not _supervisor:
-        _supervisor = Supervisor.objects.filter(
-            service=service.name,
-            ops_api=config.ops_api,
-            disabled=False
-        ).first()
-        if _supervisor:
-            node_id = _supervisor.node_id
+    global _worker, _version, _supervisor, _instance, _server, \
+        _endpoints_map, _openapi, _endpoints_patterns, _path_prefix
+    # node_id = config.node_id
+    _supervisor = Supervisor.current().first()
+    # reset supervisor
+    if _supervisor:
+        node_id = _supervisor.node_id
+    else:
+        node_id = None
 
     if not _server:
         _server = Resource.get_current_server()
         if not _server:
+            from utilmeta.utils import get_mac_address
+            mac = get_mac_address()
             _server = Resource.objects.create(
                 type='server',
                 service=service.name,
                 node_id=node_id,
-                ident=service.ip,
-                route=f'server/{service.ip}',
-                deleted=False
+                ident=mac,
+                data=dict(ip=service.ip),
+                route=f'server/{mac}',
             )
 
     if not _instance:
         _instance = Resource.get_current_instance()
         if not _instance:
+            ident = _server.ident if _server else service.ip
             _instance = Resource.objects.create(
                 type='instance',
                 service=service.name,
                 node_id=node_id,
-                ident=service.ip,
-                route=f'instance/{node_id}/{service.ip}',
+                ident=ident,
+                route=f'instance/{node_id}/{ident}' if node_id else f'instance/{ident}',
                 server=_server,
-                deleted=False
             )
 
     # if not _version:
@@ -260,17 +266,50 @@ def setup_locals(config: Operations):
         _worker = Worker.load()
 
     if not _endpoints_map:
-        _endpoints = Resource.objects.filter(
+        _endpoints = Resource.filter(
             type='endpoint',
             service=service.name,
-            deleted=False,
             deprecated=False
         )
 
         if node_id:
             _endpoints = _endpoints.filter(node_id=node_id)
 
-        _endpoints_map = {res.ident: res for res in _endpoints}
+        _endpoints_map = {res.ident: res for res in _endpoints if res.ident}
+
+    if not _openapi:
+        # path-regex: ident
+        _openapi = config.openapi
+        from utilmeta.core.api.specs.openapi import get_operation_id
+        from utilmeta.core.api.route import APIRoute
+        patterns = {}
+        operation_ids = []
+        for path, path_item in _openapi.paths.items():
+            if not path_item:
+                continue
+            try:
+                pattern = APIRoute.get_pattern(path)
+                methods = {}
+                for method in HTTP_METHODS_LOWER:
+                    operation = path_item.get(method)
+                    if not operation:
+                        continue
+                    operation_id = operation.get('operationId')
+                    if not operation_id:
+                        operation_id = get_operation_id(method, path, excludes=operation_ids, attribute=True)
+                    operation_ids.append(operation_id)
+                    methods[method] = operation_id
+                if methods:
+                    patterns[pattern] = methods
+            except Exception as e:
+                warnings.warn(f'generate pattern operation Id at path {path} failed: {e}')
+                continue
+
+        _endpoints_patterns = patterns
+        if _openapi.servers:
+            url = _openapi.servers[0].url
+            from urllib.parse import urlparse
+            _path_prefix = urlparse(url).path.strip('/')
 
     # close connections
     from django.db import connections
@@ -309,7 +348,7 @@ class LogMiddleware(ServiceMiddleware):
 
         if logger.omitted:
             return
-        if response.request.is_options:
+        if response.request.is_options or logger.events_only:
             if response.success and logger.vacuum:
                 return
 
@@ -367,6 +406,7 @@ class Logger(Property):
         self._exceptions = []
         self._level = None
         self._omitted = False
+        self._events_only = False
         self._server_timing = False
         self._exited = False
         self._volatile = self.DEFAULT_VOLATILE
@@ -381,6 +421,10 @@ class Logger(Property):
     @property
     def omitted(self):
         return self._omitted
+
+    @property
+    def events_only(self):
+        return self._events_only
 
     @property
     def vacuum(self):
@@ -489,6 +533,12 @@ class Logger(Property):
                 if 'timing' in options or 'server-timing' in options:
                     self._server_timing = True
 
+    def omit(self, val: bool = True):
+        self._omitted = val
+
+    def make_events_only(self, val: bool = True):
+        self._events_only = val
+
     def setup_response(self, response: Response):
         if self._supervised:
             if self._server_timing:
@@ -557,6 +607,20 @@ class Logger(Property):
             return self.get_file_repr(data)
         return str(data)
 
+    @classmethod
+    def get_endpoint_ident(cls, request: Request) -> Optional[str]:
+        if not _endpoints_patterns:
+            return None
+        path = str(request.path or '').strip('/')
+        if _path_prefix:
+            if not path.startswith(_path_prefix):
+                return None
+            path = path[len(_path_prefix):].strip('/')
+        for pattern, methods in _endpoints_patterns.items():
+            if pattern.fullmatch(path):
+                return methods.get(request.method)
+        return None
+
     def generate_log(self, response: Response):
         from utilmeta.ops.models import ServiceLog
         from .api import access_token_var
@@ -607,8 +671,13 @@ class Logger(Property):
             request_headers = self.parse_values(dict(request.headers))
             response_headers = self.parse_values(dict(response.headers))
 
-        operation_names = var.operation_names.getter(request) or []
-        endpoint_ident = '_'.join(operation_names)
+        operation_names = var.operation_names.getter(request)
+        if operation_names:
+            endpoint_ident = '_'.join(operation_names)
+        else:
+            # or find it by the generated openapi items (match method and path, find operationId)
+            endpoint_ident = self.get_endpoint_ident(request)
+
         endpoint_ref = var.endpoint_ref.getter(request) or None
         endpoint = _endpoints_map.get(endpoint_ident) if endpoint_ident else None
         access_token = access_token_var.getter(request)
@@ -764,10 +833,10 @@ class Logger(Property):
 
 
 def batch_save_logs(close: bool = False):
-    from utilmeta.ops.models import ServiceLog, QueryLog, RequestLog, Resource, Worker
+    from utilmeta.ops.models import ServiceLog, QueryLog, RequestLog
 
     with threading.Lock():
-        global _responses_queue
+        global _responses_queue, _supervisor
         queue = _responses_queue
         _responses_queue = []
         # ----------------
@@ -780,6 +849,12 @@ def batch_save_logs(close: bool = False):
             # not setup yet
             from .config import Operations
             setup_locals(Operations.config())
+
+        if _supervisor:
+            from .models import Supervisor
+            if not Supervisor.objects.filter(pk=getattr(_supervisor, 'pk', None)).exists():
+                # check _supervisor before save logs
+                _supervisor = None
 
         for response in queue:
             response: Response

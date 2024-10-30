@@ -19,9 +19,14 @@ class OperationsCommand(BaseServiceCommand):
         """
         from django.core.management import execute_from_command_line
         execute_from_command_line(['manage.py', 'migrate', 'ops', f'--database={self.config.db_alias}'])
+        # 2. migrate for main database
+        execute_from_command_line(['manage.py', 'migrate', 'ops'])
 
     @command
-    def connect(self, to: str = None, key: str = Arg(required=True)):
+    def connect(self,
+                to: str = None,
+                key: str = Arg(required=True)
+                ):
         """
         Connect your API service to UtilMeta platform to manage
         """
@@ -39,12 +44,29 @@ class OperationsCommand(BaseServiceCommand):
         )
 
     @command
+    def delete_supervisor(self, node: str = Arg(required=True), key: str = Arg(required=True)):
+        """
+        Connect your API service to UtilMeta platform to manage
+        """
+        # self.migrate_ops()
+        # before connect
+        from .connect import delete_supervisor
+
+        if not key.startswith('{') or not key.endswith('}'):
+            # BASE64
+            key = base64.decodebytes(key.encode()).decode()
+
+        delete_supervisor(
+            key=key,
+            node_id=node
+        )
+
+    @command
     def sync(self, force: bool = Arg('-f', default=False)):
         """
         Sync APIs to supervisor
         """
-        from .resources import ResourcesManager
-        manager = ResourcesManager(service=self.service)
+        manager = self.config.resources_manager_cls(service=self.service)
         manager.sync_resources(force=force)
 
     @command

@@ -26,7 +26,7 @@ class Cookie(Config):
                  http_only: bool = False,
                  same_site: Optional[str] = 'Lax'
                  ):
-        super().__init__(**locals())
+        super().__init__(locals())
 
     def as_django(self, prefix: str = None):
         config = {

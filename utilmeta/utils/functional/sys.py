@@ -638,15 +638,17 @@ def get_recursive_dirs(path, exclude_suffixes: List[str] = None, include_suffixe
 
 
 def get_ip(host: str, ip_only: bool = False) -> Optional[str]:
-    ip_reg = re.compile(f'^{constant.Reg.IP}')
-    match = ip_reg.match(host)
-    if match:
-        return match.group()
+    import ipaddress
+    try:
+        return str(ipaddress.ip_address(host))
+    except ValueError:
+        pass
     from urllib.parse import urlparse, ParseResult
     res: ParseResult = urlparse(host)
-    match = ip_reg.match(res.netloc)
-    if match:
-        return match.group()
+    try:
+        return str(ipaddress.ip_address(res.hostname))
+    except ValueError:
+        pass
     if res.hostname == constant.LOCAL:
         return constant.LOCAL_IP
     if ip_only:

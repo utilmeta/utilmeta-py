@@ -255,96 +255,93 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         # avoid "conflicts with a field on the model."
 
         current_qs: models.QuerySet = self.model.get_queryset(pk__in=pk_list)
-        related_qs: models.QuerySet = field.queryset
+        related_subquery: models.QuerySet = field.subquery
+        related_queryset: models.QuerySet = field.queryset
         # - current_qs.filter(pk__in=self.pk_list).values(related_field, PK)   [no related_qs provided]
         # - current_qs.filter(pk__in=self.pk_list).values(related_field=exp.Subquery(related_qs), PK)
         #   - related_schema.serialize(related_qs)   [related_schema provided]
 
         if field.expression:
             pk_map = {val[PK]: val[query_key] for val in current_qs.values(PK, **{query_key: field.expression})}
-        elif related_qs is None:
-            # directly query relation without filter/order
-            # in this way,
-            if field.included:
-                # o2 / fk
-                for val in self.values:
-                    fk = val.get(key)
-                    if fk is not None:
-                        pk_map.setdefault(val[PK], fk)
-            else:
-                if field.func:
-                    if field.func_multi:
-                        pk_map = self.normalize_pk_map(
-                            field.func(*self.pk_list, __class__=self.parser.obj)
-                        )
-                        # normalize pks from user input
-                    else:
-                        for pk in self.pk_list:
-                            pk_map[str(pk)] = self.normalize_pk_list(
-                                field.func(pk, __class__=self.parser.obj)
-                            )
 
-                    # normalize user input
-                else:
-                    # many related field / common values
-                    # like author__followers / author__followers__join_date
-                    # we need to serialize its value first
+        elif isinstance(related_queryset, models.QuerySet):
+            # add reverse lookup
+            if field.reverse_lookup:
+                related_queryset = related_queryset.filter(
+                    **{field.reverse_lookup + '__in': pk_list}
+                )
+                for val in related_queryset.values(PK, field.reverse_lookup):
+                    rel = val[PK]
+                    pk = val[field.reverse_lookup]
+                    if pk is not None:
+                        pk_map.setdefault(pk, []).append(rel)
 
-                    if field.is_sub_relation:
-                        pk_map = {str(pk): pk for pk in pk_list}
-
-                    elif field.model_field.is_2o:
-                        f, c = field.model_field.reverse_lookup
-                        m = field.model_field.related_model
-                        # use reverse query due to the unfixed issue on the async backend
-                        # also prevent redundant "None" over the non-exist fk
-
-                        if m and f:
-                            for val in m.get_queryset(
-                                    **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
-                                rel = val['__target']
-                                if rel is not None:
-                                    pk_map.setdefault(rel, []).append(val[c or PK])
-
-                    else:
-                        # _args = []
-                        # _kw = {}
-                        qn = self.get_query_name(field)
-                        # if qn == key:
-                        #     _args = (key,)
-                        # else:
-                        # _kw = {query_key: exp.F(qn)}
-                        for val in current_qs.values(PK, **{query_key: exp.F(qn)}):
-                            rel = val[query_key]
-                            if rel is not None:
-                                pk_map.setdefault(val[PK], []).append(rel)
-        else:
-            if not related_qs.query.select:
+        elif isinstance(related_subquery, models.QuerySet):
+            if not related_subquery.query.select:
                 # 1. queryset has no values
                 # 2. this is a related schema query, we should override the values to PK
-                related_qs = related_qs.values(PK)
+                related_subquery = related_subquery.values(PK)
                 # sometimes user may use an intermediate table to query the target table
                 # so the final values might not be the exact 'pk'
                 # we do not override if user has already selected
 
-            for val in current_qs.values(PK, **{query_key: exp.Subquery(related_qs)}):
+            for val in current_qs.values(PK, **{query_key: exp.Subquery(related_subquery)}):
                 rel = val[query_key]
                 if rel is not None:
                     pk_map.setdefault(val[PK], []).append(rel)
 
-            # if related_qs.query.is_sliced:
-            #     # because this slice should be per-item, so we need to calculate
-            #     for pk in pk_list:
-            #         for val in self.model.get_queryset(pk=pk).values(**{key: exp.Subquery(related_qs)}):
-            #             rel = val[key]
-            #             if rel is not None:
-            #                 pk_map.setdefault(pk, []).append(rel)
-            # else:
-            #     # relate_name: List[xx] = orm.Field(Mod.objects.filter(reverse=OuterRef('pk')).values('name'))
-            #     for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
-            #         rel = val[key]
-            #         if rel is not None:
-            #             pk_map.setdefault(val[PK], []).append(rel)
+        elif field.included:
+            # o2 / fk
+            for val in self.values:
+                fk = val.get(key)
+                if fk is not None:
+                    pk_map.setdefault(val[PK], fk)
+
+        elif field.func:
+            if field.func_multi:
+                pk_map = self.normalize_pk_map(
+                    field.func(*self.pk_list, __class__=self.parser.obj)
+                )
+                # normalize pks from user input
+            else:
+                for pk in self.pk_list:
+                    pk_map[str(pk)] = self.normalize_pk_list(
+                        field.func(pk, __class__=self.parser.obj)
+                    )
+
+            # normalize user input
+        else:
+            # many related field / common values
+            # like author__followers / author__followers__join_date
+            # we need to serialize its value first
+
+            if field.is_sub_relation:
+                pk_map = {str(pk): pk for pk in pk_list}
+
+            elif field.model_field.is_2o:
+                f, c = field.model_field.reverse_lookup
+                m = field.model_field.related_model
+                # use reverse query due to the unfixed issue on the async backend
+                # also prevent redundant "None" over the non-exist fk
+
+                if m and f:
+                    for val in m.get_queryset(
+                            **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
+                        rel = val['__target']
+                        if rel is not None:
+                            pk_map.setdefault(rel, []).append(val[c or PK])
+            else:
+                # _args = []
+                # _kw = {}
+                qn = self.get_query_name(field)
+                # if qn == key:
+                #     _args = (key,)
+                # else:
+                # _kw = {query_key: exp.F(qn)}
+                for val in current_qs.values(PK, **{query_key: exp.F(qn)}):
+                    rel = val[query_key]
+                    if rel is not None:
+                        pk_map.setdefault(val[PK], []).append(rel)
 
         # convert pk_map to str key
         pk_map = {str(k): v for k, v in pk_map.items()}
@@ -392,6 +389,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 if isinstance(rel, list):
                     rel_values = []
                     for r in rel:
+                        # follow the order of pk_map values
                         res = result_map.get(r)
                         if res is not None:
                             rel_values.append(res)
@@ -487,103 +485,85 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         # avoid "conflicts with a field on the model."
 
         current_qs: models.QuerySet = self.model.get_queryset(pk__in=pk_list)
-        related_qs: models.QuerySet = field.queryset
-        # - current_qs.filter(pk__in=self.pk_list).values(related_field, PK)   [no related_qs provided]
-        # - current_qs.filter(pk__in=self.pk_list).values(related_field=exp.Subquery(related_qs), PK)
-        #   - related_schema.serialize(related_qs)   [related_schema provided]
+        related_subquery: models.QuerySet = field.subquery
+        related_queryset: models.QuerySet = field.queryset
 
         if field.expression:
             pk_map = {val[PK]: val[query_key] async for val in current_qs.values(PK, **{query_key: field.expression})}
-        elif related_qs is None:
-            # directly query relation without filter/order
-            # in this way,
-            if field.included:
-                for val in self.values:
-                    fk = val.get(key)
-                    if fk is not None:
-                        pk_map.setdefault(val[PK], fk)
-            else:
-                # many related field / common values
-                # like author__followers / author__followers__join_date
-                # we need to serialize its value first
-                if field.func:
-                    if field.func_multi:
-                        pk_map = field.func(*self.pk_list, __class__=self.parser.obj)
-                        if inspect.isawaitable(pk_map):
-                            pk_map = await pk_map
-                        pk_map = await self.normalize_pk_map(pk_map)
-                        # normalize pks from user input
-                    else:
-                        for pk in self.pk_list:
-                            rel_qs = field.func(pk, __class__=self.parser.obj)
-                            if inspect.isawaitable(rel_qs):
-                                rel_qs = await rel_qs
-                            pk_map[str(pk)] = await self.normalize_pk_list(rel_qs)
 
-                else:
-                    if field.is_sub_relation:
-                        # fixme: async backend may not fetch pk along with one-to-rel
+        elif isinstance(related_queryset, models.QuerySet):
+            # add reverse lookup
+            if field.reverse_lookup:
+                related_queryset = related_queryset.filter(
+                    **{field.reverse_lookup + '__in': pk_list}
+                )
+                async for val in related_queryset.values(PK, field.reverse_lookup):
+                    rel = val[PK]
+                    pk = val[field.reverse_lookup]
+                    if pk is not None:
+                        pk_map.setdefault(pk, []).append(rel)
 
-                        pk_map = {str(pk): pk for pk in pk_list}
-
-                    elif field.model_field.is_2o:
-                        f, c = field.model_field.reverse_lookup
-                        m = field.model_field.related_model
-                        # use reverse query due to the unfixed issue on the async backend
-                        # also prevent redundant "None" over the non-exist fk
-                        if m and f:
-                            async for val in m.get_queryset(
-                                    **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
-                                rel = val['__target']
-                                if rel is not None:
-                                    pk_map.setdefault(rel, []).append(val[c or PK])
-
-                    else:
-                        # _args = []
-                        # _kw = {}
-                        qn = self.get_query_name(field)
-                        # if qn == key:
-                        #     _args = (key,)
-                        # else:
-                        # _kw = {query_key: exp.F(qn)}
-                        async for val in current_qs.values(PK, **{query_key: exp.F(qn)}):
-                            rel = val[query_key]
-                            if rel is not None:
-                                pk_map.setdefault(val[PK], []).append(rel)
-        else:
-            if not related_qs.query.select:
+        elif isinstance(related_subquery, models.QuerySet):
+            if not related_subquery.query.select:
                 # 1. queryset has no values
                 # 2. this is a related schema query, we should override the values to PK
-                related_qs = related_qs.values(PK)
+                related_subquery = related_subquery.values(PK)
 
-            async for val in current_qs.values(PK, **{query_key: exp.Subquery(related_qs)}):
+            async for val in current_qs.values(PK, **{query_key: exp.Subquery(related_subquery)}):
                 rel = val[query_key]
                 if rel is not None:
                     pk_map.setdefault(val[PK], []).append(rel)
 
-            # if related_qs.query.is_sliced:
-            #     # because this slice should be per-item, so we need to calculate
-            #     if related_qs.query.high_mark == related_qs.query.low_mark + 1:
-            #         # high mark not None, and the result limit is 1
-            #         async for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
-            #             rel = val[key]
-            #             if rel is not None:
-            #                 pk_map.setdefault(val[PK], []).append(rel)
-            #     else:
-            #         for pk in pk_list:
-            #             async for val in related_qs.filter():
-            #                 pass
-            #
-            #             async for val in self.model.get_queryset(pk=pk).values(**{key: exp.Subquery(related_qs)}):
-            #                 rel = val[key]
-            #                 if rel is not None:
-            #                     pk_map.setdefault(pk, []).append(rel)
-            # else:
-            #     # relate_name: List[xx] = orm.Field(Mod.objects.filter(reverse=OuterRef('pk')).values('name'))
-            #     async for val in current_qs.values(PK, **{key: exp.Subquery(related_qs)}):
-            #         rel = val[key]
-            #         if rel is not None:
-            #             pk_map.setdefault(val[PK], []).append(rel)
+        elif field.included:
+            # o2 / fk
+            for val in self.values:
+                fk = val.get(key)
+                if fk is not None:
+                    pk_map.setdefault(val[PK], fk)
+
+        elif field.func:
+            if field.func_multi:
+                pk_map = field.func(*self.pk_list, __class__=self.parser.obj)
+                if inspect.isawaitable(pk_map):
+                    pk_map = await pk_map
+                pk_map = await self.normalize_pk_map(pk_map)
+                # normalize pks from user input
+            else:
+                for pk in self.pk_list:
+                    rel_qs = field.func(pk, __class__=self.parser.obj)
+                    if inspect.isawaitable(rel_qs):
+                        rel_qs = await rel_qs
+                    pk_map[str(pk)] = await self.normalize_pk_list(rel_qs)
+
+        else:
+            if field.is_sub_relation:
+                # fixme: async backend may not fetch pk along with one-to-rel
+
+                pk_map = {str(pk): pk for pk in pk_list}
+
+            elif field.model_field.is_2o:
+                f, c = field.model_field.reverse_lookup
+                m = field.model_field.related_model
+                # use reverse query due to the unfixed issue on the async backend
+                # also prevent redundant "None" over the non-exist fk
+                if m and f:
+                    async for val in m.get_queryset(
+                            **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
+                        rel = val['__target']
+                        if rel is not None:
+                            pk_map.setdefault(rel, []).append(val[c or PK])
+            else:
+                # _args = []
+                # _kw = {}
+                qn = self.get_query_name(field)
+                # if qn == key:
+                #     _args = (key,)
+                # else:
+                # _kw = {query_key: exp.F(qn)}
+                async for val in current_qs.values(PK, **{query_key: exp.F(qn)}):
+                    rel = val[query_key]
+                    if rel is not None:
+                        pk_map.setdefault(val[PK], []).append(rel)
 
         pk_map = {str(k): v for k, v in pk_map.items()}
 

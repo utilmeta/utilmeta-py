@@ -3,10 +3,11 @@ import psutil
 import os
 import time
 from utilmeta.utils import get_max_open_files, get_max_socket_conn, get_mac_address,\
-    get_sys_net_connections_info, get_system_fds, get_system_open_files
+    get_sys_net_connections_info, get_system_fds, get_system_open_files, get_server_ip
+from .schema import ServerSchema
 
 
-def get_server_statics(unit: int = 1024 ** 2):
+def get_current_server(unit: int = 1024 ** 2) -> ServerSchema:
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage(os.getcwd())
     devices = {}
@@ -29,7 +30,8 @@ def get_server_statics(unit: int = 1024 ** 2):
             # used=disk_usage.used
         )
 
-    return dict(
+    return ServerSchema(
+        ip=get_server_ip(),
         mac=get_mac_address(),
         cpu_num=os.cpu_count(),
         memory_total=get_num(mem.total),

@@ -85,6 +85,9 @@ class SupervisorClient(Client):
     @api.post('/')
     def add_node(self, data: NodeMetadata = request.Body) -> Union[SupervisorNodeResponse, SupervisorResponse]: pass
 
+    @api.delete('/')
+    def delete_node(self) -> SupervisorResponse: pass
+
     @api.post('/resources')
     def upload_resources(self, data: ResourcesSchema = request.Body) \
             -> Union[SupervisorResourcesResponse, SupervisorResponse]: pass
@@ -168,8 +171,29 @@ class SupervisorClient(Client):
 
 
 class OperationsClient(Client):
+    def __init__(
+        self,
+        token: str = None,
+        node_id: str = None,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.token = token
+        self.node_id = node_id
+        if self.token:
+            self.update_base_headers({
+                'authorization': f'Bearer {self.token}'
+            })
+        if self.node_id:
+            self.update_base_headers({
+                'x-node-id': self.node_id
+            })
+
     @api.post('/')
     def add_supervisor(self, data: SupervisorData = request.Body) -> NodeInfoResponse: pass
+
+    @api.delete('/')
+    def delete_supervisor(self) -> SupervisorResponse: pass
 
     @api.get('/')
     def get_info(self) -> Union[ServiceInfoResponse, SupervisorResponse]: pass

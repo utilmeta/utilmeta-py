@@ -7,7 +7,6 @@ import re
 import inspect
 from utilmeta.core.request import Request
 from utilmeta.core.response import Response
-import socket
 
 
 class ServiceMiddleware:
@@ -76,6 +75,7 @@ class ServerAdaptor(BaseAdaptor):
         return re.compile('%s/(.*)' % self.config.root_url.strip('/'))
 
     def load_route(self, path: str):
+        path = path or ''
         if not self.config.root_url:
             return path
         path = path.strip('/')
@@ -117,6 +117,13 @@ class ServerAdaptor(BaseAdaptor):
 
     def application(self):
         pass
+
+    def generate(self, spec: str = 'openapi'):
+        raise NotImplementedError
+
+    @property
+    def backend_views_empty(self) -> bool:
+        return True
 
     @classmethod
     def is_asgi(cls, app):

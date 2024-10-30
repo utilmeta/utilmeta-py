@@ -35,18 +35,18 @@ class Cache(Config):
 
     def __init__(self, *,
                  engine: str,      # 'redis' / 'memcached' / 'locmem'
-                 host: str = None,
+                 host: Optional[str] = None,
                  port: int = 0,
                  timeout: int = 300,
                  location: Union[str, List[str]] = '',
-                 prefix: str = None,
-                 max_entries: int = None,
-                 key_function: Callable = None,
-                 options: dict = None,
+                 prefix: Optional[str] = None,
+                 max_entries: Optional[int] = None,
+                 key_function: Optional[Callable] = None,
+                 options: Optional[dict] = None,
                  **kwargs
                  ):
         kwargs.update(locals())
-        super().__init__(**kwargs)
+        super().__init__(kwargs)
         self.host = self.host or self.DEFAULT_HOST
         if not self.port:
             for engine, p in self.DEFAULT_PORTS.items():
@@ -180,6 +180,17 @@ class CacheConnections(Config):
     def hook(self, service: UtilMeta):
         for name, cache in self.caches.items():
             cache.apply(name, asynchronous=service.asynchronous)
+
+    def add_cache(self, service: UtilMeta, alias: str, cache: Cache):
+        if not cache.sync_adaptor_cls:
+            if service.adaptor and service.adaptor.sync_db_adaptor_cls:
+                cache.sync_adaptor_cls = service.adaptor.sync_db_adaptor_cls
+        if not cache.async_adaptor_cls:
+            if service.adaptor and service.adaptor.async_db_adaptor_cls:
+                cache.async_adaptor_cls = service.adaptor.async_db_adaptor_cls
+        cache.apply(alias, asynchronous=service.asynchronous)
+        if alias not in self.caches:
+            self.caches.setdefault(alias, cache)
 
     @classmethod
     def get(cls, alias: str = 'default', default=unprovided) -> Cache:

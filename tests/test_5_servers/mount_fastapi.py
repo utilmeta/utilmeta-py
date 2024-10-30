@@ -46,4 +46,8 @@ server_thread = make_live_thread(service)
 
 
 if __name__ == '__main__':
-    service.run()
+    import pprint
+    pprint.pprint(
+        service.adaptor.generate()
+    )
+    # service.run()

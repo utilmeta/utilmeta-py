@@ -54,7 +54,7 @@ class Database(Config):
                  max_age: Optional[int] = 0,    # connection max age
                  replica_of: Optional['Database'] = None,
                  options: Optional[dict] = None):
-        super().__init__(**locals())
+        super().__init__(locals())
         self.host = self.host or self.DEFAULT_HOST
         if not self.port:
             for engine, p in self.DEFAULT_PORTS.items():
@@ -121,7 +121,7 @@ class Database(Config):
                 netloc += f':{self.port}'
             return f'{user}@{netloc}/{self.name}'
 
-    def apply(self, alias: str, asynchronous: bool = None):
+    def apply(self, alias: str, asynchronous: bool = None, project_dir: str = None):
         if asynchronous:
             if self.async_adaptor_cls:
                 self.adaptor = self.async_adaptor_cls(self, alias)
@@ -135,6 +135,9 @@ class Database(Config):
 
         if not self.adaptor:
             raise exceptions.NotConfigured('Database adaptor not implemented')
+        if self.is_sqlite and project_dir:
+            if not os.path.isabs(self.name):
+                self.name = os.path.join(project_dir, self.name)
         self.asynchronous = asynchronous
         self.adaptor.check()
 
@@ -192,7 +195,7 @@ class DatabaseConnections(Config):
 
     def __init__(self, dbs: Dict[str, Database] = None, **databases: Database):
         self.databases = dbs or databases
-        super().__init__(**self.databases)
+        super().__init__(self.databases)
 
     def hook(self, service: UtilMeta):
         for name, db in self.databases.items():
@@ -205,7 +208,7 @@ class DatabaseConnections(Config):
         if not database.async_adaptor_cls:
             if service.adaptor and service.adaptor.async_db_adaptor_cls:
                 database.async_adaptor_cls = service.adaptor.async_db_adaptor_cls
-        database.apply(alias, asynchronous=service.asynchronous)
+        database.apply(alias, asynchronous=service.asynchronous, project_dir=service.project_dir)
         if alias not in self.databases:
             self.databases.setdefault(alias, database)
 

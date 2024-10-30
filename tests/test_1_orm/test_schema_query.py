@@ -27,12 +27,12 @@ class TestSchemaQuery:
         assert set(res[0].follower_names) == {'bob', 'jack'}
         assert res[0].follower_rep.username == 'bob'
         assert res[0]["followings_num"] == 1
-        assert set(res[0]["liked_slugs"]) == {"about-tech", "some-news", "big-shot"}
+        assert set(res[0]["liked_slugs"]) == {"about-tech", "big-shot"}
         assert res[0]["@views"] == 103
         # assert "content" not in res[0].articles[0]  # read auth login=True not satisfied
         # assert "comments" not in res[0].articles[0]  # discard=True
-        assert len(res[0].top_articles) == 1
-        assert res[0].top_articles[0].author_tag["name"] == "alice"
+        assert len(res[0].top_2_articles) == 1
+        assert res[0].top_2_articles[0].author_tag["name"] == "alice"
 
         assert res[1]["username"] == "bob"
         # assert len(res[1]["liked_author_followers"]) == 4
@@ -40,8 +40,20 @@ class TestSchemaQuery:
         assert res[1]["followings_num"] == 2
         assert set(res[1]["liked_slugs"]) == {"about-tech", "this-is-a-huge-one"}
         assert res[1]["@views"] == 13
+        assert len(res[1].top_2_articles) == 2
+        assert res[1].top_2_articles[0].views == 10   # -views
+
+        assert len(res[1].top_2_likes_articles) == 2
+        assert res[1].top_2_likes_articles[0].liked_bys_num == 3  # -views
+        assert res[1].top_2_likes_articles[0].id == 1
+        assert res[1].top_2_likes_articles[1].liked_bys_num == 2
+
+        assert res[1].top_article.id == 1
+        assert res[1].top_article.liked_bys_num == 3
+
         assert len(res[1].top_articles) == 2
-        assert res[1].top_articles[0].views == 10   # -views
+        assert res[1].top_articles[0].views == 10
+
         assert res[1].articles_num == 3
         assert len(res[1].articles) == 3
 
@@ -107,7 +119,7 @@ class TestSchemaQuery:
             top_article_slug: Optional[str] = orm.Field(
                 Article.objects.filter(
                     author_id=models.OuterRef('pk')
-                ).order_by('-views').values('slug')
+                ).order_by('-views').values('slug')[:1]
             )
 
             top_article: Optional[ArticleSchema] = orm.Field(
@@ -186,8 +198,8 @@ class TestSchemaQuery:
         assert user.pk == 1
         assert user.followers_num == 2
         assert user.sum_views == 103
-        assert user.top_articles[0].author_tag["name"] == "alice"
-        assert user.top_articles[0].views == 103
+        assert user.top_2_articles[0].author_tag["name"] == "alice"
+        assert user.top_2_articles[0].views == 103
         assert set(user.follower_names) == {'bob', 'jack'}
 
         # --------------
@@ -199,6 +211,20 @@ class TestSchemaQuery:
         assert bob.pk == 2
         assert len(bob.articles) == 3
         assert bob.articles_num == 3
+
+        assert len(bob.top_2_likes_articles) == 2
+        assert bob.top_2_likes_articles[0].liked_bys_num == 3
+        assert bob.top_2_likes_articles[0].id == 1
+        assert bob.top_2_likes_articles[1].liked_bys_num == 2
+
+        assert bob.top_article.id == 1
+        assert bob.top_article.liked_bys_num == 3
+
+        assert len(bob.top_articles) == 2
+        assert bob.top_articles[0].views == 10
+
+        assert bob.articles_num == 3
+        assert len(bob.articles) == 3
 
         # ---
         sup = UserSchema.init(5)
@@ -219,8 +245,8 @@ class TestSchemaQuery:
         assert user.pk == 1
         assert user.followers_num == 2
         assert user.sum_views == 103
-        assert user.top_articles[0].author_tag["name"] == "alice"
-        assert user.top_articles[0].views == 103
+        assert user.top_2_articles[0].author_tag["name"] == "alice"
+        assert user.top_2_articles[0].views == 103
 
     @pytest.mark.asyncio
     async def test_async_serialize_articles(self):

@@ -8,10 +8,12 @@ class FileAdaptor(BaseAdaptor):
 
     @classmethod
     def get_module_name(cls, obj):
-        from io import BytesIO
+        from io import BytesIO, TextIOWrapper, BufferedRandom, BufferedReader
         from utilmeta.core.response.base import Response, ResponseAdaptor
         if isinstance(obj, BytesIO):
             return 'bytesio'
+        elif isinstance(obj, (BufferedReader, BufferedRandom, TextIOWrapper)):
+            return 'fileio'
         elif isinstance(obj, (Response, ResponseAdaptor)) or Response.response_like(obj):
             return 'response'
         return super().get_module_name(obj)

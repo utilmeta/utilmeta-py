@@ -17,6 +17,14 @@ __pycache__/
 /tests/service/media/*
 /tests/service/deploy/run/
 /tests/service/deploy/log/
+/tests/test_7_ops/utilmeta_site/__default_db
+/tests/test_7_ops/utilmeta_site/operations_db
+/tests/test_7_ops/flask_site/__default_db
+/tests/test_7_ops/flask_site/operations_db
+/tests/test_7_ops/fastapi_site/__default_db
+/tests/test_7_ops/fastapi_site/operations_db
+/tests/test_7_ops/django_site/__default_db
+/tests/test_7_ops/django_site/operations_db
 *.sqlite3
 db
 db_ops

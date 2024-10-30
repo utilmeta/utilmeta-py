@@ -420,6 +420,12 @@ class APIClient(cli.Client):
 	comments: CommentClient
 ```
 
+### 客户端的表单与文件
+
+* 直接上传文件
+* `multipart/form-data`
+
+
 ## 调用 `Client` 
 
 在上文的例子我们已经了解了如何实例化 `Client` 类进行调用，下面是完整的 `Client` 类实例化参数

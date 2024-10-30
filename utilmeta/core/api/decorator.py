@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, TypeVar, List
+from typing import Union, TypeVar, List
 from utilmeta.utils import METHODS, EndpointAttr, multi, CommonMethod, HOOK_TYPES
 import warnings
 
@@ -127,6 +127,7 @@ class APIDecoratorWrapper:
     def __call__(self, *fn_or_routes,
                  cls=None,
                  summary: str = None,
+                 alias: Union[str, List[str]] = None,
                  deprecated: bool = None,
                  idempotent: bool = None,
                  private: bool = None,

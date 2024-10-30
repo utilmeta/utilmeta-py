@@ -11,7 +11,7 @@ import utype
 from utype.specs.json_schema import JsonSchemaParser, JsonSchemaGroupParser
 from utype.specs.python import PythonCodeGenerator
 from utype.parser.rule import LogicalType, Rule
-from utilmeta.utils import valid_url, HTTP_METHODS_LOWER, valid_attr, time_now
+from utilmeta.utils import valid_url, HTTP_METHODS_LOWER, valid_attr, time_now, json_dumps
 import json
 from typing import Tuple, List, Union, Optional, Type
 from utilmeta.core import request
@@ -189,7 +189,7 @@ client = {self.client_class_name}(
 
     @classmethod
     def represent_data(cls, data):
-        return json.dumps(data, sort_keys=True, indent='\t')
+        return json_dumps(data, sort_keys=True, indent='\t')
 
     def generate_paths(self):
         operations = []
@@ -274,7 +274,7 @@ client = {self.client_class_name}(
 
         headers_content = None
         headers_annotation = None
-        resp_name = re.sub(self.NON_NAME_REG, '_', name)
+        resp_name = re.sub(self.NON_NAME_REG, '_', name).strip('_')
 
         if headers:
             headers_schema = self.get_headers_schema(headers, name=resp_name + 'Headers')

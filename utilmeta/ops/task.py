@@ -55,6 +55,8 @@ class BaseCycleTask:
 class OperationWorkerTask(BaseCycleTask):
     WORKER_MONITOR_RETENTION = timedelta(hours=12)
     DISCONNECTED_WORKER_RETENTION = timedelta(hours=12)
+    DISCONNECTED_INSTANCE_RETENTION = timedelta(days=3)
+    DISCONNECTED_SERVER_RETENTION = timedelta(days=3)
     SERVER_MONITOR_RETENTION = timedelta(days=7)
     INSTANCE_MONITOR_RETENTION = timedelta(days=7)
     VOLATILE_LOGS_RETENTION = timedelta(days=7)
@@ -88,16 +90,40 @@ class OperationWorkerTask(BaseCycleTask):
     def node_id(self):
         return self.supervisor.node_id if self.supervisor else None
 
+    def migrate_ops(self):
+        from django.db.migrations.executor import MigrationExecutor
+        from django.db import connections, connection
+        ops_conn = connections[self.config.db_alias]
+        executor = MigrationExecutor(ops_conn)
+        migrate_apps = ['ops', 'contenttypes']
+        targets = [
+            key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
+        ]
+        plan = executor.migration_plan(targets)
+        if not plan:
+            return
+        executor.migrate(targets, plan)
+        # ----------
+        if connection != ops_conn:
+            executor = MigrationExecutor(connection)
+            targets = [
+                key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
+            ]
+            plan = executor.migration_plan(targets)
+            if not plan:
+                return
+            executor.migrate(targets, plan)
+
     def worker_cycle(self):
         if not self._last_exec:
             self._last_exec = time_now()
 
-        try:
-            setup_locals(self.config)
-        except (OperationalError, ProgrammingError):
-            from django.core.management import execute_from_command_line
-            execute_from_command_line(['manage.py', 'migrate', 'ops', f'--database={self.config.db_alias}'])
-            setup_locals(self.config)
+        if not self._init_cycle:
+            self.migrate_ops()
+            # 1. db not created
+            # 2. db not updated to the current version
+
+        setup_locals(self.config)
 
         # try to set up locals before
         from .log import _server, _worker, _instance, _supervisor
@@ -137,8 +163,7 @@ class OperationWorkerTask(BaseCycleTask):
 
             if not self._init_cycle:
                 # 1st cycle
-                from .resources import ResourcesManager
-                resources = ResourcesManager(self.service)
+                resources = self.config.resources_manager_cls(self.service)
                 resources.sync_resources(self.supervisor)
                 # try to update
 
@@ -288,7 +313,7 @@ class OperationWorkerTask(BaseCycleTask):
 
     def clear(self):
         from .models import ServiceLog, RequestLog, QueryLog, VersionLog, WorkerMonitor, CacheMonitor, \
-            InstanceMonitor, ServerMonitor, DatabaseMonitor, AggregationLog, AlertLog, Worker
+            InstanceMonitor, ServerMonitor, DatabaseMonitor, AggregationLog, AlertLog, Worker, Resource
         now = self._last_exec or time_now()
         ServiceLog.objects.filter(
             time__lt=now - self.VOLATILE_LOGS_RETENTION,
@@ -326,14 +351,32 @@ class OperationWorkerTask(BaseCycleTask):
         ).delete()
 
         # MONITOR RETENTION ----------------
+        Resource.objects.filter(
+            type='instance',
+            node_id=self.node_id,
+        ).annotate(
+            latest_time=models.Max('instance_metrics__time')
+        ).filter(
+            latest_time__lt=now - self.DISCONNECTED_INSTANCE_RETENTION
+        ).update(deleted_time=now, deprecated=True)
         InstanceMonitor.objects.filter(
             layer=0,
             time__lt=now - self.INSTANCE_MONITOR_RETENTION
         ).delete()
+
+        Resource.objects.filter(
+            type='server',
+            node_id=self.node_id,
+        ).annotate(
+            latest_time=models.Max('server_metrics__time')
+        ).filter(
+            latest_time__lt=now - self.DISCONNECTED_SERVER_RETENTION
+        ).update(deleted_time=now, deprecated=True)
         ServerMonitor.objects.filter(
             layer=0,
             time__lt=now - self.SERVER_MONITOR_RETENTION
         ).delete()
+
         DatabaseMonitor.objects.filter(
             layer=0,
             time__lt=now - self.SERVER_MONITOR_RETENTION

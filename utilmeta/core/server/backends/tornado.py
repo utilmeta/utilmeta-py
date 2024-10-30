@@ -26,6 +26,7 @@ class TornadoServerAdaptor(ServerAdaptor):
         func = self.get_request_handler(api, asynchronous=asynchronous, append_slash=True)
         path = f'/{route.strip("/")}/(.*)' if route.strip('/') else '(.*)'
         return path, func
+        # todo: support add APIs to application
 
     def get_request_handler(self, utilmeta_api_class, asynchronous: bool = False, append_slash: bool = False):
         request_adaptor_cls = self.request_adaptor_cls

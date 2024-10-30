@@ -1,11 +1,14 @@
+import utype.utils.exceptions
+
 from .client import SupervisorClient
 from typing import Optional, List, Type
 from .models import Supervisor, Resource
 from .config import Operations
 from .schema import NodeMetadata, ResourcesSchema, \
-    InstanceSchema, ServerSchema, TableSchema, DatabaseSchema, CacheSchema, ResourceData
+    InstanceSchema, TableSchema, DatabaseSchema, CacheSchema, ResourceData
 from utilmeta import UtilMeta
-from utilmeta.utils import fast_digest, json_dumps, ignore_errors
+from utilmeta.utils import (fast_digest, json_dumps, ignore_errors, get_ip,
+                            get_mac_address, cached_property, time_now)
 from django.db import models
 
 
@@ -58,52 +61,6 @@ class ModelGenerator:
             fields[name] = data
         return fields
 
-    # def get_relate_model_tag(self, related_model):
-    #     meta = getattr(self.model, '_meta')
-    #     app = meta.app_label
-    #     if isinstance(related_model, str):
-    #         if related_model == 'self':
-    #             return self.model_tag(self.model, lower=True)
-    #         return related_model.lower() if '.' in related_model \
-    #             else f'{app}.{related_model.lower()}'
-    #     return self.model_tag(related_model, lower=True)
-
-    # def generate_relations(self):
-    #     relations = {}
-    #     from django.db.models import ManyToManyRel, ManyToManyField
-    #     for field in self.adaptor.get_fields(many=True):
-    #         if not field.is_many:
-    #             continue
-    #
-    #         rel: ManyToManyRel = field.remote_field if isinstance(field, ManyToManyField) else field
-    #         many = field if isinstance(field, ManyToManyField) else field.remote_field
-    #
-    #         name = field.get_cache_name()
-    #         relate_name = field.remote_field.get_cache_name()
-    #         through_model = through_table = through_fields = None
-    #
-    #         if isinstance(rel, ManyToManyRel):
-    #             if rel.through:
-    #                 through_model = self.get_relate_model_tag(rel.through)
-    #                 if issubclass(rel.through, Model):
-    #                     through_table = getattr(rel.through, '_meta').db_table
-    #
-    #             if rel.through_fields:
-    #                 through_fields = list(rel.through_fields)
-    #
-    #         if isinstance(many, ManyToManyField) and not through_table:
-    #             through_table = many.db_table
-    #
-    #         relations[name] = dict(
-    #             to_model=self.get_relate_model_tag(field.related_model),
-    #             relate_name=relate_name,
-    #             symmetrical=rel.symmetrical,
-    #             through_fields=through_fields,
-    #             through_table=through_table,
-    #             through_model=through_model
-    #         )
-    #     return relations
-
 
 class ResourcesManager:
     def __init__(self, service: UtilMeta = None):
@@ -119,18 +76,21 @@ class ResourcesManager:
             base_url=self.ops_config.base_url,
             name=self.service.name,
             title=self.service.title,
-            description=self.service.description,
+            description=self.service.description or '',
             version=self.service.version_str,
             production=self.service.production
         )
 
+    @cached_property
+    def mac_address(self):
+        return get_mac_address()
+
     def get_instances(self, node_id) -> List[InstanceSchema]:
         from .schema import InstanceSchema
         instances = []
-        for val in Resource.objects.filter(
+        for val in Resource.filter(
             type='instance',
             node_id=node_id,
-            deleted=False
         ).order_by('created_time'):
             val: Resource
             server: Optional[Resource] = None
@@ -142,18 +102,19 @@ class ResourcesManager:
                 continue
             inst_data = dict()
             server_data = dict(server.data)
-            server_data.update(ip=server.ident)
-            if server.ident == self.service.ip:
-                from .monitor import get_server_statics
+            if server.ident == self.mac_address:
+                from .monitor import get_current_server
                 inst_data.update(self.instance_data)
-                server_data.update(get_server_statics())
-            instances.append(
-                InstanceSchema(
+                server_data.update(get_current_server())
+            try:
+                inst = InstanceSchema(
                     remote_id=val.remote_id,
                     server=server_data,
                     **inst_data
                 )
-            )
+            except utype.exc.ParseError:
+                continue
+            instances.append(inst)
         return instances
 
     @property
@@ -166,13 +127,9 @@ class ResourcesManager:
         )
 
     def get_current_instance(self) -> InstanceSchema:
-        from .monitor import get_server_statics
-        server = ServerSchema(
-            ip=self.service.ip,
-            **get_server_statics(),
-        )
+        from .monitor import get_current_server
         return InstanceSchema(
-            server=server,
+            server=get_current_server(),
             **self.instance_data
         )
 
@@ -183,12 +140,12 @@ class ResourcesManager:
         from django.apps import apps, AppConfig
         from django.db.models.options import Options
         from django.db import models
+        from django.db.models import QuerySet
 
         tables = []
         model_id_map = {}
 
         def get_first_base(model) -> Type[models.Model]:
-            from django.db.models.options import Options
             meta: Options = getattr(model, '_meta')
             parents = meta.get_parent_list()
             return parents[0] if parents else None
@@ -224,6 +181,7 @@ class ResourcesManager:
                 base=base_id,
                 name=meta.db_table,
                 fields=generator.generate_fields(),
+                database=QuerySet(mod).db
                 # relations=generator.generate_relations(),
             )
             tables.append(obj)
@@ -255,7 +213,7 @@ class ResourcesManager:
             return int(cursor.fetchone()[0])
 
     def get_databases(self):
-        from utilmeta.utils import get_ip
+        # from utilmeta.utils import get_ip
         from utilmeta.core.orm.databases.config import DatabaseConnections
         db_config = self.service.get_config(DatabaseConnections)
         if not db_config:
@@ -270,7 +228,7 @@ class ResourcesManager:
                     user=db.user,
                     name=db.name,
                     hostname=db.host,
-                    server=get_ip(db.host, True),
+                    server=get_ip(db.host, True),       # incase it is intranet
                     ops=alias == self.ops_config.db_alias,
                     max_server_connections=self.get_db_max_connections(alias)
                 )
@@ -278,7 +236,7 @@ class ResourcesManager:
         return databases
 
     def get_caches(self):
-        from utilmeta.utils import get_ip
+        # from utilmeta.utils import get_ip
         from utilmeta.core.cache.config import CacheConnections
         cache_config = self.service.get_config(CacheConnections)
         if not cache_config:
@@ -300,21 +258,14 @@ class ResourcesManager:
         pass
 
     def get_resources(self, node_id, etag: str = None) -> Optional[ResourcesSchema]:
-        from utilmeta.core.api.specs.openapi import OpenAPI
-        from utilmeta import service
-        openapi = OpenAPI(service)()
         instances = self.get_instances(node_id)
-        included = False
-        for inst in instances:
-            if inst.server.ip == service.ip:
-                included = True
-                break
+        included = any(inst.server.mac == self.mac_address for inst in instances)
         if not included:
             instances.append(self.get_current_instance())
 
         data = ResourcesSchema(
             metadata=self.get_metadata(),
-            openapi=openapi,
+            openapi=self.ops_config.openapi,
             instances=instances,
             tables=self.get_tables(),
             databases=self.get_databases(),
@@ -335,6 +286,7 @@ class ResourcesManager:
             node_id=supervisor.node_id,
         ).values('pk', 'remote_id')}
 
+        now = time_now()
         remote_pks = []
         remote_servers = {}
         updates = []
@@ -351,7 +303,8 @@ class ResourcesManager:
                         id=remote_pk_map[resource.remote_id],
                         service=self.service.name,
                         node_id=supervisor.node_id,
-                        deleted=False,
+                        deleted_time=None,
+                        updated_time=now,
                         **resource
                     )
                 )
@@ -370,7 +323,8 @@ class ResourcesManager:
                                 id=obj.pk,
                                 service=self.service.name,
                                 node_id=supervisor.node_id,
-                                deleted=False,
+                                deleted_time=None,
+                                updated_time=now,
                                 **resource
                             )
                         )
@@ -393,7 +347,7 @@ class ResourcesManager:
         if updates:
             Resource.objects.bulk_update(
                 updates,
-                fields=['server_id', 'ident', 'route', 'deleted', 'remote_id'],
+                fields=['server_id', 'ident', 'route', 'deleted_time', 'updated_time', 'remote_id', 'ref', 'data'],
             )
         if creates:
             Resource.objects.bulk_create(
@@ -402,27 +356,59 @@ class ResourcesManager:
             )
 
         Resource.objects.filter(
+            # models.Q(remote_id=None) | (~models.Q(remote_id__in=remote_pks)),
             node_id=supervisor.node_id,
-            remote_id__isnull=False
-        ).exclude(
-            remote_id__in=remote_pks
-        ).update(
-            deleted=True
+            # includes remote_id=None
+        ).exclude(remote_id__in=remote_pks).update(
+            deleted_time=time_now()
         )
 
+        Resource.objects.exclude(
+            server__in=Resource.filter(type='server')
+        ).exclude(server=None).update(server_id=None)
+
         for remote_id, server_id in remote_servers.items():
-            server = Resource.objects.filter(
+            server = Resource.filter(
                 type='server',
                 remote_id=server_id,
                 node_id=supervisor.node_id,
-                deleted=False
             ).first()
             if server:
-                Resource.objects.filter(
+                Resource.filter(
                     remote_id=remote_id,
                     node_id=supervisor.node_id,
-                    deleted=False
                 ).update(server=server)
+
+    @classmethod
+    def update_supervisor_service(cls, service: str, node_id: str):
+        if not service or not node_id:
+            return
+        from utilmeta.ops import models
+        from django.core.exceptions import EmptyResultSet
+        for model in models.supervisor_related_models:
+            try:
+                model.objects.filter(
+                    node_id=node_id
+                ).exclude(service=service).update(service=service)
+            except EmptyResultSet:
+                pass
+            try:
+                model.objects.filter(
+                    service=service,
+                    node_id=None,
+                ).update(node_id=node_id)
+            except EmptyResultSet:
+                pass
+
+    @classmethod
+    def set_local_node_id(cls, node_id: str):
+        from utilmeta.bin.utils import update_meta_ini_file
+        from utilmeta import service
+        update_meta_ini_file(node=node_id)
+        service.load_meta()
+        ops_config = Operations.config()
+        if ops_config:
+            ops_config._node_id = node_id
 
     def sync_resources(self, supervisor: Supervisor = None, force: bool = False):
         from utilmeta import service
@@ -430,14 +416,15 @@ class ResourcesManager:
         if not ops_config:
             raise TypeError('Operations not configured')
 
-        for supervisor in [supervisor] if supervisor else Supervisor.objects.filter(
-            service=service.name,
-            disabled=False,
-            connected=True,
-            public_key__isnull=False,
-            node_id__isnull=False
-        ):
+        for supervisor in [supervisor] if supervisor else Supervisor.current().filter(connected=True):
             print(f'sync resources of [{service.name}] to supervisor[{supervisor.node_id}]...')
+
+            if supervisor.service != service.name:
+                force = True        # name changed
+
+            if not supervisor.node_id:
+                continue
+
             with SupervisorClient(
                 base_url=supervisor.base_url,
                 node_key=supervisor.public_key,
@@ -454,12 +441,24 @@ class ResourcesManager:
                 resp = client.upload_resources(
                     data=resources
                 )
-                if resp.status == 304:
-                    print('[304] resources is identical to the remote supervisor, done')
-                    continue
                 if not resp.success:
                     raise ValueError(f'sync to supervisor[{supervisor.node_id}]'
                                      f' failed with error: {resp.message}')
+
+                if supervisor.service != service.name:
+                    print(f'update supervisor and resources service name to [{service.name}]')
+                    supervisor.service = service.name
+                    supervisor.save(update_fields=['service'])
+                    self.update_supervisor_service(service.name, node_id=supervisor.node_id)
+
+                if not ops_config.node_id:
+                    self.set_local_node_id(supervisor.node_id)
+                    # force a sync, so that if it is successful
+                    # we set the local node_id
+
+                if resp.status == 304:
+                    print('[304] resources is identical to the remote supervisor, done')
+                    continue
 
                 if resp.result.resources_etag:
                     supervisor.resources_etag = resp.result.resources_etag

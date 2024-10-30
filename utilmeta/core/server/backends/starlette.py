@@ -31,6 +31,7 @@ class StarletteServerAdaptor(ServerAdaptor):
         self.app = self.config._application if isinstance(self.config._application, self.application_cls) \
             else self.application_cls(debug=not self.config.production)
         self._ready = False
+        self._mounts = {}
 
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:
@@ -43,6 +44,21 @@ class StarletteServerAdaptor(ServerAdaptor):
             # todo: fix deprecated
             app = WSGIMiddleware(app)
         self.app.mount(route, app)
+        self._mounts[route] = app
+
+    @property
+    def backend_views_empty(self) -> bool:
+        if self._mounts:
+            return False
+        for val in self.app.routes:
+            f = getattr(val, 'endpoint', None)
+            if f:
+                wrapped = getattr(f, '__wrapped__', None)
+                if wrapped and isinstance(wrapped, type) and issubclass(wrapped, API):
+                    pass
+                else:
+                    return False
+        return True
 
     # def add_middleware(self):
     #     self.app.add_middleware()
@@ -193,7 +209,7 @@ class StarletteServerAdaptor(ServerAdaptor):
                 if req:
                     req.adaptor.update_context(response=resp)
                 return self.response_adaptor_cls.reconstruct(resp)
-
+        f.__wrapped__ = utilmeta_api_class
         app.add_route(
             path='%s{path:path}' % route,
             route=f,

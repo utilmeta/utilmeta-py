@@ -262,11 +262,13 @@ def normalize(data, _json: bool = False):
         return json.loads(json_dumps(data))
 
 
-def json_dumps(data) -> str:
+def json_dumps(data, **kwargs) -> str:
     from utype import JSONEncoder
     if data is None:
         return ''
-    return json.dumps(data, cls=JSONEncoder, ensure_ascii=False)
+    kwargs.setdefault('cls', JSONEncoder)
+    kwargs.setdefault('ensure_ascii', False)
+    return json.dumps(data, **kwargs)
 
 
 def dumps(data, exclude_types: Tuple[type, ...] = (), bulk_data: bool = False):

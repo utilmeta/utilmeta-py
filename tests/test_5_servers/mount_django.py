@@ -61,6 +61,7 @@ router.register(r'users', UserViewSet)
 
 ninja_api = NinjaAPI()
 
+
 @ninja_api.get("/hello")
 def hello(request, name):
     return f"Hello {name}"

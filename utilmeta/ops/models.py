@@ -80,6 +80,18 @@ class Supervisor(models.Model):
         )
         return cls.objects.filter(*args, **kwargs)
 
+    @classmethod
+    def current(cls) -> models.QuerySet:
+        from .config import Operations
+        config = Operations.config()
+        kwargs = {}
+        if config and config.node_id:
+            kwargs.update(node_id=config.node_id)
+        else:
+            from utilmeta import service
+            kwargs.update(service=service.name)
+        return cls.filter(**kwargs)
+
 
 class AccessToken(models.Model):
     objects = models.Manager()
@@ -127,14 +139,13 @@ class Resource(models.Model):
     ident = models.CharField(max_length=200)
     route = models.CharField(max_length=500)
     # :type/:node/:ident
+    ref = models.CharField(max_length=500, default=None, null=True)
 
     remote_id = models.CharField(max_length=100, default=None, null=True)
     # id_map = models.JSONField(default=dict)
     # supervisor: id
     # remote_id = models.CharField(max_length=40, default=None, null=True)
     # supervisor = models.ForeignKey(Supervisor, related_name='resources', on_delete=models.CASCADE)
-
-    created_time = models.DateTimeField(auto_now_add=True)
 
     server = models.ForeignKey(
         'self', related_name='resources',
@@ -144,30 +155,39 @@ class Resource(models.Model):
     server_id: Optional[int]
     data: dict = models.JSONField(default=dict)
 
-    deleted = models.BooleanField(default=False)
+    created_time = models.DateTimeField(auto_now_add=True)
+    updated_time = models.DateTimeField(default=None, null=True)
+    deleted_time = models.DateTimeField(default=None, null=True)
+
     deprecated = models.BooleanField(default=False)
+    # endpoint / table -> deprecated
+    # server / instance / database / cached -> disconnected
 
     class Meta:
         db_table = 'utilmeta_resource'
 
     @classmethod
+    def filter(cls, *args, **kwargs):
+        kwargs.update(deleted_time=None)
+        return cls.objects.filter(*args, **kwargs)
+
+    @classmethod
     def get_current_server(cls) -> Optional['Resource']:
-        from utilmeta.utils import get_server_ip
-        return cls.objects.filter(
+        # from utilmeta.utils import get_server_ip
+        from utilmeta.utils import get_mac_address
+        return cls.filter(
             type='server',
-            ident=get_server_ip(),
-            deleted=False
-        ).order_by('remote_id', 'deprecated', '-created_time').first()
+            ident=get_mac_address(),
+        ).order_by('-remote_id', 'deprecated', '-created_time').first()
         # first go with the remote_id
 
     @classmethod
     def get_current_instance(cls) -> Optional['Resource']:
         from utilmeta import service
-        return cls.objects.filter(
+        return cls.filter(
             type='instance',
             service=service.name,
             server=cls.get_current_server(),
-            deleted=False
         ).first()
 
 
@@ -812,7 +832,11 @@ class QueryLog(models.Model):
     # )
     database = models.ForeignKey(
         Resource, on_delete=models.CASCADE,
-        related_name='query_logs',
+        related_name='database_query_logs',
+    )
+    model = models.ForeignKey(
+        Resource, on_delete=models.SET_NULL, default=None, null=True,
+        related_name='model_query_logs'
     )
     query = models.TextField()
     duration = models.PositiveBigIntegerField(default=None, null=True)  # ms
@@ -868,3 +892,13 @@ class AggregationLog(models.Model):
 
     class Meta:
         db_table = 'utilmeta_aggregation_log'
+
+
+supervisor_related_models = [
+    Resource,
+    AlertType,
+    ServiceLog,
+    RequestLog,
+    VersionLog,
+    AggregationLog,
+]

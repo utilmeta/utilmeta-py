@@ -420,6 +420,13 @@ class DjangoSettings(Config):
             self.root_urlconf = service.module_name or self.module_name
             self.url_conf = service.module or self.module
 
+        self.change_settings('DEFAULT_AUTO_FIELD',
+                             self.default_autofield or DEFAULT_AUTO_FIELD, force=bool(self.default_autofield))
+        if self.language:
+            self.change_settings('LANGUAGE_CODE', self.language, force=True)
+        if self.use_i18n:
+            self.change_settings('USE_I18N', self.use_i18n, force=True)
+
         self.change_settings(WSGI_APPLICATION, self.wsgi_application, force=False)
         self.change_settings(ROOT_URLCONF, self.root_urlconf, force=False)
 
@@ -489,7 +496,8 @@ class DjangoSettings(Config):
             # django_settings = settings
             # this is a django application with settings configured
             # or a UtilMeta service with django settings and setup before Operations setup
-            return self.apply_settings(service, settings)
+            if _:
+                return self.apply_settings(service, settings)
             # if apps is not set
             # this is probably the default settings, we override it
 

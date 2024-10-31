@@ -86,22 +86,22 @@ class ResponseAdaptor(BaseAdaptor):
             return False
         return content_type.startswith('text')
 
-    @property
-    def file_type(self):
-        content_type = self.content_type
-        if not content_type:
-            return False
-        if '/' not in content_type:
-            return False
-        try:
-            maj, sec = content_type.split('/')
-        except ValueError:
-            return False
-        if maj in ('video', 'audio', 'image'):
-            return True
-        if sec == 'octet-stream':
-            return True
-        return False
+    # @property
+    # def file_type(self):
+    #     content_type = self.content_type
+    #     if not content_type:
+    #         return False
+    #     if '/' not in content_type:
+    #         return False
+    #     try:
+    #         maj, sec = content_type.split('/')
+    #     except ValueError:
+    #         return False
+    #     if maj in ('video', 'audio', 'image'):
+    #         return True
+    #     if sec == 'octet-stream':
+    #         return True
+    #     return False
 
     def get_content(self):
         """
@@ -111,20 +111,19 @@ class ResponseAdaptor(BaseAdaptor):
         image/*          : Image
         """
         if not self.content_type:
-            return None
+            return self.body
         if self.json_type:
             return self.get_json()
         elif self.xml_type:
             return self.get_xml()
-        elif self.file_type:
-            return self.get_file()
         elif self.text_type:
             return self.get_text()
-        return None
+        return self.get_file()
 
     def get_file(self):
         from io import BytesIO
-        return BytesIO(self.body)
+        from utilmeta.core.file import File
+        return File(BytesIO(self.body))
         # from utilmeta.utils.media import File
         # return File(file=BytesIO(self.body))
 

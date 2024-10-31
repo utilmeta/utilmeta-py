@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict
 from .backends.base import RequestAdaptor
 from http.cookies import SimpleCookie
 from urllib.parse import urlsplit, urlencode, urlunsplit
-from utilmeta.utils import Headers, pop, file_like, \
+from utilmeta.utils import Headers, pop, file_like, guess_mime_type, \
     RequestType, encode_multipart_form, json_dumps, multi,\
     parse_query_string, parse_query_dict
 from collections.abc import Mapping
@@ -100,7 +100,8 @@ class ClientRequest:
 
     @content_type.setter
     def content_type(self, t):
-        self.headers['content-type'] = t
+        if t:
+            self.headers['content-type'] = t
 
     @property
     def contains_files(self):
@@ -224,7 +225,10 @@ class ClientRequest:
 
                 elif file_like(self.data):
                     name = getattr(self.data, 'name', None)
-                    self.content_type = mimetypes.guess_type(name)[0] if name else RequestType.OCTET_STREAM
+                    content_type = None
+                    if name:
+                        content_type, encoding = guess_mime_type(name)
+                    self.content_type = content_type or RequestType.OCTET_STREAM
                     self.data.seek(0)
                     content = self.data.read()
                     if not isinstance(content, bytes):

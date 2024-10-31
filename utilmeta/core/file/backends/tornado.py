@@ -6,8 +6,7 @@ from io import BytesIO
 class TornadoFileAdaptor(FileAdaptor):
     file: HTTPFile
 
-    @property
-    def object(self):
+    def get_object(self):
         return BytesIO(self.file.body)
 
     @property

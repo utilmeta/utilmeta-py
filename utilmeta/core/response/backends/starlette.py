@@ -31,10 +31,15 @@ class StarletteResponseAdaptor(ResponseAdaptor):
             status_code=resp.status,
             media_type=resp.content_type
         )
-        if resp.file:
-            response = StreamingResponse(resp.file, **kwargs)
-        else:
-            response = HttpResponse(resp.body, **kwargs)
+        # file will not be closed if using this
+        # file = resp.file
+        # if file:
+        #     def iterator():
+        #         return iter(file.file)
+        #
+        #     response = StreamingResponse(resp.file, **kwargs)
+        # else:
+        response = HttpResponse(resp.body, **kwargs)
         for key, val in resp.prepare_headers():
             # set values in this way cause headers is a List[Tuple]
             response.headers[key] = val

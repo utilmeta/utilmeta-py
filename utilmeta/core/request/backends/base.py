@@ -42,7 +42,7 @@ class RequestAdaptor(BaseAdaptor):
         self._override_method = None
         self._override_route = None
         self._override_query = None
-        self._override_data = None
+        # self._override_data = None
 
         # self.logger = config.preference.logger_cls()  # root request context logger
         # self.json_decoder_cls = config.preference.json_decoder_cls
@@ -191,15 +191,18 @@ class RequestAdaptor(BaseAdaptor):
             return False
         return content_type in (RequestType.FORM_URLENCODED, RequestType.FORM_DATA)
 
-    @property
-    def file_type(self):
-        content_type = self.content_type
-        maj, sec = content_type.split('/')
-        if maj in ('video', 'audio', 'image'):
-            return True
-        if sec == 'octet-stream':
-            return True
-        return False
+    # @property
+    # def file_type(self):
+    #     content_type = self.content_type
+    #     if not content_type:
+    #         return False
+    #     if '/' in content_type:
+    #         maj, sec = content_type.split('/')
+    #         if maj in ('video', 'audio', 'image'):
+    #             return True
+    #         if sec == 'octet-stream':
+    #             return True
+    #     return False
 
     @property
     def text_type(self):
@@ -248,13 +251,11 @@ class RequestAdaptor(BaseAdaptor):
             return self.get_json()
         elif self.form_type:
             return self.get_form()
-        elif self.file_type:
-            return self.get_file()
         elif self.xml_type:
             return self.get_xml()
         elif self.text_type:
             return self.get_text()
-        return None
+        return self.get_file()
 
     @property
     def content(self):
@@ -264,8 +265,8 @@ class RequestAdaptor(BaseAdaptor):
         if content-type is form (multipart/form-data), will be loaded to a dict
         with form values and files in it
         """
-        if self._override_data:
-            pass
+        # if self._override_data:
+        #     pass
         try:
             return self.get_content()
         except NotImplementedError:

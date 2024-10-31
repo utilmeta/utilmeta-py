@@ -5,8 +5,7 @@ from .base import FileAdaptor
 class WerkzeugFileAdaptor(FileAdaptor):
     file: FileStorage
 
-    @property
-    def object(self):
+    def get_object(self):
         return self.file.stream
 
     @property
@@ -14,9 +13,7 @@ class WerkzeugFileAdaptor(FileAdaptor):
         length = self.file.content_length
         if length:
             return length
-        size = len(self.file.stream.read())
-        self.file.stream.seek(0)
-        return size
+        return super().size
 
     @property
     def content_type(self):

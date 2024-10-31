@@ -6,8 +6,7 @@ from io import BytesIO
 class SanicFileAdaptor(FileAdaptor):
     file: File
 
-    @property
-    def object(self):
+    def get_object(self):
         return BytesIO(self.file.body)
 
     @property

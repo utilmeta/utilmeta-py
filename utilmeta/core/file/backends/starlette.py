@@ -5,8 +5,7 @@ from .base import FileAdaptor
 class StarletteFileAdaptor(FileAdaptor):
     file: UploadFile
 
-    @property
-    def object(self):
+    def get_object(self):
         return self.file.file
 
     @property
@@ -22,4 +21,4 @@ class StarletteFileAdaptor(FileAdaptor):
         return self.file.filename
 
     def close(self):
-        self.file.close()
+        return self.object.close()

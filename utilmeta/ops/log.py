@@ -332,9 +332,9 @@ class LogMiddleware(ServiceMiddleware):
     def process_response(self, response: Response):
         logger: Logger = _logger.get(None)
         if not logger:
-            return
+            return response.close()
         if not response.request:
-            return
+            return response.close()
 
         logger.exit()
         logger.setup_response(response)
@@ -347,10 +347,10 @@ class LogMiddleware(ServiceMiddleware):
         )
 
         if logger.omitted:
-            return
+            return response.close()
         if response.request.is_options or logger.events_only:
             if response.success and logger.vacuum:
-                return
+                return response.close()
 
         global _responses_queue
         _responses_queue.append(response)

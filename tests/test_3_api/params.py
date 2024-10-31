@@ -1,9 +1,11 @@
+import os.path
+
 from utilmeta.core.file.backends.django import DjangoFileAdaptor  # noqa
 from io import BytesIO
 from utilmeta.core.response import Response
+from pathlib import Path
 
 
-# image = UploadedFile(BytesIO(b"image"), content_type="image/png", size=6)
 def get_requests(backend: str = None, asynchronous: bool = False):
     image = BytesIO(b"image")
     # files = [
@@ -16,6 +18,10 @@ def get_requests(backend: str = None, asynchronous: bool = False):
         BytesIO(b"f2"),
         BytesIO(b"f3"),
     ]
+
+    # from utilmeta import service
+    base_dir = Path(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'server'))
+    # os.removedirs(base_dir)
 
     backend_requests = [('get', 'backend', {}, None, {}, backend, 200)] if backend else []
     if asynchronous:
@@ -183,12 +189,70 @@ def get_requests(backend: str = None, asynchronous: bool = False):
         ),
         (
             "post",
+            "upload",
+            {},
+            open(base_dir / 'test.txt', 'r'),
+            {},
+            b'test-content',
+            200,
+        ),
+        (
+            "post",
             "multipart",
             {},
             {"name": "test", "images": files},
             {},
-            ['test', 3, 6],
+            ['test', 3, 6, [
+                str(base_dir / 'tmp/test-0'),
+                str(base_dir / 'tmp/test-1'),
+                str(base_dir / 'tmp/test-2'),
+            ]],
             200,
+        ),
+        (
+            "get",
+            "files/" + str(base_dir / 'tmp/test-0'),
+            {},
+            None,
+            {},
+            b'f1',
+            200,
+        ),
+        (
+            "delete",
+            "files/" + str(base_dir / 'tmp/test-0'),
+            {},
+            None,
+            {},
+            ...,
+            204,
+        ),
+        (
+            "delete",
+            "files/" + str(base_dir / 'tmp/test-1'),
+            {},
+            None,
+            {},
+            ...,
+            204,
+        ),
+        (
+            "delete",
+            "files/" + str(base_dir / 'tmp/test-2'),
+            {},
+            None,
+            {},
+            ...,
+            204,
+        ),
+        (
+            "get",
+            "files/" + str(base_dir / 'tmp/test-0'),
+            {},
+            {"name": "test", "images": files},
+            {},
+            ...,
+            404,
         ),
         (
             "put",
@@ -308,4 +372,8 @@ def do_live_api_tests(service):
             if callable(result):
                 result(content)
             else:
+                if isinstance(result, bytes):
+                    result = result.decode()
+                if isinstance(content, bytes):
+                    content = content.decode()
                 assert content == result, f"{method} {path} failed with {repr(content)}, {repr(result)} expected"

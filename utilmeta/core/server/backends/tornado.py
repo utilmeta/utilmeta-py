@@ -96,7 +96,10 @@ class TornadoServerAdaptor(ServerAdaptor):
                     self.set_status(response.status, reason=response.reason)
                     for key, value in response.prepare_headers(with_content_type=True):
                         self.set_header(key, value)
-                    self.write(response.prepare_body())
+                    if response.status in (204, 304) or (100 <= response.status < 200):
+                        return
+                    body = response.prepare_body()
+                    self.write(body)
         else:
             class Handler(RequestHandler):
                 @decorator
@@ -155,7 +158,11 @@ class TornadoServerAdaptor(ServerAdaptor):
                     self.set_status(response.status, reason=response.reason)
                     for key, value in response.prepare_headers(with_content_type=True):
                         self.set_header(key, value)
-                    self.write(response.prepare_body())
+
+                    if response.status in (204, 304) or (100 <= response.status < 200):
+                        return
+                    body = response.prepare_body()
+                    self.write(body)
 
         return Handler
 

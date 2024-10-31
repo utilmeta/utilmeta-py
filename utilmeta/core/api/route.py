@@ -365,9 +365,14 @@ class APIRoute(BaseRoute):
                     # only set path params if route is API
                     # endpoints need to match for multiple methods
                     route_attr.set(pop(group, '_', ''))
-                # set path params for endpoint and API in every match
-                path_params.update(group)
-                path_params_attr.set(path_params)
+
+                if not self.method or self.method == request.method:
+                    # set path params for endpoint and API in every match
+                    for key, value in group.items():
+                        # setdefault instead of [setitem]
+                        # because the first match
+                        path_params.setdefault(key, value)
+                    path_params_attr.set(path_params)
                 return True
         return False
 

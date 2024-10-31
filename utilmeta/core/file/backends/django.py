@@ -9,8 +9,7 @@ class DjangoFileAdaptor(FileAdaptor):
     def qualify(cls, obj):
         return isinstance(obj, UploadedFile)
 
-    @property
-    def object(self):
+    def get_object(self):
         return self.file.file
 
     @property

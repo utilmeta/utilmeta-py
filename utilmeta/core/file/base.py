@@ -1,8 +1,10 @@
 from io import BytesIO
 from .backends.base import FileAdaptor
 import utype
-from typing import Type
+from typing import Type, Optional
 from utilmeta.utils.exceptions import UnprocessableEntity
+from utilmeta.utils import file_like
+from pathlib import Path
 
 __all__ = ['File', 'Image', 'Audio', 'Video', 'FileType']
 
@@ -33,6 +35,7 @@ class File:
     writelines = property(lambda self: self.file.writelines)
 
     # -------
+    charset = None
     max_length = None
     type = None
 
@@ -40,16 +43,27 @@ class File:
         if isinstance(file, File):
             self.adaptor = file.adaptor
             self.file = file.file
-        elif isinstance(file, BytesIO):
-            from .backends.bytesio import BytesIOFileAdaptor
-            self.adaptor = BytesIOFileAdaptor(file)
-            self.file = file
+        elif isinstance(file, FileAdaptor):
+            self.adaptor = file
+            self.file = self.adaptor.object
         else:
-            self.adaptor = FileAdaptor.dispatch(file)
+            self.adaptor = FileAdaptor.dispatch(self._make_file_like(file))
             self.file = self.adaptor.object
         self._filename = filename
         self._content_type = content_type
         self.validate()
+
+    def _make_file_like(self, value):
+        if file_like(value):
+            return value
+        if isinstance(value, (bytes, memoryview, bytearray)):
+            return BytesIO(value)
+        charset = self.charset or 'utf-8'
+        if isinstance(value, str):
+            return BytesIO(value.encode(charset))
+        # Handle non-string types.
+        # return value instead
+        return value
 
     def validate(self):
         pass
@@ -78,15 +92,13 @@ class File:
     def seekable(self):
         if self.closed:
             return False
-        if hasattr(self.file, "seekable"):
-            return self.file.seekable()
-        return True
+        return self.adaptor.seekable
 
     def save(self, path: str, name: str = None):
         return self.adaptor.save(path, name)
 
     async def asave(self, path: str, name: str = None):
-        pass
+        return await self.adaptor.asave(path, name)
 
     def __iter__(self):
         return iter(self.file)
@@ -101,6 +113,10 @@ class File:
     @property
     def filename(self) -> str:
         return self._filename or self.adaptor.filename
+
+    @property
+    def filepath(self) -> Optional[Path]:
+        return self.adaptor.filepath
 
     @property
     def size(self) -> int:

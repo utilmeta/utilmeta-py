@@ -122,12 +122,19 @@ class TestAPIClass:
                     headers=h,
                 )
             )()
-            assert isinstance(resp, response.Response), f'invalid response: {resp}'
-            content = resp.data
-            assert resp.status == status, \
-                f"{method} {path} failed with {content}, {status} expected, got {resp.status}"
-            if result is not ...:
-                if callable(result):
-                    result(content)
-                else:
-                    assert content == result, f"{method} {path} failed with {content}"
+            try:
+                assert isinstance(resp, response.Response), f'invalid response: {resp}'
+                content = resp.data
+                assert resp.status == status, \
+                    f"{method} {path} failed with {content}, {status} expected, got {resp.status}"
+                if result is not ...:
+                    if callable(result):
+                        result(content)
+                    else:
+                        if isinstance(result, bytes):
+                            result = result.decode()
+                        if isinstance(content, bytes):
+                            content = content.decode()
+                        assert content == result, f"{method} {path} failed with {content}"
+            finally:
+                resp.close()

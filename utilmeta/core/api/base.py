@@ -502,11 +502,29 @@ class API(PluginTarget):
                     # not endpoint
                     # further API mount
                     return route
-                # elif route.method == self.request.method and not self.request.is_options:
-                #     # options/cross-origin need to collect methods to generate Allow-Methods
-                #     return route
-                # first match is 1st priority
-                method_routes.setdefault(route.method, route)
+                else:
+                    # elif route.method == self.request.method and not self.request.is_options:
+                    #     # options/cross-origin need to collect methods to generate Allow-Methods
+                    #     return route
+                    # first match is 1st priority
+                    method_routes.setdefault(route.method, route)
+
+        # if matched_route:
+        #     # elif route.method == self.request.method and not self.request.is_options:
+        #     #     # options/cross-origin need to collect methods to generate Allow-Methods
+        #     #     return route
+        #     # first match is 1st priority
+        #     allowed_methods = []
+        #     allowed_headers = []
+        #     for route in self._routes:
+        #         if route.method and route.route == matched_route.route:
+        #             distinct_add(allowed_methods, [route.method])
+        #             distinct_add(allowed_headers, route.header_names)
+        #             # if route.method not in allowed_methods:
+        #             #     allowed_methods.append(route.method)
+        #
+        #     method_routes.setdefault(route.method, route)
+
         if method_routes:
             allow_methods = var.allow_methods.setup(self.request)
             allow_headers = var.allow_headers.setup(self.request)

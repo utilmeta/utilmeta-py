@@ -13,10 +13,8 @@ __pycache__/
 */.obsidian
 
 /docs/build
-
-/tests/service/media/*
-/tests/service/deploy/run/
-/tests/service/deploy/log/
+/tests/server/tmp/*
+/tests/server/tmp
 /tests/test_7_ops/utilmeta_site/__default_db
 /tests/test_7_ops/utilmeta_site/operations_db
 /tests/test_7_ops/flask_site/__default_db

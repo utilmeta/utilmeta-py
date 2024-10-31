@@ -328,7 +328,6 @@ def make_live_process(backend: str = None, port: int = None, cmdline: bool = Fal
                 cmd.append('--sync')
             cmd.append(f'--port={str(service.port)}')
             server = subprocess.Popen(cmd, env=os.environ.copy(), cwd=os.getcwd())
-            print('CMD:', cmd)
         else:
             import multiprocessing
             server = multiprocessing.Process(target=run_server, args=(backend, service.port, service.asynchronous))

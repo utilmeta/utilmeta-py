@@ -23,11 +23,10 @@ class ResponseFileAdaptor(FileAdaptor):
             return False
         return True
 
-    @property
-    def object(self):
+    def get_object(self):
         file = self.file.file
         if file:
-            return file
+            return file.file
         from io import BytesIO
         return BytesIO(self.file.body)
 

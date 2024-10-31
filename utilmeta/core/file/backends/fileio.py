@@ -2,6 +2,8 @@ from typing import Union
 from utilmeta.utils import guess_mime_type
 from io import TextIOWrapper, BufferedReader, BufferedRandom
 from utilmeta.core.file.backends.base import FileAdaptor
+import os
+from pathlib import Path
 
 
 class FileIOAdaptor(FileAdaptor):
@@ -12,22 +14,13 @@ class FileIOAdaptor(FileAdaptor):
         return isinstance(obj, (BufferedReader, BufferedRandom, TextIOWrapper))
 
     @property
-    def object(self):
-        return self.file
-
-    @property
     def size(self):
         if self.file.name:
             try:
-                import os
                 return os.path.getsize(self.file.name)
             except FileNotFoundError:
                 pass
-        self.file.seek(0)
-        byts = self.file.read()
-        size = len(byts)
-        self.file.seek(0)
-        return size
+        return super().size
 
     @property
     def content_type(self):
@@ -36,7 +29,15 @@ class FileIOAdaptor(FileAdaptor):
 
     @property
     def filename(self):
-        return self.file.name
+        path, name = os.path.split(self.file.name)
+        return name
+
+    @property
+    def filepath(self):
+        path = self.file.name
+        if not os.path.isabs(path):
+            return Path(os.getcwd()) / path
+        return Path(path)
 
     def close(self):
         self.file.close()

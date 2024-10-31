@@ -1,3 +1,5 @@
+import os.path
+
 from utilmeta.core import api, response, request, file
 from utype.types import *
 import utype
@@ -207,11 +209,47 @@ class TestAPI(api.API):
 
     @api.post
     def multipart(self, data: MultiFormData = request.Body):
+        paths = []
+        for i, image in enumerate(data.images):
+            name = f'{data.name}-{i}'
+            path = image.save(os.path.join(os.path.dirname(__file__), 'tmp'), name)
+            paths.append(path)
         return [
             data.name,
             len(data.images),
-            sum([f.size for f in data.images])
+            sum([f.size for f in data.images]),
+            paths
         ]
+
+    @api.post
+    @awaitable(multipart)
+    async def multipart(self, data: MultiFormData = request.Body):
+        paths = []
+        for i, image in enumerate(data.images):
+            name = f'{data.name}-{i}'
+            path = await image.asave(os.path.join(os.path.dirname(__file__), 'tmp'), name)
+            paths.append(path)
+        return [
+            data.name,
+            len(data.images),
+            sum([f.size for f in data.images]),
+            paths
+        ]
+
+    @api.get('files/{path}')
+    def get_file(self, path: str = request.FilePathParam):
+        if not os.path.exists(path):
+            raise exceptions.NotFound
+        # from utilmeta import service
+        return self.response(file=open(path, 'r'))
+
+    @api.delete('files/{path}')
+    def delete_file(self, path: str = request.FilePathParam):
+        if not os.path.exists(path):
+            raise exceptions.NotFound
+        # from utilmeta import service
+        os.remove(path)
+        return self.response(status=204)
 
     @api.put
     def batch(self, data: List[DataSchema] = request.Body) -> List[DataSchema]:
@@ -308,7 +346,8 @@ class TestAPI(api.API):
         # for i, f in enumerate(data.files):
         #     f.save(f'/tmp/{data.name}-{i}')
         # print('UPLOAD!!!!', data.size)
-        return data.read()
+        return data
+        # test file return
 
     @api.get
     def backend(self):

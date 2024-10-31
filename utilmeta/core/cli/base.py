@@ -698,47 +698,227 @@ class Client(PluginTarget):
         response = await self._make_async_request(request, timeout=timeout)
         return await self._async_process_response(response)
 
-    def get(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return self.request(method='GET', path=path, query=query, data=data, headers=headers)
+    def get(self,
+            path: str = None,
+            query: dict = None,
+            headers: dict = None,
+            cookies=None,
+            timeout: int = None):
+        return self.request(
+            method='GET',
+            path=path,
+            query=query,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    async def async_get(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return await self.async_request(method='GET', path=path, query=query, data=data, headers=headers)
+    async def async_get(self,
+                        path: str = None,
+                        query: dict = None,
+                        headers: dict = None,
+                        cookies=None,
+                        timeout: int = None):
+        return await self.async_request(
+            method='GET',
+            path=path,
+            query=query,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    def post(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return self.request(method='POST', path=path, query=query, data=data, headers=headers)
+    def post(self,
+             path: str = None,
+             query: dict = None,
+             data=None,
+             headers: dict = None,
+             cookies=None,
+             timeout: int = None):
+        return self.request(
+            method='POST',
+            path=path,
+            query=query,
+            data=data,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    async def async_post(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return await self.async_request(method='POST', path=path, query=query, data=data, headers=headers)
+    async def async_post(self,
+                         path: str = None,
+                         query: dict = None,
+                         data=None,
+                         headers: dict = None,
+                         cookies=None,
+                         timeout: int = None):
+        return await self.async_request(
+            method='POST',
+            path=path,
+            query=query,
+            data=data,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    def put(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return self.request(method='PUT', path=path, query=query, data=data, headers=headers)
+    def put(self,
+            path: str = None,
+            query: dict = None,
+            data=None,
+            headers: dict = None,
+            cookies=None,
+            timeout: int = None):
+        return self.request(
+            method='PUT',
+            path=path,
+            query=query,
+            data=data,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    async def async_put(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return await self.async_request(method='PUT', path=path, query=query, data=data, headers=headers)
+    async def async_put(self,
+                        path: str = None,
+                        query: dict = None,
+                        data=None,
+                        headers: dict = None,
+                        cookies=None,
+                        timeout: int = None):
+        return await self.async_request(
+            method='PUT',
+            path=path,
+            query=query,
+            data=data,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    def patch(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return self.request(method='PATCH', path=path, query=query, data=data, headers=headers)
+    def patch(self,
+              path: str = None,
+              query: dict = None,
+              data=None,
+              headers: dict = None,
+              cookies=None,
+              timeout: int = None):
+        return self.request(
+            method='PATCH',
+            path=path,
+            query=query,
+            data=data,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    async def async_patch(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return await self.async_request(method='PATCH', path=path, query=query, data=data, headers=headers)
+    async def async_patch(self,
+                          path: str = None,
+                          query: dict = None,
+                          data=None,
+                          headers: dict = None,
+                          cookies=None,
+                          timeout: int = None):
+        return await self.async_request(
+            method='PATCH',
+            path=path,
+            query=query,
+            data=data,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    def delete(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return self.request(method='DELETE', path=path, query=query, data=data, headers=headers)
+    def delete(self,
+               path: str = None,
+               query: dict = None,
+               headers: dict = None,
+               cookies=None,
+               timeout: int = None):
+        return self.request(
+            method='DELETE',
+            path=path,
+            query=query,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    async def async_delete(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return await self.async_request(method='DELETE', path=path, query=query, data=data, headers=headers)
+    async def async_delete(self,
+                           path: str = None,
+                           query: dict = None,
+                           headers: dict = None,
+                           cookies=None,
+                           timeout: int = None):
+        return await self.async_request(
+            method='DELETE',
+            path=path,
+            query=query,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    def options(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return self.request(method='OPTIONS', path=path, query=query, data=data, headers=headers)
+    def options(self,
+                path: str = None,
+                query: dict = None,
+                headers: dict = None,
+                cookies=None,
+                timeout: int = None):
+        return self.request(
+            method='OPTIONS',
+            path=path,
+            query=query,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    async def async_options(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return await self.async_request(method='OPTIONS', path=path, query=query, data=data, headers=headers)
+    async def async_options(self,
+                            path: str = None,
+                            query: dict = None,
+                            headers: dict = None,
+                            cookies=None,
+                            timeout: int = None):
+        return await self.async_request(
+            method='OPTIONS',
+            path=path,
+            query=query,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    def head(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return self.request(method='HEAD', path=path, query=query, data=data, headers=headers)
+    def head(self,
+             path: str = None,
+             query: dict = None,
+             headers: dict = None,
+             cookies=None,
+             timeout: int = None):
+        return self.request(
+            method='HEAD',
+            path=path,
+            query=query,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
-    async def async_head(self, path: str = None, query: dict = None, data=None, headers: dict = None):
-        return await self.async_request(method='HEAD', path=path, query=query, data=data, headers=headers)
+    async def async_head(self,
+                         path: str = None,
+                         query: dict = None,
+                         headers: dict = None,
+                         cookies=None,
+                         timeout: int = None):
+        return self.request(
+            method='HEAD',
+            path=path,
+            query=query,
+            headers=headers,
+            cookies=cookies,
+            timeout=timeout
+        )
 
     def process_request(self, request: Request):
         return request

@@ -8,7 +8,7 @@ from utilmeta.core.request import Request
 from utype.types import *
 from utilmeta.utils import Header,\
     get_generator_result, get_doc, is_hop_by_hop, http_time, file_like, \
-    STATUS_WITHOUT_BODY, time_now
+    STATUS_WITHOUT_BODY, time_now, multi
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import Headers
 from .backends.base import ResponseAdaptor
@@ -18,6 +18,7 @@ from utype.utils.functional import get_obj_name
 import utype
 import re
 from ..file.base import File
+from ..file.backends.base import FileAdaptor
 # from utype.parser.rule import LogicalType
 
 
@@ -39,6 +40,7 @@ class Response:
     __parser_cls__ = ResponseClassParser
     __parser__: ResponseClassParser
     __json_encoder_cls__ = utype.JSONEncoder
+    __file_block_size__ = 4096
 
     # -- params --
     result_key: str = None
@@ -207,7 +209,7 @@ class Response:
         # 4. response: retry 2
         self._stack = stack
 
-        self._file = None
+        self._file: Optional[FileAdaptor] = None
         self._file_path = None
         self._error = None
         self._traffic = None
@@ -244,6 +246,8 @@ class Response:
     def close(self):
         if self.adaptor:
             self.adaptor.close()
+        if self._file:
+            self._file.close()
 
     def parse_content(self):
         if self.result is not None:
@@ -329,21 +333,16 @@ class Response:
         if not file:
             return
         if isinstance(file, File):
-            self._file = file.file
+            self._file = file.adaptor
             return
-        if isinstance(file, str):
-            self._file_path = file
-            self._file = open(self._file_path, 'rb')
-            return
+        from utilmeta.core.file.backends.base import FileAdaptor
         from pathlib import Path
-        if isinstance(file, Path):
+        if isinstance(file, (str, Path)):
             self._file_path = str(file)
-            self._file = open(self._file_path, 'rb')
+            self._file = FileAdaptor.dispatch(open(self._file_path, 'rb'))
             return
-
-        if not file_like(file):
-            return
-        self._file = file
+        if file_like(file):
+            self._file = FileAdaptor.dispatch(file)
 
     def init_error(self, error: Union[Error, Exception]):
         if isinstance(error, Exception):
@@ -385,6 +384,25 @@ class Response:
     #         self._content = await self.adaptor.async_load()
     #         self.parse_content()
 
+    def _make_bytes(self, value):
+        """Turn a value into a bytestring encoded in the output charset."""
+        # Per PEP 3333, this response body must be bytes. To avoid returning
+        # an instance of a subclass, this function returns `bytes(value)`.
+        # This doesn't make a copy when `value` already contains bytes.
+
+        # Handle string types -- we can't rely on force_bytes here because:
+        # - Python attempts str conversion first
+        # - when self._charset != 'utf-8' it re-encodes the content
+        if isinstance(value, bytes):
+            return value
+        if isinstance(value, (memoryview, bytearray)):
+            return bytes(value)
+        charset = self.charset or 'utf-8'
+        if isinstance(value, str):
+            return value.encode(charset)
+        # Handle non-string types.
+        return str(value).encode(charset)
+
     def build_content(self):
         if self._content is not None:
             return
@@ -396,7 +414,7 @@ class Response:
             self.content_type = None
             return
         if self._file:
-            self._content = self._file
+            self._content = self.file
             if self._file_path:
                 # if there is file path and no content-disposition is set
                 # we set it
@@ -409,10 +427,18 @@ class Response:
                                     f'inline; filename="{quote(Path(self._file_path).name)}"')
         else:
             data = self.build_data()
-            if hasattr(data, '__iter__') and not isinstance(data, (bytes, memoryview, str, list, dict)):
-                # must convert to list iterable
-                # this data is guarantee that not file_like
-                data = list(data)
+            if hasattr(data, '__iter__'):
+                if multi(data) and not isinstance(data, list):
+                    data = list(data)
+                elif not isinstance(data, (bytes, memoryview, str, list, dict, set, tuple)):
+                    # must convert to list iterable
+                    # this data is guarantee that not file_like
+                    data = b"".join(self._make_bytes(chunk) for chunk in data)
+                    if hasattr(data, "close"):
+                        try:
+                            data.close()
+                        except Exception:   # noqa
+                            pass
             # self._data = data
             if data is None or data == '':
                 data = b''
@@ -433,7 +459,12 @@ class Response:
             filename = self.filename
             if filename:
                 import mimetypes
-                self.content_type, content_encode = mimetypes.guess_type(filename)
+                content_type, content_encode = mimetypes.guess_type(filename)
+                self.content_type = {
+                    "bzip2": "application/x-bzip",
+                    "gzip": "application/gzip",
+                    "xz": "application/x-xz",
+                }.get(content_encode, content_type) or "application/octet-stream"
             else:
                 self.content_type = OCTET_STREAM
             return
@@ -463,20 +494,23 @@ class Response:
         return None
 
     @property
+    def is_json(self):
+        return self.content_type and self.content_type.startswith(JSON)
+
+    @property
     def data(self):
         if not self._content:
             return None
-        if self.content_type:
-            if self.content_type.startswith(JSON):
-                if self._data:
-                    return self._data
-                self._data = json.loads(self.dump_json())
+        if self.is_json:
+            if self._data:
                 return self._data
-        if isinstance(self._content, io.BytesIO):
+            self._data = json.loads(self.dump_json(self._content))
+            return self._data
+        if isinstance(self._content, File) or file_like(self._content):
             self._content.seek(0)
             data = self._content.read()
             self._content.seek(0)
-            return data
+            return self._make_bytes(data)
         return self._content
 
     # @classmethod
@@ -517,10 +551,11 @@ class Response:
     def pprint(self):
         self._print(pprint)
 
-    def dump_json(self, encoder=None, ensure_ascii: bool = False, **kwargs):
+    @classmethod
+    def dump_json(cls, content, encoder=None, ensure_ascii: bool = False, **kwargs):
         import json
         kwargs.update(ensure_ascii=ensure_ascii)
-        return json.dumps(self._content, cls=encoder or self.__json_encoder_cls__, **kwargs)
+        return json.dumps(content, cls=encoder or cls.__json_encoder_cls__, **kwargs)
 
     def parse_headers(self):
         if self.message_header:
@@ -637,10 +672,8 @@ class Response:
         self._message = val
 
     @property
-    def file(self):
-        # if self.adaptor:
-        #     return self.adaptor.get_file()
-        return self._file
+    def file(self) -> File:
+        return File(self._file) if self._file is not None else None
 
     @file.setter
     def file(self, file):
@@ -732,30 +765,42 @@ class Response:
 
     def prepare_body(self):
         if self.adaptor:
-            return self.adaptor.body
-        if self._file:
-            return self._file
-        if not self._content:
+            body = self.adaptor.body
+            if body:
+                return body
+
+        if isinstance(self._content, File):
+            file = self._content
+            if file.seekable():
+                file.seek(0)
+            body = file.read()
+            _ = file.close()
+            print('CLOSE FILE:', _)
+            # if inspect.isawaitable(_):
+            #     from utilmeta.utils import async_to_sync
+            #     async_to_sync(_)()
+            return body
+
+        body = self._content
+        if not body:
             return b''
-        if self.content_type and self.content_type.startswith(JSON):
+        if self.is_json and not isinstance(body, (str, bytes)):
             try:
-                return self.dump_json()
+                return self.dump_json(body)
             except TypeError as e:
                 self.init_error(e)
                 return str(e).encode()
         # this content might not be bytes, leave the encoding to the adaptor
-        return self._content
+        return body
 
     @property
     def body(self) -> bytes:
-        if self.adaptor:
-            body = self.adaptor.body
-            # sometime adaptor.body maybe only can read once
-            if body:
-                return body
+        # if self.adaptor:
+        #     body = self.adaptor.body
+        #     # sometime adaptor.body maybe only can read once
+        #     if body:
+        #         return body
         body = self.prepare_body()
-        if hasattr(body, 'read'):
-            return body.read()      # noqa
         if isinstance(body, bytes):
             return body
         if not isinstance(body, str):

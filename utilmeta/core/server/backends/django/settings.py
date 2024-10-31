@@ -382,6 +382,14 @@ class DjangoSettings(Config):
                 # time_format=getattr(django_settings, 'TIME_FORMAT', Time.TIME_DEFAULT),
             ))
 
+        # set DEFAULT_AUTO_FIELD before a (probably) apps reload
+        self.change_settings('DEFAULT_AUTO_FIELD',
+                             self.default_autofield or DEFAULT_AUTO_FIELD, force=True)
+        if self.language:
+            self.change_settings('LANGUAGE_CODE', self.language, force=True)
+        if self.use_i18n:
+            self.change_settings('USE_I18N', self.use_i18n, force=True)
+
         if self.apps:
             new_apps = self.merge_list_settings('INSTALLED_APPS', self.apps)
             from django.apps import apps
@@ -419,13 +427,6 @@ class DjangoSettings(Config):
             # raise ValueError(f'Invalid root urlconf: {self.root_urlconf}')
             self.root_urlconf = service.module_name or self.module_name
             self.url_conf = service.module or self.module
-
-        self.change_settings('DEFAULT_AUTO_FIELD',
-                             self.default_autofield or DEFAULT_AUTO_FIELD, force=bool(self.default_autofield))
-        if self.language:
-            self.change_settings('LANGUAGE_CODE', self.language, force=True)
-        if self.use_i18n:
-            self.change_settings('USE_I18N', self.use_i18n, force=True)
 
         self.change_settings(WSGI_APPLICATION, self.wsgi_application, force=False)
         self.change_settings(ROOT_URLCONF, self.root_urlconf, force=False)

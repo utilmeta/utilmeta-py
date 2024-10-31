@@ -209,6 +209,22 @@ def encode_multipart_form(form: dict, boundary: str = None) -> Tuple[bytes, str]
     return body, content_type
 
 
+# def is_file_type(content_type: str):
+#     if not content_type:
+#         return False
+#     if '/' not in content_type:
+#         return False
+#     try:
+#         maj, sec = content_type.split('/')
+#     except ValueError:
+#         return False
+#     if maj in ('video', 'audio', 'image'):
+#         return True
+#     if sec == 'octet-stream':
+#         return True
+#     return False
+
+
 def get_origin(url: str, with_scheme: bool = True, remove_www_prefix: bool = False, convert_port: bool = False,
                default_scheme: str = Scheme.HTTP, trans_local: bool = True):
     if not url:

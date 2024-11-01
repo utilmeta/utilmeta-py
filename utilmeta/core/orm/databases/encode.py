@@ -223,11 +223,11 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
     async def execute(self, sql, params=None):
         db = await self.connect()       # lazy connect
         sql, params = self._parse_sql_params(sql, params)
-        await db.execute(sql, params)
+        return await db.execute(sql, params)
 
     async def execute_many(self, sql, params: list):
         db = await self.connect()       # lazy connect
-        await db.execute_many(sql, params)
+        return await db.execute_many(sql, params)
 
     async def fetchone(self, sql, params=None):
         db = await self.connect()       # lazy connect

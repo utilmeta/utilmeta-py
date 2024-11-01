@@ -1,5 +1,4 @@
 import inspect
-import io
 import json
 from http.cookies import SimpleCookie
 from pprint import pprint
@@ -8,7 +7,7 @@ from utilmeta.core.request import Request
 from utype.types import *
 from utilmeta.utils import Header,\
     get_generator_result, get_doc, is_hop_by_hop, http_time, file_like, \
-    STATUS_WITHOUT_BODY, time_now, multi
+    STATUS_WITHOUT_BODY, time_now, multi, guess_mime_type
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import Headers
 from .backends.base import ResponseAdaptor
@@ -458,13 +457,8 @@ class Response:
             # no content type in headers, guess
             filename = self.filename
             if filename:
-                import mimetypes
-                content_type, content_encode = mimetypes.guess_type(filename)
-                self.content_type = {
-                    "bzip2": "application/x-bzip",
-                    "gzip": "application/gzip",
-                    "xz": "application/x-xz",
-                }.get(content_encode, content_type) or "application/octet-stream"
+                content_type, content_encode = guess_mime_type(filename)
+                self.content_type = content_type or OCTET_STREAM
             else:
                 self.content_type = OCTET_STREAM
             return
@@ -845,7 +839,10 @@ class Response:
 
     @classmethod
     def mock(cls):
-        from utype.utils.example import get_example_from_parser
+        try:
+            from utype.utils.example import get_example_from_parser
+        except ImportError:
+            raise NotImplementedError(f'Response.mock() not implemented, please upgrade utype')
         parser = getattr(cls, '__parser__', None)
         kwargs = {}
         if parser:

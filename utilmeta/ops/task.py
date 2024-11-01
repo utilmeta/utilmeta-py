@@ -209,12 +209,12 @@ class OperationWorkerTask(BaseCycleTask):
         ).update(connected=False)
 
     def get_total_memory(self):
-        from django.core.exceptions import FieldError
         mem = 0
         try:
             for pss, uss in self.connected_workers.values_list('memory_info__pss', 'memory_info__uss'):
                 mem += pss or uss or 0
-        except FieldError:
+        except Exception:   # noqa
+            # field error / Operational error
             # maybe sqlite, not support json lookup
             for mem_info in self.connected_workers.values_list('memory_info', flat=True):
                 mem += mem_info.get('pss') or mem_info.get('uss') or 0

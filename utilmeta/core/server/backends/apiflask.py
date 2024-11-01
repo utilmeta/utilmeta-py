@@ -16,7 +16,6 @@ class APIFlaskServerAdaptor(FlaskServerAdaptor):
 
     def add_api(self, app: APIFlask, utilmeta_api_class, route: str = '', asynchronous: bool = False):
         f = super().add_api(app, utilmeta_api_class, route=route, asynchronous=asynchronous)
-        print(getattr(f, '_sync_ensured', 'not_provided'))
         # spec = getattr(f, '_spec', None)
         f._spec = {'hide': True}
         return f

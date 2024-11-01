@@ -8,7 +8,7 @@ setup_service(__name__, backend='django', async_param=[False])
 #     backend='django',
 #     port=8666
 # )
-from client import TestClient, APIClient, DataSchema
+from tests.server.client import TestClient, APIClient, DataSchema
 server_thread = make_server_thread(
     backend='django',
     port=8666

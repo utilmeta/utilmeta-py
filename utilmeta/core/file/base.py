@@ -95,10 +95,10 @@ class File:
         return self.adaptor.seekable
 
     def save(self, path: str, name: str = None):
-        return self.adaptor.save(path, name)
+        return self.adaptor.save(path, name or self.filename)
 
     async def asave(self, path: str, name: str = None):
-        return await self.adaptor.asave(path, name)
+        return await self.adaptor.asave(path, name or self.filename)
 
     def __iter__(self):
         return iter(self.file)

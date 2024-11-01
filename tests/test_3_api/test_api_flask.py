@@ -1,10 +1,16 @@
 from tests.conftest import make_live_process, setup_service, make_server_thread
 from .params import do_live_api_tests
 from utilmeta import UtilMeta
+import sys
+import asyncio
 
 setup_service(__name__, backend='flask', async_param=[False, True])
 flask_server_process = make_live_process(backend='flask', port=8003, cmdline=True)
 flask_server_thread = make_server_thread(backend='flask', port=8083)
+
+
+if sys.platform == "win32" and sys.version_info >= (3, 8, 0):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 def test_flask_api(service, flask_server_process):

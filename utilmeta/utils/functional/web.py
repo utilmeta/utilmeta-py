@@ -189,19 +189,30 @@ def encode_multipart_form(form: dict, boundary: str = None) -> Tuple[bytes, str]
         key = str(field).encode()
         beg = b"--%s\r\nContent-Disposition: form-data; name=\"%s\"" % (boundary, key)
         files = value if multi(value) else [value]
-        for val in files:
+        for i, val in enumerate(files):
             if file_like(val):
                 content = val.read()
-                filename = str(getattr(val, 'name', 'file')).encode()
-                content_type = str(getattr(val, 'content_type', RequestType.OCTET_STREAM)).encode()
-                prep = b'; filename=\"%s\"\r\nContent-Type: %s' % (filename, content_type)
+                if isinstance(content, str):
+                    content = content.encode()
+                filename = str(getattr(val, 'filename', None) or getattr(val, 'name', None) or '')
+                if filename:
+                    if '/' in filename or '\\' in filename:
+                        filename = os.path.basename(filename)
+                else:
+                    filename = f'{field}-file-{i}'
+                content_type = str(getattr(val, 'content_type', None) or '')
+                if not content_type:
+                    content_type, encoding = guess_mime_type(filename)
+                    if not content_type:
+                        content_type = RequestType.OCTET_STREAM
+                prep = b'; filename=\"%s\"\r\nContent-Type: %s' % (filename.encode(), content_type.encode())
             else:
                 if isinstance(val, bytes):
                     content = val
-                elif isinstance(val, str):
-                    content = val.encode()
-                else:
+                elif isinstance(val, (dict, list)):
                     content = json_dumps(val).encode()
+                else:
+                    content = str(val).encode()
                 prep = b''
             items.append(b"%s%s\r\n\r\n%s\r\n" % (beg, prep, content))
     body = b"".join(items) + b"--%s--\r\n" % boundary

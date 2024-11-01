@@ -59,11 +59,16 @@ class FileAdaptor(BaseAdaptor):
                 os.makedirs(file_path, exist_ok=True)
             if os.path.isdir(file_path):
                 file_path = os.path.join(file_path, name)
-
+        else:
+            if os.path.isdir(file_path):
+                raise PermissionError(f'Attempt to write file to directory: {file_path}')
         with open(file_path, 'wb') as fp:
             if self.seekable:
                 self.object.seek(0)
-            fp.write(self.object.read())
+            content = self.object.read()
+            if isinstance(content, str):
+                content = content.encode()
+            fp.write(content)
 
         return file_path
 
@@ -84,6 +89,8 @@ class FileAdaptor(BaseAdaptor):
             content = self.object.read()
             if inspect.isawaitable(content):
                 content = await content
+            if isinstance(content, str):
+                content = content.encode()
             fp.write(content)
 
         return file_path

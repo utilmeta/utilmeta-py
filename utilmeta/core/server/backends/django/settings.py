@@ -11,6 +11,7 @@ from utilmeta.core.orm.databases import DatabaseConnections, Database
 from utilmeta.core.cache.config import CacheConnections, Cache
 from django.conf import Settings, LazySettings
 from django.core.exceptions import ImproperlyConfigured
+from .utils import init_model_fields
 
 DEFAULT_MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -342,6 +343,10 @@ class DjangoSettings(Config):
         if cached_changed:
             self.change_settings('CACHES', caches, force=True)
 
+        # ------------------
+        init_model_fields(service)
+        # -------------------
+
         hosts = list(self.allowed_hosts)
         if service.origin:
             from urllib.parse import urlparse
@@ -603,6 +608,10 @@ class DjangoSettings(Config):
             if self.django_settings is not None:
                 self.change_settings(attr, value, force=True)
                 # setattr(self.django_settings, attr, value)
+
+        # ------------------
+        init_model_fields(service)
+        # -------------------
 
         os.environ[SETTINGS_MODULE] = self.module_name or service.module_name
         # not using setdefault to prevent IDE set the wrong value by default

@@ -139,7 +139,6 @@ class Migration(migrations.Migration):
                 ("expiry_time", models.DateTimeField(default=None, null=True)),
                 ("deleted_time", models.DateTimeField(default=None, null=True)),
                 ("ip", models.GenericIPAddressField(default=None, null=True)),
-                ("ua", models.JSONField(default=dict)),
                 (
                     "user",
                     models.ForeignKey(

@@ -89,3 +89,21 @@ class UserAPI(API):
         data.id = user.pk
         data.save()
         return UserBase.init(data.id)
+
+    @api.get
+    def add(self, username: str):
+        user = User.objects.create(
+            username=username,
+            password='pwdpwdpwd'
+        )
+        print('USER: ', user)
+        return user.pk
+
+    @api.get
+    async def test(self, username: str):
+        user = await User.objects.acreate(
+            username=username,
+            password='pwdpwdpwd'
+        )
+        print('USER: ', user)
+        return user.pk

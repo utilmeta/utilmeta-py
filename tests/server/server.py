@@ -95,6 +95,12 @@ if asynchronous is not None:
     service.set_asynchronous(asynchronous)
 # --------
 
+if service.backend_name == 'flask':
+    # https://stackoverflow.com/questions/60359157/valueerror-set-wakeup-fd-only-works-in-main-thread-on-windows-on-python-3-8-wit
+    if sys.platform == "win32" and sys.version_info >= (3, 8, 0):
+        import asyncio
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 # if service.backend_name == 'sanic':
 # sanic required to load app outside of the __main__ block
 app = service.application()

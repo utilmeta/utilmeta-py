@@ -3,6 +3,7 @@ import os.path
 from utilmeta.core.file.backends.django import DjangoFileAdaptor  # noqa
 from io import BytesIO
 from utilmeta.core.response import Response
+from utilmeta.core.file import File
 from pathlib import Path
 
 
@@ -13,15 +14,16 @@ def get_requests(backend: str = None, asynchronous: bool = False):
     #     UploadedFile(BytesIO(b"f2"), content_type="image/png", size=2),
     #     UploadedFile(BytesIO(b"f3"), content_type="image/png", size=2),
     # ]
-    files = [
-        BytesIO(b"f1"),
-        BytesIO(b"f2"),
-        BytesIO(b"f3"),
-    ]
 
     # from utilmeta import service
     base_dir = Path(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'server'))
     # os.removedirs(base_dir)
+
+    files = [
+        BytesIO(b"f1"),
+        File(b"f2", filename='test-filename-01'),
+        open(base_dir / 'test.txt', 'r'),
+    ]
 
     backend_requests = [('get', 'backend', {}, None, {}, backend, 200)] if backend else []
     if asynchronous:
@@ -202,10 +204,10 @@ def get_requests(backend: str = None, asynchronous: bool = False):
             {},
             {"name": "test", "images": files},
             {},
-            ['test', 3, 6, [
+            ['test', 3, 16, [
                 str(base_dir / 'tmp/test-0'),
-                str(base_dir / 'tmp/test-1'),
-                str(base_dir / 'tmp/test-2'),
+                str(base_dir / 'tmp/test-filename-01'),
+                str(base_dir / 'tmp/test.txt'),
             ]],
             200,
         ),
@@ -219,6 +221,15 @@ def get_requests(backend: str = None, asynchronous: bool = False):
             200,
         ),
         (
+            "get",
+            "files/" + str(base_dir / 'tmp/test-filename-01'),
+            {},
+            None,
+            {},
+            b'f2',
+            200,
+        ),
+        (
             "delete",
             "files/" + str(base_dir / 'tmp/test-0'),
             {},
@@ -229,7 +240,7 @@ def get_requests(backend: str = None, asynchronous: bool = False):
         ),
         (
             "delete",
-            "files/" + str(base_dir / 'tmp/test-1'),
+            "files/" + str(base_dir / 'tmp/test-filename-01'),
             {},
             None,
             {},
@@ -238,7 +249,7 @@ def get_requests(backend: str = None, asynchronous: bool = False):
         ),
         (
             "delete",
-            "files/" + str(base_dir / 'tmp/test-2'),
+            "files/" + str(base_dir / 'tmp/test.txt'),
             {},
             None,
             {},
@@ -249,7 +260,7 @@ def get_requests(backend: str = None, asynchronous: bool = False):
             "get",
             "files/" + str(base_dir / 'tmp/test-0'),
             {},
-            {"name": "test", "images": files},
+            None,
             {},
             ...,
             404,

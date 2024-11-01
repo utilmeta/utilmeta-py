@@ -83,7 +83,9 @@ class Comment(BaseContent):
 class Session(AbstractSession):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions', default=None, null=True)
     ip = models.GenericIPAddressField(default=None, null=True)
-    ua = models.JSONField(default=dict)
+    # in Windows under 3.9, JSON field cannot be processed by SQLite
+    # if sys.version_info >= (3, 9):
+    # ua = models.JSONField(default=dict)
 
     class Meta:
         db_table = 'session'

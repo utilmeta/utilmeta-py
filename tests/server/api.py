@@ -211,7 +211,8 @@ class TestAPI(api.API):
     def multipart(self, data: MultiFormData = request.Body):
         paths = []
         for i, image in enumerate(data.images):
-            name = f'{data.name}-{i}'
+            name = f'{data.name}-{i}' if not i else None
+            print('FILENAME:', image.filename, image.file)
             path = image.save(os.path.join(os.path.dirname(__file__), 'tmp'), name)
             paths.append(path)
         return [
@@ -226,7 +227,7 @@ class TestAPI(api.API):
     async def multipart(self, data: MultiFormData = request.Body):
         paths = []
         for i, image in enumerate(data.images):
-            name = f'{data.name}-{i}'
+            name = f'{data.name}-{i}' if not i else None
             path = await image.asave(os.path.join(os.path.dirname(__file__), 'tmp'), name)
             paths.append(path)
         return [

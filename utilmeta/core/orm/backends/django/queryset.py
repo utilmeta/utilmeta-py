@@ -342,18 +342,27 @@ class AwaitableQuerySet(QuerySet):
         query.insert_values(fields, objs, raw=raw)
         db = self.connections_cls.get(using)
         compiler = query.get_compiler(using)
-
-        if not returning_fields and self.meta.parents and db.is_sqlite:
+        conn = self.conn
+        can_return = conn.features.can_return_columns_from_insert
+        if can_return:
+            if not returning_fields and self.meta.parents and db.is_sqlite:
+                returning_fields = [self.meta.pk]
+                # inherit models does not have returning_fields
+                # which will make cursor.description = None for sqlite backend in encode/databases
+                # causing errors, so we use [self.meta.pk] as default fallback
+            compiler.returning_fields = returning_fields
+        else:
             returning_fields = [self.meta.pk]
-            # inherit models does not have returning_fields
-            # which will make cursor.description = None for sqlite backend in encode/databases
-            # causing errors, so we use [self.meta.pk] as default fallback
-
-        compiler.returning_fields = returning_fields
 
         values = []
         for q, params in compiler.as_sql():
-            for val in await db.fetchall(q, params):
+            if can_return:
+                rows = await db.fetchall(q, params)
+            else:
+                rows = [
+                    {self.meta.pk.column: await db.execute(q, params)}
+                ]
+            for val in rows:
                 val: dict
                 tuple_values = []
                 field_values = list(val.values())

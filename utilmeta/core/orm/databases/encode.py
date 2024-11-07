@@ -177,7 +177,12 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
         db = self.get_db()
         # db = self._db.get(None)
         if not db.is_connected:
-            await db.connect()
+            try:
+                await db.connect()
+            except Exception as e:
+                raise e.__class__(f'Database: encode/databases connect to database: '
+                                  f'{self.config.name}({self.config.alias}) with dns:'
+                                  f' {repr(self.config.protected_dsn)} failed: {e}') from e
         # if not self._processed:
         # await self.process_db(db)
         return db

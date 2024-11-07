@@ -1,10 +1,10 @@
 from utilmeta import utils
 from utilmeta.utils import exceptions as exc
-from typing import Callable, Union, Type, List, TYPE_CHECKING
+from typing import Callable, Union, Type, List, TYPE_CHECKING, Any
 from utilmeta.utils.plugin import PluginTarget, PluginEvent
-from utilmeta.utils.error import Error
 from utilmeta.utils.context import ContextWrapper, Property
 from utilmeta.utils.exceptions import InvalidDeclaration
+from utilmeta.core.response.base import parse_responses
 from utype.parser.base import BaseParser
 from utype.parser.func import FunctionParser
 from utype.parser.field import ParserField
@@ -21,8 +21,6 @@ if TYPE_CHECKING:
 process_request = PluginEvent('process_request', streamline_result=True)
 handle_error = PluginEvent('handle_error')
 process_response = PluginEvent('process_response', streamline_result=True)
-enter_endpoint = PluginEvent('enter_endpoint')
-exit_endpoint = PluginEvent('exit_endpoint')
 
 
 class RequestContextWrapper(ContextWrapper):
@@ -108,7 +106,7 @@ class BaseEndpoint(PluginTarget):
     # params is already parsed by the request parser
     PARSE_RESULT = False
     # result will be parsed in the end of endpoint.serve
-    STRICT_RESULT = False
+    # STRICT_RESULT = False
 
     def __init__(self, f: Callable, *,
                  method: str,
@@ -178,9 +176,7 @@ class BaseEndpoint(PluginTarget):
                     parse_result=self.PARSE_RESULT
                 )
 
-        self.response_types: List[Type[Response]] = self.parse_responses(
-            self.return_type
-        )
+        self.response_types: List[Type[Response]] = parse_responses(self.return_type)
         self.wrapper.validate_method(method)
 
     @property
@@ -224,21 +220,6 @@ class BaseEndpoint(PluginTarget):
             key: PathParam for key in self.path_names
         }
 
-    @classmethod
-    def parse_responses(cls, return_type):
-        def is_response(r):
-            return inspect.isclass(r) and issubclass(r, Response)
-
-        if is_response(return_type):
-            return [return_type]
-        elif isinstance(return_type, LogicalType):
-            values = []
-            for origin in return_type.resolve_origins():
-                if is_response(origin):
-                    values.append(origin)
-            return values
-        return []
-
     def iter_plugins(self):
         for cls, plugin in self._plugins.items():
             yield plugin
@@ -265,101 +246,6 @@ class BaseEndpoint(PluginTarget):
     @property
     def parser(self):
         return self.wrapper.parser
-
-    def process_request(self, request: Request) -> Union[Request, Response]:
-        for handler in process_request.iter(self):
-            try:
-                req = handler(request, self)
-            except NotImplementedError:
-                continue
-            if isinstance(req, Response):
-                return req
-            if isinstance(req, Request):
-                request = req
-        return request
-
-    @utils.awaitable(process_request)
-    async def process_request(self, request: Request) -> Union[Request, Response]:
-        for handler in process_request.iter(self, asynchronous=True):
-            try:
-                req = handler(request, self)
-            except NotImplementedError:
-                continue
-            if inspect.isawaitable(req):
-                req = await req
-            if isinstance(req, Response):
-                return req
-            if isinstance(req, Request):
-                request = req
-        return request
-
-    def process_response(self, response):
-        for handler in process_response.iter(self):
-            try:
-                resp = handler(response, self)
-            except NotImplementedError:
-                continue
-            if isinstance(resp, Request):
-                # need to invoke another request
-                return resp
-            if isinstance(resp, Response):
-                # only take value if return value is BaseResponse objects
-                response = resp
-                break
-            else:
-                response = resp
-        return response
-
-    @utils.awaitable(process_response)
-    async def process_response(self, response):
-        for handler in process_response.iter(self, asynchronous=True):
-            try:
-                resp = handler(response, self)
-            except NotImplementedError:
-                continue
-            if inspect.isawaitable(resp):
-                resp = await resp
-            if isinstance(resp, Request):
-                # need to invoke another request
-                return resp
-            if isinstance(resp, Response):
-                # only take value if return value is BaseResponse objects
-                response = resp
-                break
-            else:
-                response = resp
-        return response
-
-    def handle_error(self, e: Error):
-        for error_handler in handle_error.iter(self):
-            try:
-                res = error_handler(e, self)
-            except NotImplementedError:
-                continue
-            if isinstance(res, Request):
-                # need to invoke another request
-                return res
-            if isinstance(res, Response):
-                # only take value if return value is BaseResponse objects
-                return res
-        raise e.throw()
-
-    @utils.awaitable(handle_error)
-    async def handle_error(self, e: Error):
-        for error_handler in handle_error.iter(self, asynchronous=True):
-            try:
-                res = error_handler(e, self)
-            except NotImplementedError:
-                continue
-            if inspect.isawaitable(res):
-                res = await res
-            if isinstance(res, Request):
-                # need to invoke another request
-                return res
-            if isinstance(res, Response):
-                # only take value if return value is BaseResponse objects
-                return res
-        raise e.throw()
 
 
 class Endpoint(BaseEndpoint):
@@ -414,7 +300,9 @@ class Endpoint(BaseEndpoint):
             local_vars=local_vars
         )
         self.api = api
-        self.response = getattr(api, 'response', None)
+        self.response_type = getattr(api, 'response', None)
+        if self.response_type and not Response.is_cls(self.response_type):
+            self.response_type = None
         self.operation_id = operation_id
         self.tags = tags
         self.summary = summary
@@ -457,98 +345,13 @@ class Endpoint(BaseEndpoint):
             return f'{self.module_name}.{self.name}'
         return self.name
 
-    def make_response(self, response, request, error=None):
-        if not self.response_types:
-            return response
-        if isinstance(response, Response):
-            return response
-        for i, resp_type in enumerate(self.response_types):
-            try:
-                return resp_type(response, request=request, error=error, strict=self.STRICT_RESULT)
-            except Exception as e:
-                if i == len(self.response_types) - 1:
-                    raise e
-                continue
-        return response
+    def handler(self, api: 'API'):
+        args, kwargs = self.parse_request(api.request)
+        return self(api, *args, **kwargs)
 
-    def serve(self, api: 'API'):
-        # ---
-        var.endpoint_ref.setter(api.request, self.ref)
-        # ---
-        retry_index = 0
-        err = None
-        while True:
-            try:
-                api.request.adaptor.update_context(
-                    retry_index=retry_index,
-                    idempotent=self.idempotent
-                )
-                req = self.process_request(api.request)
-                if isinstance(req, Request):
-                    api.request = req
-                    args, kwargs = self.parse_request(api.request)
-                    enter_endpoint(self, api, *args, **kwargs)
-                    response = self(api, *args, **kwargs)
-                else:
-                    response = req
-                result = self.process_response(response)
-                if isinstance(result, Request):
-                    # need another loop
-                    api.request = result
-                else:
-                    response = result
-                    break
-            except Exception as e:
-                err = Error(e, request=api.request)
-                result = self.handle_error(err)
-                if isinstance(result, Request):
-                    api.request = result
-                else:
-                    response = result
-                    break
-            retry_index += 1
-        exit_endpoint(self, api)
-        return self.make_response(response, request=api.request, error=err)
-
-    @utils.awaitable(serve)
-    async def serve(self, api: 'API'):
-        # ---
-        var.endpoint_ref.setter(api.request, self.ref)
-        # ---
-        retry_index = 0
-        err = None
-        while True:
-            try:
-                api.request.adaptor.update_context(
-                    retry_index=retry_index,
-                    idempotent=self.idempotent
-                )
-                req = await self.process_request(api.request)
-                if isinstance(req, Request):
-                    api.request = req
-                    args, kwargs = await self.parse_request(api.request)
-                    await enter_endpoint(self, api, *args, **kwargs)
-                    response = await self(api, *args, **kwargs)
-                else:
-                    response = req
-                result = await self.process_response(response)
-                if isinstance(result, Request):
-                    # need another loop
-                    api.request = result
-                else:
-                    response = result
-                    break
-            except Exception as e:
-                err = Error(e, request=api.request)
-                result = await self.handle_error(err)
-                if isinstance(result, Request):
-                    api.request = result
-                else:
-                    response = result
-                    break
-            retry_index += 1
-        await exit_endpoint(self, api)
-        return self.make_response(response, request=api.request, error=err)
+    async def async_handler(self, api: 'API'):
+        args, kwargs = await self.async_parse_request(api.request)
+        return await self(api, *args, **kwargs)
 
     def parse_request(self, request: Request):
         try:
@@ -559,17 +362,12 @@ class Endpoint(BaseEndpoint):
         except utype.exc.ParseError as e:
             raise exc.BadRequest(str(e), detail=e.get_detail()) from e
 
-    @utils.awaitable(parse_request)
-    async def parse_request(self, request: Request):
+    async def async_parse_request(self, request: Request):
         try:
             kwargs = dict(await var.path_params.getter(request))
             wrapper = self.get_wrapper(True)
-            kwargs.update(await wrapper.parse_context(request))
+            kwargs.update(await wrapper.async_parse_context(request))
             return wrapper.parser.parse_params((), kwargs, context=wrapper.parser.options.make_context())
             # in base Endpoint, args is not supported
         except utype.exc.ParseError as e:
             raise exc.BadRequest(str(e), detail=e.get_detail()) from e
-
-
-enter_endpoint.register(Endpoint)
-exit_endpoint.register(Endpoint)

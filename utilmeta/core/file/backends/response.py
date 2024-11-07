@@ -32,7 +32,10 @@ class ResponseFileAdaptor(FileAdaptor):
 
     @property
     def size(self):
-        return self.file.content_length
+        length = self.file.content_length
+        if length:
+            return length
+        return super().size
 
     @property
     def content_type(self):

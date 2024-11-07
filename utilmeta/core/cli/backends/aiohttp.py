@@ -7,9 +7,10 @@ class AiohttpClientRequestAdaptor(ClientRequestAdaptor):
     # request: ClientRequest
     backend = aiohttp
 
-    async def __call__(self, timeout: int = None, allow_redirects: bool = None, **kwargs):
+    async def __call__(self, timeout: float = None, allow_redirects: bool = None, **kwargs):
         from utilmeta.core.response.backends.aiohttp import AiohttpClientResponseAdaptor
-        async with aiohttp.ClientSession(timeout=ClientTimeout(total=timeout)) as session:
+        async with aiohttp.ClientSession(timeout=ClientTimeout(
+                total=float(timeout) if timeout is not None else None)) as session:
             resp = await session.request(
                 method=self.request.method,
                 url=self.request.url,

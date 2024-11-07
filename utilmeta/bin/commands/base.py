@@ -1,13 +1,14 @@
 from ..base import BaseCommand, command
 from utilmeta import UtilMeta
 from utilmeta.utils import search_file, path_join, load_ini, read_from, import_obj
-from ..constant import META_INI, BLUE, BANNER
+from ..constant import META_INI, BLUE, RED
 import os
 import sys
 
 
 class BaseServiceCommand(BaseCommand):
     META_INI = META_INI
+    script_name = 'meta'
 
     def __init__(self, exe: str = None, *args: str, cwd: str = os.getcwd()):
         self.exe = exe      # absolute path of meta command tool
@@ -32,6 +33,13 @@ class BaseServiceCommand(BaseCommand):
             sys.path.insert(0, self.base_path)
 
         super().__init__(*self.sys_args, cwd=self.cwd)
+
+    def command_not_found(self):
+        print(RED % F'{self.script_name or "meta"}: command not found: {self.arg_name}')
+        if not self.ini_path:
+            print(f'It probably due to your utilmeta project not initialized')
+            print(f'please use {BLUE % "meta init"} in the project directory to initialize your project first')
+        exit(1)
 
     def load_meta(self) -> dict:
         config = load_ini(read_from(self.ini_path), parse_key=True)
@@ -99,4 +107,4 @@ class BaseServiceCommand(BaseCommand):
         for key, doc in cls._documents.items():
             if not key:
                 continue
-            print('\t', BLUE % key, doc, '\n')
+            print(' ', BLUE % key, doc, '\n')

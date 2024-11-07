@@ -1,4 +1,4 @@
-from utilmeta.utils.plugin import Plugin
+from utilmeta.utils.plugin import PluginBase
 from utilmeta.utils import multi, get_interval, map_dict, keys_or_args, time_now, fast_digest, COMMON_TYPES
 from typing import Union, Optional, Dict, Any, List, Type, TYPE_CHECKING
 from datetime import datetime, timedelta
@@ -15,7 +15,7 @@ VAL = Union[str, bytes, list, tuple, dict]
 __all__ = ['BaseCacheInterface']
 
 
-class BaseCacheInterface(Plugin):
+class BaseCacheInterface(PluginBase):
     OBSOLETE_LRU = 'LRU'  # least recently updated
     OBSOLETE_LFU = 'LFU'  # least frequently used
     OBSOLETE_RANDOM = 'RANDOM'

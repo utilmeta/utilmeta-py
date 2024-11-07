@@ -20,6 +20,7 @@ class SetupCommand(BaseServiceCommand):
         'sanic',
         'tornado'
     ]
+    name = 'setup'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -177,10 +178,9 @@ service.use(Operations(
     route='ops',
     max_backlog=50,
     database=Database(
-        name='utilmeta_ops',
+        name='{name}_utilmeta_operations',
         engine='sqlite3',
     ),
-    local_disabled=production,
     secure_only=production,
     trusted_hosts=[] if production else ['127.0.0.1']
 ))

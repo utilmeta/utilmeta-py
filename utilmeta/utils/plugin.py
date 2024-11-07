@@ -1,11 +1,12 @@
 import inspect
 import warnings
 from utilmeta.utils.base import Util
-from utilmeta.utils import awaitable
-from typing import Type, Dict, List, Callable, Iterator, Union
+from utilmeta.utils import awaitable, function_pass
+from typing import Type, Dict, List, Callable, Iterator, Union, Tuple
 from functools import partial, wraps
 from utype.parser.func import FunctionParser
 # from .context import Property
+from collections import OrderedDict
 
 
 def omit_unsupported_params(f, asynchronous: bool = None):
@@ -45,7 +46,18 @@ def omit_unsupported_params(f, asynchronous: bool = None):
     return wrapper
 
 
-class Plugin(Util):
+class PluginBase(Util):
+    def __new__(cls, _kw=None, *args, **kwargs):
+        instance = super().__new__(cls)
+        if isinstance(_kw, type) and issubclass(_kw, PluginTarget) and not args and not kwargs:
+            # @plugin   # without init
+            # def APIClass(API):
+            #     pass
+            instance.__init__(*args, **kwargs)
+            return instance(_kw)
+
+        return instance
+
     def __init__(self, _kw=None, *args, **kwargs):
         super().__init__(_kw or kwargs)
         if inspect.isclass(self):
@@ -59,7 +71,7 @@ class Plugin(Util):
         self.__args__ = args
 
     @classmethod
-    def apply_for(cls, target: 'PluginTarget') -> 'Plugin':
+    def apply_for(cls, target: 'PluginTarget') -> 'PluginBase':
         return cls()
 
     def __call__(self, func, *args, **kwargs):
@@ -69,7 +81,8 @@ class Plugin(Util):
                     # the later the plugin was decorated
                     # the earlier it will be applied
                     # like the way in the decorator
-                    func.plugins.insert(0, self)
+                    # func.plugins.insert(0, self)
+                    func.plugins.append(self)
             else:
                 func.plugins = [self]
         elif inspect.isclass(func) and issubclass(func, PluginTarget) or isinstance(func, PluginTarget):
@@ -87,7 +100,7 @@ class Plugin(Util):
         def get_value(_name: str, _class: Type = cls):
             attr_value = getattr(_class, _name)
             if inspect.isclass(attr_value):
-                if issubclass(attr_value, Plugin):
+                if issubclass(attr_value, PluginBase):
                     return attr_value.initialize(
                         params=params.get(key),
                         default_value=default_value,
@@ -192,12 +205,12 @@ class PluginEvent:
                 if result is not None:
                     # set the new result
                     pos[0] = result
-                result = handler(*pos, inst, **kwargs)
+                result = handler(*pos, **kwargs)
                 if result is None:
                     result = pos[0]
         else:
             for handler in self.iter(inst):
-                result = handler(*args, inst, **kwargs)
+                result = handler(*args, **kwargs)
         return result
 
     @awaitable(__call__)
@@ -212,14 +225,14 @@ class PluginEvent:
                 if result is not None:
                     # set the new result
                     pos[0] = result
-                result = handler(*pos, inst, **kwargs)
+                result = handler(*pos, **kwargs)
                 if inspect.isawaitable(result):
                     result = await result
                 if result is None:
                     result = pos[0]
         else:
             for handler in self.iter(inst, asynchronous=True):
-                result = handler(*args, inst, **kwargs)
+                result = handler(*args, **kwargs)
                 if inspect.isawaitable(result):
                     result = await result
         return result
@@ -237,31 +250,55 @@ class PluginEvent:
             cls_hooks.extend(self._hooks.get(target_cls))
         return cls_hooks
 
-    def iter(self, inst: 'PluginTarget', asynchronous: bool = None) -> Iterator[Callable]:
-        plugins = getattr(inst, '_plugins', {})
-        if not plugins or not isinstance(plugins, dict):
-            return
-        hooks = self.get_hooks(inst)
-        for plugin_cls, plugin in plugins.items():
-            hooked = False
-            for plugin_class, func, target_arg, priority in hooks:
-                if plugin_cls == plugin_class:
-                    hooked = True
-                    # from hook, should particle first argument to plugin instance
-                    partial_kw = {target_arg: inst} if target_arg else {}
-                    yield partial(
-                        omit_unsupported_params(func, asynchronous=asynchronous),
-                        plugin, **partial_kw
-                    )
-            if hooked:
+    def get(self, plugin: PluginBase, target: 'PluginTarget' = None, asynchronous=None):
+        handler = getattr(plugin, self.name, None)
+        if callable(handler) and not function_pass(handler):
+            handler = omit_unsupported_params(handler, asynchronous=asynchronous)
+            if target:
+                @wraps(handler)
+                def target_handler(*args, **kwargs):
+                    return handler(*args, target, **kwargs)
+                return target_handler
+            return handler
+        return None
+
+    def iter(self, *targets: 'PluginTarget',
+             asynchronous: bool = None, reverse: bool = False) -> Iterator[Callable]:
+        # accept iterate over more than 1 target (eg. API/Client + Endpoint)
+        _classes = set()
+        for target in reversed(targets) if reverse else targets:
+            if not isinstance(target, PluginTarget):
                 continue
-            handler = getattr(plugin, self.name, None)
-            # priority
-            # 1. hook
-            # 2, plugin.<event_name>
-            if callable(handler):
-                # already partial by instance method reference
-                yield omit_unsupported_params(handler, asynchronous=asynchronous)
+            plugins: OrderedDict = target._plugins
+
+            if not plugins or not isinstance(plugins, dict):
+                continue
+            hooks = self.get_hooks(target)
+            for plugin_cls, plugin in reversed(plugins.items()) if reverse else plugins.items():
+                if plugin_cls in _classes:
+                    # in case for more than 1 plugin target
+                    continue
+                hooked = False
+                for plugin_class, func, target_arg, priority in hooks:
+                    if plugin_cls == plugin_class:
+                        hooked = True
+                        # from hook, should particle first argument to plugin instance
+                        partial_kw = {target_arg: target} if target_arg else {}
+                        _classes.add(plugin_cls)
+                        yield partial(
+                            omit_unsupported_params(func, asynchronous=asynchronous),
+                            plugin, **partial_kw
+                        )
+                if hooked:
+                    continue
+                handler = self.get(plugin, target, asynchronous=asynchronous)
+                # priority
+                # 1. hook
+                # 2, plugin.<event_name>
+                if handler:
+                    _classes.add(plugin_cls)
+                    # already partial by instance method reference
+                    yield handler
 
     def register(self, target_class):
         if not inspect.isclass(target_class):
@@ -343,6 +380,8 @@ class PluginEvent:
 
     def hook(self, target_class, plugin_class=None, *, priority=0, registered_only: bool = False):
         def wrapper(f):
+            if function_pass(f):
+                return f
             plugin = plugin_class
             if not plugin:
                 for i, (k, v) in enumerate(inspect.signature(f).parameters.items()):
@@ -380,24 +419,24 @@ class PluginLoader:
 
 class PluginTarget:
     __ref__: str
-    _fixed_plugins: dict = {}
-    _plugins: dict = {}
+    _fixed_plugins: OrderedDict = OrderedDict()
+    _plugins: OrderedDict = OrderedDict()
 
     def __init_subclass__(cls, **kwargs):
         cls.__ref__ = f'{cls.__module__}.{cls.__qualname__}'
 
         for key, val in cls.__annotations__.items():
-            if inspect.isclass(val) and issubclass(val, Plugin):   # fixed plugins
+            if inspect.isclass(val) and issubclass(val, PluginBase):   # fixed plugins
                 cls._fixed_plugins[key] = val
 
-        plugins = dict(cls._plugins)
+        plugins = OrderedDict(cls._plugins)
         for slot in list(cls.__dict__):
             if slot.startswith('_'):
                 continue
 
             util = cls.__dict__[slot]
 
-            if inspect.isclass(util) and issubclass(util, Plugin):
+            if inspect.isclass(util) and issubclass(util, PluginBase):
                 util = util.initialize()
                 cls.__dict__[slot] = util
                 # set attribute
@@ -412,7 +451,7 @@ class PluginTarget:
             #         # if a util other than
             #         continue
 
-            if isinstance(util, Plugin):
+            if isinstance(util, PluginBase):
                 path = f'{cls.__ref__}.{slot}'
                 if util.__ref__:
                     if util.__ref__ != path:
@@ -434,17 +473,33 @@ class PluginTarget:
 
     @classmethod
     def _add_plugins(cls, *plugins):
-        plugin_dict = {}
+        plugin_dict = OrderedDict()
         for plugin in plugins:
             if inspect.isclass(plugin):
-                if issubclass(plugin, Plugin):
+                if issubclass(plugin, PluginBase):
                     plugin_dict[plugin] = plugin
                     continue
-            elif isinstance(plugin, Plugin):
+            elif isinstance(plugin, PluginBase):
                 plugin_dict[plugin.__class__] = plugin
                 continue
-            warnings.warn(f'{cls}: add invalid plugin: {plugin}, must be a {Plugin} subclass of instance')
+            warnings.warn(f'{cls}: add invalid plugin: {plugin}, must be a {PluginBase} subclass of instance')
         cls._plugins.update(plugin_dict)
+
+    def _plugin(self, plugin, setdefault=False):
+        if inspect.isclass(plugin):
+            if issubclass(plugin, PluginBase):
+                if setdefault:
+                    self._plugins.setdefault(plugin, plugin)
+                else:
+                    self._plugins[plugin] = plugin
+                return
+        elif isinstance(plugin, PluginBase):
+            if setdefault:
+                self._plugins.setdefault(plugin.__class__, plugin)
+            else:
+                self._plugins[plugin.__class__] = plugin
+            return
+        warnings.warn(f'{self}: add invalid plugin: {plugin}, must be a {PluginBase} subclass of instance')
 
     @classmethod
     def _get_plugin(cls, plugin_class):
@@ -461,21 +516,21 @@ class PluginTarget:
             if plugin_cls in cls._plugins:
                 cls._plugins.pop(plugin_cls)
 
-    def _init_plugins(self, plugins: List[Union[Type[Plugin], Plugin]]):
+    def _init_plugins(self, plugins: List[Union[Type[PluginBase], PluginBase]]):
         """
         Instance can dynamically pass a list of plugin in initialize
         """
-        inst_plugins = dict()
+        inst_plugins = OrderedDict()
         for cls, plugin in self.__class__._plugins.items():
-            if inspect.isclass(plugin):
+            if inspect.isclass(plugin) and issubclass(plugin, PluginBase):
                 plugin = plugin.apply_for(self)
             inst_plugins[cls] = plugin
         for plugin in plugins:
             if inspect.isclass(plugin):
-                if not issubclass(plugin, Plugin):
+                if not issubclass(plugin, PluginBase):
                     continue
                 plugin = plugin.apply_for(self)
-            if not isinstance(plugin, Plugin):
+            if not isinstance(plugin, PluginBase):
                 continue
             inst_plugins[plugin.__class__] = plugin
-        self._plugins: Dict[Type[Plugin], Plugin] = inst_plugins
+        self._plugins: OrderedDict[Type[PluginBase], PluginBase] = inst_plugins

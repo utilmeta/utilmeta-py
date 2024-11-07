@@ -14,6 +14,8 @@ initial_file = '0001_initial'
 
 
 class DjangoCommand(BaseServiceCommand):
+    name = 'django'
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.settings = self.service.get_config(DjangoSettings)

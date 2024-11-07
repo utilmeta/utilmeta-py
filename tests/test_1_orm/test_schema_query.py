@@ -594,8 +594,8 @@ class TestSchemaQuery:
         class ContentSchema(BaseContentSchema):
             comments: List[CommentSchema] = orm.Field(mode='rwa')
 
-            comment: Optional[CommentData] = orm.Field(mode='raw', default=None, defer_default=True)
-            article: Optional[ArticleData] = orm.Field(mode='raw', default=None, defer_default=True)
+            comment: Optional[CommentData] = orm.Field(mode='raw', default=None)
+            article: Optional[ArticleData] = orm.Field(mode='raw', default=None)
 
         # test transaction=True
 

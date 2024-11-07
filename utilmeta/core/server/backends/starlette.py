@@ -3,13 +3,17 @@ import inspect
 import starlette
 from starlette.requests import Request as StarletteRequest
 from starlette.applications import Starlette
+from starlette.concurrency import iterate_in_threadpool
+from starlette.middleware.base import _StreamingResponse
 from .base import ServerAdaptor
 from utilmeta.core.response import Response
 from utilmeta.core.request.backends.starlette import StarletteRequestAdaptor
 from utilmeta.core.response.backends.starlette import StarletteResponseAdaptor
 from utilmeta.core.api import API
 from utilmeta.core.request import Request
+from utilmeta.utils import HAS_BODY_METHODS, RequestType
 import contextvars
+from typing import Optional
 
 _current_request = contextvars.ContextVar('_starlette.request')
 # _current_response = contextvars.ContextVar('_starlette.response')
@@ -23,6 +27,14 @@ class StarletteServerAdaptor(ServerAdaptor):
     response_adaptor_cls = StarletteResponseAdaptor
     default_asynchronous = True
     DEFAULT_PORT = 8000
+    RECORD_RESPONSE_BODY_STATUS_GTE = 400
+    RECORD_RESPONSE_BODY_LENGTH_LTE = 1024 ** 2
+    RECORD_REQUEST_BODY_LENGTH_LTE = 1024 ** 2
+    RECORD_REQUEST_BODY_TYPES = [
+        RequestType.JSON, RequestType.XML, RequestType.APP_XML, RequestType.HTML,
+        RequestType.FORM_DATA, RequestType.FORM_URLENCODED, RequestType.PLAIN
+    ]
+
     DEFAULT_HOST = '127.0.0.1'
     HANDLED_METHODS = ["DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
 
@@ -71,31 +83,55 @@ class StarletteServerAdaptor(ServerAdaptor):
                 dispatch=self.get_middleware_func()
             )
 
+    @classmethod
+    async def get_response_body(cls, starlette_response: _StreamingResponse) -> bytes:
+        response_body = [chunk async for chunk in starlette_response.body_iterator]
+        starlette_response.body_iterator = iterate_in_threadpool(iter(response_body))
+        return b''.join(response_body)
+
     def get_middleware_func(self):
         async def utilmeta_middleware(starlette_request: StarletteRequest, call_next):
             response = None
             starlette_response = None
+
             request = Request(self.request_adaptor_cls(starlette_request))
             for middleware in self.middlewares:
-                request = middleware.process_request(request) or request
+                res = middleware.process_request(request) or request
                 if inspect.isawaitable(request):
-                    request = await request
-                if isinstance(request, Response):
-                    response = request
+                    res = await res
+                if isinstance(res, Response):
+                    response = res
                     break
+                elif isinstance(res, Request):
+                    request = res
 
             if response is None:
+                if request.adaptor.request_method.lower() in HAS_BODY_METHODS:
+                    if request.content_type in self.RECORD_REQUEST_BODY_TYPES and (
+                            request.content_length or 0) <= self.RECORD_RESPONSE_BODY_LENGTH_LTE:
+                        request.adaptor.__dict__['body'] = await starlette_request.body()
+                        # read the body here any way, the request will cache it
+                        # and you cannot read it after response is generated
+
                 _current_request.set(request)
-                starlette_response = await call_next(starlette_request)
+                starlette_response: Optional[_StreamingResponse] = await call_next(starlette_request)
                 _current_request.set(None)
                 response = request.adaptor.get_context('response')
                 # response = _current_response.get(None)
                 # _current_response.set(None)
+
                 if not isinstance(response, Response):
+                    # from native starlette api
+                    adaptor = self.response_adaptor_cls(
+                        starlette_response
+                    )
+                    if starlette_response.status_code >= self.RECORD_RESPONSE_BODY_STATUS_GTE:
+                        if (adaptor.content_length or 0) <= self.RECORD_RESPONSE_BODY_LENGTH_LTE:
+                            body = await self.get_response_body(starlette_response)
+                            starlette_response.body = body
+                            # set body
                     response = Response(
-                        response=self.response_adaptor_cls(
-                            starlette_response
-                        ),
+                        response=adaptor,
                         request=request
                     )
                 else:

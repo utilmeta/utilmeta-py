@@ -187,6 +187,13 @@ class BaseQueryCompiler:
                 # RELATIONS FIELD HERE
                 if with_relations:
                     if field.relation_update_enabled:
+                        if val is None and field.many_included:
+                            # 1. for many related field, providing None is considered invalid
+                            # providing an empty list [] will empty all the relations
+                            # 2. for single relation that supported update
+                            # providing None (in update mode in output) means to set None the reverse fk
+                            continue
+
                         if field.related_schema:
                             relation_objs[key] = (field, val)
                         else:

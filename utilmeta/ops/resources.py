@@ -223,10 +223,10 @@ class ResourcesManager:
             databases.append(
                 DatabaseSchema(
                     alias=alias,
-                    engine=db.engine,
+                    engine=db.engine_name,
                     port=db.port,
                     user=db.user,
-                    name=db.name,
+                    name=db.database_name,
                     hostname=db.host,
                     server=get_ip(db.host, True),       # incase it is intranet
                     ops=alias == self.ops_config.db_alias,

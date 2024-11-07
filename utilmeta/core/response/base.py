@@ -1,19 +1,22 @@
 import inspect
 import json
+import os.path
 from http.cookies import SimpleCookie
 from pprint import pprint
 
 from utilmeta.core.request import Request
 from utype.types import *
-from utilmeta.utils import Header,\
+from utilmeta.utils import Header, \
     get_generator_result, get_doc, is_hop_by_hop, http_time, file_like, \
     STATUS_WITHOUT_BODY, time_now, multi, guess_mime_type
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import Headers
+from utilmeta.conf import Preference
 from .backends.base import ResponseAdaptor
 from utilmeta.utils.error import Error
 from utype.parser.cls import ClassParser
 from utype.utils.functional import get_obj_name
+from utype.parser.rule import LogicalType
 import utype
 import re
 from ..file.base import File
@@ -40,6 +43,7 @@ class Response:
     __parser__: ResponseClassParser
     __json_encoder_cls__ = utype.JSONEncoder
     __file_block_size__ = 4096
+    __file_attachment__ = False
 
     # -- params --
     result_key: str = None
@@ -148,6 +152,7 @@ class Response:
                  response=None,
                  error: Union[Error, Exception] = None,
                  file=None,
+                 attachment=None,
                  # metadata
                  mocked: bool = False,
                  cached: bool = False,
@@ -209,20 +214,26 @@ class Response:
         self._stack = stack
 
         self._file: Optional[FileAdaptor] = None
-        self._file_path = None
+        self._filepath = None
+        self._filename = None
+
         self._error = None
         self._traffic = None
         self._setup_time = time_now()
+        self._as_attachment = self.__file_attachment__
+
+        if attachment:
+            self._as_attachment = True
 
         if not self.adaptor:
             self.init_error(error)
             self.init_result(result)
-            self.init_file(file)
+            self.init_file(file or attachment)
 
         self.parse_headers()
 
-        self.status = self.status or 200
-        # default status is 200
+        pref = Preference.get()
+        self.status = self.status or pref.default_status or 200
         if self.state is None:
             self.state = 1 if self.success else 0
         # set default state after status
@@ -287,13 +298,17 @@ class Response:
             return True
         return False
 
+    @property
+    def schema_parser(self) -> Optional[ClassParser]:
+        return getattr(self, '__parser__', None)
+
     def init_headers(self, headers):
-        if self.strict:
-            field = self.__parser__.fields.get('headers')
+        if self.strict and self.schema_parser:
+            field = self.schema_parser.fields.get('headers')
             if field:
                 # resolve before parse
-                self.__parser__.resolve_forward_refs()
-                headers = field.parse_value(headers, context=self.__parser__.options.make_context())
+                self.schema_parser.resolve_forward_refs()
+                headers = field.parse_value(headers, context=self.schema_parser.options.make_context())
         self.headers = Headers(headers or {})
 
     def init_result(self, result):
@@ -306,12 +321,12 @@ class Response:
             self.init_error(result)
             result = self.result
 
-        if self.strict:
-            field = self.__parser__.fields.get('result')
+        if self.strict and self.schema_parser:
+            field = self.schema_parser.fields.get('result')
             if field:
                 # resolve before parse
-                self.__parser__.resolve_forward_refs()
-                result = field.parse_value(result, context=self.__parser__.options.make_context())
+                self.schema_parser.resolve_forward_refs()
+                result = field.parse_value(result, context=self.schema_parser.options.make_context())
 
         if not self.adaptor and self.response_like(result):
             try:
@@ -333,12 +348,15 @@ class Response:
             return
         if isinstance(file, File):
             self._file = file.adaptor
+            self._filepath = file.filepath
+            self._filename = file.filename
             return
         from utilmeta.core.file.backends.base import FileAdaptor
         from pathlib import Path
         if isinstance(file, (str, Path)):
-            self._file_path = str(file)
-            self._file = FileAdaptor.dispatch(open(self._file_path, 'rb'))
+            self._filepath = str(file)
+            self._filename = os.path.basename(str(file))
+            self._file = FileAdaptor.dispatch(open(self._filepath, 'rb'))
             return
         if file_like(file):
             self._file = FileAdaptor.dispatch(file)
@@ -414,7 +432,7 @@ class Response:
             return
         if self._file:
             self._content = self.file
-            if self._file_path:
+            if self._filename:
                 # if there is file path and no content-disposition is set
                 # we set it
                 content_disposition = self.headers.get('content-disposition')
@@ -422,8 +440,9 @@ class Response:
                     # set
                     from urllib.parse import quote
                     from pathlib import Path
+                    disp = 'attachment' if self._as_attachment else 'inline'
                     self.set_header('content-disposition',
-                                    f'inline; filename="{quote(Path(self._file_path).name)}"')
+                                    f'{disp}; filename="{quote(self._filename)}"')
         else:
             data = self.build_data()
             if hasattr(data, '__iter__'):
@@ -476,15 +495,17 @@ class Response:
 
     @property
     def filename(self):
+        if self._filename:
+            return self._filename
         content_disposition = self.headers.get('content-disposition')
         if not content_disposition:
             return
         from urllib.parse import unquote
         for part in unquote(content_disposition).split('filename="')[1:]:
             return part.strip('"')
-        if self._file_path:
+        if self._filepath:
             from pathlib import Path
-            return Path(self._file_path).name
+            return Path(self._filepath).name
         return None
 
     @property
@@ -769,7 +790,6 @@ class Response:
                 file.seek(0)
             body = file.read()
             _ = file.close()
-            print('CLOSE FILE:', _)
             # if inspect.isawaitable(_):
             #     from utilmeta.utils import async_to_sync
             #     async_to_sync(_)()
@@ -923,6 +943,19 @@ class Response:
             self.headers["Vary"] = "*"
         else:
             self.headers["Vary"] = ", ".join(vary_headers)
+
+
+def parse_responses(return_type) -> List[Type[Response]]:
+    if Response.is_cls(return_type):
+        return [return_type]
+    elif isinstance(return_type, LogicalType):
+        values = []
+        for origin in return_type.resolve_origins():
+            if Response.is_cls(origin):
+                origin: Type[Response]
+                values.append(origin)
+        return values
+    return []
 
 
 @utype.register_transformer(Response)

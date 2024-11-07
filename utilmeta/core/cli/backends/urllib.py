@@ -15,7 +15,7 @@ class UrllibRequestAdaptor(ClientRequestAdaptor):
     #     ))
     backend = urllib
 
-    def __call__(self, timeout: int = None, **kwargs):
+    def __call__(self, timeout: float = None, **kwargs):
         from utilmeta.core.response.backends.urllib import UrllibResponseAdaptor
         try:
             resp = urlopen(Request(
@@ -23,7 +23,7 @@ class UrllibRequestAdaptor(ClientRequestAdaptor):
                 method=str(self.request.method).upper(),
                 data=self.request.body,
                 headers=self.request.headers,
-            ), timeout=timeout)
+            ), timeout=float(timeout) if timeout is not None else None)
         except HTTPError as e:
             resp = e
         return UrllibResponseAdaptor(resp)

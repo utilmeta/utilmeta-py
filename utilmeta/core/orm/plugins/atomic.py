@@ -1,11 +1,11 @@
-from utilmeta.utils.plugin import Plugin
+from utilmeta.utils.plugin import PluginBase
 from utilmeta.utils import awaitable
 from ..databases.config import DatabaseConnections
 import inspect
 import functools
 
 
-class AtomicPlugin(Plugin):
+class AtomicPlugin(PluginBase):
     def __init__(self, alias: str = 'default', savepoint: bool = True, durable: bool = False,
                  isolation=None, force_rollback: bool = False):
         super().__init__(locals())

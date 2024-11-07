@@ -337,3 +337,6 @@ class ClientRequestAdaptor(RequestAdaptor):
 
     async def async_load(self):
         return self.get_content()
+
+    def set_content(self, data):
+        self.request.data = data

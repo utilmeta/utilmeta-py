@@ -63,7 +63,15 @@ class ResponseAdaptor(BaseAdaptor):
 
     @property
     def content_length(self) -> Optional[int]:
-        return self.headers.get(utils.Header.LENGTH)
+        length = self.headers.get(utils.Header.LENGTH)
+        if isinstance(length, bytes):
+            length = length.decode()
+        if isinstance(length, int):
+            return length
+        if isinstance(length, str):
+            if length.isdigit():
+                return int(length)
+        return None
 
     @property
     def json_type(self):

@@ -116,6 +116,7 @@ class SupervisorClient(Client):
     def __init__(self,
                  access_key: str = None,
                  node_id: str = None,
+                 service_id: str = None,
                  node_key: str = None,
                  **kwargs):
         super().__init__(**kwargs)
@@ -152,6 +153,10 @@ class SupervisorClient(Client):
         if node_key:
             headers.update({
                 'X-Node-Key': node_key
+            })
+        if service_id:
+            headers.update({
+                'X-Service-ID': service_id
             })
 
         self.node_id = node_id

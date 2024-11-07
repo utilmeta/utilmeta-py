@@ -6,6 +6,8 @@ import base64
 
 
 class OperationsCommand(BaseServiceCommand):
+    name = 'ops'
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.config = self.service.get_config(Operations)
@@ -25,7 +27,8 @@ class OperationsCommand(BaseServiceCommand):
     @command
     def connect(self,
                 to: str = None,
-                key: str = Arg(required=True)
+                key: str = Arg('--key', required=True),
+                service: str = Arg('--service', default=None)
                 ):
         """
         Connect your API service to UtilMeta platform to manage
@@ -40,11 +43,12 @@ class OperationsCommand(BaseServiceCommand):
 
         connect_supervisor(
             key=key,
-            base_url=to
+            base_url=to,
+            service_id=service
         )
 
     @command
-    def delete_supervisor(self, node: str = Arg(required=True), key: str = Arg(required=True)):
+    def delete_supervisor(self, node: str = Arg(required=True), key: str = Arg('--key', required=True)):
         """
         Connect your API service to UtilMeta platform to manage
         """
@@ -68,12 +72,6 @@ class OperationsCommand(BaseServiceCommand):
         """
         manager = self.config.resources_manager_cls(service=self.service)
         manager.sync_resources(force=force)
-
-    @command
-    def delete(self, node_id: str, token: str = Arg(required=True)):
-        """
-        delete supervisor
-        """
 
     @command
     def stats(self):

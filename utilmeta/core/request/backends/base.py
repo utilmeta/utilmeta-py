@@ -257,6 +257,9 @@ class RequestAdaptor(BaseAdaptor):
             return self.get_text()
         return self.get_file()
 
+    def set_content(self, data):
+        pass
+
     @property
     def content(self):
         """

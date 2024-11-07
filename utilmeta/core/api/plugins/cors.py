@@ -3,13 +3,13 @@ import inspect
 from utype.types import *
 from utilmeta.utils import multi, get_origin, Header
 from utilmeta.utils import exceptions as exc
-from utilmeta.utils.plugin import Plugin
 from utilmeta.core.request import Request
 from utilmeta.core.request import var
 from utilmeta.core.response import Response
+from .base import APIPlugin
 
 
-class CORSPlugin(Plugin):
+class CORSPlugin(APIPlugin):
     DEFAULT_ALLOW_HEADERS = ('content-Type', 'content-length', 'accept', 'origin', 'user-Agent')
     EXCLUDED_STATUS = (502, 503, 504)
 

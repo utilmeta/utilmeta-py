@@ -44,7 +44,8 @@ dependencies = [
     "databases>=0.7.0",
     "jwcrypto>=1.5.4",
     "psutil>=5.8.0",
-    "user_agents>=2.2.0"
+    "user_agents>=2.2.0",
+    "aiosqlite>=0.20.0"
 ]
 
 dynamic = ["version"]

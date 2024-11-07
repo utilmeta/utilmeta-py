@@ -1,11 +1,12 @@
+import inspect
 import os.path
 
 from .base import command, Arg
 from .commands.setup import SetupCommand
 from .commands.base import BaseServiceCommand
 from utilmeta import __version__
-from utilmeta.utils import run
-from .constant import BLUE
+from utilmeta.utils import run, import_obj
+from .constant import BLUE, RED
 import sys
 
 
@@ -38,12 +39,15 @@ class MetaCommand(BaseServiceCommand):
 
     @command('init')
     def init(self,
-             app: str = Arg(alias='--app', required=True),
+             app: str = Arg(alias='--app', default=None),
              service: str = Arg(alias='--service', default=None),
              main_file: str = Arg(alias='--main', default=None),
              ):
         """
         Initialize utilmeta project with a meta.ini file
+        --app: specify the wsgi / asgi application
+        --service: specify the reference of UtilMeta service
+        --main: specify the reference of main file
         """
         if not self.ini_path:
             self.ini_path = os.path.join(self.cwd, self.META_INI)
@@ -54,6 +58,19 @@ class MetaCommand(BaseServiceCommand):
                 print('UtilMeta project already initialized at {}'.format(self.ini_path))
                 return
             print(f'Re-initialize UtilMeta project at {self.ini_path}')
+        if not app:
+            print(RED % 'meta init: you should use --app=<ref.to.your.app> '
+                        'to specify your wsgi / asgi / python application reference')
+            exit(1)
+        # try to load
+        try:
+            app_obj = import_obj(app)
+            if inspect.ismodule(app_obj):
+                raise ValueError(f'--app should be a python application object, got module: {app_obj}')
+        except Exception as e:
+            print(RED % f'meta init: python application reference: {repr(app)} failed to load: {e}')
+            exit(1)
+
         settings = dict(app=app)
         if service:
             settings['service'] = service
@@ -65,15 +82,25 @@ class MetaCommand(BaseServiceCommand):
             'utilmeta': settings
         }, self.ini_path)
 
+    def _get_openapi(self):
+        from utilmeta.ops.config import Operations
+        ops_config = self.service.get_config(Operations)
+        if ops_config:
+            return ops_config.openapi
+        from utilmeta.core.api.specs.openapi import OpenAPI
+        return OpenAPI(self.service)()
+
     @command()
     def gen_openapi(self, to: str = Arg(alias='--to', default='openapi.json')):
         """
         Generate OpenAPI document file for current service
+        --to: target file name, default to be openapi.json
         """
         self.service.setup()  # setup here
         print(f'generate openapi document file for service: [{self.service.name}]')
         from utilmeta.core.api.specs.openapi import OpenAPI
-        path = OpenAPI(self.service).save(to)
+        openapi = self._get_openapi()
+        path = OpenAPI.save_to(openapi, to)
         print(f'OpenAPI document generated at {path}')
 
     @command()
@@ -86,6 +113,8 @@ class MetaCommand(BaseServiceCommand):
                    ):
         """
         Generate UtilMeta Client code for current service or specified OpenAPI document (url or file)
+        --openapi: specify target OpenAPI document (url / filepath / document string), default to be the document of current UtilMeta service
+        --to: target file name, default to be openapi.json
         """
         from utilmeta.core.cli.specs.openapi import OpenAPIClientGenerator
         if openapi:
@@ -94,8 +123,7 @@ class MetaCommand(BaseServiceCommand):
         else:
             self.service.setup()  # setup here
             print(f'generate client file for service: [{self.service.name}]')
-            from utilmeta.core.api.specs.openapi import OpenAPI
-            openapi_docs = OpenAPI(self.service)()
+            openapi_docs = self._get_openapi()
             generator = OpenAPIClientGenerator(openapi_docs)
         generator.space_ident = space_indent
         generator.black_format = black
@@ -127,7 +155,7 @@ class MetaCommand(BaseServiceCommand):
     @command
     def run(self):
         """
-        run the api server and start to serve requests (for debug only)
+        run utilmeta service and start to serve requests (for debug only)
         """
         print(f'UtilMeta service {BLUE % self.service.name} running at {self.main_file}')
         run(f'{sys.executable} {self.main_file}')

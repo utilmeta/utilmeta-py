@@ -106,7 +106,7 @@ class Body(Property):
 
     def validate_content_type(self, request: Request):
         if self.content_type and request.content_type != self.content_type:
-            raise exc.UnprocessableEntity('invalid content type')
+            raise exc.UnprocessableEntity(f'invalid content type: {request.content_type}')
 
     def validate_max_length(self, request: Request):
         if self.max_length and request.content_length and request.content_length > self.max_length:

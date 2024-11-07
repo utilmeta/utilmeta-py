@@ -1,4 +1,6 @@
 import os
+import warnings
+
 from .config import Operations
 from .log import setup_locals, batch_save_logs, worker_logger
 from .monitor import get_sys_metrics
@@ -105,14 +107,18 @@ class OperationWorkerTask(BaseCycleTask):
         executor.migrate(targets, plan)
         # ----------
         if connection != ops_conn:
-            executor = MigrationExecutor(connection)
-            targets = [
-                key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
-            ]
-            plan = executor.migration_plan(targets)
-            if not plan:
-                return
-            executor.migrate(targets, plan)
+            try:
+                executor = MigrationExecutor(connection)
+                targets = [
+                    key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
+                ]
+                plan = executor.migration_plan(targets)
+                if not plan:
+                    return
+                executor.migrate(targets, plan)
+            except Exception as e:
+                # ignore migration in default db
+                warnings.warn(f'migrate operation models to default database connection failed: {e}')
 
     def worker_cycle(self):
         if not self._last_exec:
@@ -393,13 +399,11 @@ class OperationWorkerTask(BaseCycleTask):
     def is_worker_primary(self):
         # if not self.worker:
         #     return False
-        if not self.instance:
+        if not self.instance or not self.server or not self.worker:
             return False
-        from .models import Worker
-        return not Worker.objects.filter(
-            instance=self.instance,
-            connected=True,
-            pid__lt=os.getpid()
+        return not self.connected_workers.filter(
+            # pid__lt=os.getpid()
+            start_time__lt=self.worker.start_time
         ).exists()
 
     @property

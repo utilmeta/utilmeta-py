@@ -5,8 +5,7 @@ import warnings
 from utype.parser.field import ParserField
 from utilmeta.core.request import Request, var
 from utilmeta.core.response import Response
-from utilmeta.utils.plugin import Plugin
-from utilmeta.utils import import_obj, awaitable, localhost
+from utilmeta.utils import import_obj, awaitable, localhost, PluginBase
 from ..base import BaseAuthentication
 
 
@@ -61,21 +60,25 @@ class BaseSession(BaseAuthentication):
         return super().init(field)
 
     @property
-    def plugin(_session_self) -> Plugin:
-        class SessionPlugin(Plugin):
+    def plugin(_session_self) -> PluginBase:
+        class SessionPlugin(PluginBase):
             def __init__(self, session=_session_self):
                 super().__init__()
                 self.session = session
 
             def process_response(self, response: Response, api=None):
                 if not isinstance(response, Response):
-                    response = Response(response, request=api.request if api else None)
+                    # protective, not going to execute anyway
+                    resp_cls = api.response if api else Response
+                    response = resp_cls(response, request=api.request if api else None)
                 return self.session.process_response(response)
 
             @awaitable(process_response)
             async def process_response(self, response: Response, api=None):
                 if not isinstance(response, Response):
-                    response = Response(response, request=api.request if api else None)
+                    # protective, not going to execute anyway
+                    resp_cls = api.response if api else Response
+                    response = resp_cls(response, request=api.request if api else None)
                 r = self.session.process_response(response)
                 if inspect.isawaitable(r):
                     r = await r

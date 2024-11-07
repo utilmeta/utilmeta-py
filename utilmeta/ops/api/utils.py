@@ -36,10 +36,7 @@ class WrappedResponse(response.Response):
 
 
 class opsRequire(auth.Require):
-    def validate_scopes(self, api_inst: api.API):
+    def validate_scopes(self, req: request.Request):
         if config.disabled_scope and config.disabled_scope.intersection(self.scopes):
             raise exceptions.PermissionDenied(f'Operation: {self.scopes} denied by config')
-        scopes = self.scopes_var.getter(api_inst.request)
-        if '*' in scopes:
-            return
-        return super().validate_scopes(api_inst)
+        return super().validate_scopes(req)

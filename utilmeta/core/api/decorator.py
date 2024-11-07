@@ -114,9 +114,9 @@ class APIDecoratorWrapper:
             raise ValueError(f'Endpoint func: <{func.__name__}> is startswith "_", which will not be'
                              f' recognized as a api function')
 
-        if kwargs.get('route') == func.__name__:
-            warnings.warn(f'Endpoint alias is same as function name: {func.__name__},'
-                          f' remove redundant params of decorators')
+        # if kwargs.get('route') == func.__name__:
+        #     warnings.warn(f'Endpoint alias is same as function name: {func.__name__},'
+        #                   f' remove redundant params of decorators')
 
         kwargs.update(method=self.method)
         for k, v in kwargs.items():
@@ -171,6 +171,14 @@ class APIDecoratorWrapper:
 
 
 def before(*units, excludes=None, priority: int = None):
+    # if len(units) == 1 and callable(units[0]):
+    #     # @api.before
+    #     # def func(self):
+    #     func = units[0]
+    #     units = ['*']
+    #     return wrapper(func)
+    if not units:
+        units = ['*']
     if '*' in units:
         assert len(units) == 1, f'@api.before("*") means hook all units, remove the redundant units'
     elif excludes:
@@ -187,6 +195,12 @@ def before(*units, excludes=None, priority: int = None):
 
 
 def after(*units, excludes=None, priority: int = None):
+    # if len(units) == 1 and callable(units[0]):
+    #     func = units[0]
+    #     units = ['*']
+    #     return wrapper(func)
+    if not units:
+        units = ['*']
     if '*' in units:
         assert len(units) == 1, f'@api.after("*") means hook all units, remove the redundant units'
     elif excludes:
@@ -211,10 +225,12 @@ def handle(*unit_and_errors, excludes=None, priority: int = None):
         else:
             units.append(e)
 
-    if '*' in units:
-        assert len(units) == 1, f'@api.accept("*") means hook all units, remove the redundant units'
+    if not units:
+        units = ['*']
     if not errors:
         errors = (Exception,)
+    if '*' in units:
+        assert len(units) == 1, f'@api.accept("*") means hook all units, remove the redundant units'
 
     def wrapper(f: T) -> T:
         setattr(f, EndpointAttr.errors, errors)

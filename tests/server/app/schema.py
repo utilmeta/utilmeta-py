@@ -30,7 +30,7 @@ class ContentSchema(orm.Schema[BaseContent]):
     created_at: datetime
     updated_at: datetime = Field(default_factory=datetime.now, no_input='aw')       # last modified
     public: bool = orm.Field(auth={
-        'w': orm.Relate('author'),
+        # 'w': orm.Relate('author'),
         'a': auth.Require()
     }, default=True)
     type: str
@@ -54,7 +54,7 @@ class CommentSchema(ContentSchema[Comment]):
 class ArticleSchema(ContentSchema[Article]):
     type: Literal["article"] = orm.Field(default="article", no_input='aw')
     content = orm.Field(auth={
-        'w': orm.Relate('author'),
+        # 'w': orm.Relate('author'),
         'r': auth.Require()
     })
 

@@ -170,6 +170,8 @@ DEFAULT_SECRET_NAMES = (
     'sessionid',
     'pwd',
     'passphrase',
+    'cookie',
+    'authorization',
     '_token',
     '_key',
 )

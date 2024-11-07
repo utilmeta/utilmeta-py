@@ -1,4 +1,4 @@
-from typing import Union, Dict, Type, List
+from typing import Union, Dict, Type, List, Any, Optional
 from utilmeta.utils.error import Error
 from utilmeta.utils.context import ParserProperty
 from utilmeta.utils import Header, EndpointAttr, COMMON_METHODS, awaitable, \
@@ -18,16 +18,16 @@ from ..request import Request, var
 from .route import APIRoute
 from .endpoint import Endpoint
 from .hook import Hook, ErrorHook, BeforeHook, AfterHook
+from .chain import APIChainBuilder
 from . import decorator
 from utype.utils.compat import is_annotated
 from utype.utils.exceptions import ParseError
+from utilmeta.conf import Preference
 
 setup_class = PluginEvent('setup_class', synchronous_only=True)
-enter_route = PluginEvent('enter_route')
-exit_route = PluginEvent('exit_route')
+# enter_route = PluginEvent('enter_route')
+# exit_route = PluginEvent('exit_route')
 setup_instance = PluginEvent('setup_instance')
-process_response = PluginEvent('process_response', streamline_result=True)
-handle_error = PluginEvent('handle_error')
 
 
 class APIRef:
@@ -61,9 +61,11 @@ class API(PluginTarget):
     _error_cls: Type[Error] = Error
     _route_cls: Type[APIRoute] = APIRoute
     _endpoint_cls: Type[Endpoint] = Endpoint
+    _chain_cls: Type[APIChainBuilder] = APIChainBuilder
     _parser_field_cls: Type[ParserField] = ParserField
     _default_error_hooks: Dict[Type[Exception], ErrorHook]
     _request_cls: Type[Request]
+    _response_cls: Optional[Type[Response]] = None
 
     request: Request
     response: Type[Response]
@@ -102,6 +104,10 @@ class API(PluginTarget):
 
         cls._routes = base_routes
         cls._default_error_hooks = error_hooks
+        if Response.is_cls(getattr(cls, 'response', None)):
+            cls._response_cls = cls.response
+        else:
+            cls._response_cls = None
 
     @classonlymethod
     def _check_unit_name(cls, name: str):
@@ -445,6 +451,8 @@ class API(PluginTarget):
                 setattr(self, key, partial(val, self))
 
         self._init_properties()
+        self._error_hooks = self._default_error_hooks
+        self._response_types = []
         setup_instance(self)
 
     def _init_properties(self):
@@ -466,33 +474,6 @@ class API(PluginTarget):
                     raise exc.BadRequest(str(e), detail=e.get_detail()) from e
                 self.__dict__[name] = value
 
-    def _handle_error(self, error: Error, error_hooks: dict):
-        hook = error.get_hook(error_hooks, exact=isinstance(error.exception, exc.Redirect))
-        # hook applied before handel_error plugin event
-        if hook:
-            result = hook(self, error)
-        else:
-            result = handle_error(self, error)
-            # handle_error event can throw an error, or return a valid response
-            # if nothing return, it implies that follow the api default error flow
-            if result is None:
-                raise error.throw()
-        return result
-
-    @awaitable(_handle_error)
-    async def _handle_error(self, error: Error, error_hooks: dict):
-        hook = error.get_hook(error_hooks, exact=isinstance(error.exception, exc.Redirect))
-        # hook applied before handel_error plugin event
-        if hook:
-            result = await hook(self, error)
-        else:
-            result = await handle_error(self, error)
-            # handle_error event can throw an error, or return a valid response
-            # if nothing return, it implies that follow the api default error flow
-            if result is None:
-                raise error.throw()
-        return result
-
     def _resolve(self) -> APIRoute:
         method_routes: Dict[str, APIRoute] = {}
         for route in self._routes:
@@ -508,22 +489,6 @@ class API(PluginTarget):
                     #     return route
                     # first match is 1st priority
                     method_routes.setdefault(route.method, route)
-
-        # if matched_route:
-        #     # elif route.method == self.request.method and not self.request.is_options:
-        #     #     # options/cross-origin need to collect methods to generate Allow-Methods
-        #     #     return route
-        #     # first match is 1st priority
-        #     allowed_methods = []
-        #     allowed_headers = []
-        #     for route in self._routes:
-        #         if route.method and route.route == matched_route.route:
-        #             distinct_add(allowed_methods, [route.method])
-        #             distinct_add(allowed_headers, route.header_names)
-        #             # if route.method not in allowed_methods:
-        #             #     allowed_methods.append(route.method)
-        #
-        #     method_routes.setdefault(route.method, route)
 
         if method_routes:
             allow_methods = var.allow_methods.setup(self.request)
@@ -543,39 +508,84 @@ class API(PluginTarget):
             return method_routes[self.request.method]
         raise exc.NotFound(path=self.request.path)
 
-    def __call__(self):
-        error_hooks = self._default_error_hooks
+    def _handle_error(self, error: Error):
+        hook = error.get_hook(self._error_hooks, exact=isinstance(error.exception, exc.Redirect))
+        # hook applied before handel_error plugin event
+        if hook:
+            result = hook(self, error)
+            if not isinstance(result, Error):
+                return result
+            error = result
+        raise error.throw()
+
+    async def _async_handle_error(self, error: Error):
+        hook = error.get_hook(self._error_hooks, exact=isinstance(error.exception, exc.Redirect))
+        # hook applied before handel_error plugin event
+        if hook:
+            result = hook(self, error)
+            if inspect.isawaitable(result):
+                result = await result
+            if not isinstance(result, Error):
+                return result
+            error = result
+        raise error.throw()
+
+    def _make_response(self, response, force: bool = False):
+        if isinstance(response, Response):
+            if not response.request:
+                response.request = self.request
+            return response
+        request = self.request
+        pref = Preference.get()
+        for i, resp_type in enumerate(self._response_types):
+            try:
+                return resp_type(
+                    response,
+                    request=request,
+                    strict=pref.api_default_strict_response
+                )
+            except Exception as e:
+                if i == len(self._response_types) - 1 and pref.api_default_strict_response:
+                    raise e from e
+                continue
+        if self._response_cls:
+            return self._response_cls(
+                response,
+                request=request,
+                strict=pref.api_default_strict_response
+            )
+        if force:
+            return Response(response, request=request)
+        return response
+
+    def __handler__(self):
+        # resolve after process request for API
+        # because process request may change request path / method
+        with self._resolve() as route:
+            self._error_hooks = route.error_hooks
+            return route.serve(self)
+
+    async def __async_handler__(self):
+        with self._resolve() as route:
+            self._error_hooks = route.error_hooks
+            return await route.aserve(self)
+
+    def __call__(self) -> Union[Response, Any]:
+        handler = self._chain_cls(self).build_api_handler(self.__class__.__handler__, asynchronous=False)
         try:
-            with self._resolve() as route:
-                error_hooks = route.error_hooks
-                result = route(self)
+            resp = handler(self)
         except Exception as e:
-            result = self._handle_error(self._error_cls(e, request=self.request), error_hooks)
-
-        if isinstance(result, Response):
-            if not result.request:
-                result.request = self.request
-        elif Response.is_cls(getattr(self.__class__, 'response', None)):
-            result = self.response(result, request=self.request)
-
-        return process_response(self, result)
+            resp = self._handle_error(Error(e, request=self.request))
+        return self._make_response(resp)
 
     @awaitable(__call__)
-    async def __call__(self):
-        error_hooks = self._default_error_hooks
+    async def __call__(self) -> Union[Response, Any]:
+        handler = self._chain_cls(self).build_api_handler(self.__class__.__async_handler__, asynchronous=True)
         try:
-            # async with: no
-            with self._resolve() as route:
-                error_hooks = route.error_hooks
-                result = await route(self)
+            resp = await handler(self)
         except Exception as e:
-            result = await self._handle_error(self._error_cls(e, request=self.request), error_hooks)
-        if isinstance(result, Response):
-            if not result.request:
-                result.request = self.request
-        elif Response.is_cls(getattr(self.__class__, 'response', None)):
-            result = self.response(result, request=self.request)
-        return await process_response(self, result)
+            resp = await self._async_handle_error(Error(e, request=self.request))
+        return self._make_response(resp)
 
     def options(self):
         return Response(headers={
@@ -585,19 +595,23 @@ class API(PluginTarget):
 
     def __serve__(self, unit):
         if isinstance(unit, Endpoint):
-            return unit.serve(self)
+            handler = self._chain_cls(self, unit).build_api_handler(unit.handler, asynchronous=False)
+            var.endpoint_ref.setter(self.request, unit.ref)
+            self._response_types = unit.response_types
+            return handler(self)
         else:
             return unit(self.request)()
 
-    @awaitable(__serve__)
-    async def __serve__(self, unit):
+    async def __aserve__(self, unit):
         if isinstance(unit, Endpoint):
-            return await unit.serve(self)
+            handler = self._chain_cls(self, unit).build_api_handler(unit.async_handler, asynchronous=True)
+            var.endpoint_ref.setter(self.request, unit.ref)
+            self._response_types = unit.response_types
+            return await handler(self)
         else:
             return await unit(self.request)()
 
 
 setup_class.register(API)
 setup_instance.register(API)
-process_response.register(API)
-handle_error.register(API)
+

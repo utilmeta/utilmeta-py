@@ -1,13 +1,14 @@
 from utype.utils.encode import JSONSerializer
 from utype.utils.datastructures import unprovided
 from utype import Schema, Field, Options
-from utilmeta.utils import awaitable, gen_key, time_now, http_time
+from utilmeta.utils import awaitable, gen_key, time_now, http_time, exceptions
 from datetime import timedelta, datetime, timezone
 from typing import Optional, TypeVar, Type, ClassVar, TYPE_CHECKING
 import warnings
 from .base import BaseSession
 from utilmeta.core.request import var, Request
 from utilmeta.core.response import Response
+from utilmeta.conf import Preference
 
 if TYPE_CHECKING:
     from utilmeta.core.request import Request
@@ -225,17 +226,27 @@ class BaseSessionSchema(Schema):
         self._modified = True
 
     def _get_new_session_key(self) -> str:
+        pref = Preference.get()
+        i = 0
         while True:
             session_key = gen_key(32, alnum=True, lower=True)
             if not self.exists(session_key):
                 return session_key
+            i += 1
+            if i >= pref.max_retry_loops:
+                raise exceptions.MaxRetriesExceed(max_retries=pref.max_retry_loops)
 
     # @awaitable(_get_new_session_key)
     async def _aget_new_session_key(self):
+        pref = Preference.get()
+        i = 0
         while True:
             session_key = gen_key(32, alnum=True, lower=True)
             if not await self.aexists(session_key):
                 return session_key
+            i += 1
+            if i >= pref.max_retry_loops:
+                raise exceptions.MaxRetriesExceed(max_retries=pref.max_retry_loops)
 
     def flush(self) -> None:
         """

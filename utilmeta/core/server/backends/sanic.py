@@ -26,6 +26,7 @@ class SanicServerAdaptor(ServerAdaptor):
         self.app = self.config._application if isinstance(self.config._application, self.application_cls) \
             else self.application_cls(self.config.name or self.DEFAULT_NAME)
         self._ready = False
+        self._extenstion = None
 
     def application(self):
         self.setup()
@@ -53,12 +54,13 @@ class SanicServerAdaptor(ServerAdaptor):
 
     def on_response(self, sanic_request, sanic_response):
         response = _current_response.get(None)
+        request = _current_request.get(None) or Request(self.request_adaptor_cls(sanic_request))
         if not isinstance(response, Response):
             response = Response(
                 response=self.response_adaptor_cls(
                     sanic_response
                 ),
-                request=Request(self.request_adaptor_cls(sanic_request))
+                request=request
             )
         else:
             if not response.adaptor:
@@ -133,7 +135,7 @@ class SanicServerAdaptor(ServerAdaptor):
 
         if asynchronous:
             # @app.route(route, methods=self.HANDLED_METHODS, name='core_methods')
-            @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS)
+            @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, static=True)
             async def f(request, path: str = ''):
                 req = None
                 try:
@@ -153,7 +155,7 @@ class SanicServerAdaptor(ServerAdaptor):
                 return self.response_adaptor_cls.reconstruct(resp)
         else:
             # @app.route(route, methods=self.HANDLED_METHODS, name='core_methods')
-            @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS)
+            @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, static=True)
             def f(request, path: str = ''):
                 req = None
                 try:
@@ -174,3 +176,38 @@ class SanicServerAdaptor(ServerAdaptor):
 
         # app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, name='extend_path')(f)
         # app.route(route, methods=self.HANDLED_METHODS, name='core_methods')(f)
+
+    def generate(self, spec: str = 'openapi'):
+        if spec == 'openapi':
+            app = self.app
+            # from sanic_ext import Extend
+            # setup = not hasattr(app, "_ext")
+            from sanic_routing.exceptions import FinalizationError
+            try:
+                _ = app.ext
+            except RuntimeError:
+                return None
+            except FinalizationError:
+                pass
+
+            finalized = app.router.finalized
+            if not finalized:
+                app.router.finalize()
+            try:
+                from sanic_ext.extensions.openapi.builders import SpecificationBuilder
+                from sanic_ext.extensions.openapi.blueprint import blueprint_factory
+                bp = app.blueprints.get('openapi') or blueprint_factory(app.config)
+                for listener in bp._future_listeners:
+                    if listener.listener.__name__ == 'build_spec':
+                        listener.listener(app, None)
+
+                return SpecificationBuilder().build(app).serialize()
+            except (ModuleNotFoundError, ImportError):
+                try:
+                    from sanic_openapi.openapi3.builders import SpecificationBuilder    # noqa
+                    return SpecificationBuilder().build(app).serialize()
+                except (ModuleNotFoundError, ImportError):
+                    pass
+            finally:
+                if not finalized:
+                    app.router.reset()

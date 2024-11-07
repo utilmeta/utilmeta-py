@@ -8,6 +8,7 @@ from django.db.models.deletion import get_candidate_relations_to_delete, \
     DO_NOTHING, ProtectedError, RestrictedError
 from django.db.models import QuerySet, sql, signals
 from django.db import models
+from django.core.exceptions import EmptyResultSet
 from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE
 from ...databases import DatabaseConnections
 from functools import reduce
@@ -137,7 +138,10 @@ class AwaitableCollector(Collector):
                                 query=combined_updates.query,
                                 using=combined_updates.db
                             )
-                        await combined_updates.aupdate(**{field.name: value})
+                        try:
+                            await combined_updates.aupdate(**{field.name: value})
+                        except EmptyResultSet:
+                            continue
                     if objs:
                         model = objs[0].__class__
                         # query = sql.UpdateQuery(model)

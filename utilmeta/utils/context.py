@@ -3,7 +3,6 @@ from utype.parser.field import ParserField
 from utype.utils.datastructures import unprovided
 from utype import Field
 from typing import List, Union, Type, Dict
-from utilmeta.utils import awaitable
 import inspect
 from functools import partial
 from contextvars import ContextVar
@@ -144,8 +143,7 @@ class ContextWrapper:
                 params[key] = value
         return params
 
-    @awaitable(parse_context)
-    async def parse_context(self, context: object) -> dict:
+    async def async_parse_context(self, context: object) -> dict:
         if not isinstance(context, self.context_cls):
             # should raise TypeError
             pass

@@ -216,7 +216,7 @@ class ServiceLogBase(orm.Schema[ServiceLog]):
     endpoint_ident: Optional[str]
 
     level: str
-    time: datetime
+    time: float
     duration: Optional[int]
 
     user_id: Optional[str]
@@ -245,7 +245,7 @@ class ServiceLogSchema(WebMixinSchema, orm.Schema[ServiceLog]):
     # -----
 
     level: str
-    time: datetime
+    time: float
     duration: Optional[int]
     thread_id: Optional[int]
     # thread id that handle this request / invoke
@@ -335,12 +335,12 @@ class WorkerSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Worker]):
     pid: int
     memory_info: dict
     threads: int
-    start_time: datetime
+    start_time: int
 
     master_id: Optional[int]
     connected: bool
 
-    time: datetime
+    time: int
 
     status: Optional[str]
 
@@ -348,7 +348,7 @@ class WorkerSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Worker]):
 class WorkerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[WorkerMonitor]):
     id: int
 
-    time: datetime
+    time: float
     interval: Optional[int]
     worker_id: int
     memory_info: dict
@@ -359,7 +359,7 @@ class WorkerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Wo
 class ServerMonitorSchema(SystemMetricsMixin, orm.Schema[ServerMonitor]):
     id: int
 
-    time: datetime
+    time: float
     layer: int
     interval: Optional[int]
     server_id: int
@@ -372,7 +372,7 @@ class ServerMonitorSchema(SystemMetricsMixin, orm.Schema[ServerMonitor]):
 class InstanceMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[InstanceMonitor]):
     id: int
 
-    time: datetime
+    time: float
     layer: int
     interval: Optional[int]
 

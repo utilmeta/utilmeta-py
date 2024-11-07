@@ -39,7 +39,7 @@ jobs:
           pip install utype
           pip install databases[aiosqlite]
           pip install django==${{ matrix.django-version }}
-          pip install flask fastapi sanic tornado aiohttp uvicorn httpx requests python-multipart
+          pip install flask fastapi sanic[ext] tornado aiohttp uvicorn httpx requests python-multipart
           pip install django-ninja djangorestframework apiflask
       - name: Run lint
         run: |

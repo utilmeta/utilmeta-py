@@ -596,19 +596,19 @@ class ServerCache(BaseCacheInterface):
         return cache
 
 
-from utilmeta.core.api.base import API, process_response, setup_instance
-from utilmeta.core.response import Response
-
-
-@setup_instance.hook(API)
-def setup_instance_for_cache(cache, api, __attname__: str):
-    cache: ServerCache
-    api: API
-    setattr(api, __attname__, cache.make_cache(api.request))
-
-
-@process_response.hook(API)
-def process_response_for_cache(cache, response):
-    cache: ServerCache
-    response: Response
-    response.update_headers(**cache.headers)
+# from utilmeta.core.api.base import API, setup_instance
+# from utilmeta.core.response import Response
+#
+#
+# @setup_instance.hook(API)
+# def setup_instance_for_cache(cache, api, __attname__: str):
+#     cache: ServerCache
+#     api: API
+#     setattr(api, __attname__, cache.make_cache(api.request))
+#
+#
+# @process_response.hook(API)
+# def process_response_for_cache(cache, response):
+#     cache: ServerCache
+#     response: Response
+#     response.update_headers(**cache.headers)

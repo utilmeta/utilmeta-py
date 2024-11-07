@@ -100,9 +100,27 @@ class Database(Config):
         return self.max_size or self.min_size
 
     @property
+    def database_name(self):
+        if self.is_sqlite:
+            return os.path.basename(self.name)
+        return self.name
+
+    @property
+    def engine_name(self):
+        if self.is_sqlite:
+            return 'sqlite'
+        elif self.is_postgresql:
+            return 'postgresql'
+        elif self.is_mysql:
+            return 'mysql'
+        elif self.is_oracle:
+            return 'oracle'
+        return self.engine
+
+    @property
     def dsn(self):
         # [user[:password]@][netloc][:port][/dbname]
-        if 'sqlite' in self.engine:
+        if self.is_sqlite:
             # if os.name != 'nt':
             #     if os.path.isabs(self.name):
             #         return self.name
@@ -116,6 +134,19 @@ class Database(Config):
                 from urllib.parse import quote
                 # for special chars like @ will disrupt DNS
                 user += f':{quote(self.password)}'
+            netloc = self.host
+            if self.port:
+                netloc += f':{self.port}'
+            return f'{user}@{netloc}/{self.name}'
+
+    @property
+    def protected_dsn(self):
+        if self.is_sqlite:
+            return '/' + self.name
+        else:
+            user = self.user
+            if self.password:
+                user += f':******'
             netloc = self.host
             if self.port:
                 netloc += f':{self.port}'

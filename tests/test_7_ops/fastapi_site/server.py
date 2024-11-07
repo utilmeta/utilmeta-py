@@ -2,6 +2,8 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
+PORT = 9092
+
 
 @app.get("/items/{item_id}")
 async def read_item(item_id):
@@ -16,10 +18,11 @@ Operations(
         engine='sqlite3'
     ),
     secure_only=False,
-    trusted_hosts=['127.0.0.1']
+    trusted_hosts=['127.0.0.1'],
+    base_url=f'http://127.0.0.1:{PORT}',
 ).integrate(app, __name__)
 
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app)
+    uvicorn.run(app, port=PORT)

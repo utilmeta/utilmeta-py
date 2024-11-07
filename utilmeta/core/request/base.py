@@ -159,6 +159,7 @@ class Request:
     def data(self, data):
         data_var = var.data.setup(self)
         data_var.set(data)
+        self.adaptor.set_content(data)
 
     @property
     def time(self) -> datetime:

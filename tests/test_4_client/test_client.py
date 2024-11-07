@@ -1,7 +1,10 @@
 from utilmeta.core.cli import Client
 from utilmeta.core.file import File
+from utilmeta.core import request
+from typing import List
 from tests.conftest import make_live_process, make_server_thread, setup_service
 import pytest
+import utype
 
 setup_service(__name__, backend='django', async_param=[False])
 # server_process = make_live_process(
@@ -105,3 +108,128 @@ class TestClientClass:
             assert dt.result.key == 'test1'
 
             # assert client.get_asynchronous().data == ('async' if service.asynchronous else 'sync')
+
+    def test_client_plugin_orders(self, server_thread):
+        from utilmeta.core import api
+        from utilmeta.core.request import Request
+        from utilmeta.core.response import Response
+
+        class OrderPlugin(api.Plugin):
+            def __init__(self, val: str):
+                self.val = val
+                super().__init__(locals())
+
+            def process_request(self, request: Request):
+                data = request.data
+                if not data:
+                    request.data = self.val
+                elif isinstance(data, str):
+                    request.data = f'{request.data},{self.val}'
+
+            def process_response(self, response: Response):
+                order = response.headers.get('x-order')
+                if not order:
+                    response.headers['x-order'] = self.val
+                else:
+                    response.headers['x-order'] = f'{order},{self.val}'
+
+        def make_plugin(val) -> OrderPlugin:
+            class _order(OrderPlugin):
+                pass
+
+            return _order(val)
+
+        from utilmeta.core import cli
+
+        @make_plugin('4')
+        @make_plugin('3')
+        class MyClient(cli.Client):
+            @api.patch
+            @make_plugin('2')
+            @make_plugin('1')
+            def content(self, data: str = request.Body(content_type='text/html', default='')) -> Response[str]:
+                pass
+
+            def process_request(self, request: Request):
+                data = request.data
+                if not data:
+                    request.data = '0'
+                elif isinstance(data, str):
+                    request.data = f'{request.data},0'
+
+            def process_response(self, response: Response):
+                order = response.headers.get('x-order')
+                if not order:
+                    response.headers['x-order'] = '0'
+                else:
+                    response.headers['x-order'] = f'{order},0'
+
+        with MyClient(
+            base_url='http://127.0.0.1:8666/api/test',
+        ) as client:
+            resp = client.content()
+            assert resp.result == '0,4,3,2,1'
+            assert resp.headers.get('x-order') == '1,2,3,4,0'
+
+    @pytest.mark.asyncio
+    async def test_async_client_plugin_orders(self, server_thread):
+        from utilmeta.core import api
+        from utilmeta.core.request import Request
+        from utilmeta.core.response import Response
+
+        class OrderPlugin(api.Plugin):
+            def __init__(self, val: str):
+                self.val = val
+                super().__init__(locals())
+
+            async def process_request(self, request: Request):
+                data = request.data
+                if not data:
+                    request.data = self.val
+                elif isinstance(data, str):
+                    request.data = f'{request.data},{self.val}'
+
+            async def process_response(self, response: Response):
+                order = response.headers.get('x-order')
+                if not order:
+                    response.headers['x-order'] = self.val
+                else:
+                    response.headers['x-order'] = f'{order},{self.val}'
+
+        def make_plugin(val) -> OrderPlugin:
+            class _order(OrderPlugin):
+                pass
+
+            return _order(val)
+
+        from utilmeta.core import cli
+
+        @make_plugin('4')
+        @make_plugin('3')
+        class MyClient(cli.Client):
+            @api.patch
+            @make_plugin('2')
+            @make_plugin('1')
+            async def content(self, data: str = request.Body(content_type='text/html', default='')) -> Response[str]:
+                pass
+
+            async def process_request(self, request: Request):
+                data = request.data
+                if not data:
+                    request.data = '0'
+                elif isinstance(data, str):
+                    request.data = f'{request.data},0'
+
+            async def process_response(self, response: Response):
+                order = response.headers.get('x-order')
+                if not order:
+                    response.headers['x-order'] = '0'
+                else:
+                    response.headers['x-order'] = f'{order},0'
+
+        with MyClient(
+            base_url='http://127.0.0.1:8666/api/test',
+        ) as client:
+            resp = await client.content()
+            assert resp.result == '0,4,3,2,1'
+            assert resp.headers.get('x-order') == '1,2,3,4,0'

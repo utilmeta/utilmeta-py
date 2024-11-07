@@ -5,22 +5,17 @@ from utilmeta.core.api.endpoint import BaseEndpoint
 # from utilmeta.core.response import Response
 # from utype.parser.rule import LogicalType
 
-from utilmeta.utils import PluginEvent, Error
+from utilmeta.utils import Error, function_pass
+from utilmeta.conf import Preference
 from utype.types import *
 from http.cookies import SimpleCookie
 from utilmeta.core.request import Request, properties
+from utilmeta.core.response import Response
 from utilmeta.core.api.route import BaseRoute
 from .hook import ClientErrorHook, ClientAfterHook, ClientBeforeHook
 
 if TYPE_CHECKING:
     from .base import Client
-
-
-process_request = PluginEvent('process_request', streamline_result=True)
-handle_error = PluginEvent('handle_error')
-process_response = PluginEvent('process_response', streamline_result=True)
-enter_endpoint = PluginEvent('enter_endpoint')
-exit_endpoint = PluginEvent('exit_endpoint')
 
 
 def prop_is(prop: properties.Property, ident):
@@ -110,6 +105,13 @@ class ClientEndpoint(BaseEndpoint):
             route=self.route,
             name=self.name,
         )
+        self.client_wrap = False
+        if self.client:
+            self.client_wrap = not all([
+                function_pass(self.client.process_request),
+                function_pass(self.client.process_response),
+                function_pass(self.client.handle_error),
+            ])
         self.path_args = self.PATH_REGEX.findall(self.route)
 
         # if self.parser.is_asynchronous:
@@ -139,7 +141,7 @@ class ClientEndpoint(BaseEndpoint):
         for i, arg in enumerate(args):
             kwargs[self.parser.pos_key_map[i]] = arg
 
-        client_params = client._get_params()
+        client_params = client.get_client_params()
         url = utils.url_join(client_params.base_url or '', self.route, append_slash=client_params.append_slash)
         query = dict(client_params.base_query or {})
         headers = dict(client_params.base_headers or {})
@@ -180,15 +182,15 @@ class ClientEndpoint(BaseEndpoint):
                     body[key] = value
                 else:
                     body = {key: value}
-                if isinstance(prop, properties.Body):
-                    if prop.content_type:
-                        headers.update({'content-type': prop.content_type})
             elif prop_is(prop, 'body'):
                 # Body
                 if isinstance(body, dict) and isinstance(value, Mapping):
                     body.update(value)
                 else:
                     body = value
+                if isinstance(prop, properties.Body):
+                    if prop.content_type:
+                        headers.update({'content-type': prop.content_type})
             elif prop_in(prop, 'header'):
                 # HeaderParam
                 headers[key] = value
@@ -213,7 +215,7 @@ class ClientEndpoint(BaseEndpoint):
                 'cookie': ';'.join([f'{key}={val.value}' for key, val in cookies.items() if val.value])
             })
 
-        return client._request_cls(
+        return client.request_cls(
             method=self.method,
             url=url,
             query=query,
@@ -222,12 +224,36 @@ class ClientEndpoint(BaseEndpoint):
             backend=client_params.backend
         )
 
+    def parse_response(self, response: Response, fail_silently: bool = False) -> Response:
+        if not isinstance(response, Response):
+            response = Response(response)
+
+        if not self.response_types:
+            return response
+
+        for i, response_cls in enumerate(self.response_types):
+            if response_cls != Response and isinstance(response, response_cls):
+                return response
+
+        pref = Preference.get()
+        for i, response_cls in enumerate(self.response_types):
+            if response_cls.status and response.status != response_cls.status:
+                continue
+            try:
+                return response_cls(response=response, strict=pref.client_default_strict_response)
+            except Exception as e:   # noqa
+                if i == len(self.response_types) - 1 and not fail_silently:
+                    raise e
+                continue
+
+        return response
+
 
 class SyncClientEndpoint(ClientEndpoint):
     ASYNCHRONOUS = False
 
     def __call__(self, client: 'Client', *args, **kwargs):
-        with self.client_route.merge_hooks(client._client_route) as route:
+        with self.client_route.merge_hooks(client.client_route) as route:
             r = None
             request = None
             try:
@@ -264,7 +290,7 @@ class AsyncClientEndpoint(ClientEndpoint):
 
     async def __call__(self, client: 'Client', *args, **kwargs):
         # async with self:
-        with self.client_route.merge_hooks(client._client_route) as route:
+        with self.client_route.merge_hooks(client.client_route) as route:
             r = None
             request = None
             try:
@@ -302,5 +328,5 @@ class AsyncClientEndpoint(ClientEndpoint):
             return r
 
 
-enter_endpoint.register(ClientEndpoint)
-exit_endpoint.register(ClientEndpoint)
+# enter_endpoint.register(ClientEndpoint)
+# exit_endpoint.register(ClientEndpoint)

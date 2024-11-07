@@ -72,9 +72,7 @@ class UserAPI(API):
 
     @api.post
     def session_logout(self, session: session_config.schema):
-        print('SESSION:', session.session_key, self.request.cookies, dict(session))
         session.flush()
-        print('FLUSH:', dict(session), session.session_key, session.is_empty)
 
     @api.get
     def user_by_jwt(self, user: User = jwt_user) -> UserBase:
@@ -89,21 +87,3 @@ class UserAPI(API):
         data.id = user.pk
         data.save()
         return UserBase.init(data.id)
-
-    @api.get
-    def add(self, username: str):
-        user = User.objects.create(
-            username=username,
-            password='pwdpwdpwd'
-        )
-        print('USER: ', user)
-        return user.pk
-
-    @api.get
-    async def test(self, username: str):
-        user = await User.objects.acreate(
-            username=username,
-            password='pwdpwdpwd'
-        )
-        print('USER: ', user)
-        return user.pk

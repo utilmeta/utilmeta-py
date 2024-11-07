@@ -92,11 +92,7 @@ class Operations(Config):
         self._openapi = None
         self._task = None
 
-    @property
-    def openapi(self):
-        if self._openapi is not None:
-            return self._openapi
-
+    def load_openapi(self):
         from utilmeta import service
         from utilmeta.core.api.specs.openapi import OpenAPI
         openapi = OpenAPI(
@@ -106,6 +102,12 @@ class Operations(Config):
         )()
         self._openapi = openapi
         return openapi
+
+    @property
+    def openapi(self):
+        if self._openapi is not None:
+            return self._openapi
+        return self.load_openapi()
 
     @property
     def node_id(self):
@@ -230,7 +232,7 @@ class Operations(Config):
         # setup here, before importing APIs
         django_config.setup(service)
         # ----------
-        from django.conf import settings
+        # from django.conf import settings
 
         # -------------- API
         if not service.auto_created:
@@ -263,15 +265,19 @@ class Operations(Config):
         if not ops_api:
             return
 
-        print(f'UtilMeta operations API loaded at {ops_api}, '
-              f'you can visit https://ops.utilmeta.com to manage your APIs')
+        # load OpenAPI here:
+        # (for some backend like sanic, generate docs in workers can load to errors)
+        if not self._openapi:
+            self.load_openapi()
 
         if self._task:
             print('Operations task already started, ignoring...')
             return
+
+        print(f'UtilMeta operations API loaded at {ops_api}, '
+              f'you can visit https://ops.utilmeta.com to manage your APIs')
         # from .log import setup_locals
         # threading.Thread(target=setup_locals, args=(self,)).start()
-
         # task
         task = self.worker_task_cls(self)
         thread = threading.Thread(target=task.start, daemon=True)
@@ -356,15 +362,18 @@ class Operations(Config):
 
     @classmethod
     def get_backend_name(cls, backend):
-        name = getattr(backend, '__name__', '')
+        name = str(getattr(backend, 'name', ''))
         if name:
             return name
-        ref_name = str(backend).lstrip('<').rstrip('>').strip()
-        if ' ' in ref_name:
-            ref_name = ref_name.split(' ')[0]
-        if '.' in ref_name:
-            ref_name = ref_name.split('.')[0]
-        return ref_name or str(backend)
+        name = str(getattr(backend, '__name__', ''))
+        if not name:
+            ref_name = str(backend).lstrip('<').rstrip('>').strip()
+            if ' ' in ref_name:
+                ref_name = ref_name.split(' ')[0]
+            if '.' in ref_name:
+                ref_name = ref_name.split('.')[0]
+            name = ref_name or str(backend)
+        return name + '_service'
 
     def integrate(self, backend, module=None, name: str = None):
         from utilmeta import UtilMeta
@@ -372,7 +381,7 @@ class Operations(Config):
             from utilmeta import service
         except ImportError:
             parsed = urlsplit(self.route)
-            origin = None
+            route = parsed.path
             if parsed.scheme:
                 # is url
                 origin = get_origin(self.route)
@@ -380,11 +389,14 @@ class Operations(Config):
                 raise ValueError('Integrate utilmeta.ops.Operations requires to set a base_url of your API service, '
                                  'eg: Operations(base_url="https://api.example.com/api")')
             else:
+                url_parsed = urlsplit(self._base_url)
+                if url_parsed.path:
+                    route = url_join(url_parsed.path, route, with_scheme=False)
                 origin = get_origin(self._base_url)
             service = UtilMeta(
                 module,
                 backend=backend,
-                name=name or (self.get_backend_name(backend) + '_service'),
+                name=name or self.get_backend_name(backend),
                 origin=origin,
             )
             service._auto_created = True
@@ -393,7 +405,7 @@ class Operations(Config):
             # import API after setup
             if service.adaptor:
                 from .api import OperationsAPI
-                service.mount(OperationsAPI, route=parsed.path)
+                service.mount(OperationsAPI, route=route)
                 # service.adaptor.adapt(OperationsAPI, route=parsed.path)
                 service.adaptor.setup()
             else:
@@ -421,18 +433,18 @@ class Operations(Config):
         return False
 
     # OpenAPI getters --------------------------------
-    @classmethod
-    def get_drf_openapi(
-        cls,
-        title=None, url=None, description=None, version=None
-    ):
-        from rest_framework.schemas.openapi import SchemaGenerator
-        generator = SchemaGenerator(title=title, url=url, description=description, version=version)
-
-        def generator_func(service: 'UtilMeta'):
-            return generator.get_schema(public=True)
-
-        return generator_func
+    # @classmethod
+    # def get_drf_openapi(
+    #     cls,
+    #     title=None, url=None, description=None, version=None
+    # ):
+    #     from rest_framework.schemas.openapi import SchemaGenerator
+    #     generator = SchemaGenerator(title=title, url=url, description=description, version=version)
+    #
+    #     def generator_func(service: 'UtilMeta'):
+    #         return generator.get_schema(public=True)
+    #
+    #     return generator_func
 
     @classmethod
     def get_django_ninja_openapi(cls, ninja_api=None, **path_ninja_apis):
@@ -447,26 +459,26 @@ class Operations(Config):
 
         return generator_func
 
-    @classmethod
-    def get_apiflask_openapi(cls):
-        from apiflask import APIFlask
-
-        def generator_func(service: 'UtilMeta'):
-            app = service.application()
-            if isinstance(app, APIFlask):
-                return app._get_spec('json', force_update=True)
-            raise TypeError(f'Invalid application: {app} for django ninja. APIFlask() instance expected')
-
-        return generator_func
-
-    @classmethod
-    def get_fastapi_openapi(cls):
-        from fastapi import FastAPI
-
-        def generator_func(service: 'UtilMeta'):
-            app = service.application()
-            if isinstance(app, FastAPI):
-                return app.openapi()
-            raise TypeError(f'Invalid application: {app} for django ninja. FastAPI() instance expected')
-
-        return generator_func
+    # @classmethod
+    # def get_apiflask_openapi(cls):
+    #     from apiflask import APIFlask
+    #
+    #     def generator_func(service: 'UtilMeta'):
+    #         app = service.application()
+    #         if isinstance(app, APIFlask):
+    #             return app._get_spec('json', force_update=True)
+    #         raise TypeError(f'Invalid application: {app} for django ninja. APIFlask() instance expected')
+    #
+    #     return generator_func
+    #
+    # @classmethod
+    # def get_fastapi_openapi(cls):
+    #     from fastapi import FastAPI
+    #
+    #     def generator_func(service: 'UtilMeta'):
+    #         app = service.application()
+    #         if isinstance(app, FastAPI):
+    #             return app.openapi()
+    #         raise TypeError(f'Invalid application: {app} for django ninja. FastAPI() instance expected')
+    #
+    #     return generator_func

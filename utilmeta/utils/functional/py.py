@@ -69,7 +69,9 @@ def class_func(f):
 
 def function_pass(f):
     if not inspect.isfunction(f):
-        return False
+        f = getattr(f, '__func__', None)
+        if not f or not inspect.isfunction(f):
+            return False
     return getattr(f, constant.Attr.CODE).co_code in PASSED_CODES
 
 

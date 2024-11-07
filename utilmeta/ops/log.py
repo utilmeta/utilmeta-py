@@ -5,7 +5,7 @@ from utilmeta.core.request import var, Request
 from utilmeta.utils.context import ContextProperty, Property
 from typing import List, Optional, Union
 from utilmeta.core.server import ServiceMiddleware
-from utilmeta.utils import (file_like, SECRET,
+from utilmeta.utils import (file_like, SECRET, HAS_BODY_METHODS,
                             HTTPMethod, normalize, time_now, Error, ignore_errors,
                             replace_null, parse_user_agents, HTTP_METHODS_LOWER)
 from .config import Operations
@@ -605,6 +605,12 @@ class Logger(Property):
             return result
         if file_like(data):
             return self.get_file_repr(data)
+
+        if isinstance(data, bytes):
+            data = data.decode()
+        elif isinstance(data, (bytearray, memoryview)):
+            data = bytes(data).decode()
+
         return str(data)
 
     @classmethod
@@ -646,13 +652,18 @@ class Logger(Property):
         result = None
 
         if level >= self.STORE_DATA_LEVEL:
-            # if data should be saved
-            data = self.parse_values(var.data.getter(request))
+            if method in HAS_BODY_METHODS:
+                # if data should be saved
+                try:
+                    data = self.parse_values(request.data)
+                except Exception as e:  # noqa: ignore
+                    warnings.warn(f'load request data failed: {e}')
 
         if level >= self.STORE_RESULT_LEVEL:
-            result = response.data
-            if file_like(result):
-                result = '<file>'
+            try:
+                result = self.parse_values(response.data)
+            except Exception as e:  # noqa: ignore
+                warnings.warn(f'load response data failed: {e}')
 
         try:
             public = request.ip_address.is_global
@@ -851,10 +862,14 @@ def batch_save_logs(close: bool = False):
             setup_locals(Operations.config())
 
         if _supervisor:
+            # update supervisor (connect / disconnect)
             from .models import Supervisor
-            if not Supervisor.objects.filter(pk=getattr(_supervisor, 'pk', None)).exists():
+            supervisor = Supervisor.objects.filter(pk=getattr(_supervisor, 'pk', None)).first()
+            if not supervisor:
                 # check _supervisor before save logs
                 _supervisor = None
+            else:
+                _supervisor = supervisor
 
         for response in queue:
             response: Response

@@ -895,6 +895,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             relation_fields = getattr(related_schema, '__relational_fields__', []) or []
             if isinstance(objects, Schema):
                 objects = [objects]
+            elif not multi(objects):
+                continue
             for obj in objects:
                 for rel_name in relation_fields:
                     setattr(obj, rel_name, pk)
@@ -1010,6 +1012,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             relation_fields = getattr(related_schema, '__relational_fields__', []) or []
             if isinstance(objects, Schema):
                 objects = [objects]
+            elif not multi(objects):
+                continue
+
             for obj in objects:
                 for rel_name in relation_fields:
                     setattr(obj, rel_name, pk)

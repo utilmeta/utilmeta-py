@@ -102,6 +102,7 @@ def update_service_supervisor(service: str, node_id: str):
 def connect_supervisor(
     key: str,
     base_url: str = None,
+    service_id: str = None,
 ):
     from utilmeta import service
     ops_config = Operations.config()
@@ -180,7 +181,8 @@ def connect_supervisor(
         with SupervisorClient(
             base_url=base_url,
             access_key=key,
-            fail_silently=True
+            fail_silently=True,
+            service_id=service_id
         ) as cli:
             resp = cli.add_node(
                 data=resources.get_metadata()

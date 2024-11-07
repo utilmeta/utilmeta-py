@@ -2,6 +2,10 @@ from utilmeta.core import api, request, file
 from utilmeta.core.api import API
 from utilmeta.core import response
 import pytest
+
+from utilmeta.core.request import Request
+from utilmeta.core.response import Response
+from utilmeta.utils import Error
 from .params import get_requests
 from tests.conftest import setup_service
 
@@ -138,3 +142,211 @@ class TestAPIClass:
                         assert content == result, f"{method} {path} failed with {content}"
             finally:
                 resp.close()
+
+    def test_api_plugins_exc_handle(self):
+        from utilmeta.core.request import Request
+        from utilmeta.core.response import Response
+        from utilmeta.utils import Error
+
+        class MyPlugin(api.Plugin):
+            def process_request(self, request: Request):
+                raise ValueError('123')
+
+            def process_response(self, response: Response):
+                pass
+
+            def handle_error(self, error: Error):
+                pass
+
+        @MyPlugin
+        class SubAPI(api.API):
+            @api.get
+            def hello(self):
+                return 'world'
+
+        class RootAPI(api.API):
+            sub: SubAPI
+
+            @api.handle(ValueError)
+            def handle_error(self, error: Error):
+                return self.response(status=422, error=error)
+
+        resp = RootAPI(Request(
+            method='GET',
+            url='sub/hello'
+        ))()
+
+        assert resp.status == 422
+        assert resp.message == '123'
+
+    def test_api_plugins_orders(self, service):
+        if service.asynchronous:
+            return
+
+        from utilmeta.core.request import Request
+        from utilmeta.core.response import Response
+
+        class OrderPlugin(api.Plugin):
+            def __init__(self, val: str):
+                self.val = val
+                super().__init__(locals())
+
+            def process_request(self, request: Request, target=None):
+                data = request.data
+                if not data:
+                    request.data = [self.val]
+                elif isinstance(data, list):
+                    data.append(self.val)
+                assert target is not None
+
+            def process_response(self, response: Response, target=None):
+                order = response.headers.get('x-order')
+                if not order:
+                    response.headers['x-order'] = self.val
+                else:
+                    response.headers['x-order'] = f'{order},{self.val}'
+                assert target is not None
+
+        def make_plugin(val) -> OrderPlugin:
+            class _order(OrderPlugin):
+                pass
+            return _order(val)
+
+        @make_plugin('4')
+        @make_plugin('3')
+        class SubAPI(api.API):
+            @make_plugin('2')
+            @make_plugin('1')
+            @api.get
+            def operation(self):
+                return self.request.data
+
+            @api.after(operation)
+            def after_operation(self, response: Response):
+                response.headers['x-order-tmp'] = str(response.headers.get('x-order'))
+
+        plugin_4 = make_plugin('4')
+        plugin_3 = make_plugin('3')
+
+        @plugin_4.inject
+        @plugin_3.inject
+        class SubAPI2(api.API):
+
+            @make_plugin('2')
+            @make_plugin('1')
+            @api.get
+            def operation(self):
+                return self.request.data
+
+            @api.after(operation)
+            def after_operation(self, response: Response):
+                response.headers['x-order-tmp'] = str(response.headers.get('x-order'))
+
+        class RootAPI(api.API):
+            sub: SubAPI
+            sub2: SubAPI2
+
+        resp1 = RootAPI(Request(
+            method='GET',
+            url='sub/operation'
+        ))()
+
+        assert resp1.result == ['4', '3', '2', '1']
+        assert resp1.headers.get('x-order-tmp') == '1,2'
+        assert resp1.headers.get('x-order') == '1,2,3,4'
+
+        resp2 = RootAPI(Request(
+            method='GET',
+            url='sub2/operation'
+        ))()
+
+        assert resp2.result == ['4', '3', '2', '1']
+        assert resp2.headers.get('x-order-tmp') == '1,2,3,4'
+        assert resp2.headers.get('x-order') == '1,2,3,4'
+
+    @pytest.mark.asyncio
+    async def test_api_async_plugins_orders(self, service):
+        if not service.asynchronous:
+            return
+
+        from utilmeta.core.request import Request
+        from utilmeta.core.response import Response
+
+        class OrderPlugin(api.Plugin):
+            def __init__(self, val: str):
+                self.val = val
+                super().__init__(locals())
+
+            async def process_request(self, request: Request, target=None):
+                data = request.data
+                if not data:
+                    request.data = [self.val]
+                elif isinstance(data, list):
+                    data.append(self.val)
+                assert target is not None
+
+            async def process_response(self, response: Response, target=None):
+                order = response.headers.get('x-order')
+                if not order:
+                    response.headers['x-order'] = self.val
+                else:
+                    response.headers['x-order'] = f'{order},{self.val}'
+                assert target is not None
+
+        def make_plugin(val) -> OrderPlugin:
+            class _order(OrderPlugin):
+                pass
+
+            return _order(val)
+
+        @make_plugin('4')
+        @make_plugin('3')
+        class SubAPI(api.API):
+            @make_plugin('2')
+            @make_plugin('1')
+            @api.get
+            async def operation(self):
+                return self.request.data
+
+            @api.after(operation)
+            async def after_operation(self, response: Response):
+                response.headers['x-order-tmp'] = str(response.headers.get('x-order'))
+
+        plugin_4 = make_plugin('4')
+        plugin_3 = make_plugin('3')
+
+        @plugin_4.inject
+        @plugin_3.inject
+        class SubAPI2(api.API):
+
+            @make_plugin('2')
+            @make_plugin('1')
+            @api.get
+            async def operation(self):
+                return self.request.data
+
+            @api.after(operation)
+            async def after_operation(self, response: Response):
+                response.headers['x-order-tmp'] = str(response.headers.get('x-order'))
+
+        class RootAPI(api.API):
+            sub: SubAPI
+            sub2: SubAPI2
+
+        resp1 = await RootAPI(Request(
+            method='GET',
+            url='sub/operation'
+        ))()
+
+        assert resp1.result == ['4', '3', '2', '1']
+        assert resp1.headers.get('x-order-tmp') == '1,2'
+        assert resp1.headers.get('x-order') == '1,2,3,4'
+
+        resp2 = await RootAPI(Request(
+            method='GET',
+            url='sub2/operation'
+        ))()
+
+        assert resp2.result == ['4', '3', '2', '1']
+        assert resp2.headers.get('x-order-tmp') == '1,2,3,4'
+        assert resp2.headers.get('x-order') == '1,2,3,4'

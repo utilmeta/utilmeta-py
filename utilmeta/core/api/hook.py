@@ -1,6 +1,7 @@
 from utilmeta import utils
 from utype.parser.func import FunctionParser
 from utilmeta.core.response import Response
+from utilmeta.core.response.base import parse_responses
 from utilmeta.core.request import Request, var
 from utilmeta.utils import exceptions
 from .endpoint import RequestContextWrapper
@@ -135,11 +136,10 @@ class BeforeHook(Hook):
         except utype.exc.ParseError as e:
             raise exceptions.BadRequest(str(e), detail=e.get_detail()) from e
 
-    @utils.awaitable(parse_request)
-    async def parse_request(self, request: Request):
+    async def async_parse_request(self, request: Request):
         try:
             kwargs = dict(await var.path_params.getter(request))
-            kwargs.update(await self.wrapper.parse_context(request))
+            kwargs.update(await self.wrapper.async_parse_context(request))
             return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
             # in base Endpoint, args is not supported
         except utype.exc.ParseError as e:
@@ -149,9 +149,8 @@ class BeforeHook(Hook):
         args, kwargs = self.parse_request(api.request)
         return self(api, *args, **kwargs)
 
-    @utils.awaitable(serve)
-    async def serve(self, api: 'API'):
-        args, kwargs = await self.parse_request(api.request)
+    async def aserve(self, api: 'API'):
+        args, kwargs = await self.async_parse_request(api.request)
         return await self(api, *args, **kwargs)
 
 
@@ -181,21 +180,11 @@ class AfterHook(Hook):
             hook_excludes=hook_excludes,
             priority=priority,
         )
-        self.response = None
-        rt = self.parser.return_type
-        if inspect.isclass(rt) and issubclass(rt, Response):
-            self.response = rt
+        self.response_types = parse_responses(self.parser.return_type)
 
     def prepare(self, api, *args, **kwargs):
-        if self.response:
-            api.response = self.response
-
-    def process_result(self, result):
-        if isinstance(result, Response):
-            return result
-        if self.response:
-            return self.response(result)
-        return result
+        if self.response_types:
+            api._response_types = self.response_types
 
 
 class ErrorHook(Hook):
@@ -226,29 +215,22 @@ class ErrorHook(Hook):
             priority=priority,
         )
         self.hook_errors = hook_errors
-        self.response = None
-        rt = self.parser.return_type
-        if inspect.isclass(rt) and issubclass(rt, Response):
-            self.response = rt
+        self.response_types = parse_responses(self.parser.return_type)
 
     def prepare(self, api, *args, **kwargs):
-        if self.response:
-            api.response = self.response
+        if self.response_types:
+            api._response_types = self.response_types
 
-    def process_result(self, result):
-        if isinstance(result, Response):
-            return result
-        if self.response:
-            return self.response(result)
-        return result
+    # def process_result(self, result):
+    #     if isinstance(result, Response):
+    #         return result
+    #     if self.response:
+    #         return self.response(result)
+    #     return result
 
-    def __call__(self, *args, **kwargs):
-        return self.process_result(
-            super().__call__(*args, **kwargs)
-        )
-
-    @utils.awaitable(__call__)
-    async def __call__(self, *args, **kwargs):
-        return self.process_result(
-            await super().__call__(*args, **kwargs)
-        )
+    # def __call__(self, *args, **kwargs):
+    #     return super().__call__(*args, **kwargs)
+    #
+    # @utils.awaitable(__call__)
+    # async def __call__(self, *args, **kwargs):
+    #     return await super().__call__(*args, **kwargs)

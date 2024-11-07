@@ -41,7 +41,7 @@ from utilmeta.ops import Operations
 service.use(Operations(
     route='ops',
     database=Operations.Database(
-        name=os.path.join(service.project_dir, 'operations.db'),
+        name=os.path.join(service.project_dir, 'operations_db'),
         engine='sqlite3'
         # or 'postgres' / 'mysql' / 'oracle'
     ),
@@ -73,7 +73,7 @@ from .settings import BASE_DIR
 Operations(
     route='ops',
     database=Operations.Database(
-        name=os.path.join(BASE_DIR, 'operations.db'),
+        name=os.path.join(BASE_DIR, 'operations_db'),
         engine='sqlite3'
         # or 'postgres' / 'mysql' / 'oracle'
     ),
@@ -86,6 +86,21 @@ Operations(
 
 ### FastAPI
 
+```python
+from fastapi import FastAPI
+
+app = FastAPI()
+
+from utilmeta.ops import Operations
+Operations(
+    route='ops',
+    database=Operations.Database(
+        name='operations_db',
+        engine='sqlite3'
+    ),
+    base_url='https://<YOUR DOMAIN>/api',
+).integrate(app, __name__)
+```
 
 ### Sanic
 

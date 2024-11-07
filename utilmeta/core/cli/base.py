@@ -11,6 +11,7 @@ from .backends.base import ClientRequestAdaptor
 from utilmeta.core.response import Response
 from utilmeta.core.response.base import Headers
 from .endpoint import ClientEndpoint, ClientRoute
+from .chain import ClientChainBuilder
 from utilmeta.core.request import Request
 from utilmeta.core.api import decorator
 from utype.utils.compat import is_annotated
@@ -83,6 +84,7 @@ class ClientParameters(Schema):
 class Client(PluginTarget):
     _endpoint_cls: Type[ClientEndpoint] = ClientEndpoint
     _request_cls: Type[Request] = Request
+    _chain_cls: Type[ClientChainBuilder] = ClientChainBuilder
     _clients: Dict[str, ClientRoute] = {}
     _hook_cls = Hook
     _route_cls = ClientRoute
@@ -250,12 +252,15 @@ class Client(PluginTarget):
                 setattr(self, key, partial(val, self))
 
         if self._clients:
-            params = self._get_params()
+            params = self.get_client_params()
             for name, client_route in self._clients.items():
                 client_base_url = url_join(self._base_url, client_route.route)
                 client_cls = client_route.handler
                 params = dict(params)
-                params.update(base_url=client_base_url)
+                params.update(
+                    base_url=client_base_url,
+                    plugins=self._plugins       # inject plugins
+                )
                 client = client_cls(**params)
                 client._client_route = client_route.merge_hooks(self._client_route)
                 client._cookies = self._cookies
@@ -270,6 +275,22 @@ class Client(PluginTarget):
         self._base_headers = dict(self._original_headers)
         self._base_query = dict(self._original_query)
 
+    @property
+    def fail_silently(self):
+        return self._fail_silently
+
+    @property
+    def cookies(self):
+        return self._cookies
+
+    @property
+    def request_cls(self):
+        return self._request_cls
+
+    @property
+    def client_route(self) -> 'ClientRoute':
+        return self._client_route
+
     @classonlymethod
     def __reproduce_with__(cls, generator: decorator.APIGenerator):
         plugins = generator.kwargs.get('plugins')
@@ -278,7 +299,7 @@ class Client(PluginTarget):
         cls._generator = generator
         return cls
 
-    def _get_params(self):
+    def get_client_params(self):
         return ClientParameters(
             base_url=self._base_url,
             backend=self._backend,
@@ -396,54 +417,14 @@ class Client(PluginTarget):
                 return resp.mock()
             return None
 
-        retry_index = 0
-        start_time = request.time
-        while True:
-            try:
-                request.adaptor.update_context(
-                    start_time=start_time,
-                    retry_index=retry_index,
-                    idempotent=endpoint.idempotent
-                )
-                result = self._process_request(request) or request
-                # this result can be a Request or Response
+        def make_request(req: Request = request):
+            return endpoint.parse_response(
+                self._make_request(req),
+                fail_silently=self._fail_silently
+            )
 
-                if isinstance(result, Request):
-                    request = result
-                    # do not bother generate another same request in another retry
-                    response = self._make_request(request)
-                else:
-                    response = result
-
-                result = self._process_response(self._parse_response(
-                    response,
-                    types=endpoint.response_types
-                ))
-
-                if isinstance(result, Request):
-                    # need another loop
-                    request = result
-                elif isinstance(result, Response):
-                    response = result
-                    break
-                else:
-                    raise TypeError(f'invalid response: {result}')
-
-            except Exception as e:
-                err = Error(e, request=request)
-                result = self.handle_error(err)
-                if isinstance(result, Request):
-                    request = result
-                elif isinstance(result, Response):
-                    response = result
-                    break
-                else:
-                    raise err.throw()
-            retry_index += 1  # add
-
-        if not isinstance(response, Response):
-            raise TimeoutError(f'No response')
-        return response
+        handler = self._chain_cls(self, endpoint).build_client_handler(make_request, asynchronous=False)
+        return handler(request)
 
     async def __async_request__(self, endpoint: ClientEndpoint, request: Request):
         if self._mock:
@@ -452,165 +433,14 @@ class Client(PluginTarget):
                 return resp.mock()
             return None
 
-        retry_index = 0
-        start_time = request.time
-        while True:
-            try:
-                request.adaptor.update_context(
-                    start_time=start_time,
-                    retry_index=retry_index,
-                    idempotent=endpoint.idempotent
-                )
-                result = (await self._async_process_request(request)) or request
-                # this result can be a Request or Response
+        async def make_request(req: Request = request):
+            return endpoint.parse_response(
+                await self._make_async_request(req),
+                fail_silently=self._fail_silently
+            )
 
-                if isinstance(result, Request):
-                    request = result
-                    # do not bother generate another same request in another retry
-                    response = await self._make_async_request(request)
-                else:
-                    response = result
-
-                result = await self._async_process_response(self._parse_response(
-                    response,
-                    types=endpoint.response_types
-                ))
-
-                if isinstance(result, Request):
-                    # need another loop
-                    request = result
-                elif isinstance(result, Response):
-                    response = result
-                    break
-                else:
-                    raise TypeError(f'invalid response: {result}')
-
-            except Exception as e:
-                err = Error(e, request=request)
-                result = self.handle_error(err)
-                if inspect.isawaitable(result):
-                    result = await result
-                if isinstance(result, Request):
-                    request = result
-                elif isinstance(result, Response):
-                    response = result
-                    break
-                else:
-                    raise err.throw()
-            retry_index += 1  # add
-
-        if not isinstance(response, Response):
-            raise TimeoutError(f'No response')
-        return response
-
-    def _parse_response(self, response: Response, types: List[Type[Response]]) -> Response:
-        from utype import type_transform
-
-        if not types:
-            return type_transform(response, Response)
-
-        if not isinstance(response, Response):
-            response = Response(response)
-
-        for i, response_cls in enumerate(types):
-            if isinstance(response, response_cls):
-                return response
-
-            if response_cls.status and response.status != response_cls.status:
-                continue
-
-            try:
-                return response_cls(response=response, strict=True)
-            except Exception as e:   # noqa
-                if i == len(types) - 1 and not self._fail_silently:
-                    raise e
-                continue
-
-        return type_transform(response, Response)
-
-    def _process_request(self, request: Request):
-        request = self.process_request(request)
-        if not isinstance(request, Request):
-            return request
-
-        # request = process_request(self, request)
-        for handler in process_request.iter(self):
-            try:
-                request = handler(request, self)
-            except NotImplementedError:
-                continue
-            if not isinstance(request, Request):
-                return request
-        return request
-
-    async def _async_process_request(self, request: Request):
-        request = self.process_request(request)
-        if inspect.isawaitable(request):
-            request = await request     # noqa
-
-        if not isinstance(request, Request):
-            return request
-
-        # request = process_request(self, request)
-        for handler in process_request.iter(self, asynchronous=True):
-            try:
-                request = handler(request, self)
-            except NotImplementedError:
-                continue
-            if inspect.isawaitable(request):
-                request = await request
-            if not isinstance(request, Request):
-                return request
-        return request
-
-    def _process_response(self, response: Response):
-        # --- common process
-        if response.cookies:
-            self._cookies.update(response.cookies)
-        # ----
-        response = self.process_response(response)
-        if not isinstance(response, Response):
-            # need to invoke another request
-            return response
-        for handler in process_response.iter(self):
-            try:
-                resp = handler(response, self)
-            except NotImplementedError:
-                continue
-            if isinstance(resp, Request):
-                # need to invoke another request
-                return resp
-            if isinstance(resp, Response):
-                # only take value if return value is Response objects
-                response = resp
-        return response
-
-    async def _async_process_response(self, response: Response):
-        # --- common process
-        if response.cookies:
-            self._cookies.update(response.cookies)
-        # ----
-        response = self.process_response(response)
-        if inspect.isawaitable(response):
-            response = await response   # noqa
-
-        if not isinstance(response, Response):
-            # need to invoke another request
-            return response
-        for handler in process_response.iter(self, asynchronous=True):
-            try:
-                resp = handler(response, self)
-            except NotImplementedError:
-                continue
-            if inspect.isawaitable(response):
-                response = await response
-            if isinstance(resp, Request):
-                # need to invoke another request
-                return resp
-            if isinstance(resp, Response):
-                # only take value if return value is Response objects
-                response = resp
-        return response
+        handler = self._chain_cls(self, endpoint).build_client_handler(make_request, asynchronous=True)
+        return await handler(request)
 
     def _make_request(self, request: Request, timeout: int = None) -> Response:
         if self._internal:
@@ -630,11 +460,19 @@ class Client(PluginTarget):
             adaptor: ClientRequestAdaptor = ClientRequestAdaptor.dispatch(request)
             if timeout is None:
                 timeout = request.adaptor.get_context('timeout')        # slot
+                if timeout is None:
+                    timeout = self._default_timeout
+            if timeout is not None:
+                timeout = float(timeout)
             resp = adaptor(
-                timeout=timeout or self._default_timeout,
+                timeout=timeout,
                 allow_redirects=self._allow_redirects
             )
             response = Response(response=resp, request=request)
+
+        if response.cookies:
+            # update response cookies
+            self._cookies.update(response.cookies)
 
         return response
 
@@ -680,8 +518,7 @@ class Client(PluginTarget):
             headers=headers,
             cookies=cookies
         )
-        response = self._make_request(request, timeout=timeout)
-        return self._process_response(response)
+        return self._make_request(request, timeout=timeout)
 
     async def async_request(self, method: str, path: str = None, query: dict = None,
                             data=None,
@@ -695,8 +532,7 @@ class Client(PluginTarget):
             headers=headers,
             cookies=cookies
         )
-        response = await self._make_async_request(request, timeout=timeout)
-        return await self._async_process_response(response)
+        return await self._make_async_request(request, timeout=timeout)
 
     def get(self,
             path: str = None,
@@ -921,7 +757,7 @@ class Client(PluginTarget):
         )
 
     def process_request(self, request: Request):
-        return request
+        pass
 
     def process_response(self, response: Response):     # noqa : meant to be inherited
         """
@@ -932,7 +768,7 @@ class Client(PluginTarget):
         :param response:
         :return:
         """
-        return response
+        pass
 
     def handle_error(self, error: Error):
-        raise error.throw()
+        pass

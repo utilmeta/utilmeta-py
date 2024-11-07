@@ -6,8 +6,7 @@ except ImportError:
     from sanic.compat import Header
 
 from .base import ResponseAdaptor
-from typing import TYPE_CHECKING, Union
-
+from typing import TYPE_CHECKING, Union, Optional
 
 if TYPE_CHECKING:
     from utilmeta.core.response import Response
@@ -15,6 +14,9 @@ if TYPE_CHECKING:
 
 class SanicResponseAdaptor(ResponseAdaptor):
     response: HTTPResponse
+
+    # def __init__(self, response: HTTPResponse):
+    #     super().__init__(response)
 
     @classmethod
     def qualify(cls, obj):
@@ -47,6 +49,10 @@ class SanicResponseAdaptor(ResponseAdaptor):
     @property
     def reason(self):
         return None
+
+    @property
+    def content_type(self) -> Optional[str]:
+        return self.response.content_type
 
     @property
     def headers(self):

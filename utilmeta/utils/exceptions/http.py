@@ -192,6 +192,18 @@ class ServerError(HttpError):
         super().__init__(message=message)
 
 
+class MaxRetriesExceed(ServerError, RuntimeError):
+    def __init__(self, msg: str = None, max_retries: int = None):
+        super().__init__(msg or f'Max retries exceeded: {max_retries}')
+        self.max_retries = max_retries
+
+
+class MaxRetriesTimeoutExceed(ServerError, TimeoutError):
+    def __init__(self, msg: str = None, max_retries_timeout: float = None):
+        super().__init__(msg or f'Max retries timeout exceeded: {max_retries_timeout}')
+        self.max_retries_timeout = max_retries_timeout
+
+
 class SessionRejected(RequestError):
     # an error for session IP/UA verification and allowed addresses / ua verification
     status = 403

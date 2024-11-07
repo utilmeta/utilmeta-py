@@ -39,6 +39,10 @@ class BaseRoute:
         self.after_hooks = after_hooks or []
         self.error_hooks = error_hooks or {}
 
+    @property
+    def response_types(self):
+        pass
+
     @classmethod
     def from_routes(cls, *routes):
         # meant to be inherited
@@ -346,7 +350,7 @@ class APIRoute(BaseRoute):
         else:
             def getter(api_inst: 'API'):
                 return self.handler(api_inst.request)
-
+                # api._init_plugins()
         return property(getter)
 
     def match_route(self, request: Request):
@@ -376,7 +380,7 @@ class APIRoute(BaseRoute):
                 return True
         return False
 
-    def __call__(self, api: 'API'):
+    def serve(self, api: 'API'):
         # ---
         names_var = var.operation_names.setup(api.request)
         names = names_var.get() or []
@@ -398,12 +402,10 @@ class APIRoute(BaseRoute):
 
         for hook in self.after_hooks:
             result = hook(api, result) or result
-            result = hook.process_result(result)
 
         return result
 
-    @awaitable(__call__)
-    async def __call__(self, api: 'API'):
+    async def aserve(self, api: 'API'):
         # ---
         names_var = var.operation_names.setup(api.request)
         names = await names_var.get() or []
@@ -419,12 +421,18 @@ class APIRoute(BaseRoute):
                 return api.options()
         else:
             for hook in self.before_hooks:
-                await hook.serve(api)
+                await hook.aserve(api)
 
-        result = await api.__serve__(self.handler)
+        result = await api.__aserve__(self.handler)
 
         for hook in self.after_hooks:
             result = await hook(api, result) or result
-            result = hook.process_result(result)
 
         return result
+
+    def __call__(self, api: 'API'):
+        return self.serve(api)
+
+    @awaitable(__call__)
+    async def __call__(self, api: 'API'):
+        return await self.aserve(api)

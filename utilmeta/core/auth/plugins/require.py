@@ -1,13 +1,11 @@
 from utilmeta.utils import exceptions, awaitable
-from utilmeta.core.request import var
-from utilmeta.utils.plugin import Plugin
+from utilmeta.core.request import var, Request
+from utilmeta.core.api.plugins.base import APIPlugin
 import inspect
-from typing import Callable, TYPE_CHECKING
-if TYPE_CHECKING:
-    from utilmeta.core.api import API
+from typing import Callable
 
 
-class AuthValidatorPlugin(Plugin):
+class AuthValidatorPlugin(APIPlugin):
     # not_login_error = exceptions.Unauthorized('login required')
     # scope_insufficient_error = exceptions.PermissionDenied('insufficient scope')
 
@@ -16,6 +14,7 @@ class AuthValidatorPlugin(Plugin):
     user_var = var.user
     user_id_var = var.user_id
     scopes_var = var.scopes
+    __all = '*'
 
     @staticmethod
     def login(user):
@@ -34,21 +33,31 @@ class AuthValidatorPlugin(Plugin):
         # self.readonly = readonly
         # self.login = login
 
-    def enter_endpoint(self, api: 'API', *args, **kwargs):
+    def process_request(self, request: Request):
+        if request.is_options:
+            return
         if self.functions:
-            self.validate_functions(api)
+            self.validate_functions(request)
         if self.scopes:
-            self.validate_scopes(api)
+            self.validate_scopes(request)
 
-    @awaitable(enter_endpoint)
-    async def enter_endpoint(self, api: 'API', *args, **kwargs):
+    @awaitable(process_request)
+    async def process_request(self, request: Request):
+        if request.is_options:
+            return
         if self.functions:
-            await self.validate_functions(api)
+            await self.async_validate_functions(request)
         if self.scopes:
-            self.validate_scopes(api)
+            self.validate_scopes(request)
 
-    def validate_scopes(self, api: 'API'):
-        scopes = self.scopes_var.getter(api.request)
+    def validate_scopes(self, request: Request):
+        scopes = self.scopes_var.getter(request)
+        if not scopes:
+            scopes = []
+        elif not isinstance(scopes, list):
+            scopes = [scopes]
+        if self.__all and self.__all in scopes:
+            return
         if not set(scopes or []).issuperset(self.scopes):
             raise exceptions.PermissionDenied(
                 'insufficient scope',
@@ -57,19 +66,8 @@ class AuthValidatorPlugin(Plugin):
                 name=self.name
             )
 
-    # @awaitable
-    # async def validate_scopes(self, api: 'API'):
-    #     scopes = await self.scopes_var.getter(api.request)
-    #     if not set(scopes or []).issuperset(self.scopes):
-    #         raise exceptions.PermissionDenied(
-    #             'insufficient scope',
-    #             scopes=scopes,
-    #             required_scopes=self.scopes,
-    #             name=self.name
-    #         )
-
-    def validate_functions(self, api: 'API'):
-        user = self.user_var.getter(api.request)
+    def validate_functions(self, request: Request):
+        user = self.user_var.getter(request)
         if user is None:
             pass
         for func in self.functions:
@@ -81,9 +79,8 @@ class AuthValidatorPlugin(Plugin):
                     name=self.name
                 )
 
-    @awaitable(validate_functions)
-    async def validate_functions(self, api: 'API'):
-        user = await self.user_var.getter(api.request)
+    async def async_validate_functions(self, request: Request):
+        user = await self.user_var.getter(request)
         if user is None:
             pass
         for func in self.functions:

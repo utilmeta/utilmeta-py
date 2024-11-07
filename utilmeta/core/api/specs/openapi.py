@@ -17,7 +17,8 @@ from utilmeta.core.auth.properties import User
 from utilmeta.core.response.base import Headers, JSON, OCTET_STREAM, PLAIN
 from utilmeta.utils.context import Property, ParserProperty
 from utilmeta.utils.constant import HAS_BODY_METHODS
-from utilmeta.utils import valid_url, json_dumps
+from utilmeta.utils import valid_url, json_dumps, get_origin
+from utilmeta.conf import Preference
 from utype import Schema, Field, JsonSchemaGenerator
 from utype.parser.field import ParserField
 from utype.parser.rule import LogicalType
@@ -269,6 +270,7 @@ class OpenAPI(BaseAPISpec):
         self.operations = set()
         self.external_docs = external_docs
         self.base_url = base_url
+        self.pref = Preference.get()
         # self.operations = {}
 
     def get_def_name(self, t: type):
@@ -302,7 +304,7 @@ class OpenAPI(BaseAPISpec):
         for doc in docs:
             if not isinstance(doc, OpenAPISchema):
                 doc = self.schema_cls(doc)
-            if not info or doc.info.title:
+            if not info or (not info.title and doc.info.title):
                 info = doc.info
             doc_paths = doc.paths
             if not self.base_url:
@@ -313,6 +315,11 @@ class OpenAPI(BaseAPISpec):
                 server = doc.servers[0]
                 if server.url != self.base_url:
                     doc_paths = self.get_rel_paths(doc_paths, server.url, self.base_url)
+            else:
+                # no servers: default to be the origin of current base_url
+                server_url = get_origin(self.base_url)
+                if server_url != self.base_url:
+                    doc_paths = self.get_rel_paths(doc_paths, server_url, self.base_url)
 
             for key, values in doc.components.items():
                 if components.get(key):
@@ -415,18 +422,25 @@ class OpenAPI(BaseAPISpec):
         # 1, base_url: http://127.0.0.1:8000
         # 2, base_url: http://new.location.com/some/route
         # 3, base_url: http://new.location.com
-        if not current_base_url or not base_url or current_base_url == base_url:
+        if not current_base_url or not base_url or current_base_url == base_url or not paths:
             return paths
         prefix = ''
+        prefix_strip = False
         # only support prefix
         if current_base_url.startswith(base_url):
             prefix = current_base_url[len(base_url):]
+        elif base_url.startswith(current_base_url):
+            prefix = base_url[len(current_base_url):]
+            prefix_strip = True
         else:
             from urllib.parse import urlparse
             current_parsed = urlparse(current_base_url)
             url_parsed = urlparse(base_url)
             if current_parsed.path.startswith(url_parsed.path):
                 prefix = current_parsed.path[len(url_parsed.path):]
+            elif url_parsed.path.startswith(current_parsed.path):
+                prefix = url_parsed.path[len(current_parsed.path):]
+                prefix_strip = True
             elif current_parsed.path:
                 # todo: deal with this situation
                 prefix = current_parsed.path
@@ -435,26 +449,44 @@ class OpenAPI(BaseAPISpec):
         if not prefix:
             return paths
 
+        prefix = '/' + prefix
+
         new_paths = {}
         for key, path in paths.items():
-            new_path = '/' + (prefix + '/' + str(key).lstrip('/')).strip('/')
+            if prefix_strip:
+                key = '/' + str(key).lstrip('/')
+                if key == prefix or key.startswith(prefix + '/'):
+                    # prefix: /api
+                    # key: /api/articles -> /articles
+                    #     /api/ ----------> /
+                    #     /api -----------> /
+                    #     /static --------> none
+                    new_path = '/' + key[len(prefix):].lstrip('/')
+                else:
+                    continue
+            else:
+                if key.strip('/'):
+                    new_path = prefix + '/' + str(key).lstrip('/')
+                else:
+                    new_path = prefix
             new_paths[new_path] = path
         return new_paths
 
     def __call__(self):
         # consider merge the UtilMeta docs with the application docs
-        try:
-            # generated from the inner app
-            adaptor_docs = self.service.adaptor.generate(spec=self.spec)
-        except NotImplementedError:
-            adaptor_docs = None
-        except Exception as e:
-            warnings.warn(f'generate OpenAPI docs for [{self.service.backend_name}] failed: {e}')
-            adaptor_docs = None
+        adaptor_docs = None
+        if not self.service.adaptor.backend_views_empty:
+            try:
+                # generated from the inner app
+                adaptor_docs = self.service.adaptor.generate(spec=self.spec)
+            except NotImplementedError:
+                adaptor_docs = None
+            except Exception as e:
+                warnings.warn(f'generate OpenAPI docs for [{self.service.backend_name}] failed: {e}')
 
         self.generate_paths()
         paths = self.paths
-        if self.base_url:
+        if self.base_url and paths:
             if self.service.base_url != self.base_url:
                 paths = self.get_rel_paths(paths, self.service.base_url, self.base_url)
 
@@ -493,7 +525,10 @@ class OpenAPI(BaseAPISpec):
 
     def save(self, file: str):
         schema = self()
+        return self.save_to(schema, file)
 
+    @classmethod
+    def save_to(cls, schema, file: str):
         if file.endswith('.yaml') or file.endswith('.yml'):
             import yaml  # requires pyyaml
             content = yaml.dump(schema)
@@ -791,6 +826,10 @@ class OpenAPI(BaseAPISpec):
                 body.update(description=body_description)
         return params, body, auth_requirements
 
+    @property
+    def default_status(self):
+        return str(self.pref.default_status or 'default')
+
     def from_endpoint(self, endpoint: Endpoint,
                       tags: list = (),
                       extra_params: list = None,
@@ -820,29 +859,18 @@ class OpenAPI(BaseAPISpec):
         params, body, requires = self.parse_properties(endpoint.wrapper.properties)
         responses = dict(extra_responses or {})
 
-        rt = endpoint.parser.return_type
-        # if isinstance(rt, LogicalType):
-        #     # resolve multiple responses
-        #     if inspect.isclass(rt) and issubclass(rt, Rule):
-        #         pass
-        #
-        # else:
-        if inspect.isclass(rt) and issubclass(rt, Response):
-            resp = rt
-        elif rt is not None:
-            resp = (response_cls or Response)[rt]
-        else:
-            resp = response_cls or Response
+        rt = endpoint.return_type
+        response_types = endpoint.response_types
+        if not response_types and rt is not None:
+            response_types.append((response_cls or Response)[rt])
 
-        if resp is not Response:
-            #     responses.setdefault('default', {
-            #         "description": '',
-            #         "headers": {},
-            #         "content": {}
-            #     })
-            # else:
+        for resp in endpoint.response_types:
             resp_name = self.set_response(resp, routes=operation_names)
-            responses[str(resp.status or 200)] = {'$ref': f'#/components/responses/{resp_name}'}
+            responses[str(resp.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
+
+        if not responses and response_cls != Response:
+            resp_name = self.set_response(response_cls, routes=operation_names)
+            responses[str(response_cls.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
 
         if extra_params:
             # _params = dict(extra_params)
@@ -902,13 +930,16 @@ class OpenAPI(BaseAPISpec):
             extra_requires = self.merge_requires(extra_requires, before_requires)
 
         for after in route.after_hooks:
-            if after.response:
-                response_cls = after.response
+            for rt in after.response_types:
+                resp_name = self.set_response(rt, routes=list(tags))
+                extra_responses[str(rt.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
 
         for error, hook in route.error_hooks.items():
-            if hook.response:
-                resp_name = self.set_response(hook.response, routes=list(tags))
-                extra_responses[hook.response.status or 'default'] = {'$ref': f'#/components/responses/{resp_name}'}
+            for rt in hook.response_types:
+                resp_name = self.set_response(rt, routes=list(tags))
+                status = rt.status or getattr(error, 'status', None) or 'default'
+                extra_responses.setdefault(str(status), {'$ref': f'#/components/responses/{resp_name}'})
+                # set default. because error hooks is not triggered by default
 
         path_data = {}
         if route.is_endpoint:

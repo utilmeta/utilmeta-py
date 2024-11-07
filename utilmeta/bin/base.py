@@ -1,10 +1,12 @@
 from typing import Type, Callable, Dict, Iterable, List, Union
-
+import utype
+from utype.utils.exceptions import AbsenceError
 from utype import Field, parse, Options
 from utype.utils.compat import Literal
 from utype.utils.datastructures import unprovided
 from utype.parser.rule import ConstraintMode
-from utilmeta.utils import get_doc
+from utilmeta.utils import get_doc, Error
+from .constant import RED
 import inspect
 from functools import partial
 
@@ -84,6 +86,7 @@ class BaseCommand:
 
     fallback: Callable = None
     name: str = None
+    script_name: str = None
 
     class PartialCommand:
         def __init__(self, func: Callable, cls):
@@ -154,6 +157,10 @@ class BaseCommand:
         alias = self._aliases.get(name, name)
         return self._commands.get(alias)
 
+    def command_not_found(self):
+        print(RED % F'{self.script_name or "meta"}: command not found: {self.arg_name}')
+        exit(1)
+
     def __call__(self, **kwargs):
         cmd_cls = self.get_command_cls(self.arg_name)
 
@@ -171,14 +178,17 @@ class BaseCommand:
             if fb:
                 fb()
                 return
-            else:
+            elif self.name:
+                # subclasses
                 root_cmd = self.get_command_cls('')
                 if root_cmd:
                     # the arg_name is actually the calling args for root cmd
                     cmd_cls = root_cmd
                     self.args = self.argv
                 else:
-                    raise ValueError(f'{self.name or "meta"}: Invalid command: {self.argv}')
+                    raise ValueError(f'{self.script_name or "meta"} {self.name or ""}: Invalid command: {self.argv}')
+            else:
+                self.command_not_found()
 
         if isinstance(cmd_cls, tuple):
             cls, func, cls_func = cmd_cls
@@ -206,14 +216,28 @@ class BaseCommand:
                     if '=' in arg:
                         key, *values = arg.split('=')
                         val = '='.join(values)
-                        kwargs[key] = kwargs[str(key).strip('--')] = val
+                        kwargs[key] = val  # = kwargs[str(key).strip('--')]
                     else:
-                        kwargs[arg] = kwargs[str(arg).strip('--')] = True
+                        kwargs[arg] = True  # = kwargs[str(arg).strip('--')]
                 elif arg.startswith('-'):
-                    kwargs[arg] = kwargs[arg.strip('-')] = True
+                    kwargs[arg] = True      # kwargs[arg.strip('-')] =
                 else:
                     args.append(arg)
-            return cmd(*args, **kwargs)
+            try:
+                return cmd(*args, **kwargs)
+            except utype.exc.ParseError as e:
+                self.handle_parse_error(e)
+
+    def handle_parse_error(self, e: Exception):
+        if isinstance(e, AbsenceError):
+            message = f'required command argument: {repr(e.item)} is absence'
+        else:
+            message = str(e)
+        error = Error(e)
+        error.setup()
+        print(error.full_info)
+        print(RED % F'{self.script_name or "meta"} {self.name or ""}: command [{self.arg_name}] failed: {message}')
+        exit(1)
 
     @classmethod
     def mount(cls, cmd_cls: Type['BaseCommand'], name: str = '', *aliases: str):

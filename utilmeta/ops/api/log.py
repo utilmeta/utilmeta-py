@@ -46,6 +46,9 @@ class LogAPI(api.API):
         status: int = orm.Filter()
         status_gte: int = orm.Filter(query=lambda v: models.Q(status__gte=v))
         status_lte: int = orm.Filter(query=lambda v: models.Q(status__lte=v))
+        time_gte: datetime = orm.Filter(query=lambda v: models.Q(time__gte=v), alias_from=['time>='])
+        time_lte: datetime = orm.Filter(query=lambda v: models.Q(time__lte=v), alias_from=['time<='])
+
         admin: bool = orm.Filter(query=lambda v: models.Q(access_token__isnull=not v), default=False)
         request_type: str = orm.Filter()
         response_type: str = orm.Filter()

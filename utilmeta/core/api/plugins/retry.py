@@ -1,4 +1,3 @@
-from utilmeta.utils.plugin import Plugin
 from utilmeta.core.request import Request
 from utilmeta.core.response import Response
 from utype.types import *
@@ -9,22 +8,15 @@ from utype.parser.func import FunctionParser
 import random
 from utype.types import Float
 from utype import exc
+from .base import APIPlugin
 
 float_or_dt = Float | datetime
 
 
-class MaxRetriesExceed(exceptions.ServerError):
-    pass
-
-
-class MaxRetriesTimeoutExceed(exceptions.ServerError):
-    pass
-
-
-class RetryPlugin(Plugin):
+class RetryPlugin(APIPlugin):
     function_parser_cls = FunctionParser
-    max_retries_error_cls = MaxRetriesExceed
-    max_retries_timeout_error_cls = MaxRetriesTimeoutExceed
+    max_retries_error_cls = exceptions.MaxRetriesExceed
+    max_retries_timeout_error_cls = exceptions.MaxRetriesTimeoutExceed
     DEFAULT_RETRY_ON_STATUS = [500, 502, 503, 504]
     DEFAULT_RETRY_ON_ERRORS = (Exception,)
     DEFAULT_RETRY_AFTER_HEADERS = ()
@@ -92,7 +84,8 @@ class RetryPlugin(Plugin):
     def process_request(self, request: Request):
         current_retry = request.adaptor.get_context('retry_index') or 0
         if current_retry >= self.max_retries:
-            raise MaxRetriesExceed(f'{self.__class__}: max_retries: {self.max_retries} exceeded')
+            raise self.max_retries_error_cls(f'{self.__class__}: max_retries: {self.max_retries} exceeded',
+                                             max_retries=self.max_retries)
         self.handle_max_retries_timeout(request, set_timeout=True)
         return request
 
@@ -105,7 +98,8 @@ class RetryPlugin(Plugin):
         if delta <= 0:
             # max retries time exceeded
             raise self.max_retries_timeout_error_cls(
-                f'{self.__class__}: max_retries_timeout exceed for {delta} seconds')
+                f'{self.__class__}: max_retries_timeout exceed for {abs(delta)} seconds',
+                max_retries_timeout=self.max_retries_timeout)
 
         # reset request timeout
         if set_timeout:
@@ -153,12 +147,14 @@ class RetryPlugin(Plugin):
             return response
         if not self.whether_retry(request=request, response=response):
             return response
-        if not await self.handle_retry_after(request, response=response):
+        if not await self.async_handle_retry_after(request, response=response):
             return response
         self.handle_max_retries_timeout(request, set_timeout=False)
         return request  # return request to make SDK retry this request
 
     def handle_error(self, e: Error):
+        if isinstance(e.exception, (self.max_retries_error_cls, self.max_retries_timeout_error_cls)):
+            return
         request = e.request
         if not request:
             # raise error
@@ -176,6 +172,8 @@ class RetryPlugin(Plugin):
 
     @awaitable(handle_error)
     async def handle_error(self, e: Error):
+        if isinstance(e.exception, (self.max_retries_error_cls, self.max_retries_timeout_error_cls)):
+            return
         request = e.request
         if not request:
             # raise error
@@ -186,7 +184,7 @@ class RetryPlugin(Plugin):
             return  # proceed to handle error instead of raise
         if not self.whether_retry(request=request, error=e):
             return
-        if not await self.handle_retry_after(request):
+        if not await self.async_handle_retry_after(request):
             return
         self.handle_max_retries_timeout(request, set_timeout=False)
         return request
@@ -255,8 +253,7 @@ class RetryPlugin(Plugin):
             time.sleep(retry_after)
         return True
 
-    @awaitable(handle_retry_after)
-    async def handle_retry_after(self, request: Request, response: Response = None):
+    async def async_handle_retry_after(self, request: Request, response: Response = None):
         retry_after = self.get_retry_after(request, response)
         if retry_after is None:
             return False

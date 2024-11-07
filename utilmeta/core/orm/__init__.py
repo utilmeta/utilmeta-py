@@ -1,5 +1,5 @@
 from .plugins.atomic import AtomicPlugin as Atomic
-from .plugins.relate import Relate
+# from .plugins.relate import Relate
 from .fields import *
 from .schema import Schema, Query
 from .backends.base import ModelAdaptor

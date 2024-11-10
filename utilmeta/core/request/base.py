@@ -148,12 +148,15 @@ class Request:
     async def aread(self) -> bytes:
         return await self.adaptor.async_read()
 
+    async def aload(self):
+        return await self.adaptor.async_load()
+
     @property
     def data(self):
         data = var.data.setup(self)
         if data.contains():
             return data.get()
-        return self.adaptor.get_content()
+        return self.adaptor.content
 
     @data.setter
     def data(self, data):

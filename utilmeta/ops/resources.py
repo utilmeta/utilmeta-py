@@ -7,7 +7,7 @@ from .config import Operations
 from .schema import NodeMetadata, ResourcesSchema, \
     InstanceSchema, TableSchema, DatabaseSchema, CacheSchema, ResourceData
 from utilmeta import UtilMeta
-from utilmeta.utils import (fast_digest, json_dumps, ignore_errors, get_ip,
+from utilmeta.utils import (fast_digest, json_dumps, get_ip,
                             get_mac_address, cached_property, time_now)
 from django.db import models
 
@@ -120,6 +120,7 @@ class ResourcesManager:
     @property
     def instance_data(self):
         return dict(
+            version=self.service.version_str,
             asynchronous=self.service.asynchronous,
             production=self.service.production,
             backend=self.service.backend_name,
@@ -197,23 +198,8 @@ class ResourcesManager:
 
         return tables
 
-    @classmethod
-    @ignore_errors(default=None)
-    def get_db_max_connections(cls, using: str) -> int:
-        from django.db import connections
-        db_sql = {
-            'postgres': "SHOW max_connections;",
-            'mysql': 'SHOW VARIABLES LIKE "max_connections";'
-        }
-        with connections[using].cursor() as cursor:
-            db_type: str = str(cursor.db.display_name).lower()
-            if db_type not in db_sql:
-                return 0
-            cursor.execute(db_sql[db_type])
-            return int(cursor.fetchone()[0])
-
     def get_databases(self):
-        # from utilmeta.utils import get_ip
+        from .monitor import get_db_max_connections
         from utilmeta.core.orm.databases.config import DatabaseConnections
         db_config = self.service.get_config(DatabaseConnections)
         if not db_config:
@@ -223,14 +209,14 @@ class ResourcesManager:
             databases.append(
                 DatabaseSchema(
                     alias=alias,
-                    engine=db.engine_name,
+                    engine=db.type,
                     port=db.port,
                     user=db.user,
                     name=db.database_name,
                     hostname=db.host,
                     server=get_ip(db.host, True),       # incase it is intranet
                     ops=alias == self.ops_config.db_alias,
-                    max_server_connections=self.get_db_max_connections(alias)
+                    max_server_connections=get_db_max_connections(alias)
                 )
             )
         return databases
@@ -309,40 +295,39 @@ class ResourcesManager:
                     )
                 )
             else:
-                if resource.type in ('server', 'instance'):
-                    obj = Resource.objects.filter(
-                        models.Q(node_id__isnull=True) | models.Q(node_id=supervisor.node_id),
-                        service=self.service.name,
-                        type=resource.type,
-                        remote_id=None,
-                        ident=resource.ident,
-                    ).first()
-                    if obj:
-                        updates.append(
-                            Resource(
-                                id=obj.pk,
-                                service=self.service.name,
-                                node_id=supervisor.node_id,
-                                deleted_time=None,
-                                updated_time=now,
-                                **resource
-                            )
-                        )
-                        continue
-
-                if not Resource.objects.filter(
+                obj = Resource.objects.filter(
                     models.Q(node_id__isnull=True) | models.Q(node_id=supervisor.node_id),
                     service=self.service.name,
                     type=resource.type,
+                    remote_id=None,
                     ident=resource.ident,
-                ).exists():
-                    creates.append(
+                ).first()
+                obj: Resource
+                if obj:
+                    _data = dict(obj.data)
+                    if resource.data:
+                        _data.update(resource.data)
+                        resource.data = _data
+
+                    updates.append(
                         Resource(
+                            id=obj.pk,
                             service=self.service.name,
                             node_id=supervisor.node_id,
+                            deleted_time=None,
+                            updated_time=now,
                             **resource
                         )
                     )
+                    continue
+
+                creates.append(
+                    Resource(
+                        service=self.service.name,
+                        node_id=supervisor.node_id,
+                        **resource
+                    )
+                )
 
         if updates:
             Resource.objects.bulk_update(
@@ -417,23 +402,31 @@ class ResourcesManager:
             raise TypeError('Operations not configured')
 
         for supervisor in [supervisor] if supervisor else Supervisor.current().filter(connected=True):
-            print(f'sync resources of [{service.name}] to supervisor[{supervisor.node_id}]...')
-
             if supervisor.service != service.name:
                 force = True        # name changed
 
             if not supervisor.node_id:
                 continue
+            if supervisor.local:
+                # do not sync local supervisor
+                continue
+
+            print(f'sync resources of [{service.name}] to supervisor[{supervisor.node_id}]...')
 
             with SupervisorClient(
                 base_url=supervisor.base_url,
                 node_key=supervisor.public_key,
                 node_id=supervisor.node_id,
+                fail_silently=True
             ) as client:
-                resources = self.get_resources(
-                    supervisor.node_id,
-                    etag=supervisor.resources_etag if not force else None
-                )
+                try:
+                    resources = self.get_resources(
+                        supervisor.node_id,
+                        etag=supervisor.resources_etag if not force else None
+                    )
+                except Exception as e:
+                    print('meta: load resources failed with error: {}'.format(e))
+                    continue
                 if not resources:
                     print('[etag] resources is identical to the remote supervisor, done')
                     continue

@@ -5,11 +5,28 @@ from . import __spec_version__
 import utilmeta
 from utilmeta.core.api.specs.openapi import OpenAPISchema
 from .models import ServiceLog, AccessToken, Worker, WorkerMonitor, \
-    ServerMonitor, InstanceMonitor
+    ServerMonitor, InstanceMonitor, DatabaseConnection, Supervisor, DatabaseMonitor, CacheMonitor
 from utilmeta.core import orm
 import sys
 
 language_version = f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
+
+
+def get_current_instance_data() -> dict:
+    try:
+        from utilmeta import service
+    except ImportError:
+        return {}
+    return dict(
+        version=service.version_str,
+        asynchronous=service.asynchronous,
+        production=service.production,
+        language='python',
+        language_version=language_version,
+        utilmeta_version=utilmeta.__version__,
+        backend=service.backend_name,
+        backend_version=service.backend_version
+    )
 
 
 class SupervisorBasic(Schema):
@@ -61,13 +78,15 @@ class SupervisorData(Schema):
     local: bool = False
 
 
-class SupervisorPatch(Schema):
+class SupervisorPatch(orm.Schema[Supervisor]):
+    id: int = orm.Field(no_input=True)
     node_id: str
+    ident: Optional[str] = orm.Field(default=None, defer_default=True)
     url: Optional[str] = orm.Field(default=None, defer_default=True)
-    ident: str
     base_url: Optional[str] = orm.Field(default=None, defer_default=True)
     backup_urls: List[str] = Field(default_factory=list)
     heartbeat_interval: Optional[int] = orm.Field(default=None, defer_default=True)
+    disabled: bool = orm.Field(default=Field, defer_default=True)
     settings: dict = orm.Field(default_factory=dict, defer_default=True)
     alert_settings: dict = orm.Field(default_factory=dict, defer_default=True)
     task_settings: dict = orm.Field(default_factory=dict, defer_default=True)
@@ -119,10 +138,12 @@ class ServerSchema(ResourceBase):
 
 class InstanceSchema(ResourceBase):
     server: ServerSchema
+    version: str = Field(required=False)
     asynchronous: bool = Field(required=False)
     production: bool = Field(required=False)
     language: str = 'python'
     utilmeta_version: str = utilmeta.__version__
+    language_version: str = language_version
     backend: str = Field(required=False)
     backend_version: Optional[str] = Field(required=False)
 
@@ -139,6 +160,29 @@ class DatabaseSchema(ResourceBase):
     test: bool = False
 
     max_server_connections: Optional[int] = None
+
+
+class DatabaseConnectionSchema(orm.Schema[DatabaseConnection]):
+    id: int = orm.Field(default=None, defer_default=True)
+    database_id: int = orm.Field(default=None, defer_default=True)
+    # remote_id = CharField(max_length=100)
+    status: str
+    active: bool
+    client_addr: str
+    client_port: int
+    pid: Optional[int]
+
+    query: str
+    operation: Optional[str]
+    tables: List[str]
+
+    backend_start: Optional[datetime] = orm.Field(default=None, defer_default=True)
+    transaction_start: Optional[datetime] = orm.Field(default=None, defer_default=True)
+    wait_event: Optional[str] = orm.Field(default=None, defer_default=True)
+    query_start: Optional[datetime] = orm.Field(default=None, defer_default=True)
+    state_change: Optional[datetime] = orm.Field(default=None, defer_default=True)
+
+    data: dict = orm.Field(default_factory=dict, defer_default=True)
 
 
 class CacheSchema(ResourceBase):
@@ -338,6 +382,7 @@ class WorkerSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Worker]):
     start_time: int
 
     master_id: Optional[int]
+    master_pid: Optional[int] = orm.Field('master__pid')
     connected: bool
 
     time: int
@@ -349,8 +394,8 @@ class WorkerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Wo
     id: int
 
     time: float
-    interval: Optional[int]
-    worker_id: int
+    interval: Optional[int] = orm.Field(no_output=True)
+    worker_id: int = orm.Field(no_output=True)
     memory_info: dict
     threads: int
     metrics: dict
@@ -360,9 +405,9 @@ class ServerMonitorSchema(SystemMetricsMixin, orm.Schema[ServerMonitor]):
     id: int
 
     time: float
-    layer: int
-    interval: Optional[int]
-    server_id: int
+    layer: int = orm.Field(no_output=True)
+    interval: Optional[int] = orm.Field(no_output=True)
+    server_id: int = orm.Field(no_output=True)
     load_avg_1: Optional[float]
     load_avg_5: Optional[float]
     load_avg_15: Optional[float]
@@ -373,10 +418,10 @@ class InstanceMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[
     id: int
 
     time: float
-    layer: int
-    interval: Optional[int]
+    layer: int = orm.Field(no_output=True)
+    interval: Optional[int] = orm.Field(no_output=True)
 
-    instance_id: int
+    instance_id: int = orm.Field(no_output=True)
     threads: int
 
     current_workers: int
@@ -384,7 +429,51 @@ class InstanceMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[
     new_spawned_workers: int
     avg_workers: Optional[float]
 
+    # metrics: dict
+
+
+class DatabaseMonitorSchema(orm.Schema[DatabaseMonitor]):
+    id: int
+
+    time: datetime
+    layer: int = orm.Field(no_output=True)
+    interval: Optional[int] = orm.Field(no_output=True)
+
+    database_id: int = orm.Field(no_output=True)
+
+    used_space: int
+    server_used_space: int
+    active_connections: int
+    current_connections: int
+    server_connections: int
+
+    new_transactions: int
+
     metrics: dict
 
+    queries_num: int
+    qps: Optional[float]
+    query_avg_time: float
+    operations: dict
 
-# fixme: orm.Schema's base Schema must be orm.Schema, not utype.Schema
+
+class CacheMonitorSchema(orm.Schema[CacheMonitor]):
+    id: int
+
+    time: datetime
+    layer: int = orm.Field(no_output=True)
+    interval: Optional[int] = orm.Field(no_output=True)
+
+    cache_id: int = orm.Field(no_output=True)
+
+    cpu_percent: Optional[float]
+    memory_percent: Optional[float]
+    used_memory: Optional[int]
+    file_descriptors: Optional[int]
+    open_files: Optional[int]
+    # used_memory = PositiveBigIntegerField(default=0)
+    current_connections: int
+    total_connections: int
+    qps: Optional[float]
+
+    # metrics: dict = orm.Field(no_output=True)

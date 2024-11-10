@@ -170,7 +170,7 @@ class DjangoSettings(Config):
             raise ValueError(f'django: secret_key not set for production')
         else:
             warnings.warn('django: secret_key not set, auto generating')
-        tag = f'{service.name}:{service.description}:{service.version}' \
+        tag = f'{service.name}:{service.description}:{service.version_str}' \
               f'{service.backend_name}:{service.module_name}' \
               f'{django.__version__}{utilmeta.__version__}{sys.version}{platform.platform()}'.encode()
         return hashlib.sha256(tag).hexdigest()

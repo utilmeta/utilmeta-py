@@ -6,6 +6,7 @@ from .fields.scope import Scope
 from typing import TYPE_CHECKING
 from .context import QueryContext
 from utilmeta.utils import multi
+from utilmeta.conf import Preference
 
 
 if TYPE_CHECKING:
@@ -17,12 +18,17 @@ class BaseQuerysetGenerator:
                  parser: QueryClassParser,
                  values: dict,
                  # --- config params
-                 distinct: bool = False,
+                 distinct: bool = None,
                  **kwargs
                  ):
         self.parser = parser
         self.model = parser.model
         self.values = values
+
+        if distinct is None:
+            pref = Preference.get()
+            distinct = pref.orm_default_query_distinct
+
         self.distinct = distinct
         self.kwargs = kwargs
 

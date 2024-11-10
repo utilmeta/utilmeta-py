@@ -1,12 +1,12 @@
 from starlette.requests import Request
-from utilmeta.utils import async_to_sync
-from utilmeta.utils import exceptions as exc
+from utilmeta.utils import async_to_sync, RequestType, parse_query_string
 from utilmeta.core.file.backends.starlette import StarletteFileAdaptor
 from utilmeta.core.file.base import File
 from starlette.datastructures import UploadFile, FormData
 from .base import RequestAdaptor, get_request_ip
 from ipaddress import ip_address
 import starlette
+from utype import unprovided
 
 
 class StarletteRequestAdaptor(RequestAdaptor):
@@ -30,7 +30,7 @@ class StarletteRequestAdaptor(RequestAdaptor):
 
     @property
     def address(self):
-        addr = get_request_ip(self.headers)
+        addr = get_request_ip(dict(self.headers))
         if addr:
             return addr
         return ip_address(self.request.client.host)
@@ -79,9 +79,14 @@ class StarletteRequestAdaptor(RequestAdaptor):
 
     @property
     def body(self) -> bytes:
-        if 'body' in self.__dict__:
-            return self.__dict__['body']
+        if not unprovided(self._body):
+            return self._body
         return async_to_sync(self.async_read)()
+
+    @body.setter
+    def body(self, data):
+        self._body = data
+        self.request._body = data
 
     async def async_read(self):
         return await self.request.body()
@@ -103,16 +108,27 @@ class StarletteRequestAdaptor(RequestAdaptor):
                 result[key] = val
         return result
 
-    async def async_load(self):
-        try:
-            if self.form_type:
-                data = await self.request.form()
-                return self.process_form(data)
-            if self.json_type:
-                return await self.request.json()
-            self.__dict__['body'] = await self.request.body()
-            return self.get_content()
-        except NotImplementedError:
-            raise
-        except Exception as e:
-            raise exc.UnprocessableEntity(f'process request body failed with error: {e}') from e
+    async def async_get_content(self):
+        if self.form_type:
+            if self.content_type == RequestType.FORM_URLENCODED:
+                if not unprovided(self._body):
+                    self._body = await self.request.body()
+                return parse_query_string(self.body.decode())
+
+            elif self.content_type == RequestType.FORM_DATA:
+                if not unprovided(self._body):
+                    from starlette.formparsers import MultiPartParser
+
+                    async def steam():
+                        yield self._body
+                        yield b""
+                        return
+
+                    form = await MultiPartParser(
+                        self.headers, steam()
+                    ).parse()
+                else:
+                    form = await self.request.form()
+                return self.process_form(form)
+            return {}
+        return self.get_content()

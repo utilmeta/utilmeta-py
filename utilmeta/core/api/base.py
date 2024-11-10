@@ -293,13 +293,14 @@ class API(PluginTarget):
                 # .hook() return a bool to indicate whether hooked
                 # if not any() hooked, the target expression of the hook maybe invalid
                 # we will give it a warning
-                msg = f'{cls}: unmatched hook: {hook} with targets: {hook.hook_targets}'
-                warnings.warn(msg)
-                # from utilmeta.conf import config
-                # if config.preference.ignore_unmatched_hooks:
-                #     warnings.warn(msg)
-                # else:
-                # raise ValueError(msg)
+                if not hook.hook_all:
+                    msg = f'{cls}: unmatched hook: {hook} with targets: {hook.hook_targets}'
+                    warnings.warn(msg)
+                    # from utilmeta.conf import config
+                    # if config.preference.ignore_unmatched_hooks:
+                    #     warnings.warn(msg)
+                    # else:
+                    # raise ValueError(msg)
 
         # compile route after mount hooks
         for route in routes:

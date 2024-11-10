@@ -69,8 +69,10 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             _t = self.field.get_internal_type()
             addons = constant.ADDON_FIELD_LOOKUPS.get(_t, [])
             if self.addon not in addons:
-                warnings.warn(f'Invalid addon: {repr(self.addon)} for field: {self.field},'
-                              f' only {addons} are supported')
+                from django.db.models import JSONField
+                if not isinstance(self.field, JSONField):
+                    warnings.warn(f'Invalid addon: {repr(self.addon)} for field: {self.field},'
+                                  f' only {addons} are supported')
         else:
             raise TypeError(f'Not concrete field: {self.field} cannot have addon: {repr(self.addon)}')
 
@@ -397,7 +399,13 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     @property
     def relate_name(self) -> Optional[str]:
         if self.is_fk:
-            return self.field.remote_field.get_cache_name()
+            related_name = getattr(self.field, '_related_name', None)
+            if related_name:
+                return related_name
+            try:
+                return self.field.remote_field.name or self.field.remote_field.get_cache_name()
+            except (AttributeError, NotImplementedError):
+                return None
         return None
 
     def get_supported_operators(self):

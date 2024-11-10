@@ -4,6 +4,7 @@ from utilmeta.core import request as req
 from .parser import SchemaClassParser, QueryClassParser
 from utilmeta.core.orm import exceptions
 from utilmeta.utils.exceptions import BadRequest
+from utilmeta.conf import Preference
 from .context import QueryContext
 from .fields.field import ParserQueryField
 
@@ -236,8 +237,8 @@ class Schema(utype.Schema):
                 must_create = False
             elif self.__options__.mode == 'a':
                 must_create = True
-        if with_relations is None:
-            with_relations = True
+        # if with_relations is None:
+        #     with_relations = True
         # if must_update is None:
         #     if self.__options__.mode == 'w':
         #         must_update = True
@@ -270,8 +271,8 @@ class Schema(utype.Schema):
                 must_create = False
             elif self.__options__.mode == 'a':
                 must_create = True
-        if with_relations is None:
-            with_relations = True
+        # if with_relations is None:
+        #     with_relations = True
         # if must_update is None:
         #     if self.__options__.mode == 'w':
         #         must_update = True
@@ -362,7 +363,7 @@ class Query(utype.Schema):
     __parser__: QueryClassParser
     __field__ = req.Query
     __model__ = None
-    __distinct__ = True
+    __distinct__ = None
 
     # ----
     # consider this schema instance might be setattr/delattr after initialization

@@ -18,12 +18,6 @@ from .utils import opsRequire, WrappedResponse, config, supervisor_var, \
     SupervisorObject, resources_var, access_token_var
 from ..log import request_logger, Logger
 
-LOCAL_OPERATIONS = [
-    'api.view',
-    'metrics.view',
-    'log.view',
-]
-
 
 @api.CORS(
     allow_origin='*',
@@ -86,6 +80,33 @@ class OperationsAPI(api.API):
         )
 
     @adapt_async
+    @opsRequire('service.config')
+    def patch(self, data: SupervisorPatch = request.Body):
+        supervisor: SupervisorObject = supervisor_var.getter(self.request)
+        if not supervisor or not supervisor.id:
+            raise exceptions.NotFound('Supervisor not found', state='supervisor_not_found')
+        if supervisor.node_id != data.node_id:
+            raise exceptions.BadRequest('Inconsistent supervisor node_id')
+        data.id = supervisor.id
+        # backup_urls
+        # base_url
+        # public_key
+        # url
+        # operation_timeout
+        # heartbeat_interval
+        # settings: dict
+        # disabled: bool
+        # # -- advanced
+        # alert_settings: dict
+        # task_settings: dict
+        # aggregate_settings: dict
+        data.save()
+        return dict(
+            node_id=data.node_id,
+            **self.get()
+        )
+
+    @adapt_async
     @opsRequire('service.delete')
     def delete(self):
         supervisor: SupervisorObject = supervisor_var.getter(self.request)
@@ -141,7 +162,7 @@ class OperationsAPI(api.API):
                         ))
                         pass
                         # raise exceptions.Unauthorized
-                    var.scopes.setter(self.request, LOCAL_OPERATIONS)
+                    var.scopes.setter(self.request, config.local_scope)
                     return
 
             raise exceptions.Unauthorized

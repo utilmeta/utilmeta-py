@@ -6,7 +6,7 @@ from utilmeta.core import request
 from utype.types import *
 from .key import encrypt_data
 from .schema import NodeMetadata, SupervisorBasic, ServiceInfoSchema, SupervisorInfoSchema, \
-    SupervisorData, ResourcesSchema, ResourcesData, NodeInfoSchema
+    SupervisorData, ResourcesSchema, ResourcesData, NodeInfoSchema, SupervisorPatch
 
 
 class SupervisorResponse(response.Response):
@@ -144,9 +144,7 @@ class SupervisorClient(Client):
                     raise ValueError('supervisor is disabled')
                 if supervisor.public_key:
                     node_key = supervisor.public_key
-                else:
-                    if not supervisor.local:
-                        pass
+
             if not self._base_url:
                 self._base_url = supervisor.base_url
 
@@ -197,8 +195,29 @@ class OperationsClient(Client):
     @api.post('/')
     def add_supervisor(self, data: SupervisorData = request.Body) -> NodeInfoResponse: pass
 
+    @api.post('/')
+    async def async_add_supervisor(self, data: SupervisorData = request.Body) -> NodeInfoResponse: pass
+
+    @api.patch('/')
+    def update_supervisor(self, data: SupervisorPatch = request.Body) -> NodeInfoResponse: pass
+
+    @api.patch('/')
+    async def async_update_supervisor(self, data: SupervisorPatch = request.Body) -> NodeInfoResponse: pass
+
+    @api.post('/token/revoke')
+    def revoke_token(self, id_list: List[str] = request.Body) -> SupervisorResponse[int]: pass
+
+    @api.post('/token/revoke')
+    async def async_revoke_token(self, id_list: List[str] = request.Body) -> SupervisorResponse[int]: pass
+
     @api.delete('/')
     def delete_supervisor(self) -> SupervisorResponse: pass
 
+    @api.delete('/')
+    async def async_delete_supervisor(self) -> SupervisorResponse: pass
+
     @api.get('/')
     def get_info(self) -> Union[ServiceInfoResponse, SupervisorResponse]: pass
+
+    @api.get('/')
+    async def async_get_info(self) -> Union[ServiceInfoResponse, SupervisorResponse]: pass

@@ -227,7 +227,7 @@ class UtilMeta:
         if isinstance(self.version, str):
             return self.version
         if not isinstance(self.version, tuple):
-            return '1.0'
+            return '0.1.0'
         parts = []
         for i, v in enumerate(self.version):
             parts.append(str(v))

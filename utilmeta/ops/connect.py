@@ -1,4 +1,4 @@
-from .client import SupervisorClient, SupervisorBasic
+from .client import SupervisorClient, SupervisorBasic, SupervisorInfoResponse
 from utilmeta import __version__
 from concurrent.futures import ThreadPoolExecutor, wait
 from utilmeta.utils import exceptions, localhost
@@ -35,7 +35,7 @@ def auto_select_supervisor(*supervisors: SupervisorBasic, timeout: int = 5, time
     def fetch_supervisor_info(base_url: str):
         with SupervisorClient(base_url=base_url, fail_silently=True) as client:
             resp = client.get_info()
-            if resp.validate():
+            if isinstance(resp, SupervisorInfoResponse) and resp.validate():
                 url_map.setdefault(base_url, []).append(resp.duration_ms)
 
     with ThreadPoolExecutor() as pool:
@@ -157,6 +157,10 @@ def connect_supervisor(
                 # lost sync, resync here
                 from utilmeta.bin.utils import update_meta_ini_file
                 update_meta_ini_file(node=supervisor_obj.node_id)
+            from .resources import ResourcesManager
+            ResourcesManager(service).sync_resources(supervisor_obj)
+            # sync resources if supervisor already exists
+            # maybe last connect failed to sync
             return
 
         # public key not set

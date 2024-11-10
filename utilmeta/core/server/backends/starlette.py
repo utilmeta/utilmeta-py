@@ -109,7 +109,7 @@ class StarletteServerAdaptor(ServerAdaptor):
                 if request.adaptor.request_method.lower() in HAS_BODY_METHODS:
                     if request.content_type in self.RECORD_REQUEST_BODY_TYPES and (
                             request.content_length or 0) <= self.RECORD_RESPONSE_BODY_LENGTH_LTE:
-                        request.adaptor.__dict__['body'] = await starlette_request.body()
+                        request.adaptor.body = await starlette_request.body()
                         # read the body here any way, the request will cache it
                         # and you cannot read it after response is generated
 

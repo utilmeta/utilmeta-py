@@ -99,7 +99,7 @@ class Body(Property):
         var_data = var.data.setup(request)
         if var_data.contains():
             return await var_data.get()
-        data = await request.adaptor.async_load()
+        data = await request.aload()
         var_data.set(data)
         self.validate_max_length(request)
         return data
@@ -144,16 +144,16 @@ class Json(Body):
             **kwargs
         )
 
-    def getter(self, request: Request, field: ParserField = None):
-        if not request.adaptor.json_type:
-            raise exc.UnprocessableEntity(f'invalid content type')
-        return request.adaptor.get_json()
-
-    @awaitable(getter)
-    async def getter(self, request: Request, field: ParserField = None):
-        if not request.adaptor.json_type:
-            raise exc.UnprocessableEntity(f'invalid content type')
-        return await request.adaptor.async_load()
+    # def getter(self, request: Request, field: ParserField = None):
+    #     if not request.adaptor.json_type:
+    #         raise exc.UnprocessableEntity(f'invalid content type')
+    #     return request.adaptor.get_json()
+    #
+    # @awaitable(getter)
+    # async def getter(self, request: Request, field: ParserField = None):
+    #     if not request.adaptor.json_type:
+    #         raise exc.UnprocessableEntity(f'invalid content type')
+    #     return await request.aload()
 
 
 class Form(Body):
@@ -173,16 +173,16 @@ class Form(Body):
         if self.content_type and request.content_type not in (Body.FORM_URLENCODED, Body.FORM_DATA):
             raise exc.UnprocessableEntity('invalid content type')
 
-    def getter(self, request: Request, field: ParserField = None):
-        if not request.adaptor.form_type:
-            raise exc.UnprocessableEntity(f'invalid content type')
-        return request.adaptor.get_form()
-
-    @awaitable(getter)
-    async def getter(self, request: Request, field: ParserField = None):
-        if not request.adaptor.form_type:
-            raise exc.UnprocessableEntity(f'invalid content type')
-        return await request.adaptor.async_load()
+    # def getter(self, request: Request, field: ParserField = None):
+    #     if not request.adaptor.form_type:
+    #         raise exc.UnprocessableEntity(f'invalid content type')
+    #     return request.adaptor.get_form()
+    #
+    # @awaitable(getter)
+    # async def getter(self, request: Request, field: ParserField = None):
+    #     if not request.adaptor.form_type:
+    #         raise exc.UnprocessableEntity(f'invalid content type')
+    #     return await request.aload()
 
 
 class ObjectProperty(Property):

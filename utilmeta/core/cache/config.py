@@ -1,6 +1,6 @@
 from utilmeta.conf.base import Config
 from utilmeta import UtilMeta
-from utilmeta.utils import awaitable, exceptions
+from utilmeta.utils import awaitable, exceptions, localhost
 from typing import Dict, List, Optional, Union, Callable, Any, ClassVar
 from datetime import timedelta, datetime
 from utype.utils.datastructures import unprovided
@@ -57,26 +57,47 @@ class Cache(Config):
         self.asynchronous = False
 
     @property
+    def type(self) -> str:
+        if 'redis' in self.engine.lower():
+            return 'redis'
+        elif 'memcached' in self.engine.lower():
+            return 'memcached'
+        elif 'locmem' in self.engine.lower():
+            return 'locmem'
+        elif 'file' in self.engine.lower():
+            return 'file'
+        elif 'database' in self.engine.lower() or 'db' in self.engine.lower():
+            return 'db'
+        return 'memory'
+
+    @property
+    def local(self):
+        if not self.host:
+            return True
+        return localhost(self.host)
+
+    @property
     def alias(self):
         return self.adaptor.alias
 
     def apply(self, alias: str, asynchronous: bool = None):
-
         if asynchronous:
             if self.async_adaptor_cls:
                 self.adaptor = self.async_adaptor_cls(self, alias)
+            else:
+                from .backends.django import DjangoCacheAdaptor
+                self.adaptor = DjangoCacheAdaptor(self, alias)
         else:
             if self.sync_adaptor_cls:
                 self.adaptor = self.sync_adaptor_cls(self, alias)
             else:
                 from .backends.django import DjangoCacheAdaptor
                 self.adaptor = DjangoCacheAdaptor(self, alias)
-
         self.asynchronous = asynchronous
         self.adaptor.check()
 
     def get_adaptor(self, asynchronous: bool = False) -> 'BaseCacheAdaptor':
-        if self.asynchronous == asynchronous and self.adaptor:
+        if self.adaptor and self.adaptor.asynchronous == asynchronous:
             return self.adaptor
         if asynchronous:
             if not self.async_adaptor_cls:

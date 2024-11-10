@@ -171,6 +171,20 @@ class Response:
             elif isinstance(response, Response):
                 self.adaptor = response.adaptor
                 request = request or response.request
+                if not self.adaptor:
+                    status = status or response.status
+                    reason = reason or response.reason
+                    result = result or response.result
+                    state = state or response.state
+                    count = count or response.count
+                    extra = extra or response.extra
+                    error = error or response.error
+                    file = file or response.file
+                    mocked = mocked or response.is_mocked
+                    aborted = aborted or response.is_aborted
+                    timeout = timeout or response.is_timeout
+                    strict = strict or response.strict
+
             else:
                 self.adaptor = ResponseAdaptor.dispatch(response)
 
@@ -233,7 +247,7 @@ class Response:
         self.parse_headers()
 
         pref = Preference.get()
-        self.status = self.status or pref.default_status or 200
+        self.status = self.status or pref.default_response_status or 200
         if self.state is None:
             self.state = 1 if self.success else 0
         # set default state after status
@@ -376,7 +390,8 @@ class Response:
             self.headers = error.headers
         if not self.message:        # empty string ''
             self.message = str(error.exception)
-        error.log(console=True)
+        if not self.is_aborted:
+            error.log(console=True)
         self._error = error
 
     def build_data(self):
@@ -646,6 +661,22 @@ class Response:
         return self.request.time
 
     @property
+    def extra(self):
+        return self._extra
+
+    @property
+    def is_timeout(self):
+        return self._timeout
+
+    @property
+    def is_aborted(self):
+        return self._aborted
+
+    @property
+    def is_mocked(self):
+        return self._mocked
+
+    @property
     def duration(self) -> timedelta:
         return timedelta(milliseconds=self.duration_ms)
 
@@ -867,6 +898,7 @@ class Response:
         kwargs = {}
         if parser:
             kwargs = get_example_from_parser(parser)
+            kwargs.update(mocked=True)
         return cls(**kwargs)
 
     @property
@@ -876,6 +908,10 @@ class Response:
         if self.status >= 400:
             return False
         return True
+
+    def validate(self, *_, **__):
+        # the validate function that can be customized
+        return self.success
 
     @classmethod
     def server_error(cls, message=''):

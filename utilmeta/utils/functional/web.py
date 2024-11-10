@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from ipaddress import ip_address
 from typing import TypeVar, List, Dict, Tuple, Union, Optional
 from utilmeta.utils.constant import COMMON_ERRORS,  RequestType, DateFormat, \
-    LOCAL, Scheme, SCHEME, HTTP, HTTPS, SCHEMES, UTF_8, AgentDevice
+    LOCAL, Scheme, SCHEME, HTTP, HTTPS, SCHEMES, UTF_8, AgentDevice, LOCAL_IP
 from urllib.parse import urlparse, ParseResult
 from .data import based_number, multi, is_number, get_number
 from .py import file_like
@@ -21,7 +21,7 @@ __all__ = [
     'parse_query_dict',
     'make_header',  'http_time',
     'retrieve_path', 'get_domain', 'parse_user_agents',
-    'get_origin',
+    'get_origin', 'get_request_ip',
     'normalize', 'url_join', 'localhost', 'etag',
     'dumps', 'loads',  'process_url',
     'get_content_tag', 'handle_json_float',
@@ -525,3 +525,17 @@ def get_domain(url: str) -> Optional[str]:
         return None
     except ValueError:
         return '.'.join(hostname.split('.')[-2:])
+
+
+def get_request_ip(headers: dict):
+    headers = {str(k).lower().replace('_', '-'): v for k, v in headers.items()}
+    ips = [*headers.get('x-forwarded-for', '').replace(' ', '').split(','),
+           headers.get('remote-addr'), headers.get('x-real-ip')]
+    for ip in ips:
+        if not ip or ip == LOCAL_IP:
+            continue
+        try:
+            return ip_address(ip)
+        except ValueError:
+            continue
+    return None

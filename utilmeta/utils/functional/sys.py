@@ -324,13 +324,13 @@ def run(cmd, *backup_commands):
                 r = os.system(c)
                 if not r:
                     return
-            print(f'UtilMeta occur error, aborting..')
+            print(f'meta: running occur error, aborting..')
             exit(r)
     except KeyboardInterrupt:
         print('aborting..')
         exit(0)
     except Exception as e:
-        print(f'UtilMeta occur error: {e}, aborting..')
+        print(f'meta: running occur error: {e}, aborting..')
         exit(1)
 
 

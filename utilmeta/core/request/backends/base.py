@@ -1,30 +1,15 @@
 from urllib.parse import urlsplit, urlunsplit
 from typing import Optional
-from utilmeta.utils import MetaMethod, CommonMethod, Header, \
-    RequestType, cached_property, time_now, gen_key, parse_query_string
+from utilmeta.utils import MetaMethod, CommonMethod, Header, get_request_ip, \
+    RequestType, cached_property, time_now, parse_query_string
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import LOCAL_IP
 from utilmeta.core.file import File
 from ipaddress import ip_address
 from utilmeta.utils.adaptor import BaseAdaptor
+from utype import unprovided
 import json
-from collections.abc import Mapping
 import io
-
-
-def get_request_ip(headers: Mapping):
-    ips = [*headers.get('x-forwarded-for', '').replace(' ', '').split(','),
-           headers.get('remote-addr')]
-    if '' in ips:
-        ips.remove('')
-    if LOCAL_IP in ips:
-        ips.remove(LOCAL_IP)
-    for ip in ips:
-        try:
-            return ip_address(ip)
-        except ValueError:
-            continue
-    return None
 
 
 class RequestAdaptor(BaseAdaptor):
@@ -38,6 +23,8 @@ class RequestAdaptor(BaseAdaptor):
         self.kwargs = kwargs
         self.time = time_now()
 
+        self._body = unprovided
+        self._data = unprovided
         self._context = {}
         self._override_method = None
         self._override_route = None
@@ -226,23 +213,12 @@ class RequestAdaptor(BaseAdaptor):
         return File(io.BytesIO(self.body))
 
     def get_form(self):
+        if self.content_type == RequestType.FORM_URLENCODED:
+            return parse_query_string(self.body.decode())
         raise NotImplementedError
 
     def get_text(self):
         return self.body.decode()
-
-    @classmethod
-    def gen_file_name(cls, content_type: str) -> str:
-        if not content_type:
-            content_type = '/'
-        maj, sec = content_type.split('/')
-        date_str = time_now().strftime('%Y%m%d%H%M%S')
-        key = gen_key(6, alnum=True)
-        if maj in ('video', 'audio', 'image'):
-            name = f'{maj}_{date_str}_{key}.{sec}'
-        else:
-            name = f'file_{date_str}_{key}'
-        return name
 
     def get_content(self):
         if not self.content_type:
@@ -258,7 +234,7 @@ class RequestAdaptor(BaseAdaptor):
         return self.get_file()
 
     def set_content(self, data):
-        pass
+        self._data = data
 
     @property
     def content(self):
@@ -268,8 +244,8 @@ class RequestAdaptor(BaseAdaptor):
         if content-type is form (multipart/form-data), will be loaded to a dict
         with form values and files in it
         """
-        # if self._override_data:
-        #     pass
+        if not unprovided(self._data):
+            return self._data
         try:
             return self.get_content()
         except NotImplementedError:
@@ -278,17 +254,24 @@ class RequestAdaptor(BaseAdaptor):
             raise exc.UnprocessableEntity(f'process request body failed with error: {e}')
 
     @property
-    def body(self) -> bytes:
-        raise NotImplementedError
+    def body(self) -> Optional[bytes]:
+        return self._body if not unprovided(self._body) else None
 
     @body.setter
     def body(self, data):
-        raise NotImplementedError
+        self._body = data
+
+    async def async_get_content(self):
+        return self.get_content()
 
     async def async_load(self):
-        self.__dict__['body'] = await self.async_read()
+        if not unprovided(self._data):
+            return self._data
         try:
-            return self.get_content()
+            if unprovided(self._body):
+                self._body = await self.async_read()
+            self._data = await self.async_get_content()
+            return self._data
         except NotImplementedError:
             raise
         except Exception as e:

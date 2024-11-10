@@ -242,6 +242,8 @@ class UserQuery(orm.Query[User]):
 
 
 class ArticleQuery(orm.Query[Article]):
+    __distinct__ = True
+
     id: int
     author: str = orm.Filter('author.username')
 

@@ -29,6 +29,7 @@ class LogAPI(api.API):
             raise exceptions.NotFound
 
     class LogQuery(orm.Query[ServiceLog]):
+        __distinct__ = False
         offset: int = orm.Offset(default=None)
         page: int = orm.Page()
         rows: int = orm.Limit(default=20, le=100, alias_from=['limit'])

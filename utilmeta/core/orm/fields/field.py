@@ -8,6 +8,7 @@ from utype.parser.rule import LogicalType
 from utype.types import *
 from utilmeta.utils import class_func, SEG
 
+
 if TYPE_CHECKING:
     from ..backends.base import ModelAdaptor
     from ..schema import Schema
@@ -492,6 +493,11 @@ class QueryField(Field):
                  ):
         super().__init__(**kwargs)
         self.field = field
+
+        # pref = Preference.get()
+        # if fail_silently is None:
+        #     fail_silently = pref.orm_default_field_fail_silently
+
         self.fail_silently = fail_silently
         self.isolated = isolated
         self.queryset = queryset

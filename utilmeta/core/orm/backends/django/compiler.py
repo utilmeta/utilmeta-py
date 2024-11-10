@@ -856,6 +856,10 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         from utilmeta.core.orm.schema import Schema
         error_classes = get_ignored_errors(ignore_errors)
 
+        # todo: update single object (fk + unique=True)
+        #   object / key / None
+        #   null=True (create / update key = delete & create reverse fk)
+        #   null=False (create / hard delete / update relation)
         for name, (field, keys) in relation_keys.items():
             field: ParserQueryField
             inst: models.Model = self.model.model(pk=pk)

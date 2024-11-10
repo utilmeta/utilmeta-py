@@ -5,7 +5,8 @@ import ipaddress
 from utilmeta.core.file.backends.sanic import SanicFileAdaptor
 from sanic.request.form import File as SanicFile
 from utilmeta.core.file.base import File
-from utilmeta.utils import exceptions, multi
+from utilmeta.utils import exceptions, multi, get_request_ip
+from utype import unprovided
 
 
 class SanicRequestAdaptor(RequestAdaptor):
@@ -20,7 +21,13 @@ class SanicRequestAdaptor(RequestAdaptor):
 
     @property
     def address(self):
-        return ipaddress.ip_address(self.request.remote_addr or '127.0.0.1')
+        try:
+            ip = self.request.remote_addr
+            if ip:
+                return ipaddress.ip_address(ip)
+        except (AttributeError, ValueError):
+            pass
+        return get_request_ip(dict(self.headers)) or ipaddress.ip_address('127.0.0.1')
 
     @property
     def cookies(self):
@@ -42,8 +49,8 @@ class SanicRequestAdaptor(RequestAdaptor):
 
     @property
     def body(self):
-        if 'body' in self.__dict__:
-            return self.__dict__['body']
+        if not unprovided(self._body):
+            return self._body
         return self.request.body
 
     @property
@@ -74,17 +81,17 @@ class SanicRequestAdaptor(RequestAdaptor):
             form[key] = value
         return form
 
-    async def async_load(self):
-        try:
-            if not self.request.body:
-                await self.request.receive_body()
-            if self.form_type:
-                return self.get_form()
-            if self.json_type:
-                return self.request.json
-            self.__dict__['body'] = self.request.body
-            return self.get_content()
-        except NotImplementedError:
-            raise
-        except Exception as e:
-            raise exceptions.UnprocessableEntity(f'process request body failed with error: {e}') from e
+    # async def async_load(self):
+    #     try:
+    #         if not self.request.body:
+    #             await self.request.receive_body()
+    #         if self.form_type:
+    #             return self.get_form()
+    #         if self.json_type:
+    #             return self.request.json
+    #         self.__dict__['body'] = self.request.body
+    #         return self.get_content()
+    #     except NotImplementedError:
+    #         raise
+    #     except Exception as e:
+    #         raise exceptions.UnprocessableEntity(f'process request body failed with error: {e}') from e

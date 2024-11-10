@@ -3,7 +3,7 @@ import datetime
 from utilmeta.bin.commands.base import BaseServiceCommand
 from utilmeta.bin.base import command, Arg
 import os
-from utilmeta.utils import import_obj, write_to, SEG
+from utilmeta.utils import write_to, SEG
 from utilmeta.core.orm import DatabaseConnections
 from utilmeta.bin.constant import INIT_FILE, RED, BLUE
 from django.core.management import execute_from_command_line
@@ -67,6 +67,77 @@ class DjangoCommand(BaseServiceCommand):
                         continue
                     execute_from_command_line([*args, app, f'--database={d.alias}'])
             return
+
+    @command
+    def fixmigrations(self, app_name: str, database: str = Arg('--database', default=None)):
+        # if the db's stage is not corresponding to the django_migration
+        from django.apps.registry import apps, AppConfig
+        dbs = self.service.get_config(DatabaseConnections)
+        for alias, db in dbs.items():
+            if database and database != alias:
+                continue
+            # migration = MigrationRecorder.Migration.objects.using(alias).filter(app=app_name)
+            from django.db.migrations.executor import MigrationExecutor
+            from django.db import connections
+            from django.db import DatabaseError
+            conn = connections[alias]
+            executor = MigrationExecutor(conn)
+            targets = sorted([
+                key[1] for key in executor.loader.graph.nodes if key[0] == app_name
+            ])
+
+            created_migrations = []
+            try:
+                # 1. if the migrated migration is not recorded
+                migrated = 0
+                for i, target in enumerate(targets):
+                    try:
+                        if not executor.recorder.migration_qs.filter(app=app_name, name=target).exists():
+                            migrated += 1
+                            print(f'[{app_name}] migrating {repr(target)} at database [{repr(alias)}]')
+                            # target_executor = MigrationExecutor(conn)
+                            target_executor = MigrationExecutor(conn)
+                            # reload from db
+                            plan = target_executor.migration_plan([(app_name, target)])
+                            if not plan:
+                                return
+                            target_executor.migrate(targets, plan)
+                            print(f'[{app_name} migrating {repr(target)} completed at database [{repr(alias)}]')
+                    except DatabaseError as e:
+                        print(f'[{app_name}] migrate unrecorded migration: {repr(target)} '
+                              f'failed with error: {e}, save migration to [{repr(alias)}] and skip to next')
+                        # close and reconnect database (or migration won't be saved)
+                        conn.close()
+                        conn.connect()
+                        created_migrations.append(executor.recorder.migration_qs.create(
+                            name=target,
+                            app=app_name,
+                        ))
+                        if i == len(targets) - 1:
+                            cfg: AppConfig = apps.get_app_config(app_name)
+                            print('testing schemas of all models...')
+                            for model in cfg.get_models():
+                                try:
+                                    _ = model.objects.values()[:1]
+                                except DatabaseError as _e:
+                                    print(f'model: {model} load failed: {_e}')
+                                    raise e
+                            print(F'all missing migrations recorded: {created_migrations}')
+                            break
+                            # if all models is ok, we stop trying
+
+                if not migrated:
+                    print(f'[{app_name}] migrations is clean at database [{repr(alias)}]')
+                    # 2. if the recorded migration is not migrated
+            except Exception as e:
+                print(f'[{app_name}] fix migrations at database: {repr(alias)} failed: {repr(e)}]')
+                if created_migrations:
+                    print(f'[{app_name}] deleting created migrations')
+                    for migration in created_migrations:
+                        try:
+                            migration.delete()
+                        except DatabaseError:
+                            pass
 
     @command
     def mergemigrations(self, app_name: str):

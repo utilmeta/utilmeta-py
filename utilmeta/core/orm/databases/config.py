@@ -1,7 +1,7 @@
 import os
 from utilmeta.conf.base import Config
 from utilmeta import UtilMeta
-from utilmeta.utils import awaitable, exceptions
+from utilmeta.utils import awaitable, exceptions, localhost
 from typing import Dict, List, Optional, Union, Any
 from typing import ContextManager, AsyncContextManager
 from .base import BaseDatabaseAdaptor
@@ -76,6 +76,12 @@ class Database(Config):
         return options
 
     @property
+    def local(self):
+        if self.is_sqlite:
+            return True
+        return localhost(self.host)
+
+    @property
     def is_sqlite(self):
         return 'sqlite' in self.engine
 
@@ -106,7 +112,7 @@ class Database(Config):
         return self.name
 
     @property
-    def engine_name(self):
+    def type(self):
         if self.is_sqlite:
             return 'sqlite'
         elif self.is_postgresql:

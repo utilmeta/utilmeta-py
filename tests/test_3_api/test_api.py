@@ -14,6 +14,15 @@ setup_service(__name__, backend='django')
 
 
 class TestAPIClass:
+    def test_request_response(self):
+        resp = Response(response=Response(status=400, result='123'), cached=True)
+        assert resp.status == 400
+        assert resp.result == '123'
+        assert resp.body == b'123'
+
+        resp2 = Response(response=Response(status=400, result='123'), status=422)
+        assert resp2.status == 422
+
     def test_invalid_declaration(self):
         with pytest.raises(TypeError):
             class _API(API):    # noqa
@@ -167,7 +176,7 @@ class TestAPIClass:
         class RootAPI(api.API):
             sub: SubAPI
 
-            @api.handle(ValueError)
+            @api.handle(SubAPI, ValueError)
             def handle_error(self, error: Error):
                 return self.response(status=422, error=error)
 
@@ -178,6 +187,27 @@ class TestAPIClass:
 
         assert resp.status == 422
         assert resp.message == '123'
+
+        class SubAPI2(api.API):
+            @api.get
+            @MyPlugin()
+            def hello(self):
+                return 'world'
+
+        class ParentAPI(api.API):
+            sub: SubAPI2
+
+            @api.handle(SubAPI2, ValueError)
+            def handle_error(self, error: Error):
+                return self.response(status=422, error=error)
+
+        resp2 = ParentAPI(Request(
+            method='GET',
+            url='sub/hello'
+        ))()
+
+        assert resp2.status == 422
+        assert resp2.message == '123'
 
     def test_api_plugins_orders(self, service):
         if service.asynchronous:

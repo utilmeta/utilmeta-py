@@ -17,7 +17,7 @@ from utilmeta.core.auth.properties import User
 from utilmeta.core.response.base import Headers, JSON, OCTET_STREAM, PLAIN
 from utilmeta.utils.context import Property, ParserProperty
 from utilmeta.utils.constant import HAS_BODY_METHODS
-from utilmeta.utils import valid_url, json_dumps, get_origin
+from utilmeta.utils import valid_url, json_dumps, get_origin, file_like
 from utilmeta.conf import Preference
 from utype import Schema, Field, JsonSchemaGenerator
 from utype.parser.field import ParserField
@@ -360,6 +360,22 @@ class OpenAPI(BaseAPISpec):
                 warnings.warn(f'call external docs function: {self.external_docs} failed: {e}')
                 return None
 
+        file = None
+        if isinstance(docs, File):
+            file = docs
+            docs = docs.read()
+        elif file_like(docs):
+            file = File(docs)
+            docs = file.read()
+
+        if isinstance(docs, bytes):
+            docs = docs.decode()
+
+        if file and file.filename and isinstance(docs, str):
+            if file.filename.endswith('.yaml') or file.filename.endswith('.yml'):
+                import yaml
+                docs = yaml.safe_load(docs)
+
         if isinstance(docs, dict):
             try:
                 return OpenAPISchema(docs)
@@ -497,13 +513,17 @@ class OpenAPI(BaseAPISpec):
             paths=paths,
             servers=[self.server]
         )
-        docs = [utilmeta_docs]
+        docs = []
+        if paths:
+            docs.append(utilmeta_docs)
         if adaptor_docs:
             docs.append(adaptor_docs)
         if self.external_docs:
             external_docs = self.get_external_docs()
             if external_docs:
                 docs.append(external_docs)
+        if not docs:
+            return utilmeta_docs
         if len(docs) == 1:
             return docs[0]
         return self.merge_openapi_docs(*docs)
@@ -828,7 +848,7 @@ class OpenAPI(BaseAPISpec):
 
     @property
     def default_status(self):
-        return str(self.pref.default_status or 'default')
+        return str(self.pref.default_response_status or 'default')
 
     def from_endpoint(self, endpoint: Endpoint,
                       tags: list = (),
@@ -868,7 +888,7 @@ class OpenAPI(BaseAPISpec):
             resp_name = self.set_response(resp, routes=operation_names)
             responses[str(resp.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
 
-        if not responses and response_cls != Response:
+        if not responses and response_cls and response_cls != Response:
             resp_name = self.set_response(response_cls, routes=operation_names)
             responses[str(response_cls.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
 

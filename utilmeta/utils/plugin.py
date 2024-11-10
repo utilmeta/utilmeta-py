@@ -49,12 +49,16 @@ def omit_unsupported_params(f, asynchronous: bool = None):
 class PluginBase(Util):
     def __new__(cls, _kw=None, *args, **kwargs):
         instance = super().__new__(cls)
-        if isinstance(_kw, type) and issubclass(_kw, PluginTarget) and not args and not kwargs:
-            # @plugin   # without init
-            # def APIClass(API):
-            #     pass
-            instance.__init__(*args, **kwargs)
-            return instance(_kw)
+        if not args and not kwargs:
+            if isinstance(_kw, type) and issubclass(_kw, PluginTarget) or isinstance(_kw, PluginTarget):
+                # @plugin   # without init
+                # def APIClass(API):
+                #     pass
+                instance.__init__(*args, **kwargs)
+                return instance(_kw)
+            elif inspect.isfunction(_kw):
+                instance.__init__(*args, **kwargs)
+                return instance(_kw)
 
         return instance
 

@@ -16,6 +16,20 @@ server_thread = make_server_thread(
     backend='django',
     port=8666
 )
+import httpx
+import aiohttp
+import requests
+import urllib
+
+
+@pytest.fixture(params=[urllib, requests, httpx])
+def sync_request_backend(request):
+    return request.param
+
+
+@pytest.fixture(params=[httpx, aiohttp])
+def async_request_backend(request):
+    return request.param
 
 
 class TestClientClass:
@@ -34,9 +48,10 @@ class TestClientClass:
             query={'k2': 'v2'}
         ) == 'https://test2.com/sub/?k1=v1&k2=v2'
 
-    def test_live_server(self, server_thread):
+    def test_live_server(self, server_thread, sync_request_backend):
         with TestClient(
             base_url='http://127.0.0.1:8666/api/test',
+            backend=sync_request_backend,
         ) as client:
             v = client.get_doc(
                 category='finance',
@@ -63,9 +78,10 @@ class TestClientClass:
             assert tr.status == 500
             assert 'MaxRetriesTimeoutExceed' in tr.text
 
-    def test_live_server_with_mount(self, server_thread):
+    def test_live_server_with_mount(self, server_thread, sync_request_backend):
         with APIClient(
             base_url='http://127.0.0.1:8666/api',
+            backend=sync_request_backend,
         ) as client:
             v = client.test.get_doc(
                 category='finance',
@@ -85,9 +101,10 @@ class TestClientClass:
             assert pg.headers['test-response-header'] == 'test'
 
     @pytest.mark.asyncio
-    async def test_live_server_async(self, server_thread):
+    async def test_live_server_async(self, server_thread, async_request_backend):
         with TestClient(
             base_url='http://127.0.0.1:8666/api/test',
+            backend=async_request_backend,
         ) as client:
             v = await client.aget_doc(
                 category='finance',
@@ -233,3 +250,42 @@ class TestClientClass:
             resp = await client.content()
             assert resp.result == '0,4,3,2,1'
             assert resp.headers.get('x-order') == '1,2,3,4,0'
+
+    def test_request_failure(self, sync_request_backend):
+        with TestClient(
+            base_url='http://127.0.0.1:0',
+            backend=sync_request_backend,
+            default_timeout=0.5
+        ) as client:
+            with pytest.raises(Exception):
+                client.get_doc(category='test')
+
+        with TestClient(
+            base_url='http://127.0.0.1:0',
+            backend=sync_request_backend,
+            default_timeout=0.5,
+            fail_silently=True
+        ) as client:
+            resp = client.get_doc(category='test')
+            assert resp.status == 500
+            assert resp.is_aborted
+
+    @pytest.mark.asyncio
+    async def test_async_request_failure(self, async_request_backend):
+        with TestClient(
+            base_url='http://127.0.0.1:0',
+            backend=async_request_backend,
+            default_timeout=0.5
+        ) as client:
+            with pytest.raises(Exception):
+                await client.aget_doc(category='test')
+
+        with TestClient(
+            base_url='http://127.0.0.1:0',
+            backend=async_request_backend,
+            default_timeout=0.5,
+            fail_silently=True
+        ) as client:
+            resp = await client.aget_doc(category='test')
+            assert resp.status == 500
+            assert resp.is_aborted

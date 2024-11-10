@@ -25,6 +25,8 @@ _server = None
 _version = None
 _supervisor = None
 _instance = None
+_databases: dict = {}
+_caches: dict = {}
 _openapi = None
 _path_prefix = ''
 _logger = contextvars.ContextVar('_logger')
@@ -217,7 +219,7 @@ def setup_locals(config: Operations):
     from utilmeta import service
 
     global _worker, _version, _supervisor, _instance, _server, \
-        _endpoints_map, _openapi, _endpoints_patterns, _path_prefix
+        _endpoints_map, _openapi, _endpoints_patterns, _path_prefix, _databases, _caches
     # node_id = config.node_id
     _supervisor = Supervisor.current().first()
     # reset supervisor
@@ -230,19 +232,21 @@ def setup_locals(config: Operations):
         _server = Resource.get_current_server()
         if not _server:
             from utilmeta.utils import get_mac_address
+            from .monitor import get_current_server
             mac = get_mac_address()
             _server = Resource.objects.create(
                 type='server',
                 service=service.name,
                 node_id=node_id,
                 ident=mac,
-                data=dict(ip=service.ip),
+                data=get_current_server(),
                 route=f'server/{mac}',
             )
 
     if not _instance:
         _instance = Resource.get_current_instance()
         if not _instance:
+            from .schema import get_current_instance_data
             ident = _server.ident if _server else service.ip
             _instance = Resource.objects.create(
                 type='instance',
@@ -251,6 +255,7 @@ def setup_locals(config: Operations):
                 ident=ident,
                 route=f'instance/{node_id}/{ident}' if node_id else f'instance/{ident}',
                 server=_server,
+                data=get_current_instance_data()
             )
 
     # if not _version:
@@ -263,7 +268,9 @@ def setup_locals(config: Operations):
     #         )
 
     if not _worker:
-        _worker = Worker.load()
+        import utilmeta
+        if not utilmeta._cmd_env:
+            _worker = Worker.load()
 
     if not _endpoints_map:
         _endpoints = Resource.filter(
@@ -310,6 +317,54 @@ def setup_locals(config: Operations):
             url = _openapi.servers[0].url
             from urllib.parse import urlparse
             _path_prefix = urlparse(url).path.strip('/')
+
+    if not _databases:
+        from utilmeta.core.orm import DatabaseConnections
+        db_config = DatabaseConnections.config()
+        dbs = {}
+        if db_config and db_config.databases:
+            for alias, db in db_config.databases.items():
+                db_obj = Resource.filter(
+                    type='database',
+                    service=service.name,
+                    ident=alias,
+                    deprecated=False
+                ).first()
+                if not db_obj:
+                    db_obj = Resource.objects.create(
+                        type='database',
+                        service=service.name,
+                        node_id=node_id,
+                        ident=alias,
+                        route=f'database/{node_id}/{alias}' if node_id else f'database/{alias}',
+                        server=_server if db.local else None,
+                    )
+                dbs[alias] = db_obj
+            _databases = dbs
+
+    if not _caches:
+        from utilmeta.core.cache import CacheConnections
+        cache_config = CacheConnections.config()
+        caches = {}
+        if cache_config and cache_config.caches:
+            for alias, cache in cache_config.caches.items():
+                cache_obj = Resource.filter(
+                    type='cache',
+                    service=service.name,
+                    ident=alias,
+                    deprecated=False
+                ).first()
+                if not cache_obj:
+                    cache_obj = Resource.objects.create(
+                        type='cache',
+                        service=service.name,
+                        node_id=node_id,
+                        ident=alias,
+                        route=f'cache/{node_id}/{alias}' if node_id else f'cache/{alias}',
+                        server=_server if cache.local else None,
+                    )
+                caches[alias] = cache_obj
+            _caches = caches
 
     # close connections
     from django.db import connections

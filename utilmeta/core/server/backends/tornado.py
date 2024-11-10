@@ -19,6 +19,7 @@ class TornadoServerAdaptor(ServerAdaptor):
     def __init__(self, config):
         super().__init__(config)
         self.app = self.config._application if isinstance(self.config._application, self.application_cls) else None
+        self._ready = False
 
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:
@@ -27,6 +28,9 @@ class TornadoServerAdaptor(ServerAdaptor):
         path = f'/{route.strip("/")}/(.*)' if route.strip('/') else '(.*)'
         return path, func
         # todo: support add APIs to application
+
+    def load_route(self, path: str):
+        return (path or '').strip('/')
 
     def get_request_handler(self, utilmeta_api_class, asynchronous: bool = False, append_slash: bool = False):
         request_adaptor_cls = self.request_adaptor_cls
@@ -71,7 +75,6 @@ class TornadoServerAdaptor(ServerAdaptor):
                 async def handle(self, path: str):
                     request = None
                     try:
-                        path = service.load_route(path)
                         request = Request(request_adaptor_cls(self.request, path))
                         response: Optional[Response] = None
 
@@ -82,6 +85,7 @@ class TornadoServerAdaptor(ServerAdaptor):
                                 break
 
                         if response is None:
+                            request.adaptor.route = service.load_route(path)
                             response: Response = await utilmeta_api_class(request)()
                         if not isinstance(response, Response):
                             response = Response(response=response, request=request)
@@ -133,7 +137,6 @@ class TornadoServerAdaptor(ServerAdaptor):
                 def handle(self, path: str):
                     request = None
                     try:
-                        path = service.load_route(path)
                         request = Request(request_adaptor_cls(self.request, path))
                         response: Optional[Response] = None
 
@@ -144,6 +147,7 @@ class TornadoServerAdaptor(ServerAdaptor):
                                 break
 
                         if response is None:
+                            request.adaptor.route = service.load_route(path)
                             response: Response = utilmeta_api_class(request)()
                         if not isinstance(response, Response):
                             response = Response(response=response, request=request)
@@ -186,11 +190,26 @@ class TornadoServerAdaptor(ServerAdaptor):
             await self.config.shutdown()
 
     def setup(self):
+        if self._ready and self.app:
+            return self.app
+
+        root_api = self.resolve()
+        if self.config.root_url:
+            url_pattern = rf'/{self.config.root_url}(\/.*)?'
+        else:
+            url_pattern = '/' + root_api._get_route_pattern().lstrip('^')
+
         if self.app:
+            self.app.add_handlers(
+                '.*', [
+                    (url_pattern, self.request_handler)
+                ]
+            )
             return self.app
         self.app = self.application_cls([
-            ('(.*)', self.request_handler)
+            (url_pattern, self.request_handler)
         ])
+        self._ready = True
         return self.app
 
     def run(self):

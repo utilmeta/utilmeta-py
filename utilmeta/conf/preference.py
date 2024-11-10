@@ -1,5 +1,5 @@
 from .base import Config
-from typing import Union, List, Dict, Type, Optional
+from typing import Dict, Type, Optional, Any
 from utilmeta.utils import ERROR_STATUS
 
 DEFAULT_MAX_RETRY_LOOPS = 1000
@@ -11,7 +11,13 @@ class Preference(Config):
     client_max_retry_loops: int
     api_default_strict_response: Optional[bool]
     client_default_strict_response: Optional[bool]
-    default_status: Optional[int]
+    client_default_request_backend: Any
+    default_response_status: Optional[int]
+
+    orm_default_query_distinct: Optional[bool]
+    orm_default_save_with_relations: bool
+    # orm_default_filter_required: Optional[bool]
+    # orm_default_field_fail_silently: bool
 
     def __init__(
         self,
@@ -30,7 +36,13 @@ class Preference(Config):
         error_status: Dict[Type[Exception], int] = ERROR_STATUS,
         api_default_strict_response: Optional[bool] = None,
         client_default_strict_response: Optional[bool] = True,
-        default_status: Optional[int] = 200,
+        client_default_request_backend=None,
+        default_response_status: Optional[int] = 200,
+        # ---------
+        orm_default_save_with_relations: bool = True,
+        orm_default_query_distinct: Optional[bool] = None,
+        # orm_default_filter_required: Optional[bool] = False,
+        # orm_default_field_fail_silently: bool = False,
     ):
         super().__init__(locals())
 

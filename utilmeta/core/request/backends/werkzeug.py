@@ -69,11 +69,3 @@ class WerkzeugRequestAdaptor(RequestAdaptor):
             parsed_files[key] = [File(self.file_adaptor_cls(file)) for file in files]
         form.update(parsed_files)
         return form
-
-    async def async_load(self):
-        try:
-            return self.get_content()
-        except NotImplementedError:
-            raise
-        except Exception as e:
-            raise exceptions.UnprocessableEntity(f'process request body failed with error: {e}') from e

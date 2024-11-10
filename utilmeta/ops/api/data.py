@@ -1,6 +1,7 @@
 from utilmeta.core import api, request
 from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
 from utilmeta.utils import import_obj, reduce_value, SECRET, adapt_async, exceptions, awaitable
+from ..schema import TableSchema
 from utilmeta.core.orm import ModelAdaptor
 from utype.types import *
 from .utils import config
@@ -92,6 +93,12 @@ class DataAPI(api.API):
                     data[k] = reduce_value(data[k], max_length=max_length)
             return data
         return reduce_value(data, max_length=max_length)
+
+    @api.get('tables')
+    @opsRequire('data.view')
+    def get_tables(self) -> List[TableSchema]:
+        from ..resources import ResourcesManager
+        return ResourcesManager().get_tables()
 
     # scope: data.view:[TABLE_IDENT]
     @api.post('query')

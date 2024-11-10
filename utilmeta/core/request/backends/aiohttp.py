@@ -1,12 +1,18 @@
 from aiohttp.web_request import Request
 from .base import RequestAdaptor
-from utilmeta.utils import async_to_sync
-from utilmeta.utils import exceptions as exc
+from utilmeta.utils import async_to_sync, RequestType
+from utilmeta.core.file.backends.aiohttp import AiohttpFileAdaptor
 import aiohttp
+from utype import unprovided
+from multidict import MultiDictProxy
+from aiohttp.web_request import FileField
+from typing import Union
+from utilmeta.core.file import File
 
 
 class AiohttpRequestAdaptor(RequestAdaptor):
     backend = aiohttp
+    file_adaptor_cls = AiohttpFileAdaptor
 
     @property
     def request_method(self):
@@ -41,24 +47,29 @@ class AiohttpRequestAdaptor(RequestAdaptor):
 
     @property
     def body(self):
-        if 'body' in self.__dict__:
-            return self.__dict__.get('body')
+        if not unprovided(self._body):
+            return self._body
         return async_to_sync(self.async_read)()
 
-    async def async_load(self):
-        try:
-            if self.form_type:
-                return await self.request.post()
-            elif self.json_type:
-                return await self.request.json()
-            elif self.text_type:
-                return await self.request.text()
-            self.__dict__['body'] = await self.request.read()
-            return self.get_content()
-        except NotImplementedError:
-            raise
-        except Exception as e:
-            raise exc.UnprocessableEntity(f'process request body failed with error: {e}') from e
+    def process_form(self, data: MultiDictProxy[Union[str, bytes, FileField]]):
+        form = {}
+        result = {}
+        for key, value in data.items():
+            # https://aiohttp-kxepal-test.readthedocs.io/en/latest/multidict.html
+            if isinstance(value, FileField):
+                value = File(self.file_adaptor_cls(value))
+            form.setdefault(key, []).append(value)
+        for key, val in form.items():
+            if len(val) == 1:
+                result[key] = val[0]
+            else:
+                result[key] = val
+        return result
+
+    async def async_get_content(self):
+        if self.content_type == RequestType.FORM_DATA:
+            return self.process_form(await self.request.post())
+        return self.get_content()
 
     async def async_read(self):
         return await self.request.read()

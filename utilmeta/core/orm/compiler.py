@@ -3,6 +3,7 @@ from .fields.field import ParserQueryField
 from .context import QueryContext
 from typing import List, Any, Dict, Tuple, Type, Union, TYPE_CHECKING
 from utilmeta.utils import awaitable
+from utilmeta.conf import Preference
 from utype import unprovided
 
 if TYPE_CHECKING:
@@ -92,6 +93,7 @@ class BaseQueryCompiler:
         # self.recursive_pk_list = []
         self.recursively = False
         self.values: List[dict] = []
+        self.pref = Preference.get()
 
     @property
     def ident(self):
@@ -169,11 +171,13 @@ class BaseQueryCompiler:
     async def get_values(self) -> List[dict]:
         raise NotImplementedError
 
-    def process_data(self, data: dict, with_relations: bool = False) -> Tuple[dict, dict, dict]:
+    def process_data(self, data: dict, with_relations: bool = None) -> Tuple[dict, dict, dict]:
         if not isinstance(data, dict):
             return {}, {}, {}
         if not isinstance(data, self.parser.obj):
             data = self.parser(data)
+        if with_relations is None:
+            with_relations = self.pref.orm_default_save_with_relations
 
         result = {}
         relation_keys = {}

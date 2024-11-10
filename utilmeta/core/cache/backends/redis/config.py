@@ -30,6 +30,10 @@ class RedisCache(Cache):
             **kwargs
         )
 
+    @property
+    def type(self) -> str:
+        return 'redis'
+
     def get_location(self):
         if self.location:
             return self.location
@@ -48,3 +52,10 @@ class RedisCache(Cache):
         from aioredis.client import Redis
         cli: Redis = self.get_adaptor(True).get_cache()
         return cli
+
+    def info(self):
+        from redis.exceptions import ConnectionError
+        try:
+            return self.con.info()
+        except ConnectionError:
+            return {}

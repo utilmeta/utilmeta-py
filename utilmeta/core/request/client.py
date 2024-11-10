@@ -9,7 +9,6 @@ from utilmeta.utils import Headers, pop, file_like, guess_mime_type, \
     parse_query_string, parse_query_dict
 from collections.abc import Mapping
 from utilmeta.core.file import File
-import mimetypes
 
 
 class ClientRequest:
@@ -326,6 +325,9 @@ class ClientRequestAdaptor(RequestAdaptor):
 
     @property
     def body(self) -> bytes:
+        # do not use _body
+        # if not unprovided(self._body):
+        #     return self._body
         return self.request.body
 
     @body.setter
@@ -335,8 +337,9 @@ class ClientRequestAdaptor(RequestAdaptor):
     async def async_read(self):
         return self.request.body
 
-    async def async_load(self):
-        return self.get_content()
+    # async def async_load(self):
+    #     return self.get_content()
 
     def set_content(self, data):
         self.request.data = data
+        # self._data = data

@@ -9,6 +9,7 @@ from utilmeta.utils import (DEFAULT_SECRET_NAMES, url_join, localhost,
 from typing import Union
 from urllib.parse import urlsplit
 from utilmeta import UtilMeta, __version__
+from . import __website__
 from utilmeta.core import api
 import sys
 import hashlib
@@ -24,6 +25,41 @@ class Operations(Config):
     ROUTER_NAME: ClassVar = '_OperationsDatabaseRouter'
 
     Database: ClassVar = Database
+
+    class Monitor(Config):
+        worker_disabled: bool
+        server_disabled: bool
+        instance_disabled: bool
+        database_disabled: bool
+        cache_disabled: bool
+
+        worker_retention: timedelta
+        server_retention: timedelta
+        instance_retention: timedelta
+        database_retention: timedelta
+        cache_retention: timedelta
+        # WORKER_MONITOR_RETENTION = timedelta(hours=12)
+        # DISCONNECTED_WORKER_RETENTION = timedelta(hours=12)
+        # DISCONNECTED_INSTANCE_RETENTION = timedelta(days=3)
+        # DISCONNECTED_SERVER_RETENTION = timedelta(days=3)
+        # SERVER_MONITOR_RETENTION = timedelta(days=7)
+        # INSTANCE_MONITOR_RETENTION = timedelta(days=7)
+
+        def __init__(
+            self,
+            worker_disabled: bool = False,
+            server_disabled: bool = False,
+            instance_disabled: bool = False,
+            database_disabled: bool = False,
+            cache_disabled: bool = False,
+            # ----------------------------
+            worker_retention: timedelta = timedelta(hours=12),
+            server_retention: timedelta = timedelta(days=7),
+            instance_retention: timedelta = timedelta(days=7),
+            database_retention: timedelta = timedelta(days=7),
+            cache_retention: timedelta = timedelta(days=7),
+        ):
+            super().__init__(locals())
 
     def __init__(self,
                  route: str,
@@ -47,8 +83,15 @@ class Operations(Config):
                  # - save the logs
                  # - save the worker monitor
                  # - the main (with min pid) worker will do the monitor tasks
-                 openapi: Union[str, dict, Callable, None] = None,     # openapi paths
+                 openapi=None,     # openapi paths
+                 monitor: Monitor = Monitor(),
+                 report_disabled: bool = False,
                  max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
+                 local_scope: List[str] = (
+                    'api.view',
+                    'metrics.view',
+                    'log.view',
+                    'data.view')
                  ):
         super().__init__(locals())
 
@@ -74,17 +117,20 @@ class Operations(Config):
         self.worker_task_cls_string = worker_task_cls
         self.max_backlog = max_backlog
         self.external_openapi = openapi
+        self.local_scope = list(local_scope or [])
+        self.report_disabled = report_disabled
 
         if base_url:
             parsed = urlsplit(base_url)
             if not parsed.scheme:
                 raise ValueError(f'Operations base_url should be an absolute url, got {base_url}')
-
         self._base_url = base_url
 
         if self.HOST not in self.trusted_hosts:
             self.trusted_hosts.append(self.HOST)
-
+        if not isinstance(monitor, self.Monitor):
+            raise TypeError(f'Operations monitor config must be a Monitor instance, got {monitor}')
+        self.monitor = monitor
         self.logger_cls_string = logger_cls
         self.resources_manager_cls_string = resources_manager_cls
         self._ready = False
@@ -275,7 +321,7 @@ class Operations(Config):
             return
 
         print(f'UtilMeta operations API loaded at {ops_api}, '
-              f'you can visit https://ops.utilmeta.com to manage your APIs')
+              f'you can visit {__website__} to manage your APIs')
         # from .log import setup_locals
         # threading.Thread(target=setup_locals, args=(self,)).start()
         # task
@@ -312,6 +358,38 @@ class Operations(Config):
                         return False
                     return None
         return OperationsDatabaseRouter
+
+    def migrate(self):
+        import warnings
+        from django.db.migrations.executor import MigrationExecutor
+        from django.db import connections, connection
+        ops_conn = connections[self.db_alias]
+        executor = MigrationExecutor(ops_conn)
+        migrate_apps = ['ops', 'contenttypes']
+        try:
+            targets = [
+                key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
+            ]
+            plan = executor.migration_plan(targets)
+            if not plan:
+                return
+            executor.migrate(targets, plan)
+        except Exception as e:
+            warnings.warn(f'migrate operation models failed with error: {e}')
+        # ----------
+        if connection != ops_conn:
+            try:
+                executor = MigrationExecutor(connection)
+                targets = [
+                    key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
+                ]
+                plan = executor.migration_plan(targets)
+                if not plan:
+                    return
+                executor.migrate(targets, plan)
+            except Exception as e:
+                # ignore migration in default db
+                warnings.warn(f'migrate operation models to default database failed: {e}')
 
     @property
     def ops_api(self):

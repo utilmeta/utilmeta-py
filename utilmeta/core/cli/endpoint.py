@@ -142,7 +142,14 @@ class ClientEndpoint(BaseEndpoint):
             kwargs[self.parser.pos_key_map[i]] = arg
 
         client_params = client.get_client_params()
-        url = utils.url_join(client_params.base_url or '', self.route, append_slash=client_params.append_slash)
+        try:
+            url = utils.url_join(
+                client_params.base_url or '', self.route, append_slash=client_params.append_slash
+            )
+        except Exception as e:
+            raise e.__class__(f'utilmeta.core.cli.Client: build request url with base_url:'
+                              f' {repr(client_params.base_url)} and route: {repr(self.route)} failed: {e}') from e
+
         query = dict(client_params.base_query or {})
         headers = dict(client_params.base_headers or {})
         cookies = SimpleCookie(client_params.base_cookies or {})
@@ -231,9 +238,16 @@ class ClientEndpoint(BaseEndpoint):
         if not self.response_types:
             return response
 
+        if response.is_aborted:
+            # return if response is generated from aborted error
+            return response
+
         for i, response_cls in enumerate(self.response_types):
-            if response_cls != Response and isinstance(response, response_cls):
-                return response
+            if isinstance(response, response_cls):
+                if response_cls != Response or len(self.response_types) == 1:
+                    # if response types is only -> Response
+                    # return any
+                    return response
 
         pref = Preference.get()
         for i, response_cls in enumerate(self.response_types):

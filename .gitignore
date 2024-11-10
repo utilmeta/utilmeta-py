@@ -23,6 +23,10 @@ __pycache__/
 /tests/test_7_ops/fastapi_site/operations_db
 /tests/test_7_ops/django_site/__default_db
 /tests/test_7_ops/django_site/operations_db
+/tests/test_7_ops/sanic_site/__default_db
+/tests/test_7_ops/sanic_site/operations_db
+/tests/test_7_ops/tornado_site/__default_db
+/tests/test_7_ops/tornado_site/operations_db
 *.sqlite3
 db
 db_ops

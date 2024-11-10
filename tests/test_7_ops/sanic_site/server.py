@@ -34,8 +34,9 @@ Operations(
         engine='sqlite3'
     ),
     secure_only=False,
-    trusted_hosts=['127.0.0.1']
+    trusted_hosts=['127.0.0.1'],
+    base_url='http://127.0.0.1:7800',
 ).integrate(app, __name__)
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=7800)

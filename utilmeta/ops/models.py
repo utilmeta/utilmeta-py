@@ -209,6 +209,8 @@ class SystemMetrics(models.Model):
 
 
 class DatabaseConnection(models.Model):
+    objects = models.Manager()
+
     database: Resource = models.ForeignKey(Resource, related_name='database_connections', on_delete=models.CASCADE)
     # remote_id = CharField(max_length=100)
     status = models.CharField(max_length=40)

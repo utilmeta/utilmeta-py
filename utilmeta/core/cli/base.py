@@ -10,6 +10,7 @@ from http.cookies import SimpleCookie
 from .backends.base import ClientRequestAdaptor
 from utilmeta.core.response import Response
 from utilmeta.core.response.base import Headers
+from utilmeta.conf import Preference
 from .endpoint import ClientEndpoint, ClientRoute
 from .chain import ClientChainBuilder
 from utilmeta.core.request import Request
@@ -192,7 +193,8 @@ class Client(PluginTarget):
         super().__init__(plugins=plugins)
 
         if not backend:
-            backend = urllib
+            pref = Preference.get()
+            backend = pref.client_default_request_backend or urllib
 
         self._internal = internal
         self._mock = mock
@@ -464,11 +466,23 @@ class Client(PluginTarget):
                     timeout = self._default_timeout
             if timeout is not None:
                 timeout = float(timeout)
-            resp = adaptor(
-                timeout=timeout,
-                allow_redirects=self._allow_redirects
-            )
-            response = Response(response=resp, request=request)
+            try:
+                resp = adaptor(
+                    timeout=timeout,
+                    allow_redirects=self._allow_redirects
+                )
+            except Exception as e:
+                if not self._fail_silently:
+                    raise e from e
+                timeout = 'timeout' in str(e).lower()
+                response = Response(
+                    timeout=timeout,
+                    error=e,
+                    request=request,
+                    aborted=True
+                )
+            else:
+                response = Response(response=resp, request=request)
 
         if response.cookies:
             # update response cookies
@@ -496,13 +510,25 @@ class Client(PluginTarget):
             adaptor: ClientRequestAdaptor = ClientRequestAdaptor.dispatch(request)
             if timeout is None:
                 timeout = request.adaptor.get_context('timeout')        # slot
-            resp = adaptor(
-                timeout=timeout or self._default_timeout,
-                allow_redirects=self._allow_redirects
-            )
-            if inspect.isawaitable(resp):
-                resp = await resp
-            response = Response(response=resp, request=request)
+            try:
+                resp = adaptor(
+                    timeout=timeout or self._default_timeout,
+                    allow_redirects=self._allow_redirects
+                )
+                if inspect.isawaitable(resp):
+                    resp = await resp
+            except Exception as e:
+                if not self._fail_silently:
+                    raise e from e
+                timeout = 'timeout' in str(e).lower()
+                response = Response(
+                    timeout=timeout,
+                    error=e,
+                    request=request,
+                    aborted=True
+                )
+            else:
+                response = Response(response=resp, request=request)
         return response
 
     def request(self, method: str, path: str = None, query: dict = None,

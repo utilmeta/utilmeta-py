@@ -1,5 +1,5 @@
-from utilmeta.core.request import Request
-
-
-class WebsocketRequest(Request):
-    pass
+# from utilmeta.core.request import Request
+#
+#
+# class WebsocketRequest(Request):
+#     pass

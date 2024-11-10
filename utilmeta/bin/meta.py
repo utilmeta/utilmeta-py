@@ -153,12 +153,19 @@ class MetaCommand(BaseServiceCommand):
         print(f'  environment:', sys.version, platform.platform())
 
     @command
-    def run(self):
+    def run(self,
+            daemon: bool = Arg('-d', default=False),
+            log: str = Arg('--log', default='service.log'),
+            ):
         """
         run utilmeta service and start to serve requests (for debug only)
         """
         print(f'UtilMeta service {BLUE % self.service.name} running at {self.main_file}')
-        run(f'{sys.executable} {self.main_file}')
+        cmd = f'{sys.executable} {self.main_file}'
+        if daemon:
+            print(f'running service with nohup in background, writing log to {log}')
+            cmd = f'nohup {cmd} > {log} 2>&1 &'
+        run(cmd)
 
 
 def main():

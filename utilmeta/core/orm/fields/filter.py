@@ -1,5 +1,6 @@
 import inspect
 from utype import Field
+# from utilmeta.conf import Preference
 from utype.parser.field import ParserField
 from utype.types import *
 
@@ -23,6 +24,11 @@ class Filter(Field):
         self.field = field
         self.query = query
         self.order = order
+        # pref = Preference.get()
+        # if fail_silently is None:
+        #     fail_silently = pref.orm_default_field_fail_silently
+        # if required is None:
+        #     required = pref.orm_default_filter_required
         self.fail_silently = fail_silently
         super().__init__(**kwargs, required=required)
 
@@ -38,9 +44,9 @@ class ParserFilter(ParserField):
     field_cls = Filter
 
     def __init__(
-            self,
-            model: 'ModelAdaptor' = None,
-            **kwargs
+        self,
+        model: 'ModelAdaptor' = None,
+        **kwargs
     ):
         super().__init__(**kwargs)
         from ..backends.base import ModelAdaptor, ModelFieldAdaptor

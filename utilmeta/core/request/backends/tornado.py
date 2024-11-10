@@ -54,13 +54,13 @@ class TornadoServerRequestAdaptor(RequestAdaptor):
     async def async_read(self):
         return self.request.body
 
-    async def async_load(self):
-        try:
-            return self.get_content()
-        except NotImplementedError:
-            raise
-        except Exception as e:
-            raise exc.UnprocessableEntity(f'process request body failed with error: {e}') from e
+    # async def async_load(self):
+    #     try:
+    #         return self.get_content()
+    #     except NotImplementedError:
+    #         raise
+    #     except Exception as e:
+    #         raise exc.UnprocessableEntity(f'process request body failed with error: {e}') from e
 
     def get_form(self):
         form = dict(self.request.body_arguments)

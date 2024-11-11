@@ -17,6 +17,7 @@ class CORSPlugin(APIPlugin):
                  allow_origin: Union[List[str], str] = None,
                  cors_max_age: Union[int, timedelta, float] = None,
                  allow_headers: List[str] = (),
+                 allow_errors: List[Type[Exception]] = (Exception,),
                  expose_headers: List[str] = None,
                  csrf_exempt: bool = None,
                  exclude_statuses: List[int] = EXCLUDED_STATUS,
@@ -53,6 +54,11 @@ class CORSPlugin(APIPlugin):
                 if dh not in allow_headers:
                     allow_headers.append(dh)
 
+        if allow_errors and not multi(allow_errors):
+            allow_errors = [allow_errors]
+
+        self.allow_errors = tuple([e for e in allow_errors if isinstance(e, type) and issubclass(e, Exception)]) \
+            if allow_errors else None
         self.allow_origin = allow_origin
         self.cors_max_age = cors_max_age
         self.allow_headers = allow_headers or []
@@ -138,7 +144,26 @@ class CORSPlugin(APIPlugin):
         return response
 
     def handle_error(self, error, api=None):
+        if not self.allow_errors:
+            return
+        if not isinstance(error.exception, self.allow_errors):
+            return
         # if error is uncaught
+        if api:
+            make_response = getattr(api, '_make_response', None)
+            # this is a rather ugly hack, maybe we will figure out something nicer or universal
+            # because we need to postpone the response process
+            if callable(make_response):
+                from functools import wraps
+
+                @wraps(make_response)
+                def _make_response(response, force: bool = False):
+                    return self.process_response(make_response(response, force))
+                api._make_response = _make_response
+                return
+                # process with error hooks
+                # response = api._make_response(api._handle_error(error))
+                # if error is raised here
         return self.process_response((getattr(api, 'response', None) or Response)(
             error=error,
             request=error.request

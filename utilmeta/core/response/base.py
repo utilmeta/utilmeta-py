@@ -378,7 +378,9 @@ class Response:
     def init_error(self, error: Union[Error, Exception]):
         if isinstance(error, Exception):
             error = Error(error, request=self.request)
-        elif not isinstance(error, Error):
+        elif isinstance(error, Error):
+            self.request = self.request or error.request
+        else:
             return
         if not self.status:
             self.status = error.status

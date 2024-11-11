@@ -399,6 +399,8 @@ class LogMiddleware(ServiceMiddleware):
         worker_logger.log(
             duration=response.duration_ms,
             error=response.status >= 500,
+            in_traffic=response.request.traffic,
+            out_traffic=response.traffic,
         )
 
         if logger.omitted:

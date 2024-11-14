@@ -1,5 +1,5 @@
 from utilmeta.core import api, request, orm
-from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
+from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire, config
 from ..models import AccessToken
 from utilmeta.utils import exceptions, adapt_async
 from utype.types import *
@@ -42,7 +42,7 @@ class TokenAPI(api.API):
 
     @api.get
     @opsRequire('token.view')
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     def get(self, query: AccessTokenQuery) -> List[AccessTokenSchema]:
         if not self.supervisor.id or not self.supervisor.node_id:
             raise exceptions.NotFound('Supervisor not found', state='supervisor_not_found')
@@ -53,7 +53,7 @@ class TokenAPI(api.API):
 
     @api.post
     @opsRequire('token.revoke')
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     # this token will be generated and send directly from supervisor
     def revoke(self, id_list: List[str] = request.Body) -> int:
         if not self.supervisor.id or not self.supervisor.node_id:

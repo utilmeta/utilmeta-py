@@ -73,12 +73,16 @@ class Supervisor(models.Model):
 
     @classmethod
     def filter(cls, *args, **kwargs) -> models.QuerySet:
+        q = models.Q(
+            local=True
+        ) | models.Q(
+            public_key__isnull=False,
+        )
         kwargs.update(
             node_id__isnull=False,
-            public_key__isnull=False,
             disabled=False
         )
-        return cls.objects.filter(*args, **kwargs)
+        return cls.objects.filter(*args, q, **kwargs)
 
     @classmethod
     def current(cls) -> models.QuerySet:

@@ -235,28 +235,46 @@ def from_coroutine(level=2, _cache={}):
             return False
 
 
-def adapt_async(func):
-    if inspect.iscoroutinefunction(func) or inspect.isasyncgenfunction(func):
-        return func
+def adapt_async(f=None, close_conn=True):
 
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            from utilmeta import service
-        except ImportError:
-            pass
-        else:
-            if service.asynchronous:
-                return service.pool.get_result(func, *args, **kwargs)
-        return func(*args, **kwargs)
-    return wrapper
+    def decorator(func):
+        if inspect.iscoroutinefunction(func) or inspect.isasyncgenfunction(func):
+            return func
+
+        def close_wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            finally:
+                if close_conn:
+                    from django.db import connections
+                    if isinstance(close_conn, str):
+                        conn = connections[close_conn]
+                        if conn:
+                            conn.close()
+                    else:
+                        connections.close_all()
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                from utilmeta import service
+            except ImportError:
+                pass
+            else:
+                if service.asynchronous:
+                    return service.pool.get_result(close_wrapper, *args, **kwargs)
+            return func(*args, **kwargs)
+        return wrapper
+    if f:
+        return decorator(f)
+    return decorator
 
 
 from contextvars import ContextVar
 from_thread = ContextVar('from_thread')
 
 
-def awaitable(syncfunc, bind_service: bool = False):
+def awaitable(syncfunc, bind_service: bool = False, close_conn: bool = False):
     '''
     Decorator that allows an asynchronous function to be paired with a
     synchronous function in a single function call.  The selection of
@@ -309,6 +327,9 @@ def awaitable(syncfunc, bind_service: bool = False):
                                     return sync_func(*_, **__)
                                 finally:
                                     from_thread.set(False)
+                                    if close_conn:
+                                        from django.db import connections
+                                        connections.close_all()
                             return service.pool.get_result(sync_func_wrapper, *args, **kwargs)
                 return sync_func(*args, **kwargs)
         wrapper._syncfunc = sync_func

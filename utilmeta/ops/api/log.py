@@ -1,4 +1,4 @@
-from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
+from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire, config
 import utype
 
 from utilmeta.core import api, orm
@@ -65,7 +65,7 @@ class LogAPI(api.API):
 
     @opsRequire('log.view')
     @api.get
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     def service(self, query: LogQuery):
         base_qs = ServiceLog.objects.filter(
             service=self.supervisor.service,
@@ -81,7 +81,7 @@ class LogAPI(api.API):
 
     @opsRequire('log.view')
     @api.get('service/values')
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     def service_log_values(self, query: LogQuery):
         base_qs = ServiceLog.objects.filter(
             service=self.supervisor.service,
@@ -101,7 +101,7 @@ class LogAPI(api.API):
         return result
 
     @opsRequire('log.delete')
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     def delete(self, query: LogQuery):
         qs = query.get_queryset(
             ServiceLog.objects.filter(
@@ -113,7 +113,7 @@ class LogAPI(api.API):
 
     @opsRequire('log.view')
     @api.get
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     def realtime(
         self,
         within: int = utype.Param(3600, ge=1, le=7200),

@@ -135,7 +135,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         self.clear_pks()
         return self.values
 
-    @awaitable(get_values, bind_service=True)
+    @awaitable(get_values, bind_service=True, close_conn=True)
     async def get_values(self):
         if self.queryset.query.is_empty():
             return []
@@ -659,7 +659,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 raise self.get_integrity_error(e) from e
         return self.queryset
 
-    @awaitable(commit_data, bind_service=True)
+    @awaitable(commit_data, bind_service=True, close_conn=True)
     async def commit_data(self, data: dict):
         data, _, _ = self.process_data(data, with_relations=False)
         for p in {PK, ID, *self.parser.pk_names}:
@@ -759,7 +759,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     )
                 return pk
 
-    @awaitable(save_data, bind_service=True)
+    @awaitable(save_data, bind_service=True, close_conn=True)
     async def save_data(self,
                         data,
                         must_create: bool = False,

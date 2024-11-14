@@ -7,7 +7,8 @@ import utype
 
 from utilmeta.utils import get_max_open_files, get_max_socket_conn, get_mac_address, get_sql_info, \
     get_sys_net_connections_info, get_system_fds, get_system_open_files, get_server_ip, DB, ignore_errors
-from .schema import ServerSchema, DatabaseConnectionSchema
+from .schema import ServerSchema
+from .models import DatabaseConnection
 from utilmeta.core.orm import DatabaseConnections
 from utilmeta.core.cache import CacheConnections, Cache
 from typing import Optional, Tuple
@@ -183,7 +184,7 @@ def get_db_connections(using: str):
                 operation, tables = get_sql_info(query)
                 if not operation:
                     continue
-                values.append(DatabaseConnectionSchema(
+                values.append(DatabaseConnection(
                     status=state,
                     active=state == 'active',
                     client_addr=client_addr,

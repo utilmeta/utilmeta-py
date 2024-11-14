@@ -110,6 +110,8 @@ class DBSessionSchema(BaseSessionSchema):
         if self.session_key is None:
             return self.create()
         obj = self.load_object(must_create)
+        if not obj.pk:
+            must_create = True
         obj.save(force_insert=must_create, force_update=not must_create and force)
 
     # @awaitable(db_save)
@@ -117,6 +119,8 @@ class DBSessionSchema(BaseSessionSchema):
         if self.session_key is None:
             return await self.acreate()
         obj = await self.aload_object(must_create)
+        if not obj.pk:
+            must_create = True
         await obj.asave(force_insert=must_create, force_update=not must_create and force)
 
     def save(self, must_create: bool = False):

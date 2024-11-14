@@ -56,7 +56,6 @@ class UtilMeta:
         self.meta_path = None
         self.project_dir = Path(os.getcwd())
         self.meta_config = {}
-        self.root_api = api
         self.root_url = str(route or '').strip('/')
 
         if self.root_url:
@@ -95,6 +94,10 @@ class UtilMeta:
         self._application = None
         self._auto_created = False
         self._ready = False
+        self._unmounted_apis = {}
+        self._root_api = None
+        self._root_api_ref = None
+        self.root_api = api
 
         import utilmeta
         try:
@@ -116,6 +119,29 @@ class UtilMeta:
 
         self.load_meta()
         self._pool = None
+
+    @property
+    def root_api(self):
+        try:
+            return self.resolve()
+        except ValueError:
+            return None
+
+    @root_api.setter
+    def root_api(self, api):
+        if inspect.isclass(api) and issubclass(api, API):
+            for route, sub_api in self._unmounted_apis.items():
+                try:
+                    api.__mount__(sub_api, route=route)
+                except ValueError as e:
+                    warnings.warn(f'utilmeta.service: mount {sub_api} to service failed with error: {e}')
+            self._unmounted_apis = {}
+            self._root_api = api
+        elif isinstance(api, str):
+            self._root_api_ref = api
+        elif api:
+            raise TypeError(f'Invalid root API for UtilMeta service: {api}, should be a API class'
+                            f' inheriting utilmeta.core.api.API or a string reference to that class')
 
     def load_meta(self):
         self.meta_path = search_file('utilmeta.ini') or search_file('meta.ini')
@@ -359,7 +385,7 @@ class UtilMeta:
             self.adaptor.mount(api, route=route)
             return
 
-        if self.root_api:
+        if self._root_api:
             if getattr(self.root_api, '__ref__', str(self.root_api)) != getattr(api, '__ref__', str(api)):
                 raise ValueError(f'UtilMeta: root api conflicted: {api}, {self.root_api}, '
                                  f'you can only mount a service once')
@@ -367,22 +393,41 @@ class UtilMeta:
         self.root_api = api
         self.root_url = str(route).strip('/')
 
+    def mount_to_api(self, api, route: str):
+        if not inspect.isclass(api) and issubclass(api, API):
+            raise TypeError(f'Invalid API: {api}')
+        route = str(route).strip('/')
+        try:
+            root_api = self.resolve()
+        except ValueError:
+            # if API is not loaded, we lazy-mount
+            pass
+        else:
+            try:
+                root_api.__mount__(api, route=route)
+            except ValueError:
+                # router already exists
+                pass
+            return
+        self._unmounted_apis[route] = api
+
     # def mount_ws(self, ws: Union[str, Callable], route: str = ''):
     #     pass
 
-    def resolve(self):
-        if callable(self.root_api):
-            return self.root_api
-        if isinstance(self.root_api, str):
-            if '.' not in self.root_api:
+    def resolve(self) -> Type[API]:
+        if self._root_api:
+            return self._root_api
+        if self._root_api_ref:
+            ref = self._root_api_ref
+            if '.' not in ref:
                 # in current module
-                root_api = getattr(self.module, self.root_api)
+                root_api = getattr(self.module, ref)
             else:
-                root_api = import_obj(self.root_api)
+                root_api = import_obj(ref)
             self.root_api = root_api
-        if not callable(self.root_api):
-            raise ValueError(f'utilMeta: api not mount')
-        return self.root_api
+        if not self._root_api:
+            raise ValueError('utilmeta.service: RootAPI not mounted')
+        return self._root_api
 
     def print_info(self):
         from utilmeta import __version__

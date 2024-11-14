@@ -55,7 +55,7 @@ class OperationsAPI(api.API):
             logger.make_events_only(True)
 
     # @orm.Atomic(config.db_alias)
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     def post(self, data: SupervisorData = request.Body):
         save_supervisor(data)
         return dict(
@@ -79,7 +79,7 @@ class OperationsAPI(api.API):
             timestamp=int(self.request.time.timestamp() * 1000),
         )
 
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     @opsRequire('service.config')
     def patch(self, data: SupervisorPatch = request.Body):
         supervisor: SupervisorObject = supervisor_var.getter(self.request)
@@ -106,7 +106,7 @@ class OperationsAPI(api.API):
             **self.get()
         )
 
-    @adapt_async
+    @adapt_async(close_conn=config.db_alias)
     @opsRequire('service.delete')
     def delete(self):
         supervisor: SupervisorObject = supervisor_var.getter(self.request)

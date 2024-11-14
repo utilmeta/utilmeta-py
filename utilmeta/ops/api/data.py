@@ -103,7 +103,8 @@ class DataAPI(api.API):
     # scope: data.view:[TABLE_IDENT]
     @api.post('query')
     @opsRequire('data.query')
-    @adapt_async
+    @adapt_async(close_conn=True)
+    # close all connections
     def query_data(self, query: QuerySchema = request.Body):
         try:
             unsliced_qs = self.adaptor.get_queryset(**query.query)
@@ -123,7 +124,8 @@ class DataAPI(api.API):
 
     @api.post('create')
     @opsRequire('data.create')
-    @adapt_async
+    @adapt_async(close_conn=True)
+    # close all connections
     def create_data(self, data: CreateDataSchema = request.Body):
         objs = []
         for val in data.data:
@@ -134,7 +136,8 @@ class DataAPI(api.API):
 
     @api.post('update')
     @opsRequire('data.update')
-    @adapt_async
+    @adapt_async(close_conn=True)
+    # close all connections
     def update_data(self, data: UpdateDataSchema = request.Body):
         objs = []
         fields = set()

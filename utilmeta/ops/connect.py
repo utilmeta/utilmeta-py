@@ -151,7 +151,7 @@ def connect_supervisor(
             return
 
         if supervisor_obj.public_key:
-            print(f'supervisor for {base_url} already exists as [{supervisor_obj.node_id}],'
+            print(f'supervisor already exists as [{supervisor_obj.node_id}],'
                   f' visit it in {supervisor_obj.url}')
             if supervisor_obj.node_id and not ops_config.node_id:
                 # lost sync, resync here

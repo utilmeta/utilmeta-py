@@ -82,6 +82,12 @@ class Database(Config):
         return localhost(self.host)
 
     @property
+    def location(self):
+        if self.is_sqlite:
+            return self.name
+        return f'{self.host}:{self.port}'
+
+    @property
     def is_sqlite(self):
         return 'sqlite' in self.engine
 

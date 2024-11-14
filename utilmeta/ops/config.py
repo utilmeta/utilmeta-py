@@ -1,4 +1,3 @@
-import inspect
 import threading
 
 from utilmeta.conf import Config
@@ -10,7 +9,6 @@ from typing import Union
 from urllib.parse import urlsplit
 from utilmeta import UtilMeta, __version__
 from . import __website__
-from utilmeta.core import api
 import sys
 import hashlib
 
@@ -86,6 +84,7 @@ class Operations(Config):
                  openapi=None,     # openapi paths
                  monitor: Monitor = Monitor(),
                  report_disabled: bool = False,
+                 task_error_log: str = None,
                  max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
                  local_scope: List[str] = (
                     'api.view',
@@ -133,6 +132,7 @@ class Operations(Config):
         self.monitor = monitor
         self.logger_cls_string = logger_cls
         self.resources_manager_cls_string = resources_manager_cls
+        self.task_error_log = task_error_log
         self._ready = False
         self._node_id = None
         self._openapi = None
@@ -286,18 +286,22 @@ class Operations(Config):
             parsed = urlsplit(self.route)
             if not parsed.scheme:
                 # route instead of URL
-                root_api = service.resolve()
-                if inspect.isclass(root_api) and issubclass(root_api, api.API):
-                    if not issubclass(root_api, OperationsAPI):
-                        # mount the root API only
-                        try:
-                            root_api.__mount__(
-                                OperationsAPI,
-                                route=self.route,
-                            )
-                        except ValueError:
-                            # if already exists, quit mounting
-                            pass
+                service.mount_to_api(OperationsAPI, route=self.route)
+                # try:
+                #     root_api = service.resolve()
+                # except ValueError:
+                #     return
+                # if inspect.isclass(root_api) and issubclass(root_api, api.API):
+                #     if not issubclass(root_api, OperationsAPI):
+                #         # mount the root API only
+                #         try:
+                #             root_api.__mount__(
+                #                 OperationsAPI,
+                #                 route=self.route,
+                #             )
+                #         except ValueError:
+                #             # if already exists, quit mounting
+                #             pass
 
         if service.meta_config:
             node_id = service.meta_config.get('node') or service.meta_config.get('node-id')
@@ -359,10 +363,10 @@ class Operations(Config):
                     return None
         return OperationsDatabaseRouter
 
-    def migrate(self):
+    def migrate(self, with_default: bool = False):
         import warnings
         from django.db.migrations.executor import MigrationExecutor
-        from django.db import connections, connection
+        from django.db import connections
         ops_conn = connections[self.db_alias]
         executor = MigrationExecutor(ops_conn)
         migrate_apps = ['ops', 'contenttypes']
@@ -376,20 +380,22 @@ class Operations(Config):
             executor.migrate(targets, plan)
         except Exception as e:
             warnings.warn(f'migrate operation models failed with error: {e}')
-        # ----------
-        if connection != ops_conn:
-            try:
-                executor = MigrationExecutor(connection)
-                targets = [
-                    key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
-                ]
-                plan = executor.migration_plan(targets)
-                if not plan:
-                    return
-                executor.migrate(targets, plan)
-            except Exception as e:
-                # ignore migration in default db
-                warnings.warn(f'migrate operation models to default database failed: {e}')
+        if with_default:
+            from django.db import connection
+            # ----------
+            if connection != ops_conn:
+                try:
+                    executor = MigrationExecutor(connection)
+                    targets = [
+                        key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
+                    ]
+                    plan = executor.migration_plan(targets)
+                    if not plan:
+                        return
+                    executor.migrate(targets, plan)
+                except Exception as e:
+                    # ignore migration in default db
+                    warnings.warn(f'migrate operation models to default database failed: {e}')
 
     @property
     def ops_api(self):

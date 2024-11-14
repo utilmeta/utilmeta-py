@@ -35,7 +35,7 @@ class OperationsCommand(BaseServiceCommand):
         """
         Connect your API service to UtilMeta platform to manage
         """
-        self.config.migrate()
+        self.config.migrate(with_default=True)
         # before connect
         from .connect import connect_supervisor
 
@@ -80,7 +80,7 @@ class OperationsCommand(BaseServiceCommand):
         """
         View the current service stats
         """
-        self.config.migrate()
+        self.config.migrate(with_default=True)
         from .log import setup_locals
         setup_locals(self.config)
         from .client import OperationsClient, ServiceInfoResponse
@@ -108,8 +108,8 @@ class OperationsCommand(BaseServiceCommand):
 
         print(BANNER % '{:<60}'.format('Service Instance Stats'))
 
-        from .models import InstanceMonitor, Worker
-        from .schema import InstanceMonitorSchema, WorkerSchema
+        from .models import InstanceMonitor, Worker, DatabaseMonitor
+        from .schema import InstanceMonitorSchema, DatabaseMonitorSchema, WorkerSchema
         from utilmeta.core import orm
         latest_monitor = None
         workers = []
@@ -130,7 +130,7 @@ class OperationsCommand(BaseServiceCommand):
         if latest_monitor:
             record_ago = int(time.time() - latest_monitor.time)
             print(f'       Stats Cycle: {latest_monitor.interval} seconds (recorded {record_ago}s ago)')
-            print(f'    Cycle Requests: {latest_monitor.requests} ({latest_monitor.rps} per second)')
+            print(f'          Requests: {latest_monitor.requests} ({latest_monitor.rps} per second)')
             if latest_monitor.errors:
                 print(RED % f'            Errors: {latest_monitor.errors}')
             print(f'          Avg Time: {round(latest_monitor.avg_time, 1)} ms')
@@ -142,13 +142,14 @@ class OperationsCommand(BaseServiceCommand):
                   f'({latest_monitor.active_net_connections} active)')
         if workers:
             print(BANNER % '{:<60}'.format('Service Instance Workers'))
-            fields = ('PID', 'Master', 'Status', 'Requests', 'Avg Time', 'Traffic', 'CPU', 'Memory')
-            form = "{:<10}{:<10}{:<15}{:<25}{:<15}{:<20}{:<8}{:<10}"
+            fields = ('PID', 'Status', 'Threads', 'Requests', 'Avg Time', 'Traffic', 'CPU', 'Memory')
+            form = "{:<10}{:<15}{:<10}{:<25}{:<15}{:<25}{:<8}{:<10}"
             print(form.format(*fields))
+            print('-' * 60)
             for worker in workers:
                 print(form.format(worker.pid,
-                                  worker.master_pid or '-',
                                   f'{DOT} {worker.status}',
+                                  worker.threads,
                                   f'{worker.requests} ({worker.rps} per second)',
                                   f'{worker.avg_time} ms',
                                   f'{readable_size(worker.in_traffic)} In / {readable_size(worker.out_traffic)} Out',
@@ -156,7 +157,38 @@ class OperationsCommand(BaseServiceCommand):
                                   f'{readable_size(worker.used_memory)} ({worker.memory_percent}%)'
                                   ))
 
-        # if _databases:
-        #     print(BANNER & 'UtilMeta Service Instance Databases')
-        # if _caches:
-        #     print(BANNER & 'UtilMeta Service Instance Caches')
+        if _databases:
+            from utilmeta.core.orm import DatabaseConnections
+            db_config = DatabaseConnections.config()
+            if db_config:
+                print(BANNER % '{:<60}'.format('Service Instance Databases'))
+                fields = ('Alias', 'Engine', 'Name', 'Connections', 'Space', 'Location')
+                form = "{:<15}{:<15}{:<15}{:<25}{:<15}{:<50}"
+                print(form.format(*fields))
+                print('-' * 60)
+                for alias, database in _databases.items():
+                    db = db_config.get(alias)
+                    if not db:
+                        continue
+                    conn_str = ''
+                    space_str = ''
+                    max_connections = database.data.get('max_server_connections')
+                    try:
+                        latest_monitor = DatabaseMonitorSchema.init(
+                            DatabaseMonitor.objects.filter(
+                                database=database,
+                                layer=0
+                            ).order_by('-time')
+                        )
+                    except orm.EmptyQueryset:
+                        pass
+                    else:
+                        conn_str = (f'{latest_monitor.current_connections} '
+                                    f'({latest_monitor.active_connections} active)')
+                        if max_connections:
+                            conn_str += f' / {max_connections}'
+                        space_str = f'{readable_size(latest_monitor.used_space)}'
+                    print(form.format(alias, db.type, db.database_name, conn_str, space_str, db.location))
+
+        if _caches:
+            print(BANNER % '{:<60}'.format('Service Instance Caches'))

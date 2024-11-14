@@ -214,7 +214,7 @@ def level_log(f):
 #     ).exists()
 
 
-def setup_locals(config: Operations):
+def setup_locals(config: Operations, close_conn: bool = False):
     from .models import Resource, Worker, Supervisor
     from utilmeta import service
 
@@ -366,9 +366,13 @@ def setup_locals(config: Operations):
                 caches[alias] = cache_obj
             _caches = caches
 
-    # close connections
-    from django.db import connections
-    connections.close_all()
+    if close_conn:
+        # close connections
+        from django.db import connections
+        # ops_conn = connections[config.db_alias]
+        # if ops_conn:
+        #     ops_conn.close()
+        connections.close_all()
 
 
 class LogMiddleware(ServiceMiddleware):

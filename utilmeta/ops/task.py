@@ -1,4 +1,5 @@
 import os
+import threading
 import warnings
 
 from .config import Operations
@@ -15,10 +16,11 @@ import time
 
 
 class BaseCycleTask:
-    def __init__(self, interval: int):
+    def __init__(self, interval: int, new_thread: bool = True):
         self.interval = interval
         self._stopped = False
         self._last_exec: Optional[datetime] = None
+        self.new_thread = new_thread
 
         # fixme: using signal seems to cause tornado / starlette hangs
         # import signal
@@ -33,18 +35,27 @@ class BaseCycleTask:
     def start(self):
         while not self._stopped:
             self._last_exec = time_now()
-            try:
-                if not self():
-                    break
-            except Exception as e:
-                err = Error(e)
-                err.setup()
-                print(err.full_info)
+            if self.new_thread:
+                thread = threading.Thread(target=self, daemon=True)
+                thread.start()
+                thread.join(timeout=self.interval)
+            else:
+                try:
+                    if not self():
+                        break
+                except Exception as e:
+                    self.handle_error(e)
+
             if self._stopped:
                 break
             wait_for = max(0.0, self.interval - (time_now() - self._last_exec).total_seconds())
             if wait_for:
                 time.sleep(wait_for)
+
+    def handle_error(self, e):
+        err = Error(e)
+        err.setup()
+        print(err.full_info)
 
     def exit_gracefully(self, signum, frame):
         self.stop(wait=False)
@@ -81,12 +92,34 @@ class OperationWorkerTask(BaseCycleTask):
         self._init_cycle = False
 
     def __call__(self, *args, **kwargs):
-        self.worker_cycle()
-        return True
+        try:
+            self.worker_cycle()
+            return True
+        finally:
+            self.clear_connections()
+
+    @classmethod
+    def clear_connections(cls):
+        # close all connections
+        from django.db import connections
+        connections.close_all()
 
     @property
     def node_id(self):
         return self.supervisor.node_id if self.supervisor else None
+
+    def handle_error(self, e):
+        err = Error(e)
+        err.setup()
+        print(err.full_info)
+        if self.config.task_error_log:
+            try:
+                from utilmeta.utils import write_to
+                content = (f'[{os.getpid()}] {self._last_exec} Operations task worker execute cycle failed with error\n'
+                           + err.full_info + '\n')
+                write_to(self.config.task_error_log, content, mode='a')
+            except Exception as e:
+                pass
 
     def worker_cycle(self):
         if not self._last_exec:
@@ -320,6 +353,11 @@ class OperationWorkerTask(BaseCycleTask):
         db_config = DatabaseConnections.config()
         if not db_config:
             return
+
+        db_monitors = []
+        update_databases = []
+        update_conn = []
+        create_conn = []
         for database in Resource.filter(
             type='database',
             node_id=self.node_id,
@@ -344,14 +382,14 @@ class OperationWorkerTask(BaseCycleTask):
             )
             db_data.update(db_metrics)
             database.updated_time = self._last_exec
-            update_fields = ['updated_time']
+            # update_fields = ['updated_time']
             if db_data != database.data:
                 database.data = db_data
-                update_fields.append('data')
-            database.save(update_fields=update_fields)
-
+                # update_fields.append('data')
+            # database.save(update_fields=update_fields)
+            update_databases.append(database)
             current, active = get_db_connections_num(db.alias)
-            DatabaseMonitor.objects.create(
+            db_monitors.append(DatabaseMonitor(
                 database=database,
                 interval=self.interval,
                 time=self._last_exec,
@@ -362,8 +400,9 @@ class OperationWorkerTask(BaseCycleTask):
                 active_connections=active or 0,
                 new_transactions=new_transactions,
                 metrics=db_metrics,
-            )
+            ))
             connections = get_db_connections(db.alias)
+
             if connections:
                 current_connections = list(DatabaseConnection.objects.filter(
                     database=database
@@ -374,10 +413,25 @@ class OperationWorkerTask(BaseCycleTask):
                         if c.pid == conn.pid:
                             conn.id = c.pk
                     conn.database_id = database.pk
-                    conn.save()
+                    if conn.id:
+                        update_conn.append(conn)
+                    else:
+                        create_conn.append(conn)
+        if db_monitors:
+            DatabaseMonitor.objects.bulk_create(db_monitors)
+        if update_databases:
+            Resource.objects.bulk_update(update_databases, fields=['updated_time', 'data'])
+        if create_conn:
+            DatabaseConnection.objects.bulk_create(create_conn)
+        if update_conn:
+            DatabaseConnection.objects.bulk_update(
+                update_conn, fields=['status', 'active', 'client_addr', 'client_port',
+                                     'pid', 'backend_start', 'query_start', 'state_change',
+                                     'wait_event', 'transaction_start', 'query', 'operation', 'tables'])
+        if update_databases:
             DatabaseConnection.objects.filter(
-                database=database
-            ).exclude(pk__in=[conn.pk for conn in connections]).delete()
+                database__in=update_databases
+            ).exclude(pk__in=[conn.pk for conn in create_conn + update_conn]).delete()
 
     def cache_monitor(self):
         from .monitor import get_cache_stats
@@ -386,6 +440,8 @@ class OperationWorkerTask(BaseCycleTask):
         cache_config = CacheConnections.config()
         if not cache_config:
             return
+        updated_caches = []
+        cache_monitors = []
         for cache_obj in Resource.filter(
             type='cache',
             node_id=self.node_id,
@@ -419,19 +475,21 @@ class OperationWorkerTask(BaseCycleTask):
                 cache_data.update(pid=stats.pid)
 
             cache.updated_time = self._last_exec
-            update_fields = ['updated_time']
+            # update_fields = ['updated_time']
             if cache_data != cache_obj.data:
                 cache_obj.data = cache_data
-                update_fields.append('data')
-
-            cache_obj.save(update_fields=update_fields)
-
-            CacheMonitor.objects.create(
+                # update_fields.append('data')
+            updated_caches.append(cache_obj)
+            cache_monitors.append(CacheMonitor(
                 time=self._last_exec,
                 interval=self.interval,
                 cache=cache_obj,
                 **data
-            )
+            ))
+        if updated_caches:
+            Resource.objects.bulk_update(updated_caches, fields=['updated_time', 'data'])
+        if cache_monitors:
+            CacheMonitor.objects.bulk_create(cache_monitors)
 
     @ignore_errors
     def clear(self):

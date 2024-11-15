@@ -235,7 +235,7 @@ class Schema(utype.Schema):
         if must_create is None:
             if must_update:
                 must_create = False
-            elif self.__options__.mode == 'a':
+            elif self.__options__.mode == 'a' and not self.pk:
                 must_create = True
         # if with_relations is None:
         #     with_relations = True
@@ -269,7 +269,7 @@ class Schema(utype.Schema):
         if must_create is None:
             if must_update:
                 must_create = False
-            elif self.__options__.mode == 'a':
+            elif self.__options__.mode == 'a' and not self.pk:
                 must_create = True
         # if with_relations is None:
         #     with_relations = True

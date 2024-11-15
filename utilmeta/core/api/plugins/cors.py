@@ -21,7 +21,9 @@ class CORSPlugin(APIPlugin):
                  expose_headers: List[str] = None,
                  csrf_exempt: bool = None,
                  exclude_statuses: List[int] = EXCLUDED_STATUS,
-                 gen_csrf_token: bool = None):
+                 gen_csrf_token: bool = None,
+                 options_200: bool = True,
+                 ):
         super().__init__(locals())
 
         self.csrf_exempt = csrf_exempt
@@ -65,6 +67,7 @@ class CORSPlugin(APIPlugin):
         self.expose_headers = expose_headers
         self.gen_csrf_token = gen_csrf_token
         self.exclude_statuses = exclude_statuses
+        self.options_200 = options_200
 
     def __call__(self, func, *args, **kwargs):
         from ..base import API
@@ -115,10 +118,12 @@ class CORSPlugin(APIPlugin):
         request: Request = response.request
         if not request:
             return response
+        if request.is_options and self.options_200:
+            response.status = 200
+        if response.status in self.exclude_statuses:
+            return response
         if Header.ALLOW_ORIGIN in response:
             # already processed
-            return response
-        if response.status in self.exclude_statuses:
             return response
         if self.cors_required(request):
             response.update_headers(**{

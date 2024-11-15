@@ -272,7 +272,7 @@ class TestSchemaQuery:
         from app.models import Article
         article = ArticleSchema[orm.A](
             title='My new article 1',
-            content='my new content',
+            content='my content',
             creatable_field='a',
             # test ignore on mode 'a'
             author_id=1,
@@ -281,6 +281,12 @@ class TestSchemaQuery:
         assert article.creatable_field == 'a'
         assert article.slug == 'my-new-article-1'
         article.save()
+        article.content = 'my new content'
+        article.save()  # test save on mode 'a' with pk (should update instead of create)
+
+        with pytest.raises(exceptions.BadRequest):
+            article.save(must_create=True)
+
         inst: Article = article.get_instance(fresh=True)
         assert inst.slug == 'my-new-article-1'
         assert inst.content == 'my new content'
@@ -295,7 +301,7 @@ class TestSchemaQuery:
                 author_id=1,
                 views=10
             ).save()
-            # save again (with must_save=True by default) will raise IntegrityError, and re-throw as BadRequest
+            # save again (with must_create=True by default) will raise IntegrityError, and re-throw as BadRequest
 
         article.slug = 'my-new-article'
         article.save(must_update=True)
@@ -321,7 +327,7 @@ class TestSchemaQuery:
         from app.models import Article
         article = ArticleSchema[orm.A](
             title='My new async article 1',
-            content='my new async content',
+            content='my async content',
             creatable_field='a',
             # test ignore on mode 'a'
             author_id=1,
@@ -330,6 +336,13 @@ class TestSchemaQuery:
         assert article.creatable_field == 'a'
         assert article.slug == 'my-new-async-article-1'
         await article.asave()
+
+        article.content = 'my new async content'
+        await article.asave()  # test save on mode 'a' with pk (should update instead of create)
+
+        with pytest.raises(exceptions.BadRequest):
+            await article.asave(must_create=True)
+
         # SQL: INSERT INTO "article" ("basecontent_ptr_id", "title",
         # "description", "slug", "views") VALUES (%s, %s, %s, %s, %s) (193,
         # 'My new async article 1', '', 'my-new-async-article-1', 10)

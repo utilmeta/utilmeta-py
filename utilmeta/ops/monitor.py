@@ -109,7 +109,7 @@ def get_cache_size(using: str) -> int:
         info = get_redis_info(cache)
         return info.get('used_memory', 0)
     elif cache.type == 'memcached':
-        if sys.platform == 'linux':
+        if os.name == 'posix':
             # echo only apply to unix systems
             try:
                 host, port = cache.location.split(':')

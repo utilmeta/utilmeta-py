@@ -41,6 +41,10 @@ class TokenAPI(api.API):
         revoked: bool
 
     @api.get
+    def scope(self) -> List[str]:
+        return request.var.scopes.getter(self.request) or []
+
+    @api.get
     @opsRequire('token.view')
     @adapt_async(close_conn=config.db_alias)
     def get(self, query: AccessTokenQuery) -> List[AccessTokenSchema]:

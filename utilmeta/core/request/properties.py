@@ -118,17 +118,24 @@ class Body(Property):
                  # options=None,
                  # default=unprovided,
                  max_length: int = None, **kwargs):
-        super().__init__(
+        init_kwargs = dict(
             max_length=max_length,
             # options=options,
             description=description,
             example=example,
             **kwargs
         )
+        super().__init__(**init_kwargs)
         # if content_type:
         self.content_type = content_type
         # self.options = options
         self.max_length = max_length  # Body Too Long
+        try:
+            self._update_spec(
+                content_type=content_type,
+            )
+        except AttributeError:
+            pass
 
 
 class Json(Body):
@@ -335,6 +342,12 @@ class RequestParam(Property):
         )
         self.style = style
         # refer to https://swagger.io/specification/
+        try:
+            self._update_spec(
+                style=style
+            )
+        except AttributeError:
+            pass
 
     alias_generator = None
 
@@ -472,6 +485,13 @@ class EncodingField(Field):
         # self.options = options
         self.max_length = max_length  # Body Too Long
         self.headers = headers
+        try:
+            self._update_spec(
+                content_type=content_type,
+                headers=headers
+            )
+        except AttributeError:
+            pass
 
 
 class HeaderParam(RequestParam):

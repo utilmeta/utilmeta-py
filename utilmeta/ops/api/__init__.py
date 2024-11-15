@@ -1,6 +1,6 @@
 from utilmeta.core import api, orm, request
 from ..schema import SupervisorData, SupervisorPatch, AccessTokenSchema
-from utilmeta.utils import exceptions, adapt_async
+from utilmeta.utils import exceptions, adapt_async, Error
 from ..models import Supervisor, AccessToken
 from .. import __spec_version__
 from ..key import decode_token
@@ -267,3 +267,7 @@ class OperationsAPI(api.API):
 
         if not validated:
             raise exceptions.BadRequest('Supervisor not found', state='supervisor_not_found')
+
+    @api.handle('*')
+    def handle_errors(self, e: Error):
+        return self.response(request=self.request, error=e)

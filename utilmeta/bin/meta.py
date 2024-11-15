@@ -6,7 +6,7 @@ from .commands.setup import SetupCommand
 from .commands.base import BaseServiceCommand
 from utilmeta import __version__
 from utilmeta.utils import run, import_obj
-from .constant import BLUE, RED
+from .constant import BLUE, RED, YELLOW
 import sys
 
 
@@ -160,11 +160,17 @@ class MetaCommand(BaseServiceCommand):
         """
         run utilmeta service and start to serve requests (for debug only)
         """
+        if not self.main_file:
+            print(RED % 'meta run: no main file specified in meta.ini')
+            exit(1)
         print(f'UtilMeta service {BLUE % self.service.name} running at {self.main_file}')
         cmd = f'{sys.executable} {self.main_file}'
         if daemon:
-            print(f'running service with nohup in background, writing log to {log}')
-            cmd = f'nohup {cmd} > {log} 2>&1 &'
+            if os.name == 'posix':
+                print(f'running service with nohup in background, writing log to {log}')
+                cmd = f'nohup {cmd} > {log} 2>&1 &'
+            else:
+                print(YELLOW % 'ignoring daemon mode since only posix system support')
         run(cmd)
 
 

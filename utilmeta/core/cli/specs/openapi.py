@@ -536,7 +536,6 @@ client = {self.client_class_name}(
                                 default=field
                             ))
                         continue
-
             excludes.append(param_name)
             parser = self.get_schema_parser(
                 content_schema,
@@ -545,9 +544,10 @@ client = {self.client_class_name}(
             field_type, field = parser.parse_field(
                 content_schema,
                 description=body_description,
-                required=body_required and len(body_content) <= 1,
+                required=(body_required and len(body_content) <= 1) or False,
                 example=content_example,
                 field_cls=request.Body,
+                content_type=content_type,
                 name=schema_name
             )
 

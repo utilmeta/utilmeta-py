@@ -86,12 +86,7 @@ class Operations(Config):
                  report_disabled: bool = False,
                  task_error_log: str = None,
                  max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
-                 local_scope: List[str] = (
-                    'api.view',
-                    'metrics.view',
-                    'log.view',
-                    'data.view')
-                 ):
+                 local_scope: List[str] = ('*',)):
         super().__init__(locals())
 
         self.route = route

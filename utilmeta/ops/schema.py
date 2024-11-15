@@ -24,6 +24,7 @@ def get_current_instance_data() -> dict:
         language='python',
         language_version=language_version,
         utilmeta_version=utilmeta.__version__,
+        spec_version=__spec_version__,
         backend=service.backend_name,
         backend_version=service.backend_version
     )

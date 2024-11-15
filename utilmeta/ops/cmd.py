@@ -108,9 +108,9 @@ class OperationsCommand(BaseServiceCommand):
 
         print(BANNER % '{:<60}'.format('Service Instance Stats'))
 
-        from .models import InstanceMonitor, Worker, DatabaseMonitor
-        from .schema import InstanceMonitorSchema, DatabaseMonitorSchema, WorkerSchema
-        from utilmeta.core import orm
+        from .models import InstanceMonitor, Worker, DatabaseMonitor, CacheMonitor
+        from .schema import InstanceMonitorSchema, DatabaseMonitorSchema, CacheMonitorSchema, WorkerSchema
+        from utilmeta.core import orm, cache
         latest_monitor = None
         workers = []
         if _instance:
@@ -191,4 +191,37 @@ class OperationsCommand(BaseServiceCommand):
                     print(form.format(alias, db.type, db.database_name, conn_str, space_str, db.location))
 
         if _caches:
-            print(BANNER % '{:<60}'.format('Service Instance Caches'))
+            cache_config = cache.CacheConnections.config()
+            if cache_config:
+                print(BANNER % '{:<60}'.format('Service Instance Caches'))
+                fields = ('Alias', 'Engine', 'PID', 'Connections', 'Memory', 'CPU', 'Location')
+                form = "{:<15}{:<15}{:<15}{:<25}{:<15}{:<15}{:<30}"
+                print(form.format(*fields))
+                print('-' * 60)
+                for alias, cache_obj in _caches.items():
+                    cache = cache_config.get(alias)
+                    if not cache:
+                        continue
+                    pid = cache_obj.data.get('pid')
+                    mem_str = ''
+                    conn_str = ''
+                    cpu_str = ''
+                    loc_str = f'{cache.host}:{cache.port}' if (cache.host and cache.port) else ''
+                    try:
+                        latest_monitor = CacheMonitorSchema.init(
+                            CacheMonitor.objects.filter(
+                                cache=cache_obj,
+                                layer=0
+                            ).order_by('-time')
+                        )
+                    except orm.EmptyQueryset:
+                        pass
+                    else:
+                        conn_str = (f'{latest_monitor.current_connections} '
+                                    f'({latest_monitor.total_connections} total)')
+                        mem_str = f'{readable_size(latest_monitor.used_memory)}'
+                        if latest_monitor.memory_percent:
+                            mem_str += f' ({latest_monitor.memory_percent}%)'
+                        cpu_str = f'{latest_monitor.cpu_percent}%' if latest_monitor.cpu_percent is not None else '-'
+
+                    print(form.format(alias, cache.type, pid, conn_str, mem_str, cpu_str, loc_str))

@@ -175,6 +175,10 @@ class InstanceResource(ResourceData):
         return self.data.get('version')
 
     @property
+    def spec_version(self) -> Optional[str]:
+        return self.data.get('spec_version')
+
+    @property
     def asynchronous(self) -> Optional[bool]:
         return self.data.get('asynchronous')
 
@@ -189,6 +193,10 @@ class InstanceResource(ResourceData):
     @property
     def language_version(self) -> Optional[str]:
         return self.data.get('language_version')
+
+    @property
+    def utilmeta_version(self) -> Optional[str]:
+        return self.data.get('utilmeta_version')
 
 
 @opsRequire('metrics.view')

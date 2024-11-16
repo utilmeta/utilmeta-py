@@ -16,5 +16,7 @@ class ThreadPool(Config):
         future = self._pool.submit(func, *args, **kwargs)
         return future.result()
 
+    def submit(self, func, *args, **kwargs):
+        self._pool.submit(func, *args, **kwargs)
 
 # pool = ThreadPool()

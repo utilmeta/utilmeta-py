@@ -39,10 +39,6 @@ class BaseRoute:
         self.after_hooks = after_hooks or []
         self.error_hooks = error_hooks or {}
 
-    @property
-    def response_types(self):
-        pass
-
     @classmethod
     def from_routes(cls, *routes):
         # meant to be inherited
@@ -133,6 +129,7 @@ class APIRoute(BaseRoute):
                  parent: Type['API'] = None,
                  summary: str = None,
                  description: str = None,
+                 tags: list = None,
                  deprecated: bool = None,
                  private: bool = None,
                  priority: int = None,
@@ -169,6 +166,7 @@ class APIRoute(BaseRoute):
         self.kwargs = kwargs
         self.summary = summary
         self.description = description or get_doc(handler)
+        self.tags = tags
         self.deprecated = deprecated
         self.private = private or handler.__name__.startswith('_')
         self.priority = priority

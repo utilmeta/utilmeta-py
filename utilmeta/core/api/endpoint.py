@@ -283,7 +283,7 @@ class Endpoint(BaseEndpoint):
                  eager: bool = False,
                  # openapi specs:
                  operation_id: str = None,
-                 tags: List[str] = None,
+                 tags: list = None,
                  summary: str = None,
                  description: str = None,
                  local_vars: dict = None,

@@ -400,15 +400,13 @@ class ResourcesManager:
         ops_config = Operations.config()
         if not ops_config:
             raise TypeError('Operations not configured')
-
-        for supervisor in [supervisor] if supervisor else Supervisor.current().filter(connected=True):
+        supervisors = [supervisor] if supervisor and not supervisor.local else (
+            Supervisor.filter(connected=True, local=False, service=service.name))
+        for supervisor in supervisors:
             if supervisor.service != service.name:
                 force = True        # name changed
 
             if not supervisor.node_id:
-                continue
-            if supervisor.local:
-                # do not sync local supervisor
                 continue
 
             print(f'sync resources of [{service.name}] to supervisor[{supervisor.node_id}]...')

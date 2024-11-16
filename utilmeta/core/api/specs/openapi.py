@@ -271,6 +271,7 @@ class OpenAPI(BaseAPISpec):
         self.external_docs = external_docs
         self.base_url = base_url
         self.pref = Preference.get()
+        self.tags = {}
         # self.operations = {}
 
     def get_def_name(self, t: type):
@@ -298,6 +299,7 @@ class OpenAPI(BaseAPISpec):
         paths = {}
         additions = {}
         security = []
+        tag_names = []
         tags = []
         info = None
         servers = []
@@ -334,7 +336,14 @@ class OpenAPI(BaseAPISpec):
                     paths[path] = dict(values)
 
             security.extend(doc.security)
-            tags.extend(doc.tags)
+            for tag in doc.tags:
+                tag_name = tag.get('name') if isinstance(tag, dict) else str(tag)
+                if not tag_name:
+                    continue
+                if tag_name in tag_names:
+                    continue
+                tags.append(tag_name)
+                tags.append(tag if isinstance(tag, dict) else {'name': tag_name})
             for key, val in doc.items():
                 if key not in self.schema_cls.__parser__.fields:
                     additions[key] = val
@@ -511,6 +520,7 @@ class OpenAPI(BaseAPISpec):
             info=self.generate_info(),
             components=self.components,
             paths=paths,
+            tags=list(self.tags.values()),
             servers=[self.server]
         )
         docs = []
@@ -903,7 +913,7 @@ class OpenAPI(BaseAPISpec):
 
         operation: dict = dict(
             operationId=operation_id,
-            tags=tags,
+            tags=self.add_tags(tags),
             responses=responses,
             security=self.merge_requires(extra_requires, requires)
         )
@@ -920,6 +930,25 @@ class OpenAPI(BaseAPISpec):
             operation.update(extension)
         return operation
 
+    def add_tags(self, tags: list):
+        if not tags:
+            return []
+        tag_names = []
+        for tag in tags:
+            if not tag:
+                continue
+            tag_name = None
+            if isinstance(tag, str):
+                tag_name = tag
+            elif isinstance(tag, dict):
+                tag_name = tag.get('name')
+            if not tag_name:
+                continue
+            tag_names.append(tag_name)
+            if tag_name not in self.tags:
+                self.tags[tag_name] = tag if isinstance(tag, dict) else {'name': tag_name}
+        return tag_names
+
     def from_route(self, route: APIRoute,
                    *routes: str,
                    tags: list = (),
@@ -930,6 +959,7 @@ class OpenAPI(BaseAPISpec):
         # https://spec.openapis.org/oas/v3.1.0#pathItemObject
         new_routes = [*routes, route.route] if route.route else list(routes)
         new_tags = [*tags, route.name] if route.name else list(tags)
+        # route_tags = route.get_tags()
         path = self._path_join(*new_routes)
         route_data = {k: v for k, v in dict(
             summary=route.summary,

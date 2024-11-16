@@ -263,6 +263,7 @@ class API(PluginTarget):
                             name=key,
                             route=val.route,
                             summary=val.getattr('summary'),
+                            tags=val.getattr('tags'),
                             description=val.getattr('description'),
                             deprecated=val.getattr('deprecated'),
                             private=val.getattr('private'),

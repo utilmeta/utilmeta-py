@@ -3,14 +3,14 @@ name: UtilMeta Common CI
 on:
   pull_request:
     paths:
-      - '.github'
-      - 'tests'
-      - 'utilmeta'
+      - '.github/workflows/**'
+      - 'tests/**'
+      - 'utilmeta/**'
   push:
     paths:
-      - '.github'
-      - 'tests'
-      - 'utilmeta'
+      - '.github/workflows/**'
+      - 'tests/**'
+      - 'utilmeta/**'
 
 jobs:
   test:

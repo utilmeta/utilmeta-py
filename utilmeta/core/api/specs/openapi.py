@@ -17,7 +17,7 @@ from utilmeta.core.auth.properties import User
 from utilmeta.core.response.base import Headers, JSON, OCTET_STREAM, PLAIN
 from utilmeta.utils.context import Property, ParserProperty
 from utilmeta.utils.constant import HAS_BODY_METHODS
-from utilmeta.utils import valid_url, json_dumps, get_origin, file_like
+from utilmeta.utils import valid_url, json_dumps, get_origin, file_like, multi
 from utilmeta.conf import Preference
 from utype import Schema, Field, JsonSchemaGenerator
 from utype.parser.field import ParserField
@@ -358,16 +358,22 @@ class OpenAPI(BaseAPISpec):
             **additions
         )
 
-    def get_external_docs(self) -> Optional[OpenAPISchema]:
-        if not self.external_docs:
-            return None
-        docs = self.external_docs
+    def get_external_docs(self, external_docs) -> List[OpenAPISchema]:
+        if not external_docs:
+            return []
+        docs = external_docs
         if callable(docs):
             try:
                 docs = docs(self.service)
             except Exception as e:
-                warnings.warn(f'call external docs function: {self.external_docs} failed: {e}')
-                return None
+                warnings.warn(f'call external docs function: {external_docs} failed: {e}')
+                return []
+
+        if multi(docs):
+            ext_docs = []
+            for doc in external_docs:
+                ext_docs.extend(self.get_external_docs(doc))
+            return ext_docs
 
         file = None
         if isinstance(docs, File):
@@ -387,10 +393,10 @@ class OpenAPI(BaseAPISpec):
 
         if isinstance(docs, dict):
             try:
-                return OpenAPISchema(docs)
+                return [OpenAPISchema(docs)]
             except utype.exc.ParseError as e:
                 warnings.warn(f'parse external docs object failed: {e}')
-                return None
+                return []
         if isinstance(docs, str):
             if valid_url(docs):
                 from urllib.request import urlopen
@@ -399,7 +405,7 @@ class OpenAPI(BaseAPISpec):
                     resp: HTTPResponse = urlopen(docs, timeout=self.URL_FETCH_TIMEOUT)
                 except Exception as e:
                     warnings.warn(f'parse external docs url: {docs} failed: {e}')
-                    return None
+                    return []
                 if resp.status == 200:
                     content_type = resp.getheader('Content-Type') or ''
                     if 'yaml' in content_type or 'json' in content_type:
@@ -408,14 +414,14 @@ class OpenAPI(BaseAPISpec):
                     else:
                         obj = json.loads(resp.read())
                 else:
-                    return None
+                    return []
                 resp.close()
             elif os.path.exists(docs):
                 try:
                     docs_content = open(docs, 'r', errors='ignore').read()
                 except Exception as e:
                     warnings.warn(f'parse external docs file: {docs} failed: {e}')
-                    return None
+                    return []
                 if docs.endswith('.yaml') or docs.endswith('.yml'):
                     import yaml
                     obj = yaml.safe_load(docs_content)
@@ -431,15 +437,15 @@ class OpenAPI(BaseAPISpec):
                         obj = yaml.safe_load(docs)
                     except Exception as e:
                         warnings.warn(f'parse external docs content failed with error: {e}')
-                        return None
+                        return []
             if obj:
                 try:
-                    return OpenAPISchema(obj)
+                    return [OpenAPISchema(obj)]
                 except utype.exc.ParseError as e:
                     warnings.warn(f'parse external docs failed: {e}')
-                    return None
+                    return []
 
-        return None
+        return []
 
     @classmethod
     def get_rel_paths(cls, paths: dict, current_base_url: str, base_url: str) -> dict:
@@ -503,11 +509,17 @@ class OpenAPI(BaseAPISpec):
         if not self.service.adaptor.backend_views_empty:
             try:
                 # generated from the inner app
-                adaptor_docs = self.service.adaptor.generate(spec=self.spec)
+                docs = self.service.adaptor.generate(spec=self.spec)
+                if docs:
+                    adaptor_docs = OpenAPISchema(docs)
             except NotImplementedError:
                 adaptor_docs = None
             except Exception as e:
                 warnings.warn(f'generate OpenAPI docs for [{self.service.backend_name}] failed: {e}')
+                from utilmeta.utils import Error
+                err = Error(e)
+                err.setup()
+                print(err.full_info)
 
         self.generate_paths()
         paths = self.paths
@@ -523,15 +535,14 @@ class OpenAPI(BaseAPISpec):
             tags=list(self.tags.values()),
             servers=[self.server]
         )
-        docs = []
-        if paths:
-            docs.append(utilmeta_docs)
+        docs = [utilmeta_docs]
+        # even of no paths: some adaptor generate no server.url
+        # if paths:
+        #     docs.append(utilmeta_docs)
         if adaptor_docs:
             docs.append(adaptor_docs)
         if self.external_docs:
-            external_docs = self.get_external_docs()
-            if external_docs:
-                docs.append(external_docs)
+            docs.extend(self.get_external_docs(self.external_docs))
         if not docs:
             return utilmeta_docs
         if len(docs) == 1:

@@ -25,9 +25,12 @@ class TornadoServerAdaptor(ServerAdaptor):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
         func = self.get_request_handler(api, asynchronous=asynchronous, append_slash=True)
-        path = f'/{route.strip("/")}/(.*)' if route.strip('/') else '(.*)'
-        return path, func
-        # todo: support add APIs to application
+        path = rf'/{route.strip("/")}(\/.*)?' if route.strip('/') else '(.*)'
+        self.app.add_handlers(
+            '.*', [
+                (path, func)
+            ]
+        )
 
     def load_route(self, path: str):
         return (path or '').strip('/')

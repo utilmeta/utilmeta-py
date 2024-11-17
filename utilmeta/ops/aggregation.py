@@ -1,6 +1,6 @@
 from .log import LogLevel
 from django.db import models
-from utilmeta.utils import replace_null, ignore_errors, AgentOS, AgentDevice, AgentBrowser, fast_digest
+from utilmeta.utils import replace_null, AgentOS, AgentDevice, AgentBrowser, fast_digest
 from django.db.utils import DatabaseError
 from django.core.exceptions import FieldError
 from utype.types import *

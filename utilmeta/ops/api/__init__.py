@@ -1,15 +1,15 @@
-from utilmeta.core import api, orm, request
-from ..schema import SupervisorData, SupervisorPatch, AccessTokenSchema
+from utilmeta.core import api, orm, request, response
+from ..schema import SupervisorData
+from ..query import SupervisorPatch, AccessTokenSchema
 from utilmeta.utils import exceptions, adapt_async, Error
 from ..models import Supervisor, AccessToken
 from .. import __spec_version__
 from ..key import decode_token
 from utilmeta.core.request import var
-from django.db.utils import IntegrityError
+from django.db.utils import IntegrityError, DatabaseError
 from django.core.exceptions import EmptyResultSet
 from utype.types import *
 from ..connect import save_supervisor
-from utilmeta.core.api.specs.openapi import OpenAPI
 from .data import DataAPI
 from .log import LogAPI
 from .servers import ServersAPI
@@ -35,11 +35,11 @@ class OperationsAPI(api.API):
     logs: LogAPI
     token: TokenAPI
 
-    openapi: opsRequire('api.view')(
-        OpenAPI.as_api(private=False, external_docs=config.external_openapi)
-    ) = api.route(
-        alias=['openapi.json', 'openapi.yaml', 'openapi.yml'],
-    )
+    # openapi: opsRequire('api.view')(
+    #     OpenAPI.as_api(private=False, external_docs=config.external_openapi)
+    # ) = api.route(
+    #     alias=['openapi.json', 'openapi.yaml', 'openapi.yml'],
+    # )
 
     response = WrappedResponse
     # @api.get
@@ -47,6 +47,11 @@ class OperationsAPI(api.API):
     # def openapi(self):
     #     from utilmeta import service
     #     openapi = OpenAPI(service)()
+
+    @api.get
+    @opsRequire('api.view')
+    def openapi(self):
+        return response.Response(config.openapi)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -270,4 +275,7 @@ class OperationsAPI(api.API):
 
     @api.handle('*')
     def handle_errors(self, e: Error):
+        if isinstance(e.exception, DatabaseError):
+            # do not expose the state of database error
+            e.exc = exceptions.ServerError('server error')
         return self.response(request=self.request, error=e)

@@ -86,7 +86,9 @@ class Operations(Config):
                  report_disabled: bool = False,
                  task_error_log: str = None,
                  max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
-                 local_scope: List[str] = ('*',)):
+                 local_scope: List[str] = ('*',),
+                 eager: bool = False,
+                 ):
         super().__init__(locals())
 
         self.route = route
@@ -96,10 +98,11 @@ class Operations(Config):
         self.disabled_scope = set(disabled_scope)
         self.secret_names = [k.lower() for k in secret_names]
         self.trusted_hosts = list(trusted_hosts)
-        self.trusted_packages = list(trusted_packages)
+        self.trusted_packages = list(trusted_packages or []) + ['django', 'utilmeta']
         self.default_timeout = default_timeout
         self.secure_only = secure_only
         self.local_disabled = local_disabled
+        self.eager = eager
 
         if isinstance(max_retention_time, timedelta):
             max_retention_time = max_retention_time.total_seconds()
@@ -305,6 +308,10 @@ class Operations(Config):
 
         self._ready = True
 
+    def on_api_mount(self, service, api, route):
+        self._openapi = None
+        # clear openapi cache
+
     def on_startup(self, service):
         ops_api = self.ops_api
         if not ops_api:
@@ -318,6 +325,17 @@ class Operations(Config):
         if self._task:
             print('Operations task already started, ignoring...')
             return
+
+        if self.eager:
+            # migrate must be eagerly finished before the on_startup finish
+            # try migrate before load first
+            # use another thread to migrate
+            if service.asynchronous:
+                migrate_thread = threading.Thread(target=self.migrate)
+                migrate_thread.start()
+                migrate_thread.join()
+            else:
+                self.migrate()
 
         print(f'UtilMeta operations API loaded at {ops_api}, '
               f'you can visit {__website__} to manage your APIs')
@@ -455,23 +473,24 @@ class Operations(Config):
         return name + '_service'
 
     def integrate(self, backend, module=None, name: str = None):
+        parsed = urlsplit(self.route)
+        route = parsed.path
+        if parsed.scheme:
+            # is url
+            origin = get_origin(self.route)
+        elif not self._base_url:
+            raise ValueError('Integrate utilmeta.ops.Operations requires to set a base_url of your API service, '
+                             'eg: Operations(base_url="https://api.example.com/api")')
+        else:
+            url_parsed = urlsplit(self._base_url)
+            if url_parsed.path:
+                route = url_join(url_parsed.path, route, with_scheme=False)
+            origin = get_origin(self._base_url)
+
         from utilmeta import UtilMeta
         try:
             from utilmeta import service
         except ImportError:
-            parsed = urlsplit(self.route)
-            route = parsed.path
-            if parsed.scheme:
-                # is url
-                origin = get_origin(self.route)
-            elif not self._base_url:
-                raise ValueError('Integrate utilmeta.ops.Operations requires to set a base_url of your API service, '
-                                 'eg: Operations(base_url="https://api.example.com/api")')
-            else:
-                url_parsed = urlsplit(self._base_url)
-                if url_parsed.path:
-                    route = url_join(url_parsed.path, route, with_scheme=False)
-                origin = get_origin(self._base_url)
             service = UtilMeta(
                 module,
                 backend=backend,
@@ -479,26 +498,27 @@ class Operations(Config):
                 origin=origin,
             )
             service._auto_created = True
-            service.use(self)
-            service.setup()
-            # import API after setup
-            if service.adaptor:
-                from .api import OperationsAPI
-                service.mount(OperationsAPI, route=route)
-                # service.adaptor.adapt(OperationsAPI, route=parsed.path)
-                service.adaptor.setup()
-            else:
-                raise NotImplementedError('Operations integrate error: service backend not specified')
-
-            if service.module:
-                # ATTRIBUTE FINDER
-                setattr(service.module, 'utilmeta', service)
-
         else:
-            service.use(self)
-            service.setup()
-            if service.adaptor:
-                service.adaptor.setup()
+            if not service.module_name:
+                if module:
+                    service.module_name = module
+                else:
+                    raise ValueError(f'Operations.integrate second param should pass __name__, got {module}')
+
+        service.use(self)
+        service.setup()
+        # import API after setup
+        if service.adaptor:
+            from .api import OperationsAPI
+            service.mount_to_api(OperationsAPI, route=route)
+            # service.adaptor.adapt(OperationsAPI, route=parsed.path)
+            service.adaptor.setup()
+        else:
+            raise NotImplementedError('Operations integrate error: service backend not specified')
+
+        if service.module:
+            # ATTRIBUTE FINDER
+            setattr(service.module, 'utilmeta', service)
 
         import utilmeta
         if not utilmeta._cmd_env:

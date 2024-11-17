@@ -348,6 +348,9 @@ def setup_locals(config: Operations, close_conn: bool = False):
         caches = {}
         if cache_config and cache_config.caches:
             for alias, cache in cache_config.caches.items():
+                if cache.is_memory:
+                    # do not monitor memory cache for now
+                    continue
                 cache_obj = Resource.filter(
                     type='cache',
                     service=service.name,

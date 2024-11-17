@@ -2,7 +2,7 @@ from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
 import utype
 
 from utilmeta.core import api, orm
-from ..schema import ServiceLogSchema, ServiceLogBase
+from ..query import ServiceLogSchema, ServiceLogBase
 from utilmeta.utils import exceptions, convert_data_frame, adapt_async
 from ..models import ServiceLog
 from django.db import models

@@ -3,9 +3,9 @@ import utype
 from utilmeta.core import api, orm
 from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire, config
 from utilmeta.utils import time_now, convert_data_frame, exceptions, adapt_async, cached_property
-from ..schema import (WorkerSchema, ServerMonitorSchema, WorkerMonitorSchema,
-                      CacheMonitorSchema, DatabaseMonitorSchema,
-                      InstanceMonitorSchema, DatabaseConnectionSchema)
+from ..query import (WorkerSchema, ServerMonitorSchema, WorkerMonitorSchema,
+                     CacheMonitorSchema, DatabaseMonitorSchema,
+                     InstanceMonitorSchema, DatabaseConnectionSchema)
 from ..models import (ServerMonitor, Worker, InstanceMonitor, WorkerMonitor, Resource,
                       DatabaseMonitor, CacheMonitor)
 from django.db import models

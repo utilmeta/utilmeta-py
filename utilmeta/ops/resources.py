@@ -63,6 +63,9 @@ class ModelGenerator:
 
 
 class ResourcesManager:
+    EXCLUDED_APPS = ['utilmeta.ops', 'django.contrib.contenttypes']
+    # we reserve other models like django users sessions
+
     def __init__(self, service: UtilMeta = None):
         if not service:
             from utilmeta import service
@@ -191,7 +194,7 @@ class ResourcesManager:
 
         for i, (key, cfg) in enumerate(apps.app_configs.items()):
             cfg: AppConfig
-            if any([cfg.name.startswith(fm + '.') for fm in ('django', 'utilmeta')]):
+            if cfg.name in self.EXCLUDED_APPS:
                 continue
             for name, _m in cfg.models.items():
                 register_model(_m, label=cfg.label)

@@ -5,8 +5,9 @@ from utilmeta.core import response, api
 from utilmeta.core import request
 from utype.types import *
 from .key import encrypt_data
-from .schema import NodeMetadata, SupervisorBasic, ServiceInfoSchema, SupervisorInfoSchema, \
-    SupervisorData, ResourcesSchema, ResourcesData, NodeInfoSchema, SupervisorPatch
+from .schema import (NodeMetadata, SupervisorBasic, ServiceInfoSchema, SupervisorInfoSchema, \
+                     SupervisorData, ResourcesSchema, ResourcesData, NodeInfoSchema, InstanceResourceSchema,
+                     SupervisorPatchSchema, OpenAPISchema, TableSchema)
 
 
 class SupervisorResponse(response.Response):
@@ -19,6 +20,20 @@ class SupervisorResponse(response.Response):
 class SupervisorListResponse(SupervisorResponse):
     name = 'list'
     result: List[SupervisorBasic]
+
+
+class OpenAPIResponse(response.Response):
+    result: OpenAPISchema
+
+
+class InstanceResponse(SupervisorResponse):
+    name = 'instance'
+    result: List[InstanceResourceSchema]
+
+
+class TableResponse(SupervisorResponse):
+    name = 'table'
+    result: List[TableSchema]
 
 
 class SupervisorInfoResponse(SupervisorResponse):
@@ -199,10 +214,10 @@ class OperationsClient(Client):
     async def async_add_supervisor(self, data: SupervisorData = request.Body) -> NodeInfoResponse: pass
 
     @api.patch('/')
-    def update_supervisor(self, data: SupervisorPatch = request.Body) -> NodeInfoResponse: pass
+    def update_supervisor(self, data: SupervisorPatchSchema = request.Body) -> NodeInfoResponse: pass
 
     @api.patch('/')
-    async def async_update_supervisor(self, data: SupervisorPatch = request.Body) -> NodeInfoResponse: pass
+    async def async_update_supervisor(self, data: SupervisorPatchSchema = request.Body) -> NodeInfoResponse: pass
 
     @api.post('/token/revoke')
     def revoke_token(self, id_list: List[str] = request.Body) -> SupervisorResponse[int]: pass
@@ -215,6 +230,24 @@ class OperationsClient(Client):
 
     @api.delete('/')
     async def async_delete_supervisor(self) -> SupervisorResponse: pass
+
+    @api.get('/openapi')
+    def get_openapi(self) -> OpenAPIResponse: pass
+
+    @api.get('/openapi')
+    async def async_get_openapi(self) -> OpenAPIResponse: pass
+
+    @api.get('/data/tables')
+    def get_tables(self) -> TableResponse: pass
+
+    @api.get('/data/tables')
+    async def async_get_tables(self) -> TableResponse: pass
+
+    @api.get('/servers/instances')
+    def get_instances(self) -> InstanceResponse: pass
+
+    @api.get('/servers/instances')
+    async def async_get_instances(self) -> InstanceResponse: pass
 
     @api.get('/')
     def get_info(self) -> Union[ServiceInfoResponse, SupervisorResponse]: pass

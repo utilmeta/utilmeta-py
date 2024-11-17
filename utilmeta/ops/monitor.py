@@ -62,7 +62,7 @@ def get_current_server(unit: int = 1024 ** 2) -> ServerSchema:
 
 
 def get_sys_metrics(cpu_interval: float = None, with_open_files: bool = True):
-    from utilmeta.ops.schema import SystemMetricsMixin
+    from utilmeta.ops.query import SystemMetricsMixin
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage(os.getcwd())
     total, active, info = get_sys_net_connections_info()

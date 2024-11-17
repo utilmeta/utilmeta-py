@@ -109,7 +109,7 @@ class OperationsCommand(BaseServiceCommand):
         print(BANNER % '{:<60}'.format('Service Instance Stats'))
 
         from .models import InstanceMonitor, Worker, DatabaseMonitor, CacheMonitor
-        from .schema import InstanceMonitorSchema, DatabaseMonitorSchema, CacheMonitorSchema, WorkerSchema
+        from .query import InstanceMonitorSchema, DatabaseMonitorSchema, CacheMonitorSchema, WorkerSchema
         from utilmeta.core import orm, cache
         latest_monitor = None
         workers = []

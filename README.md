@@ -1,19 +1,22 @@
-# UtilMeta API Framework - Python
-<img src="https://utilmeta.com/img/py-intro.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
+# UtilMeta Python Framework
 
+<img src="https://utilmeta.com/img/logo-gradient.png" style="width: 200px" alt="">
 
-**UtilMeta** is a progressive meta-framework for backend applications, which efficiently builds declarative APIs based on the Python type annotation standard, and supports the integration of mainstream Python frameworks as runtime backend
+**UtilMeta** Python framework is a progressive meta-framework to develop and manage backend applications, building declarative API & ORM efficiently based on the Python type annotation standard with both sync & async syntax, and supports using mainstream Python frameworks as runtime backend
 
 * Homepage: [https://utilmeta.com/py](https://utilmeta.com/py)
 * Documentation: [https://docs.utilmeta.com/py/en/](https://docs.utilmeta.com/py/en/)
 * Author: <a href="https://github.com/voidZXL" target="_blank">@voidZXL</a>
-
+* Language: [![en](https://img.shields.io/badge/lang-English-blue.svg)](https://github.com/utilmeta/utilmeta-py/blob/main/README.md) [![zh](https://img.shields.io/badge/lang-中文-green.svg)](https://github.com/utilmeta/utilmeta-py/blob/main/README.zh.md)
 
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/v/utilmeta" alt="">
 </a>
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/pyversions/utilmeta" alt="">
+</a>
+<a href="https://pepy.tech/project/utilmeta" target="_blank">
+	<img src="https://pepy.tech/badge/utilmeta/month" alt="">
 </a>
 <a href="https://github.com/utilmeta/utilmeta-py/blob/main/LICENSE" target="_blank">
 	<img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="">
@@ -22,16 +25,59 @@
 	<img src="https://img.shields.io/github/actions/workflow/status/utilmeta/utilmeta-py/test.yaml?branch=main&label=CI" alt="">
 </a>
 
+
 ## Installation
 ```
 pip install utilmeta
 ```
 
+> UtilMeta requires Python >= 3.8
+
 ## Core Features
 
-### Declarative Development
+### Declarative API & ORM
+
 Using the declarative power from UtilMeta, you can easily write APIs with auto request validation, efficient ORM queries, and auto OpenAPI document generation
-<img src="https://utilmeta.com/img/py.section1.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
+
+```python
+from utilmeta.core import api, orm
+from django.db import models
+
+class User(models.Model):
+    username = models.CharField(max_length=20, unique=True)
+
+class Article(models.Model):
+    author = models.ForeignKey(User, related_name="articles", on_delete=models.CASCADE)
+    content = models.TextField()
+
+class UserSchema(orm.Schema[User]):
+    username: str
+    articles_num: int = models.Count('articles')
+
+class ArticleSchema(orm.Schema[Article]):
+    id: int
+    author: UserSchema
+    content: str
+
+class ArticleAPI(api.API):
+    async def get(self, id: int) -> ArticleSchema:
+        return await ArticleSchema.ainit(id)
+```
+
+if you request the ArticleAPI like `GET /article?id=1`, you will get the result like
+
+```python
+{
+  "id": 1,
+  "author": {
+    "username": "alice",
+    "articles_num": 3
+  },
+  "content": "hello world"
+}
+```
+This conforms to what you declared, and the OpenAPI docs will be generated automatically
+
 ### Progressive Meta Framework
 UtilMeta developed a standard that support all major Python web framework like **django**, **flask**, **fastapi** (starlette), **sanic**, **tornado** as runtime backend, and support current projects using these frameworks to develop new API using UtilMeta progressively
 <img src="https://utilmeta.com/img/py.section2.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
@@ -84,49 +130,7 @@ Then we can use our browser to open [http://127.0.0.1:8000/api/hello](http://127
 world
 ```
 It means this API works
-## Examples
 
-### Declarative RESTful API
-
-Declarative ORM in UtilMeta can handle relational queries concisely without N+1 problem, both sync and async queries are supported
-```python
-from utilmeta.core import api, orm
-from django.db import models
-
-class User(models.Model):
-    username = models.CharField(max_length=20, unique=True)
-
-class Article(models.Model):
-    author = models.ForeignKey(User, related_name="articles", on_delete=models.CASCADE)
-    content = models.TextField()
-
-class UserSchema(orm.Schema[User]):
-    username: str
-    articles_num: int = models.Count('articles')
-
-class ArticleSchema(orm.Schema[Article]):
-    id: int
-    author: UserSchema
-    content: str
-
-class ArticleAPI(api.API):
-    async def get(self, id: int) -> ArticleSchema:
-        return await ArticleSchema.ainit(id)
-```
-
-if you request the ArticleAPI like `GET /article?id=1`, you will get the result like
-
-```python
-{
-  "id": 1,
-  "author": {
-    "username": "alice",
-    "articles_num": 3
-  },
-  "content": "hello world"
-}
-```
-This conforms to what you declared, and the OpenAPI docs will be generated automatically
 ### Migrate
 
 Integrate current django/flask/fastapi/... project with UtilMeta API is as easy as follows 

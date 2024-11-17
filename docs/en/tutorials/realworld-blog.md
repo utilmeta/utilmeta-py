@@ -1101,3 +1101,6 @@ The following info indicates that the project has been started
 We can click to visit [http://localhost:5173/](http://localhost:5173/) to open the client of the blog.
 
 Then you can experience your own blog.
+
+
+## 7. Manage 

@@ -127,6 +127,7 @@ class OperationWorkerTask(BaseCycleTask):
 
         if not self._init_cycle:
             self.config.migrate()
+            # self.config.migrate()
             # 1. db not created
             # 2. db not updated to the current version
 
@@ -455,7 +456,7 @@ class OperationWorkerTask(BaseCycleTask):
             stats = get_cache_stats(cache.alias)
             connected = stats is not None
             cache_data = dict(connected=connected)
-            data = dict(stats)
+            data = dict(stats or {})
             # cpu_percent = memory_percent = fds = open_files = None
             if stats.pid and cache.local:
                 try:

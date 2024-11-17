@@ -14,3 +14,14 @@ from django.core.wsgi import get_wsgi_application
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_demo.settings")
 
 application = get_wsgi_application()
+
+from utilmeta.ops import Operations
+Operations(
+    route='ops',
+    database=Operations.Database(
+        name='operations_db',
+        engine='sqlite3'
+    ),
+    base_url='http://127.0.0.1:9091',
+    eager=True   # eager migration for test
+).integrate(application, __name__)

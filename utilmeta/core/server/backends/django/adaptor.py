@@ -114,6 +114,8 @@ class DjangoServerAdaptor(ServerAdaptor):
                     pass
                 else:
                     return False
+            else:
+                return False
         return True
 
     @property
@@ -419,11 +421,3 @@ class DjangoServerAdaptor(ServerAdaptor):
 
                     return generator.get_schema(public=True)
 
-                # 2. try django-ninja
-                try:
-                    from ninja import NinjaAPI
-                except (ModuleNotFoundError, ImportError):
-                    pass
-                else:
-                    if NinjaAPI._registry:
-                        pass

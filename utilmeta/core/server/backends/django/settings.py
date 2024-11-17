@@ -613,7 +613,13 @@ class DjangoSettings(Config):
         init_model_fields(service)
         # -------------------
 
-        os.environ[SETTINGS_MODULE] = self.module_name or service.module_name
+        settings_name = self.module_name or service.module_name
+        if settings_name:
+            # at most circumstances, there are module name
+            os.environ[SETTINGS_MODULE] = settings_name
+        else:
+            os.environ.setdefault(SETTINGS_MODULE, '__main__')
+
         # not using setdefault to prevent IDE set the wrong value by default
         django.setup(set_prefix=False)
         self._setup = True

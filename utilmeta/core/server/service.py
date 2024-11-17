@@ -47,9 +47,6 @@ class UtilMeta:
 
         # if not name.replace('-', '_').isidentifier():
         #     raise ValueError(f'{self.__class__}: service name ({repr(name)}) should be a valid identifier')
-
-        self.module = sys.modules.get(module_name or '__main__')
-
         # 1. find meta.ini
         # 2. os.path.dirname(self.module.__file__)
         # 3. sys.path[0] / os.getcwd()
@@ -119,6 +116,10 @@ class UtilMeta:
 
         self.load_meta()
         self._pool = None
+
+    @property
+    def module(self):
+        return sys.modules.get(self.module_name or '__main__')
 
     @property
     def root_api(self):
@@ -401,7 +402,7 @@ class UtilMeta:
             root_api = self.resolve()
         except ValueError:
             # if API is not loaded, we lazy-mount
-            pass
+            self._unmounted_apis[route] = api
         else:
             try:
                 root_api.__mount__(api, route=route)
@@ -409,7 +410,10 @@ class UtilMeta:
                 # router already exists
                 pass
             return
-        self._unmounted_apis[route] = api
+        finally:
+            for cls, config in self.configs.items():
+                if isinstance(config, Config):
+                    config.on_api_mount(self, api, route)
 
     # def mount_ws(self, ws: Union[str, Callable], route: str = ''):
     #     pass
@@ -426,6 +430,13 @@ class UtilMeta:
                 root_api = import_obj(ref)
             self.root_api = root_api
         if not self._root_api:
+            if self.auto_created:
+                # we return of auto generated RootAPI class if no API is resolved
+                # some ext API like OperationsAPI might be mounted to
+                class RootAPI(API):
+                    pass
+                self.root_api = RootAPI
+                return RootAPI
             raise ValueError('utilmeta.service: RootAPI not mounted')
         return self._root_api
 

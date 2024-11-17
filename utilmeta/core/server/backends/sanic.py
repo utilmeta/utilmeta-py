@@ -88,6 +88,19 @@ class SanicServerAdaptor(ServerAdaptor):
             self.app.on_request(self.on_request)
             self.app.on_response(self.on_response)
 
+    @property
+    def backend_views_empty(self) -> bool:
+        for val in self.app.router.routes:
+            handler = getattr(val, 'handler', None)
+            if not handler:
+                continue
+            wrapped = getattr(handler, '__wrapped__', None)
+            if wrapped and isinstance(wrapped, type) and issubclass(wrapped, API):
+                pass
+            else:
+                return False
+        return True
+
     def setup(self):
         if self._ready:
             return
@@ -134,8 +147,7 @@ class SanicServerAdaptor(ServerAdaptor):
             prepend = '/'
 
         if asynchronous:
-            # @app.route(route, methods=self.HANDLED_METHODS, name='core_methods')
-            @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, static=True)
+            # @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, static=True)
             async def f(request, path: str = ''):
                 req = None
                 try:
@@ -154,8 +166,7 @@ class SanicServerAdaptor(ServerAdaptor):
                 _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
         else:
-            # @app.route(route, methods=self.HANDLED_METHODS, name='core_methods')
-            @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, static=True)
+            # @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, static=True)
             def f(request, path: str = ''):
                 req = None
                 try:
@@ -176,6 +187,14 @@ class SanicServerAdaptor(ServerAdaptor):
 
         # app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, name='extend_path')(f)
         # app.route(route, methods=self.HANDLED_METHODS, name='core_methods')(f)
+        f.__wrapped__ = utilmeta_api_class
+        return app.route(
+            '%s<path:path>' % prepend,
+            methods=self.HANDLED_METHODS,
+            name=getattr(utilmeta_api_class, '__ref__', utilmeta_api_class.__name__),
+            # or there might be "Duplicate route names detected"
+            static=True
+        )(f)
 
     def generate(self, spec: str = 'openapi'):
         if spec == 'openapi':

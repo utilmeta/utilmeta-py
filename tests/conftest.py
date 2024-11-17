@@ -8,8 +8,10 @@ import pytest
 import psutil
 from utilmeta import UtilMeta
 from typing import Union
+from pathlib import Path
 # from django import VERSION as DJANGO_VERSION
-SERVICE_PATH = os.path.join(os.path.dirname(__file__), 'server')
+TEST_PATH = os.path.dirname(__file__)
+SERVICE_PATH = os.path.join(TEST_PATH, 'server')
 PARAMETRIZE_CONFIG = False
 CONNECT_TIMEOUT = 3
 CONNECT_INTERVAL = 0.2
@@ -358,9 +360,46 @@ def make_live_process(backend: str = None, port: int = None, cmdline: bool = Fal
                 server.terminate()
     return service_process
 
-# TODO
-# currently I am not able to write subprocess tests that can be measured in pytest-cov
-# so the current workaround is:
-# 1. use server process to test the REAL-WORLD-LIVE-CASE of apis (but not counting to coverage)
-# 2. use server thread to make up the coverage (redundant though)
-# working on a better solution (eg. make the subprocess executions cover-able)
+
+def make_cmd_process(file: Union[str, Path], *argv, cwd: Union[str, Path] = None, port: int = None):
+    if not os.path.isabs(file):
+        file = os.path.join(TEST_PATH, file)
+    if not os.path.exists(file):
+        raise FileExistsError(file)
+    if cwd and not os.path.isabs(cwd):
+        cwd = os.path.join(TEST_PATH, cwd)
+    cmd = [sys.executable, str(file), *argv]
+    # raise Exception(str(cmd))
+
+    @pytest.fixture(scope="module")
+    def command_process():
+        import os
+        if os.environ.get('DJANGO_SETTINGS_MODULE'):
+            os.environ.pop('DJANGO_SETTINGS_MODULE')
+        server = subprocess.Popen(cmd, env=os.environ.copy(), cwd=str(cwd or os.getcwd()))
+
+        if port:
+            import socket
+            cnt = 0
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                while True:
+                    if s.connect_ex(('127.0.0.1', port)) == 0:
+                        break
+                    time.sleep(CONNECT_INTERVAL)
+                    cnt += 1
+                    if cnt > (CONNECT_TIMEOUT / CONNECT_INTERVAL):
+                        return
+
+        try:
+            yield server
+        finally:
+            kill_child_processes(server.pid, signal.SIGTERM if WINDOWS else signal.SIGKILL)
+            if WINDOWS:
+                try:
+                    os.kill(server.pid, signal.SIGBREAK)
+                except (PermissionError, OSError, WindowsError):
+                    pass
+            else:
+                server.terminate()
+
+    return command_process

@@ -2,29 +2,55 @@ name: UtilMeta Common CI
 # run before every pull request and every push
 on:
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'examples/**'
-      - '**/README.md'
+    paths:
+      - '.github'
+      - 'tests'
+      - 'utilmeta'
   push:
-    paths-ignore:
-      - 'docs/**'
-      - 'examples/**'
-      - '**/README.md'
+    paths:
+      - '.github'
+      - 'tests'
+      - 'utilmeta'
 
 jobs:
   test:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
-        python-version: ["3.8", "3.11"]
-        django-version: ["4.1", "5.0"]
-        exclude:
-          - python-version: "3.8"
+#        os: [macos-latest, windows-latest, ubuntu-latest]
+#        python-version: ["3.8", "3.11", "3.13"]
+#        django-version: ["4.1", "5.0", "5.1"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.13"
+            django-version: "5.1"
+            name: "3.13 on Linux"
+          - os: windows-latest
+            python-version: "3.13"
+            django-version: "5.1"
+            name: "3.13 on Windows"
+          - os: macos-latest
+            python-version: "3.13"
+            django-version: "5.1"
+            name: "3.13 on Mac"
+          - os: ubuntu-latest
+            python-version: "3.11"
             django-version: "5.0"
+            name: "3.11 (django 5.0)"
+          - os: ubuntu-latest
+            python-version: "3.11"
+            django-version: "4.1"
+            name: "3.11 (django 4.1)"
+          - os: ubuntu-latest
+            python-version: "3.8"
+            django-version: "4.0"
+            name: "3.8 (django 4.0)"
+          - os: ubuntu-latest
+            python-version: "3.13"
+            django-version: "4.1"
+            name: "3.13 (django 4.1)"
 
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
@@ -40,7 +66,7 @@ jobs:
           pip install databases[aiosqlite] redis aioredis
           pip install django==${{ matrix.django-version }}
           pip install flask fastapi sanic[ext] tornado aiohttp uvicorn httpx requests python-multipart
-          pip install django-ninja djangorestframework apiflask
+          pip install django-ninja djangorestframework drf-spectacular apiflask
       - name: Run lint
         run: |
           flake8 utilmeta --count --select=E9,F63,F7,F82 --show-source --statistics

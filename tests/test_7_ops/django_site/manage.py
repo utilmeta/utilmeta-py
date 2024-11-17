@@ -19,4 +19,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # sys.argv = ['manage.py', 'migrate']
+    # main()
+    sys.argv = ['manage.py', 'runserver', '127.0.0.1:9091']
     main()

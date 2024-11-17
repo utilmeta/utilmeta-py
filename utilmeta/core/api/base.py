@@ -410,8 +410,13 @@ class API(PluginTarget):
         if isinstance(backend, UtilMeta):
             service = backend
         else:
-            service = UtilMeta(None, backend=backend, name=route.strip('/'))
-            service._auto_created = True
+            try:
+                from utilmeta import service
+            except ImportError:
+                service = UtilMeta(None, backend=backend,
+                                   name=route.strip('/').replace('/', '_'))
+                service._auto_created = True
+            service.mount_to_api(cls, route=route)
         # backend can be a module name or application
         adaptor = ServerAdaptor.dispatch(service)
         return adaptor.adapt(cls, route=route, asynchronous=asynchronous)
@@ -420,7 +425,8 @@ class API(PluginTarget):
     def __mount__(cls, handler: Union[APIRoute, Type['API'], APIRef, Endpoint, str], route: str = '',
                   before_hooks: List[BeforeHook] = (),
                   after_hooks: List[AfterHook] = (),
-                  error_hooks: Dict[Type[Exception], ErrorHook] = None):
+                  error_hooks: Dict[Type[Exception], ErrorHook] = None,
+                  ):
         if isinstance(handler, APIRef):
             handler = handler.api
         if isinstance(handler, str):

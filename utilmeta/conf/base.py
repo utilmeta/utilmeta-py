@@ -35,3 +35,6 @@ class Config(DataClass):
 
     def on_shutdown(self, service):
         pass
+
+    def on_api_mount(self, service, api, route: str):
+        pass

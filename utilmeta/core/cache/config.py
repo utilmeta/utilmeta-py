@@ -71,6 +71,10 @@ class Cache(Config):
         return 'memory'
 
     @property
+    def is_memory(self) -> bool:
+        return self.type in ['locmem', 'memory']
+
+    @property
     def local(self):
         if not self.host:
             return True

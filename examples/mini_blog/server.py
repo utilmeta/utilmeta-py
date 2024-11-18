@@ -8,7 +8,7 @@ service = UtilMeta(
     name='blog',
     backend=fastapi,
     asynchronous=True,
-    port=8002
+    port=8080
 )
 configure(service)
 # should import API after setup
@@ -16,6 +16,7 @@ from blog.api import ArticleAPI
 
 
 @service.mount
+@api.CORS(allow_origin='*')
 class RootAPI(api.API):
     article: ArticleAPI
 

@@ -39,7 +39,7 @@ __all__ = [
 
 
 def normalize_title(title: str):
-    return ' '.join(re.sub('\s', ' ', title).split())
+    return ' '.join(re.sub(r'\s', ' ', title).split())
 
 
 def _list_dict(val):

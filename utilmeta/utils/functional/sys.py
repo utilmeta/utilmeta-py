@@ -242,10 +242,12 @@ def load_ini(content: str, parse_key: bool = False) -> dict:
         annotate = line.split()[0].startswith('#') or line.split()[0].startswith(';')
         if annotate:
             continue
-        if re.fullmatch(r'\\[(.*?)\\]', line):
+        if re.fullmatch(r'\[(.*?)\]', line):
             key = line.strip('[]')
             ini[key] = dic = {}
         else:
+            if '=' not in line:
+                continue
             from utype import TypeTransformer
             key, val = line.split('=')
             if parse_key:

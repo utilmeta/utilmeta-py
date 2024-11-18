@@ -15,6 +15,13 @@ from utilmeta.conf import Env
 # import sanic
 import sys
 
+try:
+    from sanic import Sanic
+    Sanic._app_registry = {}
+    # clear sanic registry
+except ImportError:
+    pass
+
 
 class ServiceEnvironment(Env):
     PRODUCTION: bool = False

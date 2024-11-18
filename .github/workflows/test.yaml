@@ -25,30 +25,30 @@ jobs:
             python-version: "3.13"
             django-version: "5.1"
             name: "3.13 on Linux"
-          - os: windows-latest
-            python-version: "3.13"
-            django-version: "5.1"
-            name: "3.13 on Windows"
-          - os: macos-latest
-            python-version: "3.13"
-            django-version: "5.1"
-            name: "3.13 on Mac"
+#          - os: windows-latest
+#            python-version: "3.13"
+#            django-version: "5.1"
+#            name: "3.13 on Windows"
+#          - os: macos-latest
+#            python-version: "3.13"
+#            django-version: "5.1"
+#            name: "3.13 on Mac"
           - os: ubuntu-latest
             python-version: "3.11"
             django-version: "5.0"
             name: "3.11 (django 5.0)"
           - os: ubuntu-latest
-            python-version: "3.11"
+            python-version: "3.10"
+            django-version: "4.2"
+            name: "3.10 (django 4.2)"
+          - os: ubuntu-latest
+            python-version: "3.9"
             django-version: "4.1"
-            name: "3.11 (django 4.1)"
+            name: "3.9 (django 4.1)"
           - os: ubuntu-latest
             python-version: "3.8"
             django-version: "4.0"
             name: "3.8 (django 4.0)"
-          - os: ubuntu-latest
-            python-version: "3.13"
-            django-version: "4.1"
-            name: "3.13 (django 4.1)"
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}

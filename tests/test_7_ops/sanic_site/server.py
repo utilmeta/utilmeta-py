@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from sanic import Sanic
 from sanic.response import text
+Sanic._app_registry = {}
 
 app = Sanic('MyTestApp')
 

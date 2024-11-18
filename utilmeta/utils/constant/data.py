@@ -39,7 +39,7 @@ class Reg(Static):
     #         '!-ZS-\x7f]|\\[\x01-\t\x0b\x0c\x0e-\x7f])+)\\])&'
     EMAIL_ALNUM = '^[a-zA-Z0-9]+@[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)+[a-z0-9A-Z]+$'
     EMAIL = '^[a-z0-9A-Z]+[a-z0-9A-Z._-]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+[a-z0-9A-Z]+$'
-    EMAIL_SIMPLE = '^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$'
+    EMAIL_SIMPLE = r"^\S+@\S+\.\S+$"
 
     must_contains_letter_number = '(?=.*[0-9])(?=.*[a-zA-Z]).+'
     must_contains_letter_number_special = r'(?=.*[0-9])(?=.*[a-zA-Z])(?=.*[^a-zA-Z0-9]).+'

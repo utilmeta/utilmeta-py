@@ -253,7 +253,7 @@ class TestClientClass:
 
     def test_request_failure(self, sync_request_backend):
         with TestClient(
-            base_url='http://0:0',
+            base_url='http://127.0.0.1:1',
             backend=sync_request_backend,
             default_timeout=0.5
         ) as client:
@@ -261,7 +261,7 @@ class TestClientClass:
                 client.get_doc(category='test')
 
         with TestClient(
-            base_url='http://0:0',
+            base_url='http://127.0.0.1:1',
             backend=sync_request_backend,
             default_timeout=0.5,
             fail_silently=True
@@ -273,7 +273,7 @@ class TestClientClass:
     @pytest.mark.asyncio
     async def test_async_request_failure(self, async_request_backend):
         with TestClient(
-            base_url='http://127.0.0.1:0',
+            base_url='http://127.0.0.1:1',
             backend=async_request_backend,
             default_timeout=0.5
         ) as client:
@@ -281,7 +281,7 @@ class TestClientClass:
                 await client.aget_doc(category='test')
 
         with TestClient(
-            base_url='http://127.0.0.1:0',
+            base_url='http://127.0.0.1:1',
             backend=async_request_backend,
             default_timeout=0.5,
             fail_silently=True

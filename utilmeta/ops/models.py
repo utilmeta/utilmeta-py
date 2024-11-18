@@ -316,12 +316,15 @@ class Worker(SystemMetrics, ServiceMetrics):
             open_files = len(process.open_files())
         except psutil.Error:
             open_files = 0
-
+        try:
+            net_connections = getattr(process, 'net_connections', getattr(process, 'connections'))()
+        except (psutil.Error, AttributeError):
+            net_connections = []
         return dict(
             used_memory=getattr(mem_info, 'uss', getattr(mem_info, 'rss')),
             memory_info={f: getattr(mem_info, f) for f in getattr(mem_info, '_fields')},
-            total_net_connections=len(process.connections()),
-            active_net_connections=len([c for c in process.connections() if c.status != 'CLOSE_WAIT']),
+            total_net_connections=len(net_connections),
+            active_net_connections=len([c for c in net_connections if c.status != 'CLOSE_WAIT']),
             file_descriptors=process.num_fds() if psutil.POSIX else None,
             cpu_percent=process.cpu_percent(interval=1),
             memory_percent=round(process.memory_percent('uss'), 2),

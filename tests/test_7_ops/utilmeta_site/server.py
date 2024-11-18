@@ -1,3 +1,9 @@
+import os
+import sys
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+
 from utilmeta import UtilMeta
 from utilmeta.core import api, response
 import django
@@ -44,5 +50,10 @@ service.use(Operations(
 app = service.application()  # wsgi app
 
 if __name__ == '__main__':
+    try:
+        from pytest_cov.embed import cleanup_on_sigterm
+    except ImportError:
+        pass
+    else:
+        cleanup_on_sigterm()
     service.run()
-

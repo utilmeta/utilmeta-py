@@ -242,7 +242,7 @@ def load_ini(content: str, parse_key: bool = False) -> dict:
         annotate = line.split()[0].startswith('#') or line.split()[0].startswith(';')
         if annotate:
             continue
-        if re.fullmatch('\\[(.*?)\\]', line):
+        if re.fullmatch(r'\\[(.*?)\\]', line):
             key = line.strip('[]')
             ini[key] = dic = {}
         else:
@@ -395,19 +395,25 @@ def find_port():
 def get_max_socket_conn():
     if not posix_os:
         return None
-    r = os.popen('cat /proc/sys/net/core/somaxconn').read().strip('\n')
-    if not r:
+    try:
+        r = os.popen('cat /proc/sys/net/core/somaxconn').read().strip('\n')
+        if not r:
+            return None
+        return int(r)
+    except Exception:
         return None
-    return int(r)
 
 
 def get_max_open_files():
     if not posix_os:
         return None
-    r = os.popen('ulimit -n').read().strip('\n')
-    if not r:
+    try:
+        r = os.popen('ulimit -n').read().strip('\n')
+        if not r:
+            return None
+        return int(r)
+    except Exception:
         return None
-    return int(r)
 
 
 def running(pid):

@@ -2,7 +2,7 @@ import warnings
 from typing import Union, Type, TypeVar, Optional
 import sys
 import os
-from utilmeta.utils import (import_obj, awaitable, search_file,
+from utilmeta.utils import (import_obj, awaitable, search_file, ignore_errors,
                             cached_property, get_origin, load_ini, read_from)
 from utilmeta.conf.base import Config
 import inspect
@@ -440,6 +440,7 @@ class UtilMeta:
             raise ValueError('utilmeta.service: RootAPI not mounted')
         return self._root_api
 
+    @ignore_errors      # just ignore some unicode error happened in win
     def print_info(self):
         from utilmeta import __version__
         from utilmeta.bin.constant import BLUE, GREEN, DOT

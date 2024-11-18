@@ -8,8 +8,12 @@ https://docs.djangoproject.com/en/4.2/howto/deployment/wsgi/
 """
 
 import os
-
 from django.core.wsgi import get_wsgi_application
+import sys
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_demo.settings")
 

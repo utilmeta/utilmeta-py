@@ -1,3 +1,9 @@
+import os
+import sys
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+
 from apiflask import APIFlask, Schema, abort
 from apiflask.fields import Integer, String
 from apiflask.validators import Length, OneOf
@@ -51,4 +57,10 @@ Operations(
 ).integrate(app, __name__)
 
 if __name__ == '__main__':
+    try:
+        from pytest_cov.embed import cleanup_on_sigterm
+    except ImportError:
+        pass
+    else:
+        cleanup_on_sigterm()
     app.run(port=PORT)

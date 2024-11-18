@@ -50,6 +50,7 @@ jobs:
             django-version: "4.1"
             name: "3.13 (django 4.1)"
 
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3

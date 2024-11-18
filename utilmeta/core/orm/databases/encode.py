@@ -216,7 +216,7 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
             return sql, {key: str(val) for key, val in params.items()}
         elif isinstance(params, (list, tuple)):
             # regex = re.compile('%s::[a-zA-Z0-9()]+\[\]')
-            sql = re.compile('%s::[a-zA-Z0-9()]+\[\]').sub('%s', sql)     # match array (only for postgres)
+            sql = re.compile(r'%s::[a-zA-Z0-9()]+\[\]').sub('%s', sql)     # match array (only for postgres)
             replaces = tuple(f':param{i}' for i in range(0, len(params)))
             sql = sql % replaces
             params = {f'param{i}': params[i] for i in range(0, len(params))}

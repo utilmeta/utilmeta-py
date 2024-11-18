@@ -1,6 +1,6 @@
 # UtilMeta - 入门指引
 
-<img src="https://utilmeta.com/img/logo-gradient.png" style="width: 200px" alt="">
+<img src="https://utilmeta.com/img/logo-main-gradient.png" style="width: 200px" alt="">
 
 **UtilMeta** 是一个面向服务端应用的渐进式元框架，基于 Python 类型注解标准高效构建声明式接口与 ORM，支持使用主流 Python 框架作为运行时实现或渐进式整合
 

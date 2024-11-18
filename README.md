@@ -1,9 +1,9 @@
 # UtilMeta Python Framework
 
-<img src="https://utilmeta.com/img/logo-gradient.png" style="width: 200px" alt="">
+<img src="https://utilmeta.com/img/logo-main-gradient.png" style="width: 200px" alt="">
 
 **UtilMeta** Python framework is a progressive meta-framework to develop and manage backend applications, building declarative API & ORM efficiently based on the Python type annotation standard with both sync & async syntax, and supports using mainstream Python frameworks as runtime backend
-
+main-
 * Homepage: [https://utilmeta.com/py](https://utilmeta.com/py)
 * Documentation: [https://docs.utilmeta.com/py/en/](https://docs.utilmeta.com/py/en/)
 * Author: <a href="https://github.com/voidZXL" target="_blank">@voidZXL</a>
@@ -37,18 +37,12 @@ pip install utilmeta
 
 ### Declarative API & ORM
 
-Using the declarative power from UtilMeta, you can easily write APIs with auto request validation, efficient ORM queries, and auto OpenAPI document generation
+with UtilMeta, you can easily write declarative APIs with auto request validation, efficient ORM queries, and auto OpenAPI document generation, here is an example from [mini_blog/blog/api.py](https://github.com/utilmeta/utilmeta-py/blob/main/examples/mini_blog/blog/api.py)
 
 ```python
 from utilmeta.core import api, orm
+from .models import User, Article
 from django.db import models
-
-class User(models.Model):
-    username = models.CharField(max_length=20, unique=True)
-
-class Article(models.Model):
-    author = models.ForeignKey(User, related_name="articles", on_delete=models.CASCADE)
-    content = models.TextField()
 
 class UserSchema(orm.Schema[User]):
     username: str
@@ -76,19 +70,20 @@ if you request the ArticleAPI like `GET /article?id=1`, you will get the result 
   "content": "hello world"
 }
 ```
-This conforms to what you declared, and the OpenAPI docs will be generated automatically
+This is just what you declared, UtilMeta will generate optimized ORM queries automatically based on your declared schemas, prevent N+1 problem and also generate OpenAPI document for your APIs
 
 ### Progressive Meta Framework
-UtilMeta developed a standard that support all major Python web framework like **django**, **flask**, **fastapi** (starlette), **sanic**, **tornado** as runtime backend, and support current projects using these frameworks to develop new API using UtilMeta progressively
-<img src="https://utilmeta.com/img/py.section2.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
-### Highly Flexible & Extensible
-UtilMeta is highly flexible with a series of plugins including authentication (Session/JWT), CORS, rate limit, retry, and can be extended to support more features.
+UtilMeta built a standard that support most major Python web frameworks as runtime backend, and support current projects using these frameworks to develop new API using UtilMeta progressively
 
-### Full-lifecycle DevOps Solution
-The [UtilMeta Platform](https://utilmeta.com/) provided the full-lifecycle DevOps solution for this framework, the API Docs, Debug, Logs, Monitoring, Alerts, Analytics will all been taken care of in the platform
-<img src="https://utilmeta.com/img/py.section3.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="720"/>
-## Hello World
- Create a Python file named `server.py` and write the following code 
+Currently supported backends:
+
+* **Django** (also Django REST framework)
+* **Flask** (also APIFlask)
+* **FastAPI** (also Starlette)
+* **Sanic**
+* **Tornado**
+
+You can change the entire runtime backend with a single line of code, Here is a hello world example of UtilMeta
 ```python
 from utilmeta import UtilMeta
 from utilmeta.core import api
@@ -102,7 +97,7 @@ class RootAPI(api.API):
 service = UtilMeta(
     __name__,
     name='demo',
-    backend=django,    # or flask / starlette / tornado / sanic
+    backend=django,    # or flask / fastapi / starlette / sanic / tornado
     api=RootAPI,
     route='/api'
 )
@@ -113,67 +108,41 @@ if __name__ == '__main__':
     service.run()
 ```
 
-> You can use `flask`, `starlette`, `sanic`, `tornado` instead of `django` as runtime backend, just install them first and replace them in the demo code
+You can create a python file with the above code and run it to check it out.
 
-### Run
-You can execute this file by python to run the server
+## Quick Start
+
+you can start by easily start by clone out repo and run an example 
+
 ```shell
-python server.py
+pip install -U utilmeta
+git clone https://github.com/utilmeta/utilmeta-py
+cd utilmeta-py/examples/mini_blog
+meta migrate        # migrate databases
+meta run            # or python server.py
 ```
+
 The following info Implies that the service has live
 ```
-Running on http://127.0.0.1:8000
-Press CTRL+C to quit
-```
-Then we can use our browser to open [http://127.0.0.1:8000/api/hello](http://127.0.0.1:8000/api/hello) to call this API directly, we will see
-```
-world
-```
-It means this API works
-
-### Migrate
-
-Integrate current django/flask/fastapi/... project with UtilMeta API is as easy as follows 
-```python
-import django
-from django.urls import re_path
-from django.http.response import HttpResponse
-from utilmeta.core import api, response
-
-class CalcAPI(api.API):
-    @api.get
-    def add(self, a: int, b: int) -> int:
-        return a + b
-
-def django_test(request, route: str):
-    return HttpResponse(route)
-
-urlpatterns = [
-    re_path('test/(.*)', django_test),
-    CalcAPI.__as__(django, route='/calc'),
-]
+| UtilMeta (version) starting service [blog]
+|     version: 0.1.0
+|       stage: ● debug
+|     backend: fastapi (version) | asynchronous
+|    base url: http://127.0.0.1:8080
 ```
 
-Integrate with Flask example
-```python
-from flask import Flask
-from utilmeta.core import api, response
-
-app = Flask(__name__)
-
-@app.route("/")
-def hello_world():
-    return "<p>Hello, World!</p>"
-
-class CalcAPI(api.API):
-    @api.get
-    def add(self, a: int, b: int) -> int:
-        return a + b
-
-CalcAPI.__as__(app, route='/calc')
+### Connect
+When you started your service, you can see a line of output
+```
+UtilMeta OperationsAPI loaded at http://127.0.0.1:8080/ops, connect your APIs at https://ops.utilmeta.com
 ```
 
-## Quick Guide
+this indicates that UtilMeta Operations system is loaded successfully, you
+You can connect your APIs by open this link: [https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8080/ops](https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8080/ops)
+
+Click **API** and your will see the generated API document, you can debug your API here
+<img src="https://utilmeta.com/assets/image/local-blog-connect-api.png" href="https://ops.utilmeta.com" target="_blank"  alt="drawing" width="800"/>
+## Document Guide
 We have several introductory case tutorials from easy to complex, covering most usage of the framework. You can read and learn in the following order.
 
 1. [BMI Calculation API](https://docs.utilmeta.com/py/en/tutorials/bmi-calc)
@@ -185,10 +154,9 @@ If you prefer to learn from a specific feature, you can refer to
 
 * [Handle Request](https://docs.utilmeta.com/py/en/guide/handle-request): How to handle path, query parameters, request body, file upload, request headers and cookies.
 * [API Class and Routing](https://docs.utilmeta.com/py/en/guide/api-route) How to use API class mounts to define tree-like API routing, and use  hooks to easily reuse code between APIs, handle errors, and template responses.
-* [Schema query and ORM](https://docs.utilmeta.com/py/en/guide/schema-query) How to use Schema to declaratively write the CRUD query, and ORM operations required by a RESTful interface.
+* [Schema Query and ORM](https://docs.utilmeta.com/py/en/guide/schema-query) How to use UtilMeta to write declarative ORM queries for RESTful API.
 * [API Authentication](https://docs.utilmeta.com/py/en/guide/auth): How to use Session, JWT, OAuth and other methods to authenticate the request of the interface, get the current request's user and simplify the login operation
 * [Config, Run & Deploy](https://docs.utilmeta.com/py/en/guide/config-run): How to configure the run settings, startup, and deployment of a service using features such as declarative environment variables
-* [Migrate from current project](https://docs.utilmeta.com/py/en/guide/migration) How to progressively integrate UtilMeta API to an existing backend project or migrate to UtilMeta
 
 ## Community
 Join our community to build great things together
@@ -196,7 +164,6 @@ Join our community to build great things together
 * [Discord](https://discord.gg/JdmEkFS6dS)
 * [X(Twitter)](https://twitter.com/@utilmeta)
 * [Reddit](https://www.reddit.com/r/utilmeta)
-* [中文讨论区](https://lnzhou.com/channels/utilmeta/community)
 
 ## Enterprise Solutions & Support
 The UtilMeta team is providing custom solutions and enterprise-level support at
@@ -207,7 +174,6 @@ You can also contact us in [this page](https://utilmeta.com/about#contact)
 
 ### Wechat
 
-Contact the creator's wechat for support or join the developers wechat group
+Contact the creator's wechat (voidZXL) for support or join the developers wechat group
 
-
-<img src="https://utilmeta.com/img/wx_zxl.png" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="240"/>
+<img src="https://utilmeta.com/img/wx_voidzxl.jpg" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="200"/>

@@ -141,7 +141,8 @@ this indicates that UtilMeta Operations system is loaded successfully, you
 You can connect your APIs by open this link: [https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8080/ops](https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8080/ops)
 
 Click **API** and your will see the generated API document, you can debug your API here
-<img src="https://utilmeta.com/assets/image/local-blog-connect-api.png" href="https://ops.utilmeta.com" target="_blank"  alt="drawing" width="800"/>
+<img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+
 ## Document Guide
 We have several introductory case tutorials from easy to complex, covering most usage of the framework. You can read and learn in the following order.
 

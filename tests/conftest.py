@@ -9,11 +9,12 @@ import psutil
 from utilmeta import UtilMeta
 from typing import Union
 from pathlib import Path
+from utilmeta.utils import ignore_errors
 # from django import VERSION as DJANGO_VERSION
 TEST_PATH = os.path.dirname(__file__)
 SERVICE_PATH = os.path.join(TEST_PATH, 'server')
 PARAMETRIZE_CONFIG = False
-CONNECT_TIMEOUT = 3
+CONNECT_TIMEOUT = 15
 CONNECT_INTERVAL = 0.2
 WINDOWS = os.name == 'nt'
 
@@ -297,6 +298,18 @@ def run_server(backend: str = None, port: int = None, asynchronous: bool = None)
         cleanup()
 
 
+@ignore_errors
+def clear_server_process(server):
+    kill_child_processes(server.pid, signal.SIGTERM if WINDOWS else signal.SIGKILL)
+    if WINDOWS:
+        try:
+            os.kill(server.pid, signal.SIGBREAK)
+        except (PermissionError, OSError, WindowsError):
+            pass
+    else:
+        server.terminate()
+
+
 def make_live_process(backend: str = None, port: int = None, cmdline: bool = False):
     @pytest.fixture(scope="module")
     def service_process(service: UtilMeta):
@@ -336,28 +349,20 @@ def make_live_process(backend: str = None, port: int = None, cmdline: bool = Fal
             server.start()
             #
 
-        import socket
-        cnt = 0
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            while True:
-                if s.connect_ex((service.host, service.port)) == 0:
-                    break
-                time.sleep(CONNECT_INTERVAL)
-                cnt += 1
-                if cnt > (CONNECT_TIMEOUT / CONNECT_INTERVAL):
-                    return
-
         try:
+            import socket
+            cnt = 0
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                while True:
+                    if s.connect_ex((service.host, service.port)) == 0:
+                        break
+                    time.sleep(CONNECT_INTERVAL)
+                    cnt += 1
+                    if cnt > (CONNECT_TIMEOUT / CONNECT_INTERVAL):
+                        return
             yield server
         finally:
-            kill_child_processes(server.pid, signal.SIGTERM if WINDOWS else signal.SIGKILL)
-            if WINDOWS:
-                try:
-                    os.kill(server.pid, signal.SIGBREAK)
-                except (PermissionError, OSError, WindowsError):
-                    pass
-            else:
-                server.terminate()
+            clear_server_process(server)
     return service_process
 
 
@@ -378,28 +383,20 @@ def make_cmd_process(file: Union[str, Path], *argv, cwd: Union[str, Path] = None
             os.environ.pop('DJANGO_SETTINGS_MODULE')
         server = subprocess.Popen(cmd, env=os.environ.copy(), cwd=str(cwd or os.getcwd()))
 
-        if port:
-            import socket
-            cnt = 0
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                while True:
-                    if s.connect_ex(('127.0.0.1', port)) == 0:
-                        break
-                    time.sleep(CONNECT_INTERVAL)
-                    cnt += 1
-                    if cnt > (CONNECT_TIMEOUT / CONNECT_INTERVAL):
-                        return
-
         try:
+            if port:
+                import socket
+                cnt = 0
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    while True:
+                        if s.connect_ex(('127.0.0.1', port)) == 0:
+                            break
+                        time.sleep(CONNECT_INTERVAL)
+                        cnt += 1
+                        if cnt > (CONNECT_TIMEOUT / CONNECT_INTERVAL):
+                            return
             yield server
         finally:
-            kill_child_processes(server.pid, signal.SIGTERM if WINDOWS else signal.SIGKILL)
-            if WINDOWS:
-                try:
-                    os.kill(server.pid, signal.SIGBREAK)
-                except (PermissionError, OSError, WindowsError):
-                    pass
-            else:
-                server.terminate()
+            clear_server_process(server)
 
     return command_process

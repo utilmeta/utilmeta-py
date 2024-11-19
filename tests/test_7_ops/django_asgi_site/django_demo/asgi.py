@@ -8,12 +8,17 @@ https://docs.djangoproject.com/en/4.2/howto/deployment/asgi/
 """
 
 import os
+import sys
 
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_demo.settings")
 
 application = get_asgi_application()
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
 
 from utilmeta.ops import Operations
 from utilmeta import UtilMeta

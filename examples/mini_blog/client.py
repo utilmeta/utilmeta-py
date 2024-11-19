@@ -7,15 +7,13 @@ import utype
 
 class schemas:
     class UserSchema(utype.Schema):
-        __options__ = utype.Options(addition=True)
-        username: str = utype.Field(required=False, max_length=20)
-        articles_num: int = utype.Field(ge=0, required=False)
+        username: str
+        articles_num: int
 
     class ArticleSchema(utype.Schema):
-        __options__ = utype.Options(addition=True)
-        id: int = utype.Field(required=False, ge=1, le=2147483647)
-        author: "schemas.UserSchema" = utype.Field(required=False)
-        content: str = utype.Field(required=False)
+        id: int
+        author: "schemas.UserSchema"
+        content: str
 
 
 class responses:
@@ -25,10 +23,15 @@ class responses:
 
 
 class APIClient(cli.Client):
-    @api.get("/article", tags=["article"], description="")
-    def article_get(
+    @api.get("/article", tags=["article"])
+    async def article_get(
         self, id: int = request.QueryParam(required=True)
     ) -> responses.article_get_response[200]: pass
 
-
-client = APIClient(base_url="http://127.0.0.1:8002")
+import httpx
+client = APIClient(base_url="http://127.0.0.1:8080", backend=httpx)
+# >>> resp = await client.article_get(id=1)
+# >>> resp
+# article_get_response [200 OK] "GET /article?id=1"
+# >>> resp.result
+# ArticleSchema(id=1, author=UserSchema(username='alice', articles_num=1), content='Hello World')

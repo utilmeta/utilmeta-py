@@ -1,5 +1,6 @@
 # import inspect
 # import re
+import inspect
 import warnings
 
 import django
@@ -22,6 +23,8 @@ from utilmeta.core.response import Response
 from utilmeta.core.server.backends.base import ServerAdaptor
 from .settings import DjangoSettings
 import contextvars
+from django.core.handlers.asgi import ASGIHandler
+from django.core.handlers.wsgi import WSGIHandler
 
 _current_request = contextvars.ContextVar('_django.request')
 _current_response = contextvars.ContextVar('_django.response')
@@ -55,6 +58,12 @@ class DjangoServerAdaptor(ServerAdaptor):
         self._ready = False
         self.settings = config.get_config(self.settings_cls) or self.settings_cls()
         self.app = config._application if isinstance(config._application, BaseHandler) else None
+        if self.app:
+            if isinstance(self.app, ASGIHandler):
+                self.asynchronous = self.config.asynchronous = True
+            elif isinstance(self.app, WSGIHandler):
+                self.asynchronous = self.config.asynchronous = False
+
         self._mounts = {}
 
     def load_route(self, path: str):
@@ -98,7 +107,7 @@ class DjangoServerAdaptor(ServerAdaptor):
                     'MIDDLEWARE', [f'{self.settings.module_name}.{func.__name__}']
                 )
                 if self.app:
-                    self.app.load_middleware()
+                    self.app.load_middleware(is_async=self.asynchronous)
         else:
             raise ValueError(f'setup django middleware failed: settings not loaded')
 
@@ -119,64 +128,99 @@ class DjangoServerAdaptor(ServerAdaptor):
         return True
 
     @property
+    def async_startup(self) -> bool:
+        return False
+
+    @property
     def middleware_func(self):
         if not self.middlewares:
             return None
 
-        def utilmeta_middleware(get_response):
-            # One-time configuration and initialization.
+        from asgiref.sync import iscoroutinefunction
+        middlewares = self.middlewares
+        request_adaptor_cls = self.request_adaptor_cls
+        response_adaptor_cls = self.response_adaptor_cls
 
-            def func(django_request):
-                # Code to be executed for each request before
-                # the view (and later middleware) are called.
+        class UtilMetaMiddleware:
+            def __init__(self, get_response):
+                self.get_response = get_response
+                self.request = None
+                self.response = None
+
+            def process_request(self, django_request):
                 response = None
-                request = Request(self.request_adaptor_cls(django_request))
-                for middleware in self.middlewares:
+                request = Request(request_adaptor_cls(django_request))
+                for middleware in middlewares:
                     request = middleware.process_request(request) or request
                     if isinstance(request, Response):
                         response = request
                         break
-
                 if response:
-                    return self.response_adaptor_cls.reconstruct(response)
-
+                    self.response = response
+                    return response_adaptor_cls.reconstruct(response)
+                self.request = request
                 _current_request.set(request)
-                # fixme:
-                # in production (uwsgi)
-                # request.META might lost during log saving
-                # result in the emptiness of ip_address and url
-                django_response = get_response(django_request)
+
+            def process_response(self, django_response):
+                request = self.request or _current_request.get(None)
+                response = self.request or _current_response.get(None)
                 _current_request.set(None)
-
-                # Code to be executed for each request/response after
-                # the view is called.
-
-                response = _current_response.get(None)
                 _current_response.set(None)
+
                 if not isinstance(response, Response):
                     response = Response(
-                        response=self.response_adaptor_cls(django_response),
+                        response=response_adaptor_cls(django_response),
                         request=request
                     )
                 else:
                     if not response.adaptor:
-                        response.adaptor = self.response_adaptor_cls(
+                        response.adaptor = response_adaptor_cls(
                             django_response
                         )
 
                 response_updated = False
-                for middleware in self.middlewares:
+                for middleware in middlewares:
                     _response = middleware.process_response(response)
                     if isinstance(_response, Response):
                         response = _response
                         response_updated = True
 
                 if response_updated:
-                    django_response = self.response_adaptor_cls.reconstruct(response)
+                    django_response = response_adaptor_cls.reconstruct(response)
 
                 return django_response
 
-            return func
+            async def __acall__(self, request):
+                response = self.process_request(request) or self.get_response(request)
+                if inspect.isawaitable(response):
+                    response = await response
+                # Some logic ...
+                return self.process_response(response)
+
+            def __call__(self, request):
+                # Exit out to async mode, if needed
+                response = self.process_request(request) or self.get_response(request)
+                return self.process_response(response)
+
+        from django.utils.decorators import sync_and_async_middleware
+
+        @sync_and_async_middleware
+        def utilmeta_middleware(get_response):
+            # One-time configuration and initialization goes here.
+            if self.asynchronous and iscoroutinefunction(get_response):
+                async def middleware_func(request):
+                    middleware = UtilMetaMiddleware(get_response)
+                    # Do something here!
+                    response = await middleware.__acall__(request)
+                    return response
+            else:
+                def middleware_func(request):
+                    middleware = UtilMetaMiddleware(get_response)
+                    # Do something here!
+                    response = middleware(request)
+                    return response
+
+            return middleware_func
 
         return utilmeta_middleware
 
@@ -306,10 +350,8 @@ class DjangoServerAdaptor(ServerAdaptor):
         if self.app:
             return self.app
         if self.asynchronous:
-            from django.core.handlers.asgi import ASGIHandler
             self.app = ASGIHandler()
         else:
-            from django.core.handlers.wsgi import WSGIHandler
             self.app = WSGIHandler()
         # return self.app
         return self.app
@@ -324,7 +366,7 @@ class DjangoServerAdaptor(ServerAdaptor):
         self.config.startup()
         if self.asynchronous:
             try:
-                from daphne.server import Server
+                from daphne.server import Server    # noqa
             except ModuleNotFoundError:
                 pass
             else:

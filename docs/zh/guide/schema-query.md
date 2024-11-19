@@ -508,77 +508,6 @@ class ArticleSchema(orm.Schema[Article]):
         return article_schema
 ```
 
-
-### 关系更新
-
-关系字段除了查询外，可能还会有创建和更新的需求，
-
-!!! tip
-	关系字段的创建与更新只支持 一级的多对一关系对象更新和一级的多对多关系更新
-
-```json
-[{
-	"username": "alice",
-	"articles": [{
-		"content": "Hello World"
-	}]
-}]
-```
-
-
-对于多对多关系的更新，由于存在中间表，有着两种方式：
-1. 关系对象指向中间表，转化为多对一关系对象的更新
-2. 关系对象指向目标表
-
-```python
-class User(amodels.AwaitableModel):
-    username = models.CharField(max_length=40, unique=True)
-    password = PasswordField(max_length=100)
-    email = models.EmailField(max_length=60, unique=True)
-    followers = models.ManyToManyField(
-        'self', related_name='followed_bys', 
-        through='Follow', through_fields=('following', 'follower'),
-        symmetrical=False
-    )
-    
-class Follow(amodels.AwaitableModel):
-    following = models.ForeignKey(
-	    User, related_name='user_followers', 
-	    on_delete=amodels.ACASCADE
-	)
-    follower = models.ForeignKey(
-	    User, related_name='user_followings', 
-	    on_delete=amodels.ACASCADE
-	)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-class FollowSchema(orm.Schema[Follow]):
-	follower_id: int
-	created_at: datetime
-
-# 1. 关系对象指向中间表，
-class UserUpdate1(orm.Schema[User]):
-	username: str
-	user_followings: List[FollowSchema] = orm.Field(mode='rwa')
-
-# 2. 关系对象指向中间表，
-class UserUpdate2(orm.Schema[User]):
-	username: str
-	followings: List[int] = orm.Field(mode='rwa')
-```
-
-**忽略关系错误（IntegrityError）**
-
-如果客户端提供的数据中，关系字段的值是不存在的（比如提供一个无法在关系表中找到的主键值），这时可以选择主动忽略这样的关系错误
-
-
-!!! warning
-	多对多关系字段的更新仅限于更新关系（也就是中间表），不能更新多对多的目标表，从上面的例子而言，就是不能从一个用户更新这个用户关注的人的个人信息（用户名，邮箱，.etc），只能更新他的关注关系（关注谁，不关注谁），这个限制是必要的，要不然很容易造成权限漏洞
-
-!!! note
-	关系更新特性在 v2.6.1 以上的版本支持
-
-
 ## `orm.Schema` 的使用
 
 这一节将介绍 `orm.Schema` 常用的使用方式和应用技巧
@@ -953,7 +882,7 @@ class ArticleAPI(api.API):
 
 !!! note
 	客户端合理使用字段控制参数不仅可以降低带宽资源消耗，也能降低对应的查询压力，因为 UtilMeta 框架会根据 scope 参数中指定的字段对生成的查询语句进行剪裁，只会查询需要包含在结果中的字段，这样如果某些字段的查询消耗较大（如复杂的嵌套多对关系对象或表达式查询），当这些字段不包含在期望结果字段中时便不会进行查询处理
-
+ 
 ### `get_queryset` 获取查询集
 
 对于 `orm.Query` 实例，除了作为 `serialize` 等方法的参数直接进行序列化外，你还可以调用它的 `get_queryset` 方法获取生成的查询集，比如对于 Django 模型，就会生成一个 Django QuerySet 
@@ -983,6 +912,16 @@ class ArticleAPI(API):
 
 !!! tip
 	字段控制参数是比较特殊的查询参数，它虽然并不会对查询集造成任何影响，但是会影响序列化的字段，需要通过 `query.get_context()` 传递
+
+### DISTINCT 去重
+默认情况下，为了提高查询性能，`orm.Query` 生成的查询将不会进行 DISTINCT 去重，对于一般的字段查询，基本不会产生重复的 ID，但是如果你的查询中包含了复杂的关系查询，或者在 `get_queryset()` 时传入了未去重的含有重复行的查询集，那么就会导致重复的行
+
+为了解决这个问题，`orm.Query` 提供了一个可覆盖的 `__distinct__` 属性，可以用于指定是否强制去重，如果设为 True，那么它生成的查询集都是强制去重后的
+
+```python
+class ListArticleQuery(orm.Query[Article]):
+	__distinct__ = True
+```
 
 ## 数据库与 ORM 配置
 

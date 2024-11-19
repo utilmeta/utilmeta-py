@@ -86,6 +86,10 @@ class FlaskServerAdaptor(ServerAdaptor):
                 return False
         return True
 
+    @property
+    def async_startup(self) -> bool:
+        return False
+
     def add_api(self, app: Flask, utilmeta_api_class, route: str = '', asynchronous: bool = False):
         """
         Mount a API class

@@ -124,7 +124,11 @@ class DjangoModelAdaptor(ModelAdaptor):
     def get_queryset(self, q=None, **filters) -> queryset_cls:
         # for django it's like model.objects.all()
         args = (q,) if q else ()
-        base = self.model.objects.all()
+        try:
+            base = self.model.objects.all()
+        except AttributeError:
+            # swapped?
+            base = self.queryset_cls(self.model)
         if args or filters:
             return base.filter(*args, **filters)
         return base

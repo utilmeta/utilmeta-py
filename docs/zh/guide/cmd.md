@@ -24,6 +24,8 @@ meta init
 ## 运行与部署
 
 
+接下来的版本中 UtilMeta 将会提供自动化部署命令，能够自动生成并更新 uwsgi, gunicorn, nginx 等配置文件，以及注册与管理 systemd 服务
+
 ## 文档与客户端代码生成
 
 ### 生成 OpenAPI 文档

@@ -26,29 +26,30 @@ class UserResponse(response.Response):
 
 
 class UserClient(cli.Client):
-    @api.post('jwt_login')
+    # cli.post = api.post
+    @cli.post('jwt_login')
     def jwt_login(self, username: str = request.BodyParam(),
                   password: str = request.BodyParam()) -> Union[UserResponse, response.Response]:
         pass
 
-    @api.get('user_by_jwt')
+    @cli.get('user_by_jwt')
     def jwt_get(self, token: str = request.HeaderParam('authorization')) -> Union[UserResponse, response.Response]:
         pass
 
-    @api.post('session_login')
+    @cli.post('session_login')
     def session_login(self, username: str = request.BodyParam(),
                       password: str = request.BodyParam()) -> Union[UserResponse, response.Response]:
         pass
 
-    @api.get('/user_by_session')
+    @cli.get('/user_by_session')
     def session_get(self) -> Union[UserResponse, response.Response]:
         pass
 
-    @api.post('/session_logout')
+    @cli.post('/session_logout')
     def session_logout(self):
         pass
 
-    @api.patch('/')
+    @cli.patch('/')
     def update_user(self,
                     username: str = request.BodyParam(required=False),
                     password: str = request.BodyParam(required=False),

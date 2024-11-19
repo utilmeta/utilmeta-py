@@ -47,11 +47,8 @@ PORT = 9100
 Operations(
     route='ops',
     database=Operations.Database(
-        name='async_operations_ops',
+        name='operations_db',
     ),
     base_url=f'http://127.0.0.1:{PORT}',
+    eager=True
 ).integrate(service)
-
-if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run(application, host='127.0.0.1', port=PORT)

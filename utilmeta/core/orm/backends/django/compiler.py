@@ -1055,7 +1055,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             # we should not return any
             return ()
         from .queryset import AwaitableQuerySet
-        qs = self.model.model.objects.all()
+        qs = self.model.get_queryset()
         from django.db.utils import IntegrityError
         if isinstance(qs, AwaitableQuerySet) or asynchronous:
             from utilmeta.core.orm import DatabaseConnections

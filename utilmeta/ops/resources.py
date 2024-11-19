@@ -137,7 +137,7 @@ class ResourcesManager:
             **self.instance_data
         )
 
-    def get_tables(self) -> List[TableSchema]:
+    def get_tables(self, with_model: bool = False) -> List[TableSchema]:
         # from utilmeta.core.orm.backends.base import ModelAdaptor
         from utilmeta.core.orm.backends.django import DjangoModelAdaptor
         # todo: support other than django
@@ -156,7 +156,8 @@ class ResourcesManager:
 
         def register_model(mod, label):
             meta: Options = getattr(mod, '_meta')
-            if meta.auto_created or meta.abstract:
+            if meta.auto_created or meta.abstract or meta.swappable:
+                # swappable: like django.contrib.auth.models.User
                 return
             if mod in model_id_map:
                 return model_id_map[mod]
@@ -185,7 +186,8 @@ class ResourcesManager:
                 base=base_id,
                 name=meta.db_table,
                 fields=generator.generate_fields(),
-                database=QuerySet(mod).db
+                database=QuerySet(mod).db,
+                model=mod if with_model else None
                 # relations=generator.generate_relations(),
             )
             tables.append(obj)

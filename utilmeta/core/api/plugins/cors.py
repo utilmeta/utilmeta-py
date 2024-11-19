@@ -30,23 +30,23 @@ class CORSPlugin(APIPlugin):
 
         if allow_origin:
             if isinstance(allow_origin, str):
-                if allow_origin != '*':
-                    allow_origin = [allow_origin]
-                else:
-                    if self.csrf_exempt is None:
-                        # cross domain. no csrf check
-                        self.csrf_exempt = True
+                allow_origin = [allow_origin]
             elif not multi(allow_origin):
                 raise TypeError(f'Request allow_origin must be None, "*" or a origin str / str list')
 
-        if multi(allow_origin):
-            self.allow_origins = [get_origin(origin) for origin in allow_origin]
+        if '*' in allow_origin:
+            self.allow_origins = ['*']
         else:
-            self.allow_origins = allow_origin
+            self.allow_origins = [get_origin(origin) for origin in allow_origin if origin]
+
+        if self.allow_all_origin:
+            if self.csrf_exempt is None:
+                # cross domain. no csrf check
+                self.csrf_exempt = True
 
         if allow_headers is None or not allow_headers:
             allow_headers = []
-        elif allow_headers != '*':
+        else:
             if not multi(allow_headers):
                 allow_headers = [allow_headers]
             allow_headers = [str(h).lower() for h in allow_headers]
@@ -61,13 +61,20 @@ class CORSPlugin(APIPlugin):
 
         self.allow_errors = tuple([e for e in allow_errors if isinstance(e, type) and issubclass(e, Exception)]) \
             if allow_errors else None
-        self.allow_origin = allow_origin
+        self.allow_headers: list = allow_headers or []
         self.cors_max_age = cors_max_age
-        self.allow_headers = allow_headers or []
         self.expose_headers = expose_headers
         self.gen_csrf_token = gen_csrf_token
         self.exclude_statuses = exclude_statuses
         self.options_200 = options_200
+
+    @property
+    def allow_all_origin(self):
+        return self.allow_origins and '*' in self.allow_origins
+
+    @property
+    def allow_all_headers(self):
+        return self.allow_headers and '*' in self.allow_headers
 
     def __call__(self, func, *args, **kwargs):
         from ..base import API
@@ -83,10 +90,10 @@ class CORSPlugin(APIPlugin):
             # origin cross settings is above all other request control settings
             # so that when request error occur, the cross-origin settings can take effect
             # so that client see a valid error message instead of a CORS error
-            if self.allow_origins is None:
+            if not self.allow_origins:
                 raise exc.PermissionDenied(f'Invalid request origin: {request.origin}')
             else:
-                if self.allow_origins != '*':
+                if not self.allow_all_origin:
                     if request.origin not in self.allow_origins:
                         raise exc.PermissionDenied(f'Invalid request origin: {request.origin}')
 
@@ -105,7 +112,7 @@ class CORSPlugin(APIPlugin):
         # error default, so when error occur, CORS headers cam also be set
         if not request:
             return False
-        if request.is_options or self.allow_origins == '*':
+        if request.is_options or self.allow_all_origin:
             return True
         from utilmeta import service
         if request.origin != service.origin:
@@ -132,7 +139,7 @@ class CORSPlugin(APIPlugin):
                 Header.ALLOW_METHODS: ','.join(set([m.upper() for m in var.allow_methods.getter(request)])),
             })
             if request.is_options:
-                if self.allow_headers == '*':
+                if self.allow_all_headers:
                     response.set_header(Header.ALLOW_HEADERS, '*')
                 else:
                     # request_headers = [h.strip().lower() for h in

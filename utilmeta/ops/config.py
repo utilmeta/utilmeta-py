@@ -3,7 +3,7 @@ import threading
 from utilmeta.conf import Config
 from utilmeta.core.orm.databases.config import Database, DatabaseConnections
 from utype.types import *
-from utilmeta.utils import (DEFAULT_SECRET_NAMES, url_join, localhost,
+from utilmeta.utils import (DEFAULT_SECRET_NAMES, url_join, localhost, HTTPMethod,
                             cached_property, import_obj, get_origin)
 from typing import Union
 from urllib.parse import urlsplit
@@ -51,12 +51,54 @@ class Operations(Config):
             database_disabled: bool = False,
             cache_disabled: bool = False,
             # ----------------------------
-            worker_retention: timedelta = timedelta(hours=12),
+            worker_retention: timedelta = timedelta(hours=24),
             server_retention: timedelta = timedelta(days=7),
             instance_retention: timedelta = timedelta(days=7),
             database_retention: timedelta = timedelta(days=7),
             cache_retention: timedelta = timedelta(days=7),
         ):
+            super().__init__(locals())
+
+    class Log(Config):
+        DEBUG = 0
+        INFO = 1
+        WARN = 2
+        ERROR = 3
+
+        store_data_level: Optional[int]
+        store_result_level: Optional[int]
+        store_headers_level: Optional[int]
+        persist_level: int
+        persist_duration_limit: Optional[int]
+        exclude_methods: List[str]
+        exclude_status: List[int]
+        exclude_request_headers: List[str]
+        exclude_response_headers: List[str]
+        # if these headers show up, exclude
+        default_volatile: bool
+        volatile_maintain: timedelta
+        # maintain: Optional[timedelta]
+
+        def __init__(
+            self,
+            store_data_level: Optional[int] = None,
+            store_result_level: Optional[int] = None,
+            store_headers_level: Optional[int] = None,
+            persist_level: int = WARN,
+            persist_duration_limit: Optional[int] = 5,
+            exclude_methods: list = (HTTPMethod.OPTIONS, HTTPMethod.CONNECT, HTTPMethod.TRACE, HTTPMethod.HEAD),
+            exclude_status: list = (),
+            exclude_request_headers: List[str] = (),
+            exclude_response_headers: List[str] = (),
+            # if these headers show up, exclude
+            default_volatile: bool = True,
+            volatile_maintain: timedelta = timedelta(days=7),
+            # maintain: Optional[timedelta] = None,
+            # default
+            # - debug: info
+            # - production: WARN
+        ):
+            exclude_methods = [m.upper() for m in exclude_methods] if exclude_methods else []
             super().__init__(locals())
 
     def __init__(self,
@@ -67,10 +109,10 @@ class Operations(Config):
                  disabled_scope: List[str] = (),
                  secret_names: List[str] = DEFAULT_SECRET_NAMES,
                  trusted_hosts: List[str] = (),
-                 trusted_packages: List[str] = (),
+                 # trusted_packages: List[str] = (),
                  default_timeout: int = 30,
                  secure_only: bool = True,
-                 local_disabled: bool = False,
+                 # local_disabled: bool = False,
                  logger_cls=None,
                  max_backlog: int = 100,
                  # will trigger a log save if the log hits this limit
@@ -83,6 +125,7 @@ class Operations(Config):
                  # - the main (with min pid) worker will do the monitor tasks
                  openapi=None,     # openapi paths
                  monitor: Monitor = Monitor(),
+                 log: Log = Log(),
                  report_disabled: bool = False,
                  task_error_log: str = None,
                  max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
@@ -98,10 +141,10 @@ class Operations(Config):
         self.disabled_scope = set(disabled_scope)
         self.secret_names = [k.lower() for k in secret_names]
         self.trusted_hosts = list(trusted_hosts)
-        self.trusted_packages = list(trusted_packages or []) + ['django', 'utilmeta']
+        # self.trusted_packages = list(trusted_packages or []) + ['django', 'utilmeta']
         self.default_timeout = default_timeout
         self.secure_only = secure_only
-        self.local_disabled = local_disabled
+        # self.local_disabled = local_disabled
         self.eager = eager
 
         if isinstance(max_retention_time, timedelta):
@@ -127,7 +170,10 @@ class Operations(Config):
             self.trusted_hosts.append(self.HOST)
         if not isinstance(monitor, self.Monitor):
             raise TypeError(f'Operations monitor config must be a Monitor instance, got {monitor}')
+        if not isinstance(log, self.Log):
+            raise TypeError(f'Operations log config must be a Log instance, got {log}')
         self.monitor = monitor
+        self.log = log
         self.logger_cls_string = logger_cls
         self.resources_manager_cls_string = resources_manager_cls
         self.task_error_log = task_error_log
@@ -146,6 +192,14 @@ class Operations(Config):
         )()
         self._openapi = openapi
         return openapi
+
+    @property
+    def local_disabled(self):
+        return not self.local_scope
+
+    @property
+    def is_local(self):
+        return localhost(self.ops_api)
 
     @property
     def openapi(self):
@@ -312,7 +366,7 @@ class Operations(Config):
         self._openapi = None
         # clear openapi cache
 
-    def on_startup(self, service):
+    def on_startup(self, service: UtilMeta):
         ops_api = self.ops_api
         if not ops_api:
             return
@@ -330,15 +384,15 @@ class Operations(Config):
             # migrate must be eagerly finished before the on_startup finish
             # try migrate before load first
             # use another thread to migrate
-            if service.asynchronous:
+            if service.adaptor.async_startup:
                 migrate_thread = threading.Thread(target=self.migrate)
                 migrate_thread.start()
                 migrate_thread.join()
             else:
                 self.migrate()
 
-        print(f'UtilMeta operations API loaded at {ops_api}, '
-              f'you can visit {__website__} to manage your APIs')
+        print(f'UtilMeta OperationsAPI loaded at {ops_api}, '
+              f'connect your APIs at {__website__}')
         # from .log import setup_locals
         # threading.Thread(target=setup_locals, args=(self,)).start()
         # task
@@ -437,11 +491,11 @@ class Operations(Config):
             return service.origin
         return service.base_url
 
-    def check_host(self):
-        parsed = urlsplit(self.ops_api)
-        if localhost(str(parsed.hostname)):
-            return False
-        return True
+    # def check_host(self):
+    #     parsed = urlsplit(self.ops_api)
+    #     if localhost(str(parsed.hostname)):
+    #         return False
+    #     return True
 
     def check_supervisor(self, base_url: str):
         parsed = urlsplit(base_url)

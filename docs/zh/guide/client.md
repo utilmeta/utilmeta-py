@@ -422,8 +422,35 @@ class APIClient(cli.Client):
 
 ### 客户端的表单与文件
 
-* 直接上传文件
-* `multipart/form-data`
+使用客户端类为请求添加文件的方式有两种
+
+* **直接上传文件**：直接使用单个文件作为请求体，你可以直接把 `utilmeta.core.file.File` 指定为请求体类型
+* **使用表单上传文件**：使用 `multipart/form-data` 表单传输文件，除了文件外你还可以传入其他的表单字段
+
+```python
+from utilmeta.core import cli, request, api, file
+import utype
+
+class APIClient(cli.Client):
+	class FormData(utype.Schema):
+        name: str
+        files: List[file.File]
+        
+    @api.post
+    def multipart(self, data: FormData = request.Body): pass
+```
+
+在传入文件时，你可以直接使用 File 传递一个本地文件，比如
+
+```python
+client.multipart(data={
+	'name': 'multipart',
+	'files': [File(open('test.txt', 'r')), File(open('test.png', 'r'))] 
+})
+```
+
+!!! tip
+	你可以使用 File 的 `filename` 参数传入文件名，会作为  `multipart/form-data`  表单的文件名传递，如果没有指定的话会识别本地文件的文件名
 
 
 ## 调用 `Client` 
@@ -478,49 +505,46 @@ Response [200 OK] "GET /get?a=1&b=2"
 {'a': '1', 'b': '2'}
 ```
 
-### 自定义调用
-
-
 ### Cookies 会话保持
 
-一个常见的需求是客户端提供一个 Session 会话机制，像浏览器一样，能够保存和记忆响应设置的 Cookies 并且在请求中发送
+客户端一个常见的需求是提供一个 Session 会话机制，像浏览器一样，能够保存和记忆响应设置的 Cookies 并且在请求中发送，Client 类就内置了这样的机制
 
+当你的请求的响应包含 `Set-Cookie` 响应头时，Client 类就会解析其中的 Cookie 并且存储，在接下来的请求中 Client 类就会携带这些 Cookie 进行请求
 
 #### 通过 `with` 语句隔离会话
 
+如果你希望 Client 类中的会话状态只保持在一部分代码块中，你可以使用 `with` 语句来组织与隔离这些会话，在 `with` 语句退出时，client 中的 Cookie 等会话状态将会被清理
 
-
-## 使用 `Client` 插件
-
-
-### `Client` 中的插件机制
-
-
-和 API 类不同的是，`Client` 中的请求函数不是通过路由分配的，而是通过函数调用直接调用的，这样的情况下，插件事实上只能作用到 **请求函数** 的级别
-
-所以施加给 Client 类的插件会作用到这个 Client 类中所有的请求函数和挂载的子 `Client` 类
-
-
-
-### `Retry` 重试插件
-
-
-!!! tip
-	由于 API 与 `Client` 类的请求响应类型是一致的，`Retry` 重试插件不仅可以用在 `Client` 类或请求函数，也可以用在 API 类和 API 函数中
-
-### 自定义 `Client` 插件
-
-`Client` 插件的逻辑很简单，还记得上文的钩子函数吗？`Client` 插件其实就是提供了一系列钩子函数，用于处理请求，处理响应或者处理错误
+```python
+client = UserClient(
+	base_url='http://127.0.0.1:8555/api/user',
+)
+with client:
+	resp = client.session_login(
+		username='alice',
+		password="******",
+	)
+with client:
+	resp = client.jwt_login(
+		username='alice',
+		password="******",
+	)
+```
 
 
 ## 生成 `Client` 类代码
 
 ### 为 UtilMeta 服务生成请求代码
 
+为 UtilMeta 服务自动生成 Client 类的请求 SDK 代码只需要一个命令，在你的项目目录（包含 `meta.ini` 的目录）下执行整个命令
+
+```
+meta gen_client
+```
 
 ### 为 OpenAPI 文档生成请求代码
 
-
+你可以在使用 `meta gen_client` 命令时传入 `--openapi` 参数，指定 OpenAPI 的 URL 或文件地址，UtilMeta 就会根据这个地址对应的 OpenAPI 文档生成客户端请求 SDK 代码
 
 ## `Client` 类代码示例
 
@@ -589,4 +613,3 @@ class APIClient(cli.Client):
 ArticleResponse [200 OK] "GET /api/articles/how-to-train-your-dragon"
 ```
 
-### OpenAI 对话接口

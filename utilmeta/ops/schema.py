@@ -99,6 +99,9 @@ class TableSchema(ResourceBase):
     fields: dict
     # relations: dict = Field(default_factory=dict)
 
+    model: Any = Field(no_output=True, default=None, defer_default=True)
+    # any model class
+
 
 class ServerSchema(ResourceBase):
     ip: str

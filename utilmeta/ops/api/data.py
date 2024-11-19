@@ -1,12 +1,11 @@
 from utilmeta.core import api, request
 from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
-from utilmeta.utils import import_obj, reduce_value, SECRET, adapt_async, exceptions, awaitable
+from utilmeta.utils import reduce_value, SECRET, adapt_async, exceptions, awaitable
 from ..schema import TableSchema
 from utilmeta.core.orm import ModelAdaptor
 from utype.types import *
 from .utils import config
 import utype
-import os
 
 
 class QuerySchema(utype.Schema):
@@ -29,6 +28,9 @@ class UpdateDataSchema(utype.Schema):
     data: List[dict]
 
 
+_tables: Optional[list] = None
+
+
 class DataAPI(api.API):
     supervisor: SupervisorObject = supervisor_var
     response = WrappedResponse
@@ -37,26 +39,17 @@ class DataAPI(api.API):
     # model ref
     # using: str = request.QueryParam(default=None)
 
-    def import_model(self):
+    def get_model(self):
         if '.' not in self.model:
             return None
-        from utilmeta import service
-        *packages, model_name = self.model.split('.')
-        model_file = os.path.join(service.project_dir, *packages)
-        # this is to prevent model from importing the packages outside the project
-        # (that may cause security issues)
-        if not os.path.exists(model_file) and not os.path.exists(model_file + '.py'):
-            package = packages[0]
-            if package and any([package == p for p in config.trusted_packages]):
-                # this package is trusted
-                pass
-            else:
-                raise exceptions.BadRequest(f'Invalid model: {self.model}')
-        # package.file.modelName
-        try:
-            return import_obj(self.model)
-        except (ModuleNotFoundError, ImportError):
-            raise exceptions.BadRequest(f'Invalid model: {self.model}')
+        # security check
+        tables = self.get_tables()
+        for table in tables:
+            if table.get('ref') == self.model:
+                if table.model:
+                    return table.model
+        raise exceptions.BadRequest(f'Invalid model: {self.model}')
+        # deprecate the import usage as it maybe dangerous
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -68,7 +61,7 @@ class DataAPI(api.API):
     def adaptor(self):
         if self._adaptor:
             return self._adaptor
-        self.model_class = self.import_model()
+        self.model_class = self.get_model()
         try:
             self._adaptor = ModelAdaptor.dispatch(self.model_class)
         except NotImplementedError:
@@ -97,8 +90,12 @@ class DataAPI(api.API):
     @api.get('tables')
     @opsRequire('data.view')
     def get_tables(self) -> List[TableSchema]:
+        global _tables
+        if _tables is not None:
+            return _tables
         from ..resources import ResourcesManager
-        return ResourcesManager().get_tables()
+        _tables = ResourcesManager().get_tables(with_model=True)
+        return _tables
 
     # scope: data.view:[TABLE_IDENT]
     @api.post('query')

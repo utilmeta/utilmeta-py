@@ -68,7 +68,6 @@ class OperationWorkerTask(BaseCycleTask):
     DISCONNECTED_WORKER_RETENTION = timedelta(hours=12)
     DISCONNECTED_INSTANCE_RETENTION = timedelta(days=3)
     DISCONNECTED_SERVER_RETENTION = timedelta(days=3)
-    VOLATILE_LOGS_RETENTION = timedelta(days=7)
     AGGREGATION_EXPIRE_TIME = [timedelta(days=1), timedelta(days=7)]
 
     LAYER_INTERVAL = [timedelta(hours=1), timedelta(days=1)]
@@ -457,10 +456,11 @@ class OperationWorkerTask(BaseCycleTask):
             connected = stats is not None
             cache_data = dict(connected=connected)
             data = dict(stats or {})
+            pid = data.get('pid')
             # cpu_percent = memory_percent = fds = open_files = None
-            if stats.pid and cache.local:
+            if pid and cache.local:
                 try:
-                    proc = psutil.Process(stats.pid)
+                    proc = psutil.Process(pid)
                     cpu_percent = proc.cpu_percent(0.5)
                     memory_percent = proc.memory_percent()
                     fds = proc.num_fds() if psutil.POSIX else None
@@ -473,7 +473,7 @@ class OperationWorkerTask(BaseCycleTask):
                     )
                 except psutil.Error:
                     pass
-                cache_data.update(pid=stats.pid)
+                cache_data.update(pid=pid)
 
             cache.updated_time = self._last_exec
             # update_fields = ['updated_time']
@@ -498,7 +498,7 @@ class OperationWorkerTask(BaseCycleTask):
             InstanceMonitor, ServerMonitor, DatabaseMonitor, AggregationLog, AlertLog, Worker, Resource
         now = self._last_exec or time_now()
         ServiceLog.objects.filter(
-            time__lt=now - self.VOLATILE_LOGS_RETENTION,
+            time__lt=now - self.config.log.volatile_maintain,
             volatile=True
         ).delete()
 

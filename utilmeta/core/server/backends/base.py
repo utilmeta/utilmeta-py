@@ -125,6 +125,10 @@ class ServerAdaptor(BaseAdaptor):
     def backend_views_empty(self) -> bool:
         return True
 
+    @property
+    def async_startup(self) -> bool:
+        return self.asynchronous
+
     @classmethod
     def is_asgi(cls, app):
         if not inspect.isfunction(app):

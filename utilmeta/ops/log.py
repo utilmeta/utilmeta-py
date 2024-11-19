@@ -245,8 +245,9 @@ def setup_locals(config: Operations, close_conn: bool = False):
 
     if not _instance:
         _instance = Resource.get_current_instance()
+        from .schema import get_current_instance_data
+        data = get_current_instance_data()
         if not _instance:
-            from .schema import get_current_instance_data
             ident = _server.ident if _server else service.ip
             _instance = Resource.objects.create(
                 type='instance',
@@ -257,6 +258,10 @@ def setup_locals(config: Operations, close_conn: bool = False):
                 server=_server,
                 data=get_current_instance_data()
             )
+        else:
+            if _instance.data != data:
+                _instance.data = data
+                _instance.save(update_fields=['data'])
 
     # if not _version:
     #     if _instance:
@@ -391,6 +396,23 @@ class LogMiddleware(ServiceMiddleware):
         logger.setup_request(request)
         request_logger.setter(request, logger)
 
+    def is_excluded(self, response: Response):
+        request = response.request
+        if request:
+            if self.config.log.exclude_methods:
+                if request.adaptor.request_method.upper() in self.config.log.exclude_methods:
+                    return True
+            if self.config.log.exclude_request_headers:
+                if any(h in self.config.log.exclude_request_headers for h in request.headers):
+                    return True
+        if self.config.log.exclude_status:
+            if response.status in self.config.log.exclude_status:
+                return True
+        if self.config.log.exclude_response_headers:
+            if any(h in self.config.log.exclude_response_headers for h in response.headers):
+                return True
+        return False
+
     def process_response(self, response: Response):
         logger: Logger = _logger.get(None)
         if not logger:
@@ -412,7 +434,8 @@ class LogMiddleware(ServiceMiddleware):
 
         if logger.omitted:
             return response.close()
-        if response.request.is_options or logger.events_only:
+
+        if self.is_excluded(response) or logger.events_only:
             if response.success and logger.vacuum:
                 return response.close()
 
@@ -433,15 +456,15 @@ class Logger(Property):
 
     middleware_cls = LogMiddleware
 
-    DEFAULT_VOLATILE = True
-    EXCLUDED_METHODS = (HTTPMethod.OPTIONS, HTTPMethod.CONNECT, HTTPMethod.TRACE, HTTPMethod.HEAD)
-    VIOLATE_MAINTAIN: timedelta = timedelta(days=1)
-    MAINTAIN: timedelta = timedelta(days=30)        # ALL LOGS
-    PERSIST_DURATION = timedelta(seconds=1)
-    PERSIST_LEVEL = LogLevel.WARN
-    STORE_DATA_LEVEL = LogLevel.WARN
-    STORE_RESULT_LEVEL = LogLevel.WARN
-    STORE_HEADERS_LEVEL = LogLevel.WARN
+    # DEFAULT_VOLATILE = True
+    # EXCLUDED_METHODS = (HTTPMethod.OPTIONS, HTTPMethod.CONNECT, HTTPMethod.TRACE, HTTPMethod.HEAD)
+    # VIOLATE_MAINTAIN: timedelta = timedelta(days=1)
+    # MAINTAIN: timedelta = timedelta(days=30)        # ALL LOGS
+    # PERSIST_DURATION = timedelta(seconds=1)
+    # PERSIST_LEVEL = LogLevel.WARN
+    # STORE_DATA_LEVEL = LogLevel.WARN
+    # STORE_RESULT_LEVEL = LogLevel.WARN
+    # STORE_HEADERS_LEVEL = LogLevel.WARN
 
     def __init__(self,
                  from_logger: 'Logger' = None,
@@ -473,7 +496,18 @@ class Logger(Property):
         self._events_only = False
         self._server_timing = False
         self._exited = False
-        self._volatile = self.DEFAULT_VOLATILE
+        self._volatile = self.config.log.default_volatile
+        self._store_data_level = self.config.log.store_data_level
+        self._store_result_level = self.config.log.store_result_level
+        self._store_headers_level = self.config.log.store_headers_level
+        self._persist_level = self.config.log.persist_level
+        self._persist_duration_limit = self.config.log.persist_duration_limit
+        if self._store_data_level is None:
+            self._store_data_level = LogLevel.WARN if service.production else LogLevel.INFO
+        if self._store_headers_level is None:
+            self._store_headers_level = LogLevel.WARN if service.production else LogLevel.INFO
+        if self._store_result_level is None:
+            self._store_result_level = LogLevel.WARN if service.production else LogLevel.INFO
 
     def relative_time(self, to=None):
         return max(int(((to or time.time()) - self.init_time) * 1000), 0)
@@ -715,7 +749,7 @@ class Logger(Property):
         data = None
         result = None
 
-        if level >= self.STORE_DATA_LEVEL:
+        if level >= self._store_data_level:
             if method in HAS_BODY_METHODS:
                 # if data should be saved
                 try:
@@ -723,7 +757,7 @@ class Logger(Property):
                 except Exception as e:  # noqa: ignore
                     warnings.warn(f'load request data failed: {e}')
 
-        if level >= self.STORE_RESULT_LEVEL:
+        if level >= self._store_result_level:
             try:
                 result = self.parse_values(response.data)
             except Exception as e:  # noqa: ignore
@@ -735,14 +769,15 @@ class Logger(Property):
             public = False
 
         volatile = self.volatile
-        if level >= self.PERSIST_LEVEL:
+        if level >= self._persist_level:
             volatile = False
-        if duration and duration >= self.PERSIST_DURATION.total_seconds() * 1000:
-            volatile = False
+        if self._persist_duration_limit:
+            if duration and duration >= self._persist_duration_limit * 1000:
+                volatile = False
 
         request_headers = {}
         response_headers = {}
-        if level >= self.STORE_HEADERS_LEVEL:
+        if level >= self._store_headers_level:
             request_headers = self.parse_values(dict(request.headers))
             response_headers = self.parse_values(dict(response.headers))
 

@@ -321,16 +321,18 @@ def awaitable(syncfunc, bind_service: bool = False, close_conn: bool = False):
                         pass
                     else:
                         if service.asynchronous:
-                            def sync_func_wrapper(*_, **__):
-                                from_thread.set(True)
-                                try:
-                                    return sync_func(*_, **__)
-                                finally:
-                                    from_thread.set(False)
-                                    if close_conn:
-                                        from django.db import connections
-                                        connections.close_all()
-                            return service.pool.get_result(sync_func_wrapper, *args, **kwargs)
+                            import utilmeta
+                            if not getattr(utilmeta, '_cmd_env', False):
+                                def sync_func_wrapper(*_, **__):
+                                    from_thread.set(True)
+                                    try:
+                                        return sync_func(*_, **__)
+                                    finally:
+                                        from_thread.set(False)
+                                        if close_conn:
+                                            from django.db import connections
+                                            connections.close_all()
+                                return service.pool.get_result(sync_func_wrapper, *args, **kwargs)
                 return sync_func(*args, **kwargs)
         wrapper._syncfunc = sync_func
         wrapper._asyncfunc = asyncfunc

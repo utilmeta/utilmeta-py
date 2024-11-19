@@ -9,10 +9,15 @@ from pathlib import Path
 
 BASE_DIR = Path(os.path.dirname(__file__))
 
-django_process = make_cmd_process(
+django_wsgi_process = make_cmd_process(
     BASE_DIR / 'django_site/manage.py',
     cwd=BASE_DIR / 'django_site',
     port=9091
+)
+django_asgi_process = make_cmd_process(
+    BASE_DIR / 'django_asgi_site/main.py',
+    cwd=BASE_DIR / 'django_asgi_site',
+    port=9100
 )
 fastapi_process = make_cmd_process(
     BASE_DIR / 'fastapi_site/server.py',
@@ -42,7 +47,7 @@ utilmeta_process = make_cmd_process(
 
 
 class TestOperations:
-    def test_django_operations(self, django_process):
+    def test_django_operations(self, django_wsgi_process):
         with OperationsClient(base_url='http://127.0.0.1:9091/ops') as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
@@ -67,6 +72,37 @@ class TestOperations:
             inst_resp = client.get_instances()
             inst = inst_resp.result[0]
             assert inst.backend == 'django'
+            assert inst.language == 'python'
+            # assert inst.backend_version == django.__version__
+            # maybe the instance is cached in local, we just don't test it for now
+            assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+
+    def test_django_asgi_operations(self, django_asgi_process):
+        with OperationsClient(base_url='http://127.0.0.1:9100/ops') as client:
+            info = client.get_info()
+            assert info.result.utilmeta == __spec_version__
+
+            openapi_resp = client.get_openapi()
+            assert openapi_resp.status == 200
+            assert openapi_resp.result.openapi
+            assert openapi_resp.result.info.title
+            assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9100'
+            paths = openapi_resp.result.paths
+            users = paths.get('/users/') or paths.get('/users')
+            assert users
+            assert users.get('get')
+
+            # -- tables
+            table_resp = client.get_tables()
+            assert len(table_resp.result) > 0
+            for table in table_resp.result:
+                assert table.model_backend == 'django'
+
+            # -- inst
+            inst_resp = client.get_instances()
+            inst = inst_resp.result[0]
+            assert inst.backend == 'django'
+            assert inst.asynchronous is True
             assert inst.language == 'python'
             # assert inst.backend_version == django.__version__
             # maybe the instance is cached in local, we just don't test it for now

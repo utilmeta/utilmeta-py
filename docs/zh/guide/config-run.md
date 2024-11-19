@@ -344,56 +344,6 @@ def clean_up():
     print('done!')
 ```
 
-## 常用配置
-
-### `DjangoSettings` 配置
-
-UtilMeta 提供了一个 `DjangoSettings` 配置，可以为所有使用 Django 作为 `backend` 的项目和使用 django ORM 的项目提供声明式的 django 配置 
-
-* module_name
-* root_urlconf
-* secret_key
-* apps_package
-* apps
-* database_routers
-* allowed_hosts
-* middleware
-* wsgi_application
-* append_slash
-* `extra`：可以传入一个字典指定额外的 Django 配置
-
-
-另外，如果你没有为 `DjangoSettings` 指定 `module_name`，它将默认使用 UtilMeta 服务所在的模块作为配置，所以你也可以在服务 `setup()` **之前** 直接在文件中声明 django 配置，用法与原生 django 配置一样
-
-```python
-from utilmeta import UtilMeta
-from config.conf import configure 
-import django
-
-DATA_UPLOAD_MAX_NUMBER_FILES = 1000
-
-service = UtilMeta(__name__, name='demo', backend=django)
-configure(service)
-
-service.setup()
-```
-
-!!! warning
-	`service.setup()` 也会同步触发 `DjangoSettings` 的 `setup()` 从而加载所有 django 设置，所以在它之后进行的 django 配置无法被加载
-
-### `DatabaseConnections` 数据库配置
-
-**异步数据库实现**
-
-### `CacheConnections` 缓存配置
-
-#### DjangoCache
-
-#### RedisCache
-
-
-### `Time` 时间与时区配置
-
 
 ## 环境变量管理
 
@@ -463,6 +413,107 @@ env = ServiceEnvironment(file='/path/to/config.json')
 !!! warning
 	如果你使用的是配置文件，请把配置文件放在项目目录之外，或者在 `.gitignore` 中把它从版本管理中排除
 
+## 常用配置
+
+### `DjangoSettings` 配置
+
+UtilMeta 提供了一个 `DjangoSettings` 配置，可以为所有使用 Django 作为 `backend` 的项目和使用 django ORM 的项目提供声明式的 django 配置， `DjangoSettings` 的常用配置参数如下
+
+* `secret_key`：指定 Django 的项目密钥，推荐在环境变量中生成一个长的随机密钥
+* `apps`：用于指定 Django 的 `INSTALLED_APPS`
+* `apps_package`：这是一个便捷配置项，如果你的已安装 app 都放在一个包中，你可以使用 `apps_package` 指定这个包的路径，UtilMeta 会读取其中的所有子文件夹查找 django app
+* `middleware`：可以传入一个 django 中间件的列表
+* `module_name`：指定 django 的配置文件引用
+* `extra`：可以传入一个字典指定额外的 Django 配置
+
+另外，如果你没有为 `DjangoSettings` 指定 `module_name`，它将默认使用 UtilMeta 服务所在的模块作为配置，所以你也可以在服务 `setup()` **之前** 直接在这个文件中声明 django 配置，用法与原生 django 配置一样，例如
+
+```python
+from utilmeta import UtilMeta
+from config.conf import configure 
+import django
+
+DATA_UPLOAD_MAX_NUMBER_FILES = 1000
+
+service = UtilMeta(__name__, name='demo', backend=django)
+configure(service)
+
+service.setup()
+```
+
+!!! warning
+	`service.setup()` 也会同步触发 django 的 `setup()` 从而加载所有 django 设置，所以在它之后进行的 django 配置无法被加载
+
+### `DatabaseConnections` 数据库配置
+
+在 UtilMeta 中，`DatabaseConnections` 用于配置数据库连接，它接受一个字典参数，字典的键是连接的名称，值是一个 `Database` 实例，用于配置数据库的地址和连接信息，在 UtilMeta 的 ORM 中，如果没有显式指定，会默认使用名称为 `'default'` 的数据库连接
+
+```python
+from utilmeta.core.orm import DatabaseConnections, Database
+from config.env import env
+
+service.use(DatabaseConnections({
+	'default': Database(
+		name='blog',
+		engine='postgresql',
+		host=env.DB_HOST,
+		user=env.DB_USER,
+		password=env.DB_PASSWORD,
+		port=env.DB_PORT,
+	)
+}))
+```
+
+!!! note
+	如果你使用过 Django，应该对这种配置方式很属性，在 UtilMeta 中使用 django ORM 时，`DatabaseConnections` 也会生成 django 的 `DATABASES` 配置
+
+你可以在 [ORM 配置数据库连接](../schema-query/#orm_2) 中查看详细的用法
+
+### `CacheConnections` 缓存配置
+
+`CacheConnections` 用于配置缓存连接，语法与  `DatabaseConnections` 类似，连接字典的值指定一个缓存实例，其中可以配置缓存的地址与连接信息，例如
+
+```python
+from utilmeta.core.cache import CacheConnections, Cache
+from utilmeta.core.cache.backends.redis import RedisCache
+from config.env import env
+
+service.use(CacheConnections({
+	'default': RedisCache(
+		port=env.REDIS_PORT,
+		db=env.REDIS_DB,
+		password=env.REDIS_PASSWORD
+	),
+	'fallback': Cache(engine='django.core.cache.backends.locmem.LocMemCache')
+}))
+```
+
+目前 UtilMeta 支持两种缓存配置
+
+* **DjangoCache**：默认的缓存配置，将会使用 Django 的缓存进行实现，其中 `engine` 参数可以传入 Django 的缓存类
+* **RedisCache**：Redis 缓存配置，同时支持同步与异步用法，同步的用法由 Django 实现，异步的用法使用 `aioredis` 实现（若需使用请先安装 `aioredis` ）
+
+### `Time` 时间与时区配置
+
+`Time` 用于配置项目的时间与时区设置，影响 API 接口的时间序列化与数据库中的时间存储
+
+```python
+from utilmeta.conf import Time
+
+service.use(Time(
+	time_zone='UTC',
+	use_tz=True,
+	datetime_format="%Y-%m-%dT%H:%M:%SZ"
+))
+```
+
+其中的参数包括
+* `time_zone`：指定时间的时区，默认为本机的时区，可以使用 `'UTC'` 来指定 UTC 时区
+* `use_tz`：是否为项目的所有 datetime 时间开启时区（timezone aware），默认为 True，会同步 Django 的 `USE_TZ` 配置
+* `date_format`：`date` 类型的序列化格式，默认为 `%Y-%m-%d`
+* `time_format`：`time` 类型的序列化格式，默认为 `%H:%M:%S`
+* `datetime_format`：`datetime` 类型的序列化格式，默认为 `%Y-%m-%d %H:%M:%S`
+
 ## 运行服务
 
 UtilMeta 服务实例提供了一个 `run()` 方法用于运行服务，我们已经看到过它的用法了
@@ -504,9 +555,22 @@ python server.py
 * **Sanic**：直接调用 Sanic 应用的 `run()` 方法运行服务 
 * **Tornado**：使用 `asyncio.run` 运行服务
 
+另外如果你在 `meta.ini` 中使用 `main` 指定了包含 `service.run()` 的入口文件
+
+```ini
+[service]
+main = server
+```
+
+你也可以通过运行
+```
+meta run
+```
+
+来启动服务，在 Linux 系统中，还可以加上 `-d` 参数指定为 nohup 运行，不被当前终端的关闭影响
 ### 自定义运行
 
-对于 Flask, Sanic 等框架，你可以通过 `service.application()` 获取到生成的 Flask 应用与 Sanic 应用，所以你也可以直接调用它们的 `run()` 方法从而传入对应框架支持的参数
+对于 Flask, FastAPI, Sanic 等框架，你可以通过 `service.application()` 获取到生成的 Flask, FastAPI Sanic 应用，所以你也可以直接调用它们的 `run()` 方法从而传入对应框架支持的参数
 
 ```python hl_lines="21"
 from utilmeta import UtilMeta
@@ -676,14 +740,8 @@ nginx -t
 nginx -s reload
 ```
 
-## 监控与管理
+## 服务观测与运维管理
 
-UtilMeta 即将支持全周期的 API 观测与管理能力，包括
+UtilMeta 框架内置了一个 API 服务管理系统，可以方便地观测与管理对本地与线上的 API 服务，提供了数据，接口，日志，监控，测试，报警等一系列运维管理功能，在 [Operations 运维管理系统配置](../ops) 中有这个系统的详细介绍与配置方式
 
-* API 文档与调试
-* 日志查询
-* 接口监控，服务器监控
-* 报警通知，事件管理
-* 定时任务调度
-
-目前平台已开放 Beta 版本的 waitlist，可以 [UtilMeta 官网](https://utilmeta.com/zh) 中加入
+你也可以直接进入 [UtilMeta API 服务管理平台](https://ops.utilmeta.com) 进行体验

@@ -2,7 +2,12 @@
 
 <img src="https://utilmeta.com/img/logo-main-gradient.png" style="width: 200px" alt="">
 
-**UtilMeta** 是一个面向服务端应用的渐进式元框架，基于 Python 类型注解标准高效构建声明式接口与 ORM，支持使用主流 Python 框架作为运行时实现或渐进式整合
+**UtilMeta** 是一个面向服务端应用的渐进式 Python 后端元框架，基于 Python 类型注解标准高效构建声明式接口与 ORM，支持使用主流 Python 框架作为运行时实现或渐进式整合
+
+* 主页：[https://utilmeta.com/zh/py](https://utilmeta.com/zh/py)
+* 代码：<a href="https://github.com/utilmeta/utilmeta-py" target="_blank">https://github.com/utilmeta/utilmeta-py</a>
+* 作者：<a href="https://github.com/voidZXL" target="_blank">@voidZXL</a>
+* 语言：[![en](https://img.shields.io/badge/lang-English-blue.svg)](https://github.com/utilmeta/utilmeta-py/blob/main/README.md) [![zh](https://img.shields.io/badge/lang-中文-green.svg)](https://github.com/utilmeta/utilmeta-py/blob/main/README.zh.md)
 
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/v/utilmeta" alt="">
@@ -20,17 +25,6 @@
 	<img src="https://img.shields.io/github/actions/workflow/status/utilmeta/utilmeta-py/test.yaml?branch=main&label=CI" alt="">
 </a>
 
-* 主页：[https://utilmeta.com/zh/py](https://utilmeta.com/zh/py)
-* 代码：<a href="https://github.com/utilmeta/utilmeta-py" target="_blank">https://github.com/utilmeta/utilmeta-py</a>
-* 作者：<a href="https://github.com/voidZXL" target="_blank">@voidZXL</a>
-* 语言：[![en](https://img.shields.io/badge/lang-English-blue.svg)](https://github.com/utilmeta/utilmeta-py/blob/main/README.md) [![zh](https://img.shields.io/badge/lang-中文-green.svg)](https://github.com/utilmeta/utilmeta-py/blob/main/README.zh.md)
-
-## 核心特性
-
-* **渐进式元框架**：使用一套标准支持 django, flask, fastapi (starlette), sanic, tornado 等主流 Python 框架作为 HTTP 运行时实现（切换实现只需一个参数），支持从以上框架的现有项目使用 UtilMeta 进行渐进式开发，灵活兼容多种技术栈，支持异步接口
-* **声明式接口与 ORM**：快速产出简洁代码，自动根据声明完成请求校验，响应构建与生成 OpenAPI 标准文档，内置高效的声明式 ORM 标准，支持 django 等查询引擎
-* **高度可扩展与丰富的插件**：内置一系列可灵活接入的鉴权（session/jwt），跨域处理，重试，请求控制，事务等插件
-
 ## 安装
 
 ```shell
@@ -40,10 +34,59 @@ pip install -U utilmeta
 !!! note
 	UtilMeta 需要 Python >= 3.8
 
-## Hello World
+## 核心特性
 
-我们新建一个名为 `server.py` 的 Python 文件，并在其中写入以下代码
+### 声明式 API 与 ORM
 
+你可以使用 UtilMeta 框架的声明式 API 与 ORM 语法轻松构建 RESTful API, 下面是一个来自 [mini_blog/blog/api.py](https://github.com/utilmeta/utilmeta-py/blob/main/examples/mini_blog/blog/api.py) 的示例
+
+```python
+from utilmeta.core import api, orm
+from .models import User, Article
+from django.db import models
+
+class UserSchema(orm.Schema[User]):
+    username: str
+    articles_num: int = models.Count('articles')
+
+class ArticleSchema(orm.Schema[Article]):
+    id: int
+    author: UserSchema
+    content: str
+
+class ArticleAPI(api.API):
+    async def get(self, id: int) -> ArticleSchema:
+        return await ArticleSchema.ainit(id)
+```
+
+当年请求 `GET /article?id=1` 到 ArticleAPI，API 会返回类似如下的响应
+
+```python
+{
+  "id": 1,
+  "author": {
+    "username": "alice",
+    "articles_num": 3
+  },
+  "content": "hello world"
+}
+```
+
+可以看到它与你在代码中的声明完全一致，UtilMeta 会自动生成优化后的 ORM 查询，并将结果转化为你定义的类型与结构，自动避免 N+1 查询问题，并且会根据你的声明生成对应的 OpenAPI 文档
+
+### 渐进式元框架
+
+UtilMeta 内置了一套标准支持大部分主流 Python 框架作为 HTTP 运行时实现，灵活兼容多种技术栈，支持异步接口
+
+当前支持的框架包括
+
+* **Django** (与 Django REST framework)
+* **Flask** (与 APIFlask)
+* **FastAPI** (与 Starlette)
+* **Sanic**
+* **Tornado**
+
+你可以仅用一个参数切换 API 服务的整个底层实现，比如下面的 hello world 示例代码
 ```python
 from utilmeta import UtilMeta
 from utilmeta.core import api
@@ -68,28 +111,47 @@ if __name__ == '__main__':
     service.run()
 ```
 
-!!! note
-	除了例子中的 `django` 外，你可以选择其他的框架作为 backend，但你需要先安装它们
+你可以创建一个 Python 文件写入并运行以上代码试试看
 
-## 运行项目
+## 快速开始
 
-我们可以直接运行这个文件来启动 API 服务
+你可以通过 clone 仓库并运行其中的示例项目来快速开始
 ```shell
-python server.py
+pip install -U utilmeta
+git clone https://github.com/utilmeta/utilmeta-py
+cd utilmeta-py/examples/mini_blog
+meta migrate        # 生成数据库
+meta run            # 或 python server.py
 ```
 
 当看到如下提示即说明启动成功
 ```
-Running on http://127.0.0.1:8000
-Press CTRL+C to quit
+| UtilMeta (version) starting service [blog]
+|     version: 0.1.0
+|       stage: ● debug
+|     backend: fastapi (version) | asynchronous
+|    base url: http://127.0.0.1:8080
 ```
 
-接着我们可以直接使用浏览器访问 [http://127.0.0.1:8000/api/hello](http://127.0.0.1:8000/api/hello) 来调用 API，可以看到
+### 连接你的 API
+
+当我们启动项目时，我们会看到以下的输出
 ```
-world
+UtilMeta OperationsAPI loaded at http://127.0.0.1:8080/ops, connect your APIs at https://ops.utilmeta.com
 ```
 
-说明项目启动成功
+说明项目的运维管理 API 成功加载，我们可以直接点击这个连接：  [https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8080/ops](https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8080/ops)  连接到你的 API 服务
+
+点击左侧 **API** 板块即可看到生成的 API 文档
+<img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+本地 API 在连接平台后可以使用以下功能
+
+* **Data**: 数据管理 CRUD，比如在上面的例子中，你可以进入添加 `user` 与 `article` 实例
+* **API**：查看并调试自动生成的 API 文档
+* **Logs**：查询实时请求日志，包括请求和响应的数据，错误调用栈等
+* **Servers**：查询服务依赖的资源的实时监控数据，如服务器，数据库，缓存
+
+> 使用其他的功能需要连接有公开访问地址的 API 服务
 
 ## 如何阅读本文档
 
@@ -109,3 +171,10 @@ world
 * [接口与用户鉴权](guide/auth)：如何使用 Session, JWT, OAuth 等方式为接口的请求鉴权，获取当前请求用户与简化登录操作
 * [配置运行与部署](guide/config-run)：如何使用声明式环境变量等特性配置服务的运行设置，启动与部署
 * [从现有项目迁移](guide/migration)：如何从现有的后端项目中渐进式地接入 UtilMeta 接口或迁移到 UtilMeta
+
+
+## 社区
+
+添加作者微信 (voidZXL) 加入开发者群，验证信息 UtilMeta
+
+<img src="https://utilmeta.com/img/wx_voidzxl.jpg" href="https://utilmeta.com/py" target="_blank"  alt="drawing" width="200"/>

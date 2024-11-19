@@ -5,6 +5,8 @@ from utilmeta.bin.base import command
 from .config import Operations
 from utilmeta.bin.base import Arg
 import base64
+from . import __website__
+from utilmeta.bin.constant import DOT, RED, GREEN, BANNER, BLUE
 
 
 class OperationsCommand(BaseServiceCommand):
@@ -29,7 +31,7 @@ class OperationsCommand(BaseServiceCommand):
     @command
     def connect(self,
                 to: str = None,
-                key: str = Arg('--key', required=True),
+                key: str = Arg('--key', default=None),
                 service: str = Arg('--service', default=None)
                 ):
         """
@@ -37,6 +39,27 @@ class OperationsCommand(BaseServiceCommand):
         """
         self.config.migrate(with_default=True)
         # before connect
+
+        # check if service is live
+        from .client import OperationsClient, ServiceInfoResponse
+        info = OperationsClient(base_url=self.config.ops_api, fail_silently=True).get_info()
+        live = isinstance(info, ServiceInfoResponse) and info.validate()
+        if not live:
+            print(RED % 'meta connect: service not live or OperationsAPI not mounted, '
+                        f'please check your OperationsAPI: {self.config.ops_api} is accessible before connect')
+            exit(1)
+
+        if not key:
+            # check if it is localhost
+            if self.config.is_local:
+                local_manage_url = f'{__website__}/localhost?local_node={self.config.ops_api}'
+                import webbrowser
+                webbrowser.open_new_tab(local_manage_url)
+                exit(0)
+            print(RED % f'meta connect: --key is required to connect non-local service, please login to '
+                        f'{__website__} and generate one')
+            exit(1)
+
         from .connect import connect_supervisor
 
         if not key.startswith('{') or not key.endswith('}'):
@@ -86,7 +109,6 @@ class OperationsCommand(BaseServiceCommand):
         from .client import OperationsClient, ServiceInfoResponse
         info = OperationsClient(base_url=self.config.ops_api, fail_silently=True).get_info()
         live = isinstance(info, ServiceInfoResponse) and info.validate()
-        from utilmeta.bin.constant import DOT, RED, GREEN, BANNER, BLUE
         from utilmeta.utils import readable_size
         import utilmeta
         from . import __website__
@@ -188,7 +210,9 @@ class OperationsCommand(BaseServiceCommand):
                         if max_connections:
                             conn_str += f' / {max_connections}'
                         space_str = f'{readable_size(latest_monitor.used_space)}'
-                    print(form.format(alias, db.type, db.database_name, conn_str, space_str, db.location))
+                    print(form.format(alias, db.type or '-',
+                                      db.database_name or '-', conn_str, space_str,
+                                      db.location or '-'))
 
         if _caches:
             cache_config = cache.CacheConnections.config()
@@ -202,7 +226,7 @@ class OperationsCommand(BaseServiceCommand):
                     cache = cache_config.get(alias)
                     if not cache:
                         continue
-                    pid = cache_obj.data.get('pid')
+                    pid = cache_obj.data.get('pid') or '--'
                     mem_str = ''
                     conn_str = ''
                     cpu_str = ''

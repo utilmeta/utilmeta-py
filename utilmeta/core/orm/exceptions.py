@@ -23,6 +23,8 @@ class InvalidRelationalUpdate(ValueError):
 
 
 class EmptyQueryset(ValueError):
+    status = 404
+
     def __init__(self, msg: str = None, model=None):
         self.model = model
         super().__init__(msg or 'orm.Error: result is empty')

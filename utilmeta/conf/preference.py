@@ -24,9 +24,9 @@ class Preference(Config):
         max_retry_loops=DEFAULT_MAX_RETRY_LOOPS,
         api_max_retry_loops=DEFAULT_MAX_RETRY_LOOPS,
         client_max_retry_loops=DEFAULT_MAX_RETRY_LOOPS,
-        response_file_default_attachment: bool = False,
-        response_json_encoder_cls=None,
-        response_json_encoder_kwargs: dict = None,
+        # response_file_default_attachment: bool = False,
+        # response_json_encoder_cls=None,
+        # response_json_encoder_kwargs: dict = None,
         # allow_ana
         # ensure_ascii
         # sort_keys

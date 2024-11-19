@@ -119,16 +119,14 @@ class Cache(Config):
     def get(self, key: str, default=None):
         return self.get_adaptor(False).get(key, default)
 
-    @awaitable(get)
-    async def get(self, key: str, default=None):
+    async def aget(self, key: str, default=None):
         return await self.get_adaptor(True).get(key, default)
 
     def fetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
         # get many
         return self.get_adaptor(False).fetch(args, *keys, named=named)
 
-    @awaitable(fetch)
-    async def fetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
+    async def afetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
         # get many
         return await self.get_adaptor(True).fetch(args, *keys, named=named)
 
@@ -141,9 +139,8 @@ class Cache(Config):
             not_exists_only=not_exists_only
         )
 
-    @awaitable(set)
-    async def set(self, key: str, value, *, timeout: Union[int, timedelta, datetime] = None,
-                  exists_only: bool = False, not_exists_only: bool = False):
+    async def aset(self, key: str, value, *, timeout: Union[int, timedelta, datetime] = None,
+                   exists_only: bool = False, not_exists_only: bool = False):
         return await self.get_adaptor(True).set(
             key, value,
             timeout=timeout,
@@ -155,46 +152,51 @@ class Cache(Config):
         # set many
         return self.get_adaptor(False).update(data)
 
-    @awaitable(update)
-    async def update(self, data: Dict[str, Any]):
+    async def aupdate(self, data: Dict[str, Any]):
         # set many
         return await self.get_adaptor(True).update(data)
 
     def pop(self, key: str):
         return self.get_adaptor(False).pop(key)
 
-    @awaitable(pop)
-    async def pop(self, key: str):
+    async def apop(self, key: str):
         # set many
         return await self.get_adaptor(True).pop(key)
 
     def delete(self, args=None, *keys):
         return self.get_adaptor(False).delete(args, *keys)
 
-    @awaitable(delete)
-    async def delete(self, args=None, *keys):
+    async def adelete(self, args=None, *keys):
         return await self.get_adaptor(True).delete(args, *keys)
 
     def exists(self, args=None, *keys) -> int:
         return self.get_adaptor(False).exists(args, *keys)
 
-    @awaitable(exists)
-    async def exists(self, args=None, *keys) -> int:
+    async def aexists(self, args=None, *keys) -> int:
         return await self.get_adaptor(True).exists(args, *keys)
 
     def expire(self, *keys: str, timeout: float):
         return self.get_adaptor(False).expire(*keys, timeout=timeout)
 
-    @awaitable(expire)
-    async def expire(self, *keys: str, timeout: float):
+    async def aexpire(self, *keys: str, timeout: float):
         return await self.get_adaptor(True).expire(*keys, timeout=timeout)
 
     def alter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
         return self.get_adaptor(False).alter(key, amount, limit=limit)
 
-    @awaitable(alter)
-    async def alter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
+    async def aalter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
         return await self.get_adaptor(True).alter(key, amount, limit=limit)
+
+    # deprecate in the future
+    awaitable(get)(aget)
+    awaitable(fetch)(afetch)
+    awaitable(set)(aset)
+    awaitable(pop)(apop)
+    awaitable(update)(aupdate)
+    awaitable(delete)(adelete)
+    awaitable(exists)(aexists)
+    awaitable(expire)(aexpire)
+    awaitable(alter)(aalter)
 
 
 class CacheConnections(Config):

@@ -94,7 +94,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         )
         if session:
             try:
-                await self.get_cache().set(
+                await self.get_cache().aset(
                     self.get_key(),
                     session.encoded_data,
                     timeout=self.timeout,

@@ -40,7 +40,7 @@ class CacheSessionSchema(BaseSessionSchema):
         if not session_key:
             return False
         cache = self.get_cache()
-        return bool(await cache.exists(self.get_key(session_key)))
+        return bool(await cache.aexists(self.get_key(session_key)))
 
     def create(self):
         self._session_key = self._get_new_session_key()
@@ -92,14 +92,14 @@ class CacheSessionSchema(BaseSessionSchema):
 
         if not must_create:
             if self._config.interrupted != 'override':
-                if await cache.get(self.get_key()) is None:
+                if await cache.aget(self.get_key()) is None:
                     # old session data is deleted
                     if self._config.interrupted == 'cycle':
                         self._session_key = await self._aget_new_session_key()
                     else:
                         raise SessionUpdateError
 
-        result = await cache.set(
+        result = await cache.aset(
             self.get_key(),
             self.encode(dict(self)),
             not_exists_only=must_create,
@@ -123,7 +123,7 @@ class CacheSessionSchema(BaseSessionSchema):
                 return
             session_key = self.session_key
         if session_key:
-            await self.get_cache().delete(self.get_key(session_key))
+            await self.get_cache().adelete(self.get_key(session_key))
 
     def load_data(self):
         # to be inherited
@@ -159,7 +159,7 @@ class CacheSessionSchema(BaseSessionSchema):
         if not self._session_key:
             return {}
         try:
-            session_data = await self.get_cache().get(self.get_key())
+            session_data = await self.get_cache().aget(self.get_key())
             if session_data:
                 session_data = self.decode(session_data)
             else:

@@ -183,6 +183,10 @@ class TornadoServerAdaptor(ServerAdaptor):
     def application(self):
         return self.setup()
 
+    @property
+    def async_startup(self) -> bool:
+        return True
+
     async def main(self):
         app = self.setup()
         app.listen(self.config.port)

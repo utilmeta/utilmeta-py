@@ -123,7 +123,7 @@ def connect_supervisor(
         raise ValueError('No supervisor selected, operation failed')
 
     if service.production:
-        if not ops_config.check_host():
+        if not ops_config.is_local:
             raise ValueError(f'Invalid production service operations location: {ops_config.ops_api}, '
                              f'please use UtilMeta(origin="https://YOUR-PUBLIC-HOST") '
                              f'to specify your public accessible service origin')

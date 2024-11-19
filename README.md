@@ -108,7 +108,7 @@ if __name__ == '__main__':
     service.run()
 ```
 
-You can create a python file with the above code and run it to check it out.
+You can create a Python file with the above code and run it to check it out.
 
 ## Quick Start
 
@@ -142,7 +142,14 @@ You can connect your APIs by open this link: [https://ops.utilmeta.com/localhost
 
 Click **API** and your will see the generated API document, you can debug your API here
 <img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+With your local API connected, you can use these features
 
+* **Data**: Manage database data (CRUD), in this example, you can add `user` and `article` instance
+* **API**: view and debug on auto generated API document
+* **Logs**: query realtime request logs, view request and response data, error tracebacks
+* **Servers**: view realtime metrics of service resources like servers, databases, caches
+
+> Using other management features requires you to connect a online service with public network address
 ## Document Guide
 We have several introductory case tutorials from easy to complex, covering most usage of the framework. You can read and learn in the following order.
 

@@ -155,6 +155,7 @@ class MetaCommand(BaseServiceCommand):
     @command
     def run(self,
             daemon: bool = Arg('-d', default=False),
+            connect: bool = Arg('-c', default=False),
             log: str = Arg('--log', default='service.log'),
             ):
         """
@@ -171,6 +172,10 @@ class MetaCommand(BaseServiceCommand):
                 cmd = f'nohup {cmd} > {log} 2>&1 &'
             else:
                 print(YELLOW % 'ignoring daemon mode since only posix system support')
+        if connect:
+            from utilmeta.ops.cmd import try_to_connect
+            try_to_connect()
+
         run(cmd)
 
 

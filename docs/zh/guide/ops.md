@@ -39,6 +39,9 @@ if __name__ == '__main__':
     service.run()
 ```
 
+!!! note
+	正常使用 Operations 配置功能需要你的 UtilMeta 框架版本大于 2.6.1
+
 Operations 配置项的主要参数包括
 
 * `route`：必填，指定管理系统的标准接口 OperationsAPI 挂载的路由，这个路由是相对你的服务的根 API 的，比如你的根 API 挂载到了 `http://mysite.com/api`，设置 `route=’ops‘` 将会把 OperationsAPI 挂载到  `http://mysite.com/api/ops`
@@ -49,7 +52,7 @@ Operations 配置项的主要参数包括
 * `database`：必填，设置管理系统存储日志，监控等运维数据的数据库，你可以向上面的例子一样指定一个 SQLite 数据库，在生产环境中也可以指定一个 `postgresql` 数据库
 * `base_url`：为你的 API 服务指定一个可以在网络上访问到的基准 API 地址，这个地址会用于生成的 OpenAPI 文档的 `server.url`，设置后 OperationsAPI 的地址 = `base_url` + `route`
 
-!!! tip
+!!! note
 	很多情况下你的 API 服务在部署时只是监听本地或内网的地址，由前端的负载均衡对外提供访问，此时自动生成的基准 URL 是你的内网或本地地址，比如 `http://127.0.0.1:8000/api` ，这样的地址无法从其他地方进行访问或调用，所以你需要使用 `base_url` 设置服务的真实地址，比如 `https://mysite.com/api` ，这个地址能够直接在互联网上访问到的，这样生成的 OperationsAPI 地址和生成的 OpenAPI 文档的接口地址就是可以被访问到的了
 
 !!! warning
@@ -84,7 +87,7 @@ DEFAULT_SECRET_NAMES = (
 * `disabled_scope`：禁用的管理权限，如果你不希望某项管理权限被任何管理员用户使用，可以使用这个选项进行禁用，默认为空
 * `local_scope`：本地管理节点授予的权限，本地管理指的是观测与管理 localhost / 127.0.0.1 上的本地服务，所以默认权限为 `('*',)`，即全部，如果你将这个值设置为空或者 None，表示将不允许一切本地管理操作
 
-UtilMeta 服务目前的权限 scope 列表与对应的含义如下：
+UtilMeta 服务端目前的权限 scope 列表与对应的含义如下：
 
 * `api.view`：查看服务的 API 文档
 * `data.view`: 查看数据模型和表结构（即表的字段名称，类型等，不包含查询表中的数据）
@@ -124,7 +127,9 @@ Log 的配置参数包括
 * `volatile_maintain`：标记为 `volatile` 的日志的保存时间，传入一个 `timedelta`，默认为 7 天
 
 !!! tip
-	为了避免系统中存储过多的冗余日志，一般请求正常无错误的日志在经过聚合处理（计算出请求数，UV 和各接口请求数等）后就可以删除了，日志在存储时会根据配置计算是否为 `volatile`，标记为 `volatile` 的日志将在 `volatile_maintain` 时间后被清理
+	为了避免系统中存储过多的冗余日志，一般请求正常无错误的日志在经过聚合处理（计算出请求数，UV 和各接口请求数等）过的一段时间后就可以删除了，日志在存储时会根据配置计算是否为 `volatile`，标记为 `volatile` 的日志将在 `volatile_maintain` 时间后被清理
+
+**日志存储规则**
 
 * `persist_level`：请求日志达到什么样的级别以上将会持久化存储，默认为 WARN
 
@@ -143,6 +148,11 @@ Log 的配置参数包括
 * `exclude_status`：可以排除一些响应码，在无出错情况下不存储日志，默认为空
 * `exclude_request_headers`：可以排除一些请求头，若请求头中包含其中的值，则在无出错情况下不存储日志，默认为空
 * `exclude_response_headers`：可以排除一些响应头，若响应头中包含其中的值，则在无出错情况下不存储日志，默认为空
+
+**日志展示规则**
+
+* `hide_ip_address`：为了数据安全或隐私保护，你可以选择开启这个选项，在 UtilMeta 平台将不会看到日志的 IP 信息
+* `hide_user_id`：为了数据安全或隐私保护，你可以选择开启这个选项，在 UtilMeta 平台将不会看到日志的 用户 ID 信息
 
 ### Monitor 监控配置
 
@@ -174,7 +184,7 @@ Monitor 的配置参数包括
 * `database_disabled`：是否禁用数据库 Database 的监控，默认为 False
 * `cache_disabled`：是否禁用缓存 Cache 的监控，默认为 False
 
-!!! tip “服务实例 | 服务进程”
+!!! tip "服务实例 | 服务进程"
 	在 UtilMeta 中，**服务实例（Instance）** 指的是一个运行中的可以处理 API 请求的进程组（后续也会支持容器实例），服务实例中可以包括一个或多个**服务进程（Worker）**（取决于你部署配置的 `workers` 数量），服务实例和服务进程会定期记录和监控它们处理的请求数，平均响应时间，传递的数据量，CPU 与内存的消耗等
 
 * `server_retention`：服务器 Server 监控的保存时间，传入 `timedelta`，默认为 7 天
@@ -215,13 +225,15 @@ UtilMeta OperationsAPI loaded at http://127.0.0.1[...], connect your APIs at htt
 meta connect
 ```
 
-> UtilMeta 版本 2.6.2 及以上支持
+!!! note
+	UtilMeta 版本 2.6.2 及以上支持这个用法
 
 即可看到浏览器中打开了 UtilMeta 管理平台的窗口，你可以在其中看到你服务的 API，数据表，日志和监控等
 <img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
 ### 连接线上服务
 
 连接在线上部署的，提供网络访问地址的 API 服务需要你进入 UtilMeta 平台注册一个账号，因为管理线上服务需要更严格的授权与鉴权机制，所以需要你在 UtilMeta 平台中先创建一个项目团队，进入空的项目团队中时，你可以看到 UtilMeta 平台的连接提示
+
 <img src="https://utilmeta.com/assets/image/connect-node-hint.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
 如果你已经按照上面的配置方法进行了引入，你可以直接将 UtilMeta 平台给出的命令复制，在你服务器中的项目目录（包含 `meta.ini` 的目录）内部执行命令，如果命令成功执行，你将会看到控制台输出了一个 URL
 
@@ -242,6 +254,42 @@ UtilMeta 框架的运维管理系统除了可以连接 UtilMeta 框架的服务�
 * **Flask**：包括 APIFlask
 * **FastAPI**：包括 Starlette
 * **Sanic**
+
+### UtilMeta 项目初始化
+
+在连接任何 Python 项目之前，请先初始化 UtilMeta 设置，方式很简单，就是进入你的项目文件夹中，输入以下命令
+
+```
+meta init --app=ref.of.your.app
+```
+
+注意命令中的 `--app` 参数需要指定你的 **Python WSGI/ASGI 应用的引用路径**，比如对于下面的 Django 项目
+
+```
+/django_project
+	/django_settings
+		wsgi.py
+		settings.py
+		urls.py
+	manage.py
+```
+
+Django 的 WSGI 应用一般位于 `wsgi.py` 中的 `application` ，当我们在 /django_project 文件夹初始化 UtilMeta 项目时，就可以执行
+
+```
+meta init --app=django_settings.wsgi.app
+```
+
+对于 Flask / FastAPI / Sanic 项目，只需要找到对应的 `Flask()`, `FastAPI()`, `Sanic()` 应用的引用即可，用法和上面一样
+
+执行这个命令实际的效果是在你当前目录创建出一个名为 `meta.ini` 的文件，里面有以下内容
+
+```ini
+[utilmeta]
+app = django_settings.wsgi.app
+```
+
+UtilMeta 框架就是靠这个文件识别 UtilMeta 项目，以及项目的核心对象的地址的
 
 ### 连接 Django
 
@@ -274,6 +322,14 @@ Operations(
 !!! tip
 	如果你使用了 **Django REST framework**，UtilMeta 将会自动同步 DRF 生成的 OpenAPI 文档
 
+加入配置代码后，如果你的项目是本地运行，可以在重启项目后执行如下命令连接本地服务
+
+```
+meta connect
+```
+
+如果你的服务提供了网络访问，请进入 [UtilMeta 管理平台](https://ops.utilmeta.com)，创建项目团队并按照其中的提示操作
+
 ### 连接 Flask
 
 对于 Flask 项目，我们只需要将 Operations 配置接入 Flask app 即可，如
@@ -297,6 +353,13 @@ Operations(
 !!! tip
 	如果你使用了 **APIFlask**，也只需要把  Operations 配置接入 APIFlask 的 app 中，UtilMeta 将会自动同步 APIFlask 生成的 OpenAPI 文档
 
+加入配置代码后，如果你的项目是本地运行，可以在重启项目后执行如下命令连接本地服务
+
+```
+meta connect
+```
+
+如果你的服务提供了网络访问，请进入 [UtilMeta 管理平台](https://ops.utilmeta.com)，创建项目团队并按照其中的提示操作
 ### 连接 FastAPI
 
 对于 FastAPI 项目，我们只需要将 Operations 配置接入 FastAPI app 即可，如
@@ -319,6 +382,14 @@ Operations(
 
 !!! tip
 	UtilMeta 将自动同步 FastAPI 生成的 API 文档
+
+加入配置代码后，如果你的项目是本地运行，可以在重启项目后执行如下命令连接本地服务
+
+```
+meta connect
+```
+
+如果你的服务提供了网络访问，请进入 [UtilMeta 管理平台](https://ops.utilmeta.com)，创建项目团队并按照其中的提示操作
 
 ### 连接 Sanic
 
@@ -343,34 +414,119 @@ Operations(
 !!! tip
 	UtilMeta 将自动同步 Sanic 的 openapi 扩展生成的 API 文档
 
+加入配置代码后，如果你的项目是本地运行，可以在重启项目后执行如下命令连接本地服务
+
+```
+meta connect
+```
+
+如果你的服务提供了网络访问，请进入 [UtilMeta 管理平台](https://ops.utilmeta.com)，创建项目团队并按照其中的提示操作
+
 ## UtilMeta 管理平台
-### 管理功能
 
-#### API 文档
+[UtilMeta 管理平台](https://ops.utilmeta.com) 是一个一站式的 API 服务观测与管理平台，这一节主要介绍它的功能与用法
 
-#### 数据管理
+### 管理平台概览
+在 UtilMeta 管理平台中，每个用户都可以创建或加入多个 **项目团队（Team）**，每个团队中可以连接并管理多个 **API 服务 （API Service）**，也可以添加多位成员，为他们赋予不同的管理权限
 
-#### 日志查询
+!!! tip
+	类似于 Github 的 Organization
 
+在 UtilMeta 平台的项目团队中添加 API 服务有两种方式：
 
-#### 服务监控
+* 使用 UtilMeta 框架或者 UtilMeta 适配的框架开发，可以添加配置代码后一键接入平台
+* 其他的 API 服务，可以通过导入 OpenAPI 接口文档
 
+<img src="https://utilmeta.com/assets/image/connect-service-choose.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+
+每个连接到 UtilMeta 平台的 API 服务都支持以下功能
+
+* 可调试的 API 接口文档
+* 编写与执行 API 单元测试
+* 查看 API 的调用与测试日志
+* 为 API 设置拨测监控与报警（即将上线）
+
+使用 UtilMeta 框架连接到平台的 API 服务称为 **UtilMeta 节点**，UtilMeta 框架的运维管理系统提供的 OperationsAPI 使得 UtilMeta 节点有了服务端的观测和汇报能力，所以 UtilMeta 节点相对普通的 API 服务有着以下的额外功能
+
+* 服务端请求实时日志查询
+* 数据管理 CRUD （需要服务端使用支持的 ORM 库，目前支持 django ORM）
+* API 真实请求访问统计与分析
+* 服务端资源性能与占用实时监控
+* 服务端条件报警与通知（即将上线）
+
+!!! tip
+	以上的功能是为提供网络访问地址的 UtilMeta 节点提供的，如果你连接的是 **本地 (localhost / 127.0.0.1)** UtilMeta 节点，那么平台只能提供数据，接口，日志，服务监控等基本功能
+
+### API 接口文档
+
+点击左栏 **API** 可以进入平台的接口管理板块
+
+<img src="https://utilmeta.com/assets/image/api-annotation-zh.png" target="_blank" width="800"/>
+左侧的 API 列表可以搜索或者使用标签过滤接口，点击接口即可进入对应的接口文档，点击右侧的【Debug】按钮可以进入调试模式，你可以输入参数并发起请求，右侧会自动同步参数对应的 curl, python 和 js 请求代码
+
+如果你的 API 接口包括了鉴权所需的密钥，可以在 UtilMeta 平台对密钥进行集中管理
+
+!!! tip
+	对于连接的本地节点和未登录用户，发起请求会从你的浏览器端直接发起，如果你的接口没有开启跨域（CORS）设置，将无法显示调试结果
+
+### Data 数据管理
+
+点击左栏 **Data** 可以进入平台的数据管理板块
+
+<img src="https://utilmeta.com/assets/image/data-annotation-zh.png"  target="_blank" width="800"/>
+左侧的模型列表可以搜索或者使用标签过滤，点击模型后右侧将显示表结构与查询表数据，你可以在上方的字段查询栏添加多个字段查询，表中的每个字段也支持正反排序
+
+表中的每个数据单元都是可以点击的，左击或右击都会展开选项卡，对于数据过大无法显示完整的数据可以展开，有权限的用户也可以对选中的数据行进行编辑或删除。点击右上角的【+】按钮可以创建新的数据实例
+
+表的下方是模型的表结构文档，会详细展示模型字段的名称，类型，属性（主键，外键，唯一等）和校验规则
+
+你在 Operations 系统配置时可以指定一个 `secret_names` 参数，当表字段名称包含着 `secret_names` 中任何一个名称时，数据查询返回的对应结果将会作隐藏处理（`'******'`），默认值参考上文配置部分
+
+!!! tip
+	对于 django ORM 默认会根据模型的 app 名称生成标签 
+
+!!! warning
+	数据板块的权限管理很重要，团队管理员可以在 Team 团队板块为其他成员分配权限，请谨慎分配数据的写入和删除权限
+
+### Logs 日志查询
+
+点击左栏 **Logs** 可以进入平台的日志查询板块
+
+<img src="https://utilmeta.com/assets/image/logs-annotation-zh.png"  target="_blank" width="800"/>
+左侧是日志的过滤与选项，顶端可以切换日志板块
+* **Service Logs**：服务端真实请求日志
+* **Test Logs**：在 UtilMeta 平台发起的调试与测试日志
+
+左侧下方的过滤选项包括日志等级，响应状态码，HTTP 方法和 API 接口等，还可以根据请求时间或处理时间进行排序
+
+点击单条日志即可展开日志详情，日志会详细记录请求和响应的信息，异常调用栈等数据 
+
+<img src="https://utilmeta.com/assets/image/logs-detail-annotation-zh.png"  target="_blank" width="600"/>
+
+!!! tip
+	具体信息的存储与展示规则由 Operations 中的 `log` 参数配置，见上文
+
+### Servers 服务监控
+
+点击左栏 **Servers** 可以进入平台的服务监控板块
+
+<img src="https://utilmeta.com/assets/image/servers-annotation-zh.jpg"  target="_blank" width="800"/>
+可以实时监控 API 服务所在的服务器的 CPU，内存占用量，负载压力（Load Avg），文件描述符与网络连接数等
+
+右上角的时间范围选项可以选择数据查询的时间
 
 ### 授权与鉴权机制
 
-UtilMeta 管理平台的观测与管理操作授权是基于 OAuth2 协议的
+UtilMeta 管理平台的观测与管理操作授权是基于 OAuth2 协议的 credentials flow 的
 
+UtilMeta 节点提供的服务端管理能力，如数据管理，日志和监控查询等都是通过直接调用节点的 OperationsAPI 实现的，在调用前，UtilMeta 平台的客户端（如浏览器）会先向 UtilMeta 平台请求包含对应权限的 OAuth access token，如果平台校验用户在 API 服务所在的团队中有相应的权限则会授权，否则会拒绝
 
-### 平台概念
+<img src="https://utilmeta.com/assets/image/permissions-team-example.png"  target="_blank" width="600"/>
 
-#### 项目团队 `Team`
+!!! tip
+	成员可以在 **Team 团队**板块添加或设置权限
 
-#### API 服务 `Service`
+正常授权后 UtilMeta 管理平台的客户端就会携带 access token 向你的服务端的  OperationsAPI 发起观测或管理请求，OperationsAPI 会对 access token 进行解析与鉴权，并执行合法的请求
 
-#### UtilMeta 节点 `Node`
-
-#### UtilMeta 本地节点 `LocalNode`
-
-#### 环境 `Environment`
-
-#### 服务实例 `Instance`
+!!! note
+	除了 OAuth2 的基本流程外，UtilMeta 平台的授权机制还包括实时权限同步，比如当你在 UtilMeta 管理平台撤销了成员的权限后，UtilMeta 平台将会同步给所有的服务节点，将已授权给该用户但未过期的 access token 全部无效化，对应用户之前所生成的权限 access token 会立即无效，这样使得整个分布式的权限系统都是实时反应的

@@ -306,22 +306,36 @@ class UserAPI(api.API):
 至此我们的 API 就全部开发完成了
 ### 整合 API
 
-为了使我们开发的 UserAPI 能够提供访问，我们需要把它 挂载 到服务的根 API 上，我们回到 `server.py`，修改 RootAPI 的声明
-```python  hl_lines="6"
-# new +++
-service.setup()
+为了使我们开发的 UserAPI 能够提供访问，我们需要把它 挂载 到服务的根 API 上，我们在 `demo-user` 项目文件夹中新建一个 `api.py` 文件，写入以下内容
+
+```python
+from utilmeta.core import api
 from user.api import UserAPI
 
+@api.CORS(allow_origin='*')
 class RootAPI(api.API):
     user: UserAPI
-	
-service.mount(RootAPI, route='/api')
 ```
 
-我们将开发好的 UserAPI 挂载到了 RootAPI 的 `user` 属性，意味着 UserAPI 的路径被挂载到了 `/api/user`
+我们将开发好的 UserAPI 挂载到了 RootAPI 的 `user` 属性，意味着当我们根 API 的路径是 `/api` 时， UserAPI 的路径被挂载到了 `/api/user`
 
-!!! tip
-	对于使用 Django 的 API 服务，请在导入任何模型或 API 前加入 `service.setup()`，这样 django 才能正确识别所有的数据模型
+我们回到 `server.py` 修改关于 RootAPI 相关的配置，你可以删除  `server.py`  中旧的 RootAPI
+
+```python hl_lines="12"
+service = UtilMeta(
+    __name__,
+    name='demo-user',
+    description='',
+    backend=django,  
+    production=production,
+    version=(0, 1, 0),
+    host='127.0.0.1',
+    port=8000,
+    origin='https://demo-user.com' if production else None,
+    route='/api',
+    api='api.RootAPI'
+)
+```
 
 ## 5. 运行 API
 
@@ -338,6 +352,12 @@ python server.py
 当你看到如下输出时表示服务已成功启动
 
 ```
+| UtilMeta v[version] starting service [demo-user]
+|     version: 0.1.0
+|       stage: ● debug
+|     backend: django (version) 
+|    base url: http://127.0.0.1:8000/api
+
 Starting development server at http://127.0.0.1:8000/
 Quit the server with CTRL-BREAK.
 ```
@@ -345,7 +365,62 @@ Quit the server with CTRL-BREAK.
 !!! tip
 	你可以通过调整 `server.py` 中的 UtilMeta 服务声明里的 `host` 和 `port` 参数来改变 API 服务监听的地址
 
-## 6. 调试 API
+## 6. 连接 API 管理
+
+UtilMeta 框架内置了一个 API 服务管理系统，你可以方便地连接到你的 API 服务，查看 API 文档，日志，监控和管理数据，对于我们开发好的用户登录注册接口，只需要在 `server.py` 中给服务添加以下配置
+
+```python
+from utilmeta.ops import Operations
+service.use(Operations(
+    route='ops',
+    database=Database(
+        name='operations_db',
+        engine='sqlite3',
+    )
+))
+```
+
+我们的 Operations 配置将提供观测与管理功能的 OperationsAPI 挂载到了 `ops` 路径，并使用一个 SQLite3 数据库存储日志和监控等运维数据（你也可以在生产时连接 PostgreSQL 等数据库）， 
+
+我们重启项目后可以看到以下输出
+
+```
+UtilMeta OperationsAPI loaded at http://127.0.0.1:8000/api/ops, connect your APIs at https://ops.utilmeta.com
+```
+
+你可以在一个新的控制台窗口中进入到 `demo-user` 文件夹并运行
+
+```
+meta connect
+```
+
+!!! note
+	如果你没有更改服务的端口号和路径配置的话，你也可以直接点击 [这个链接](https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8000/api/ops) 连接
+
+
+<img src="https://utilmeta.com/assets/image/demo-user-connect-local.png" href="https://ops.utilmeta.com" target="_blank" width="600"/>
+
+我们点击 **API** 即可看到我们刚开发的用户登录注册 API，我们可以选择注册 API，并点击【Debug】按钮进行测试创建一个用户
+
+<img src="https://utilmeta.com/assets/image/demo-user-api-debug.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+注册成功后你可以点击左栏的 **Data** 板块查看新创建的用户数据
+
+<img src="https://utilmeta.com/assets/image/demo-user-data-query-user.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+我们可以看到刚刚注册的用户数据，下方是用户模型的表结构文档，我们可以选中表记录进行编辑或删除，也可以点击右上角的【+】创建新的实例
+
+你也可以点击左栏的 **Logs** 板块查看注册接口的调用日志
+
+<img src="https://utilmeta.com/assets/image/demo-user-logs.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+点击日志展开可以看到详细的请求和响应数据
+
+!!! note
+	你可以注意到数据与日志板块的密码字段都被自动隐藏了起来，因为它们的名称命中了 Operations 配置的默认 `secret_names`，更详细的 API 服务连接与管理配置与功能可以参考 [运维与监控管理文档](../guide/ops) 
+
+
+!!! tip
+	由于受限于浏览器的规则，Web 端的本地调试无法发送 Cookie 信息，如果你希望更全面地调试开发好的接口，可以参考接下来的部分
+
+## 7. 编写 API 测试
 
 启动好 API 服务后我们就可以调试我们的接口了，我们可以使用 UtilMeta 自带的客户端测试工具方便地调试接口，我们在项目目录中新建一个 `test.py` 文件，写入调试 API 的代码
 

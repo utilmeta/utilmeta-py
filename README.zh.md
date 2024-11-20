@@ -1,8 +1,8 @@
-# UtilMeta - 入门指引
+# UtilMeta Python 框架
 
 <img src="https://utilmeta.com/img/logo-main-gradient.png" style="width: 200px" alt="">
 
-**UtilMeta** 是一个面向服务端应用的渐进式 Python 后端元框架，基于 Python 类型注解标准高效构建声明式接口与 ORM，支持使用主流 Python 框架作为运行时实现或渐进式整合
+**UtilMeta** 是一个面向服务端应用的渐进式 Python 后端元框架，基于 Python 类型注解标准高效构建声明式 API 与 ORM，支持使用主流 Python 框架作为运行时实现或渐进式整合
 
 * 主页：[https://utilmeta.com/zh/py](https://utilmeta.com/zh/py)
 * 代码：<a href="https://github.com/utilmeta/utilmeta-py" target="_blank">https://github.com/utilmeta/utilmeta-py</a>
@@ -31,8 +31,7 @@
 pip install -U utilmeta
 ```
 
-!!! note
-	UtilMeta 需要 Python >= 3.8
+> UtilMeta 需要 Python >= 3.8
 
 ## 核心特性
 
@@ -157,21 +156,23 @@ UtilMeta OperationsAPI loaded at http://127.0.0.1:8080/ops, connect your APIs at
 
 我们设计了几个由易到难的入门案例由浅入深地涵盖了大部分框架的用法，你可以按照下面的顺序阅读与学习
 
-1. [BMI 计算 API](tutorials/bmi-calc)
-2. [用户注册登录查询 API](tutorials/user-auth)
-3. [Realworld 博客项目](tutorials/realworld-blog)
+1. [BMI 计算 API](https://docs.utilmeta.com/py/zh/tutorials/bmi-calc)
+2. [用户注册登录查询 API](https://docs.utilmeta.com/py/zh/tutorials/user-auth)
+3. [Realworld 博客项目](https://docs.utilmeta.com/py/zh/tutorials/realworld-blog)
 4. Websocket 聊天室（即将提供）
-
 
 如果你更希望从具体功能或用法入手学习，则可以参考
 
-* [处理请求参数](guide/handle-request)：如何处理路径参数，查询参数，请求体和请求头，以及如何处理文件上传
-* [API 类与接口路由](guide/api-route)：如何使用 API 类挂载简洁地定义树状接口路由，以及利用钩子等特性方便地在接口间复用代码，处理错误，模板化响应
-* [数据查询与 ORM 操作](guide/schema-query)：如何使用 Schema 声明式地编写 RESTful 接口所需要的增删改查和 ORM 操作
-* [接口与用户鉴权](guide/auth)：如何使用 Session, JWT, OAuth 等方式为接口的请求鉴权，获取当前请求用户与简化登录操作
-* [配置运行与部署](guide/config-run)：如何使用声明式环境变量等特性配置服务的运行设置，启动与部署
-* [从现有项目迁移](guide/migration)：如何从现有的后端项目中渐进式地接入 UtilMeta 接口或迁移到 UtilMeta
+* [处理请求参数](https://docs.utilmeta.com/py/zh/guide/handle-request)：如何处理路径参数，查询参数，请求体和请求头，以及如何处理文件上传
+* [API 类与接口路由](https://docs.utilmeta.com/py/zh/guide/api-route)：如何使用 API 类挂载简洁地定义树状接口路由，以及利用钩子等特性方便地在接口间复用代码，处理错误，模板化响应
+* [数据查询与 ORM 操作](https://docs.utilmeta.com/py/zh/guide/schema-query)：如何使用 Schema 声明式地编写 RESTful 接口所需要的增删改查和 ORM 操作
+* [接口与用户鉴权](https://docs.utilmeta.com/py/zh/guide/auth)：如何使用 Session, JWT, OAuth 等方式为接口的请求鉴权，获取当前请求用户与简化登录操作
+* [声明式 Web 客户端](https://docs.utilmeta.com/py/zh/guide/client)：使用与 API 类一致的声明式语法快速编写客户端 SDK 代码，以及为现有的 UtilMeta 服务与 OpenAPI 文档自动生成客户端代码
 
+如果你已经开发好了 UtilMeta 项目，希望了解如何配置，部署与运维管理你的 API 服务，可以参考
+
+* [配置运行与部署](https://docs.utilmeta.com/py/zh/guide/config-run)：如何使用声明式环境变量等特性配置服务的运行设置，启动与部署
+* [运维监控与服务管理](https://docs.utilmeta.com/py/zh/guide/ops)：如何配置 UtilMeta 的运维管理系统，全方位观测与管理本地与在线的 API 服务，以及连接你的现有 Django, Flask, FastAPI, Sanic 应用
 
 ## 社区
 

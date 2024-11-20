@@ -21,8 +21,9 @@ service = UtilMeta(
     backend={backend},  # noqa
     production=production,
     version=(0, 1, 0),
-    host='{host}' if production else '127.0.0.1',
-    port=80 if production else 8000,
+    host='127.0.0.1',
+    port=8000,
+    origin='https://{host}' if production else None,
     route='/api',
     api=RootAPI
 )

@@ -72,10 +72,17 @@ class LogAPI(api.API):
         )
         if self.supervisor.node_id:
             base_qs = base_qs.filter(node_id=self.supervisor.node_id)
+        logs = ServiceLogBase.serialize(
+            query.get_queryset(base_qs)
+        )
+        if config.log.hide_ip_address or config.log.hide_user_id:
+            for log in logs:
+                if config.log.hide_ip_address:
+                    log.ip = '*.*.*.*' if log.ip else ''
+                if config.log.hide_user_id:
+                    log.user_id = '***' if log.user_id else None
         return self.response(
-            result=ServiceLogBase.serialize(
-                query.get_queryset(base_qs)
-            ),
+            result=logs,
             count=query.count(base_qs)
         )
 

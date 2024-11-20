@@ -147,14 +147,10 @@ class SetupCommand(BaseServiceCommand):
     ))
     service.use(Operations(
         route='ops',
-        max_backlog=50,
         database=Database(
-            name='utilmeta_ops',
+            name='{name}_utilmeta_ops',
             engine='sqlite3',
         ),
-        local_disabled=env.PRODUCTION,
-        secure_only=env.PRODUCTION,
-        trusted_hosts=[] if env.PRODUCTION else ['127.0.0.1']
     ))
 """.format(name=self.project_name)
         else:
@@ -176,13 +172,10 @@ service.use(Time(
 ))
 service.use(Operations(
     route='ops',
-    max_backlog=50,
     database=Database(
-        name='{name}_utilmeta_operations',
+        name='{name}_utilmeta_ops',
         engine='sqlite3',
     ),
-    secure_only=production,
-    trusted_hosts=[] if production else ['127.0.0.1']
 ))
 """.format(name=self.project_name)
 

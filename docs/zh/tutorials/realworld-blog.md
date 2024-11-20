@@ -31,7 +31,7 @@ pip install utilmeta starlette django databases[aiosqlite]
 使用如下命令创建一个新的 UtilMeta 项目
 
 ```shell
-meta setup utilmeta-realworld-blog --temp=full
+meta setup realworld --temp=full
 ```
 
 接着按照提示输入或跳过，在提示选择 backend 时输入 starlette
@@ -692,9 +692,7 @@ class ArticleAPI(API):
             await self.get_user_id()
         )
         return MultiArticlesResponse(
-            result=await schema.aserialize(
-                query.get_queryset()
-            ),
+            result=await schema.aserialize(query),
             count=await query.acount()
         )
 ```
@@ -958,13 +956,14 @@ class RootAPI(api.API):
 	关于 CORS 的详细说明可以参考 [这篇 MDN 文档](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS)
 ## 6. 配置与运行
 
-### 时间配置
+### 配置时间与连接选项
 由于 API 文档给出的输出时间是类似 `"2016-02-18T03:22:56.637Z"` 的格式，我们打开 `config/conf.py`，添加时间配置的代码
 ```python hl_lines="19-23"
 from utilmeta import UtilMeta
 from config.env import env
 
 def configure(service: UtilMeta):
+	from utilmeta.ops.config import Operations
     from utilmeta.core.server.backends.django import DjangoSettings
     from utilmeta.core.orm import DatabaseConnections, Database
     from utilmeta.conf.time import Time
@@ -984,6 +983,13 @@ def configure(service: UtilMeta):
         use_tz=True,
         datetime_format="%Y-%m-%dT%H:%M:%S.%fZ"
     ))
+    service.use(Operations(
+	    route='ops',
+	    database=Database(
+	        name='realworld_utilmeta_ops',
+	        engine='sqlite3',
+	    ),
+	))
 ```
 
 Time 配置类可以配置 API 使用的时区，UTC，以及输出的时间格式
@@ -1065,6 +1071,12 @@ configure(service)
 	('127.0.0.1', 8000): 通常每个套接字地址(协议/网络地址/端口)只允许使用一次。
 	```
 	此时你只需要调整一下你的服务端口再重启项目即可
+
+
+### 连接并管理
+
+当你的博客服务开发好后，你可以按照 [运维与监控管理文档](../guide/ops) 来连接并观测管理你的 API 服务，UtilMeta 平台为 Realworld 案例项目也提供了一个公开的案例管理地址，你可以点击 [https://beta.utilmeta.com/realworld](https://beta.utilmeta.com/realworld) 访问
+
 
 ### 博客前端
 博客的前端开发部署并不属于 UtilMeta 的范畴，但是教程这里简单示范如何在本地安装并运行案例中博客项目的前端代码，从而可以直接使用并调试你的 API

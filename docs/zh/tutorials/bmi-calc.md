@@ -6,7 +6,7 @@
 直接使用 `meta setup` 命令创建我们的项目
 
 ```
-meta setup demo-bmi
+meta setup demo-bmi --ops
 ```
 
 之后会提示你输入项目的描述，网址等信息，你可以选择跳过，完成后你将会得到如下的文件结构
@@ -18,7 +18,7 @@ meta setup demo-bmi
 ```
 
 !!! abstract ""
-	`server.py` 是你的开发文件，而 `meta.ini` 是一个让 `meta` 命令行识别项目根目录和元信息的配置文件 
+	`server.py` 是你的开发文件，而 `meta.ini` 是一个让 `meta` 命令行识别项目根目录和元信息的配置文件，命令行中的 `--ops` 参数会自动帮你完成接口连接配置，接下来将可以一键连接查看 API 接口 
 
 ## 2. 编写基础的 API 实现
 
@@ -51,6 +51,11 @@ python server.py
 
 当看到如下提示即说明启动成功
 ```
+| UtilMeta v[version] starting service [demo-bmi]
+|     version: 0.1.0
+|       stage: ● debug
+|     backend: django (version) 
+|    base url: http://127.0.0.1:8000/api
 Running on http://127.0.0.1:8000
 Press CTRL+C to quit
 ```
@@ -76,6 +81,7 @@ Press CTRL+C to quit
 ```python
 import utype
 
+@api.CORS(allow_origin='*')  
 class RootAPI(api.API):
     @api.get
     def bmi(self,
@@ -105,6 +111,7 @@ class BMISchema(utype.Schema):
                 return i
         return 3
 
+@api.CORS(allow_origin='*')  
 class RootAPI(api.API):
     @api.get
     def bmi(self,
@@ -121,32 +128,48 @@ class RootAPI(api.API):
 {"value": 20.45, "level": 1}
 ```
 
-### 查看自动生成的 API 文档
+## 4. 连接 API
 
-UtilMeta 能够根据你编写的接口声明自动为你生成 API 文档，我们只需要将生成文档的 API 挂载到 RootAPI 上即可访问
+UtilMeta 服务开发好后，你可以直接连接 API 并访问到可调试的接口文档，记得我们在创建项目的命令中加入了 `--ops` 参数，它能帮我们自动插入 UtilMeta 的观测管理系统的配置代码，我们可以在 `server.py` 中看到以下配置
 
-我们选择使用最为广泛的 OpenAPI 规范文档，使用如下的方式挂载到 RootAPI 上
 ```python
-from utilmeta.core.api.specs.openapi import OpenAPI
+from utilmeta.ops.config import Operations
 
-class RootAPI(api.API):
-    docs: OpenAPI.as_api('openapi.json')  # new
-
-    @api.get
-    def bmi(self,
-            weight: float = utype.Param(gt=0, le=1000),
-            height: float = utype.Param(gt=0, le=4)
-            ) -> BMISchema:
-        return BMISchema(value=weight / height ** 2)
+service.use(Operations(
+    route='ops',
+    database=Database(
+        name='demo-bmi_utilmeta_ops',
+        engine='sqlite3',
+    ),
+))
 ```
 
-其中 `as_api()` 函数的参数可以指定一个本地文件地址用于存储生成的 OpenAPI JSON 文件
+当你成功运行 UtilMeta 服务时，你会看到控制台有以下的输出
 
-我们重启项目，访问 [http://127.0.0.1:8000/api/docs](http://127.0.0.1:8000/api/docs) 即可看到  JSON 格式的 OpenAPI文档
+```
+UtilMeta OperationsAPI loaded at http://127.0.0.1:8000/api/ops, connect your APIs at https://ops.utilmeta.com
+```
 
-我们可以使用任意实现了 OpenAPI 标准的 API 调试器（如 [Swagger Editor](https://editor.swagger.io/)）加载这个 JSON 文档即可看到我们编写的 API 的输入与响应参数都已被完整的记录到了 API 文档中
+此时你可以直接点击 [这个链接](https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8000/api/ops) 连接并查看你的 API 接口，也可以在你的本地的项目文件夹内运行以下命令
 
-![ BMI API Doc ](https://utilmeta.com/assets/image/bmi-api-doc.png)
+```
+meta connect
+```
+
+你会看到一个窗口打开并连接到了你刚开发好的 API
+
+
+<img src="https://utilmeta.com/assets/image/demo-bmi-connect-local.png" href="https://ops.utilmeta.com" target="_blank" width="600"/>
+
+我们点击 API 即可看到我们刚开发的 BMI 计算 API，我们可以点击【Debug】按钮进行调试
+
+<img src="https://utilmeta.com/assets/image/demo-bmi-api-debug.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+我们点击 Logs 可以看到我们刚触发的请求日志，可以点击查看它的详细信息
+
+<img src="https://utilmeta.com/assets/image/demo-bmi-logs.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+
+!!! tip
+	为了实时请求的性能，日志会在进程后台收集并且定期存储，如果没有立刻看到你可以稍候并刷新，更多的运维管理相关的配置可以参考 [运维与监控管理文档](../guide/ops)
 
 
 ## 案例源码

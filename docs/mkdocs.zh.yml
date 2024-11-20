@@ -47,21 +47,21 @@ nav:
       - guide/auth.md
       - guide/client.md
       - guide/config-run.md
-      - guide/cmd.md
+      # - guide/cmd.md
       - guide/migration.md
-      - guide/plugin-extension.md
+      # - guide/plugin-extension.md
       - guide/ops.md
   - 案例教程:
       - tutorials/bmi-calc.md
       - tutorials/user-auth.md
       - tutorials/realworld-blog.md
-  - 社区资源:
-      - community/contributing.md
-      - community/contributors.md
-      - community/faq.md
-      - community/release.md
-      - community/roadmap.md
-      - community/resources.md
+#  - 社区相关:
+#      - community/contributing.md
+#      - community/contributors.md
+#      - community/faq.md
+#      - community/release.md
+#      - community/roadmap.md
+#      - community/resources.md
   - 切换语言:
       - English: /py/en/
       - 中文: /py/zh/
@@ -116,4 +116,4 @@ markdown_extensions:
   - pymdownx.superfences
   - attr_list
 
-copyright: Copyright &copy; 2019 - 2024 周煦林
+copyright: Copyright &copy; 2019 - 2024 voidZXL

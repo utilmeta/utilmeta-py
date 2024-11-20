@@ -78,6 +78,8 @@ class Operations(Config):
         default_volatile: bool
         volatile_maintain: timedelta
         # maintain: Optional[timedelta]
+        hide_ip_address: bool = False
+        hide_user_id: bool = False
 
         def __init__(
             self,
@@ -93,6 +95,8 @@ class Operations(Config):
             # if these headers show up, exclude
             default_volatile: bool = True,
             volatile_maintain: timedelta = timedelta(days=7),
+            hide_ip_address: bool = False,
+            hide_user_id: bool = False,
             # maintain: Optional[timedelta] = None,
             # default
             # - debug: info

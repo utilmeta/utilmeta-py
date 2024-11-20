@@ -123,6 +123,13 @@ class ServiceLogSchema(WebMixinSchema, orm.Schema[ServiceLog]):
     out_traffic: int
     public: bool
 
+    def __validate__(self):
+        from .api.utils import config
+        if config.log.hide_ip_address:
+            self.ip = '*.*.*.*' if self.ip else ''
+        if config.log.hide_user_id:
+            self.user_id = '***' if self.user_id else None
+
 
 class AccessTokenSchema(orm.Schema[AccessToken]):
     id: int

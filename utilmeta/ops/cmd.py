@@ -4,9 +4,37 @@ from utilmeta.bin.commands.base import BaseServiceCommand
 from utilmeta.bin.base import command
 from .config import Operations
 from utilmeta.bin.base import Arg
+from utilmeta.utils import omit
 import base64
 from . import __website__
 from utilmeta.bin.constant import DOT, RED, GREEN, BANNER, BLUE
+
+
+@omit
+def try_to_connect(timeout: int = 5):
+    config = Operations.config()
+    if not config or not config.is_local:
+        return
+    from utilmeta.ops.client import OperationsClient, ServiceInfoResponse
+    t = time.time()
+    live = False
+    while True:
+        if time.time() - t > timeout:
+            break
+        info = OperationsClient(base_url=config.ops_api, fail_silently=True).get_info()
+        live = isinstance(info, ServiceInfoResponse) and info.validate()
+        if not live:
+            time.sleep(0.5)
+        else:
+            break
+    if not live:
+        print(RED % 'meta connect: service not live or OperationsAPI not mounted, '
+                    f'please check your OperationsAPI: {config.ops_api} is accessible before connect')
+        return
+    local_manage_url = f'{__website__}/localhost?local_node={config.ops_api}'
+    print(f'OperationsAPI connected at {local_manage_url}')
+    import webbrowser
+    webbrowser.open_new_tab(local_manage_url)
 
 
 class OperationsCommand(BaseServiceCommand):
@@ -53,6 +81,7 @@ class OperationsCommand(BaseServiceCommand):
             # check if it is localhost
             if self.config.is_local:
                 local_manage_url = f'{__website__}/localhost?local_node={self.config.ops_api}'
+                print(f'OperationsAPI connected at {local_manage_url}')
                 import webbrowser
                 webbrowser.open_new_tab(local_manage_url)
                 exit(0)

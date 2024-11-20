@@ -1,5 +1,7 @@
 import threading
 
+import django
+
 from utilmeta.conf import Config
 from utilmeta.core.orm.databases.config import Database, DatabaseConnections
 from utype.types import *
@@ -639,3 +641,4 @@ class Operations(Config):
     #         raise TypeError(f'Invalid application: {app} for django ninja. FastAPI() instance expected')
     #
     #     return generator_func
+

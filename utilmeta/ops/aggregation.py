@@ -106,7 +106,8 @@ def aggregate_logs(service: str,
         total_requests = worker_qs.aggregate(v=models.Sum('requests'))['v'] or requests
         if total_requests:
             avg_time = worker_qs.aggregate(
-                v=models.Sum(models.F('avg_time') * models.F('requests')) / total_requests)['v'] or 0
+                v=models.Sum(models.F('avg_time') * models.F('requests'),
+                             output_field=models.DecimalField()) / total_requests)['v'] or 0
         else:
             avg_time = 0
 

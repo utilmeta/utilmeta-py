@@ -30,6 +30,19 @@ _current_request = contextvars.ContextVar('_django.request')
 _current_response = contextvars.ContextVar('_django.response')
 
 
+try:
+    from django.utils.decorators import sync_and_async_middleware
+except ImportError:
+    def sync_and_async_middleware(func):
+        """
+        Mark a middleware factory as returning a hybrid middleware supporting both
+        types of request.
+        """
+        func.sync_capable = True
+        func.async_capable = True
+        return func
+
+
 class DebugCookieMiddleware(MiddlewareMixin):
     def process_response(self, request, response: HttpResponseBase):
         origin = request.headers.get(Header.ORIGIN)
@@ -136,7 +149,6 @@ class DjangoServerAdaptor(ServerAdaptor):
         if not self.middlewares:
             return None
 
-        from asgiref.sync import iscoroutinefunction
         middlewares = self.middlewares
         request_adaptor_cls = self.request_adaptor_cls
         response_adaptor_cls = self.response_adaptor_cls
@@ -202,12 +214,10 @@ class DjangoServerAdaptor(ServerAdaptor):
                 response = self.process_request(request) or self.get_response(request)
                 return self.process_response(response)
 
-        from django.utils.decorators import sync_and_async_middleware
-
         @sync_and_async_middleware
         def utilmeta_middleware(get_response):
             # One-time configuration and initialization goes here.
-            if self.asynchronous and iscoroutinefunction(get_response):
+            if self.asynchronous and inspect.iscoroutinefunction(get_response):
                 async def middleware_func(request):
                     middleware = UtilMetaMiddleware(get_response)
                     # Do something here!

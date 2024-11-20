@@ -5,7 +5,7 @@ from django.db.models.deletion import Collector, Counter
 from collections import defaultdict
 from itertools import chain
 from django.db.models.deletion import get_candidate_relations_to_delete, \
-    DO_NOTHING, ProtectedError, RestrictedError
+    DO_NOTHING, ProtectedError
 from django.db.models import QuerySet, sql, signals
 from django.db import models
 from django.core.exceptions import EmptyResultSet
@@ -14,9 +14,21 @@ from ...databases import DatabaseConnections
 from functools import reduce
 from operator import attrgetter, or_
 
+try:
+    from django.db.models.deletion import RestrictedError
+except ImportError:
+    class RestrictedError(Exception):
+        pass
+
 
 class AwaitableCollector(Collector):
     connections_cls = DatabaseConnections
+
+    @property
+    def origin_kwargs(self):
+        if django.VERSION >= (4, 0):
+            return dict(origin=self)
+        return {}
 
     @classmethod
     async def delete_single(cls, qs: QuerySet, db: DatabaseConnections.database_cls):
@@ -35,7 +47,11 @@ class AwaitableCollector(Collector):
         query = sql.UpdateQuery(model)
         query.add_update_values(values)
         for offset in range(0, len(pk_list), GET_ITERATOR_CHUNK_SIZE):
-            query.clear_where()
+            if django.VERSION >= (4, 0):
+                query.clear_where()
+            else:
+                from django.db.models.sql.where import WhereNode
+                query.where = WhereNode()
             query.add_filter(
                 "pk__in", pk_list[offset: offset + GET_ITERATOR_CHUNK_SIZE]
             )
@@ -55,7 +71,11 @@ class AwaitableCollector(Collector):
         num_deleted = 0
         field = query.get_meta().pk
         for offset in range(0, len(pk_list), GET_ITERATOR_CHUNK_SIZE):
-            query.clear_where()
+            if django.VERSION >= (4, 0):
+                query.clear_where()
+            else:
+                from django.db.models.sql.where import WhereNode
+                query.where = WhereNode()
             query.add_filter(
                 f"{field.attname}__in",
                 pk_list[offset: offset + GET_ITERATOR_CHUNK_SIZE],
@@ -107,7 +127,7 @@ class AwaitableCollector(Collector):
                         sender=model,
                         instance=obj,
                         using=self.using,
-                        origin=self.origin,
+                        **self.origin_kwargs,
                     )
 
             # fast deletes
@@ -174,7 +194,7 @@ class AwaitableCollector(Collector):
                             sender=model,
                             instance=obj,
                             using=self.using,
-                            origin=self.origin,
+                            **self.origin_kwargs,
                         )
 
         if django.VERSION < (4, 2):

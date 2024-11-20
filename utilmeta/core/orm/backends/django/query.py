@@ -70,7 +70,13 @@ class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
 
         # Now we adjust the current query: reset the where clause and get rid
         # of all the tables we don't need (since they're in the sub-select).
-        self.query.clear_where()
+
+        if django.VERSION >= (4, 0):
+            self.query.clear_where()
+        else:
+            from django.db.models.sql.where import WhereNode
+            self.query.where = WhereNode()
+
         if self.query.related_updates or must_pre_select:
             # Either we're using the idents in multiple update queries (so
             # don't want them to change), or the db backend doesn't support
@@ -92,11 +98,19 @@ class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
             #     for parent, index in related_ids_index:
             #         related_ids[parent].extend(r[index] for r in rows)
 
-            self.query.add_filter("pk__in", idents)
+            filters = ("pk__in", idents)
+            if django.VERSION >= (4, 0):
+                self.query.add_filter(*filters)
+            else:
+                self.query.add_filter(filters)
             self.query.related_ids = related_ids
         else:
             # The fast path. Filters and updates in one query.
-            self.query.add_filter("pk__in", query)
+            filters = ("pk__in", query)
+            if django.VERSION >= (4, 0):
+                self.query.add_filter(*filters)
+            else:
+                self.query.add_filter(filters)
         self.query.reset_refcounts(refcounts_before)
 
     async def async_execute_sql(self, case_update: bool = False):

@@ -4,7 +4,6 @@ from django.db.models.options import Options
 from django.db.models.query import ValuesListIterable, NamedValuesListIterable, \
     FlatValuesListIterable, ModelIterable
 from django.core import exceptions
-from django.db.models.utils import resolve_callables
 from django.utils.functional import partition
 from utilmeta.utils import awaitable
 from ...databases import DatabaseConnections
@@ -13,7 +12,14 @@ from . import exceptions
 import django
 from .deletion import AwaitableCollector
 from typing import Optional, Tuple
-from .query import AwaitableQuery, AwaitableSQLUpdateCompiler
+from .query import AwaitableQuery, AwaitableSQLUpdateCompiler, clear_query_ordering
+
+try:
+    from django.db.models.utils import resolve_callables
+except ImportError:
+    def resolve_callables(mapping):
+        for k, v in mapping.items():
+            yield k, v() if callable(v) else v
 
 
 class DummyContent:
@@ -743,9 +749,13 @@ class AwaitableQuerySet(QuerySet):
         # Disable non-supported fields.
         del_query.query.select_for_update = False
         del_query.query.select_related = False
-        del_query.query.clear_ordering(force=True)
 
-        collector = self.collector_cls(using=del_query.db, origin=self)
+        clear_query_ordering(del_query.query, True)
+
+        kwargs = dict(using=del_query.db)
+        if django.VERSION >= (4, 0):
+            kwargs.update(origin=self)
+        collector = self.collector_cls(**kwargs)
         if collector.can_fast_delete(del_query):
             await collector.acollect(del_query)
         else:

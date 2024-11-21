@@ -1,4 +1,4 @@
-site_name: UtilMeta Python Framework | Docs
+site_name: UtilMeta Python Framework
 site_description: Progressive meta framework for API development in Python
 site_url: https://docs.utilmeta.com/py/en
 docs_dir: en
@@ -46,8 +46,10 @@ nav:
       - guide/api-route.md
       - guide/schema-query.md
       - guide/auth.md
+      - guide/client.md
       - guide/config-run.md
       - guide/migration.md
+      - guide/ops.md
   - Case Tutorials:
       - tutorials/bmi-calc.md
       - tutorials/user-auth.md

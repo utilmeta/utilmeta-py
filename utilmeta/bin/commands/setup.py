@@ -54,9 +54,9 @@ class SetupCommand(BaseServiceCommand):
         --t: select template: full / lite
         --ops: with operations configuration
         """
-        if not name:
-            print(RED % 'meta Error: project name is required for setup')
-            exit(1)
+        while not name:
+            print(f'Enter the name of your project:')
+            name = input('>>> ').strip()
 
         if self.ini_path:
             print(RED % 'meta Error: you are already inside an utilmeta project, '

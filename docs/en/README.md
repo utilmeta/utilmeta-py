@@ -1,12 +1,21 @@
 # UtilMeta - Quick Guide
 
-**UtilMeta** is a progressive meta-framework for backend applications, which efficiently builds declarative APIs based on the Python type annotation standard, and supports the integration of mainstream Python frameworks as runtime backend
+<img src="https://utilmeta.com/img/logo-main-gradient.png" style="width: 200px" alt="">
+
+**UtilMeta** Python framework is a progressive meta-framework to develop and manage backend applications, building declarative API & ORM efficiently based on the Python type annotation standard with both sync & async syntax, and supports using mainstream Python frameworks as runtime backend
+
+* Homepage: [https://utilmeta.com/py](https://utilmeta.com/py)
+* Documentation: [https://docs.utilmeta.com/py/en/](https://docs.utilmeta.com/py/en/)
+* Author: <a href="https://github.com/voidZXL" target="_blank">@voidZXL</a>
 
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/v/utilmeta" alt="">
 </a>
 <a href="https://pypi.org/project/utilmeta/" target="_blank">
 	<img src="https://img.shields.io/pypi/pyversions/utilmeta" alt="">
+</a>
+<a href="https://pepy.tech/project/utilmeta" target="_blank">
+	<img src="https://pepy.tech/badge/utilmeta/month" alt="">
 </a>
 <a href="https://github.com/utilmeta/utilmeta-py/blob/main/LICENSE" target="_blank">
 	<img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="">
@@ -15,34 +24,65 @@
 	<img src="https://img.shields.io/github/actions/workflow/status/utilmeta/utilmeta-py/test.yaml?branch=main&label=CI" alt="">
 </a>
 
-* Homepage: [https://utilmeta.com/py](https://utilmeta.com/py)
-* Source Code: <a href="https://github.com/utilmeta/utilmeta-py" target="_blank"> https://github.com/utilmeta/utilmeta-py</a>
-* Author: <a href="https://github.com/voidZXL" target="_blank">@voidZXL</a>
-
-## Core features
-
-### Progressive Meta Framework
-UtilMeta developed a standard that support all major Python web framework like **django**, **flask**, **fastapi** (starlette), **sanic**, **tornado** as runtime backend, and support current projects using these frameworks to develop new API using UtilMeta progressivelycompatibility with multiple technology stacks, and asynchronous interface support
-
-### Declarative Development
-Using the declarative power from UtilMeta, you can easily write APIs with auto request validation, efficient ORM queries, and auto OpenAPI document generation
-
-### Highly Flexible & Extensible
-UtilMeta is highly flexible with a series of plugins includes authentication (Session/JWT), cross origin, rate limit, retry, and can be extended to support more features.
-
-### Full-lifecycle DevOps Solution
-The [UtilMeta Platform](https://utilmeta.com/) provided the full-lifecycle DevOps solution for this framework, the API Docs, Debug, Logs, Monitoring, Alerts, Analytics will all been taken care of in the platform
-
 ## Installation
-```shell
+```
 pip install -U utilmeta
 ```
 
-!!! note
+!!! tip
 	UtilMeta requires Python >= 3.8
 
-## Hello World
- Create a Python file named `server.py` and write the following code 
+## Core Features
+
+### Declarative API & ORM
+
+with UtilMeta, you can easily write declarative APIs with auto request validation, efficient ORM queries, and auto OpenAPI document generation, here is an example from [mini_blog/blog/api.py](https://github.com/utilmeta/utilmeta-py/blob/main/examples/mini_blog/blog/api.py)
+
+```python
+from utilmeta.core import api, orm
+from .models import User, Article
+from django.db import models
+
+class UserSchema(orm.Schema[User]):
+    username: str
+    articles_num: int = models.Count('articles')
+
+class ArticleSchema(orm.Schema[Article]):
+    id: int
+    author: UserSchema
+    content: str
+
+class ArticleAPI(api.API):
+    async def get(self, id: int) -> ArticleSchema:
+        return await ArticleSchema.ainit(id)
+```
+
+if you request the ArticleAPI like `GET /article?id=1`, you will get the result like
+
+```python
+{
+  "id": 1,
+  "author": {
+    "username": "alice",
+    "articles_num": 3
+  },
+  "content": "hello world"
+}
+```
+This is just what you declared, UtilMeta will generate optimized ORM queries automatically based on your declared schemas, prevent N+1 problem and also generate OpenAPI document for your APIs
+
+### Progressive Meta Framework
+UtilMeta built a standard that support most major Python web frameworks as runtime backend, and support current projects using these frameworks to develop new API using UtilMeta progressively
+
+Currently supported backends:
+
+* **Django** (also Django REST framework)
+* **Flask** (also APIFlask)
+* **FastAPI** (also Starlette)
+* **Sanic**
+* **Tornado**
+
+You can change the entire runtime backend with a single line of code, Here is a hello world example of UtilMeta
 ```python
 from utilmeta import UtilMeta
 from utilmeta.core import api
@@ -56,7 +96,7 @@ class RootAPI(api.API):
 service = UtilMeta(
     __name__,
     name='demo',
-    backend=django,    # or flask / starlette / tornado / sanic
+    backend=django,    # or flask / fastapi / starlette / sanic / tornado
     api=RootAPI,
     route='/api'
 )
@@ -67,27 +107,50 @@ if __name__ == '__main__':
     service.run()
 ```
 
-!!! note
-	You can use `flask`, `starlette`, `sanic`, `tornado` instead of `django` as runtime backend, just install them first and replace them in the demo code
+You can create a Python file with the above code and run it to check it out.
 
-### Run
-You can execute this file by python to run the server
+## Quick Start
+
+you can start by easily start by clone out repo and run an example 
+
 ```shell
-python server.py
+pip install -U utilmeta
+git clone https://github.com/utilmeta/utilmeta-py
+cd utilmeta-py/examples/mini_blog
+meta migrate        # migrate databases
+meta run            # or python server.py
 ```
+
 The following info Implies that the service has live
 ```
-Running on http://127.0.0.1:8000
-Press CTRL+C to quit
+| UtilMeta (version) starting service [blog]
+|     version: 0.1.0
+|       stage: ● debug
+|     backend: fastapi (version) | asynchronous
+|    base url: http://127.0.0.1:8080
 ```
-Then we can use our browser to open [http://127.0.0.1:8000/api/hello](http://127.0.0.1:8000/api/hello) to call this API directly, we will see
-```
-world
-```
-It means this API works
 
-## How to read this document
+### Connect
+When you started your service, you can see a line of output
+```
+UtilMeta OperationsAPI loaded at http://127.0.0.1:8080/ops, connect your APIs at https://ops.utilmeta.com
+```
 
+this indicates that UtilMeta Operations system is loaded successfully, you
+You can connect your APIs by open this link: [https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8080/ops](https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8080/ops)
+
+Click **API** and your will see the generated API document, you can debug your API here
+<img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+With your local API connected, you can use these features
+
+* **Data**: Manage database data (CRUD), in this example, you can add `user` and `article` instance
+* **API**: view and debug on auto generated API document
+* **Logs**: query realtime request logs, view request and response data, error tracebacks
+* **Servers**: view realtime metrics of service resources like servers, databases, caches
+
+!!! note
+	Using other management features requires you to connect a online service with public network address
+## Document Guide
 We have several introductory case tutorials from easy to complex, covering most usage of the framework. You can read and learn in the following order.
 
 1. [BMI Calculation API](tutorials/bmi-calc)
@@ -99,7 +162,11 @@ If you prefer to learn from a specific feature, you can refer to
 
 * [Handle Request](guide/handle-request): How to handle path, query parameters, request body, file upload, request headers and cookies.
 * [API Class and Routing](guide/api-route) How to use API class mounts to define tree-like API routing, and use  hooks to easily reuse code between APIs, handle errors, and template responses.
-* [Data query and ORM operation ](guide/schema-query) How to use Schema to declaratively write the CRUD query, and ORM operations required by a RESTful interface.
+* [Schema Query and ORM](guide/schema-query) How to use UtilMeta to write declarative ORM queries for RESTful API.
 * [API Authentication](guide/auth): How to use Session, JWT, OAuth and other methods to authenticate the request of the interface, get the current request's user and simplify the login operation
+* [Declarative Web Client](guide/client): Use the declarative syntax identical to API to write request client code, and genrate client code based on UtilMeta service or OpenAPI docs
+
+If your APIs are developed, and want to know how to config, run and manage your APis, check
+
 * [Config, Run & Deploy](guide/config-run): How to configure the run settings, startup, and deployment of a service using features such as declarative environment variables
-* [Migrate from current project](guide/migration) How to progressively integrate UtilMeta API to an existing backend project or migrate to UtilMeta
+* [Connect & Operations](guide/ops): How to connect and manage your API service 

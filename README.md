@@ -3,7 +3,7 @@
 <img src="https://utilmeta.com/img/logo-main-gradient.png" style="width: 200px" alt="">
 
 **UtilMeta** Python framework is a progressive meta-framework to develop and manage backend applications, building declarative API & ORM efficiently based on the Python type annotation standard with both sync & async syntax, and supports using mainstream Python frameworks as runtime backend
-main-
+
 * Homepage: [https://utilmeta.com/py](https://utilmeta.com/py)
 * Documentation: [https://docs.utilmeta.com/py/en/](https://docs.utilmeta.com/py/en/)
 * Author: <a href="https://github.com/voidZXL" target="_blank">@voidZXL</a>
@@ -164,7 +164,12 @@ If you prefer to learn from a specific feature, you can refer to
 * [API Class and Routing](https://docs.utilmeta.com/py/en/guide/api-route) How to use API class mounts to define tree-like API routing, and use  hooks to easily reuse code between APIs, handle errors, and template responses.
 * [Schema Query and ORM](https://docs.utilmeta.com/py/en/guide/schema-query) How to use UtilMeta to write declarative ORM queries for RESTful API.
 * [API Authentication](https://docs.utilmeta.com/py/en/guide/auth): How to use Session, JWT, OAuth and other methods to authenticate the request of the interface, get the current request's user and simplify the login operation
+* [Declarative Web Client](https://docs.utilmeta.com/py/en/guide/client): Use the declarative syntax identical to API to write request client code, and genrate client code based on UtilMeta service or OpenAPI docs
+
+If your APIs are developed, and want to know how to config, run and manage your APis, check
+
 * [Config, Run & Deploy](https://docs.utilmeta.com/py/en/guide/config-run): How to configure the run settings, startup, and deployment of a service using features such as declarative environment variables
+* [Connect & Operations](https://docs.utilmeta.com/py/en/guide/ops): How to connect and manage your API service 
 
 ## Community
 Join our community to build great things together

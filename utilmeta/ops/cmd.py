@@ -13,7 +13,13 @@ from utilmeta.bin.constant import DOT, RED, GREEN, BANNER, BLUE
 @omit
 def try_to_connect(timeout: int = 5):
     config = Operations.config()
-    if not config or not config.is_local:
+    if not config:
+        return
+    if not config.is_local:
+        import webbrowser
+        webbrowser.open_new_tab(__website__)
+        print(RED % f'connection key required to connect non-local service, please login to '
+                    f'{__website__} and generate one')
         return
     from utilmeta.ops.client import OperationsClient, ServiceInfoResponse
     t = time.time()
@@ -78,13 +84,14 @@ class OperationsCommand(BaseServiceCommand):
             exit(1)
 
         if not key:
+            import webbrowser
             # check if it is localhost
             if self.config.is_local:
                 local_manage_url = f'{__website__}/localhost?local_node={self.config.ops_api}'
                 print(f'OperationsAPI connected at {local_manage_url}')
-                import webbrowser
                 webbrowser.open_new_tab(local_manage_url)
                 exit(0)
+            webbrowser.open_new_tab(__website__)
             print(RED % f'meta connect: --key is required to connect non-local service, please login to '
                         f'{__website__} and generate one')
             exit(1)

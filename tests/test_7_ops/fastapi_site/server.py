@@ -24,7 +24,7 @@ Operations(
     secure_only=False,
     trusted_hosts=['127.0.0.1'],
     base_url=f'http://127.0.0.1:{PORT}',
-    eager=True
+    eager_migrate=True
 ).integrate(app, __name__)
 
 

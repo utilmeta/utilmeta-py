@@ -53,6 +53,8 @@ class ServerAdaptor(BaseAdaptor):
     response_adaptor_cls = None
     sync_db_adaptor_cls = None
     async_db_adaptor_cls = None
+    sync_cache_adaptor_cls = None
+    async_cache_adaptor_cls = None
     DEFAULT_PORT = 8000
 
     def __init__(self, config: 'UtilMeta'):

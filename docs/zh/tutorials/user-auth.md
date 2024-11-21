@@ -16,7 +16,7 @@ meta setup demo-user
 ```
 在提示选择 backend 的时候输入 `django`
 
-项目创建好后，我们需要先对服务的数据库连接进行配置，打开 `server.py`，插入以下代码
+项目创建好后，我们需要先对服务的数据库连接进行配置，打开 `server.py`，在 `service` 的定义和 `app` 的定义之间插入以下代码
 
 ```python
 service = UtilMeta(...)
@@ -35,6 +35,8 @@ service.use(DatabaseConnections({
         engine='sqlite3',
     )
 }))
+# ----------------
+app = service.application()
 ```
 
 在插入的代码中，我们声明了 Django 的配置信息与数据库连接的配置
@@ -440,7 +442,9 @@ if __name__ == '__main__':
 
 其中编写了用户注册接口和获取当前用户接口的调试代码，当我们启动服务并运行 `test.py` 时，我们可以看到的输出类似
 
-```json
+```
+> python test.py
+
 Response [200 OK] "POST /api/user/signup"
 application/json (76)
 {'username': 'user1', 'id': 1, 'signup_time': '2024-01-29T12:29:33.684594'}

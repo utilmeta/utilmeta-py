@@ -394,13 +394,22 @@ class UtilMeta:
         self.root_api = api
         self.root_url = str(route).strip('/')
 
-    def mount_to_api(self, api, route: str):
+    def mount_to_api(self, api, route: str, eager: bool = False):
         if not inspect.isclass(api) and issubclass(api, API):
             raise TypeError(f'Invalid API: {api}')
+
         route = str(route).strip('/')
+
+        if not eager and not self._root_api:
+            # if not eagerly mount
+            # we do not load RootAPI here
+            # since it may cause ImportError...
+            self._unmounted_apis[route] = api
+            return
+
         try:
             root_api = self.resolve()
-        except ValueError:
+        except (ValueError, ImportError):
             # if API is not loaded, we lazy-mount
             self._unmounted_apis[route] = api
         else:

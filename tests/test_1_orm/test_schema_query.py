@@ -1,7 +1,7 @@
 import pytest
 from tests.conftest import setup_service
 from utilmeta.core import orm
-from utilmeta.utils import exceptions
+from utilmeta.utils import exceptions, time_now
 from datetime import datetime
 from typing import List, Optional
 
@@ -280,9 +280,18 @@ class TestSchemaQuery:
         )
         assert article.creatable_field == 'a'
         assert article.slug == 'my-new-article-1'
+        t = time_now()
         article.save()
+        t1 = time_now()
+        inst = article.get_instance(fresh=True)
+        assert t1 > inst.created_at > t
+        assert t1 > inst.updated_at > t
         article.content = 'my new content'
         article.save()  # test save on mode 'a' with pk (should update instead of create)
+
+        # inst = article.get_instance(fresh=True)
+        # t2 = time_now()
+        # assert t2 > inst.updated_at > t1
 
         with pytest.raises(exceptions.BadRequest):
             article.save(must_create=True)
@@ -317,6 +326,7 @@ class TestSchemaQuery:
         with pytest.raises(orm.MissingPrimaryKey):
             article2.save(must_update=True)
 
+        assert article2.updated_at > t1
         # article.pk = None
         # article.save(must_create=True)
         # assert inst.pk != article.pk

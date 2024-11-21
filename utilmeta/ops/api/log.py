@@ -63,15 +63,19 @@ class LogAPI(api.API):
             ServiceLog.length: orm.Order(),
         }, default='-time')
 
+    @property
+    def log_q(self):
+        if self.supervisor.node_id:
+            q = models.Q(node_id=self.supervisor.node_id) | models.Q(service=self.supervisor.service)
+        else:
+            q = models.Q(service=self.supervisor.service)
+        return q
+
     @opsRequire('log.view')
     @api.get
     @adapt_async(close_conn=config.db_alias)
     def service(self, query: LogQuery):
-        base_qs = ServiceLog.objects.filter(
-            service=self.supervisor.service,
-        )
-        if self.supervisor.node_id:
-            base_qs = base_qs.filter(node_id=self.supervisor.node_id)
+        base_qs = ServiceLog.objects.filter(self.log_q)
         logs = ServiceLogBase.serialize(
             query.get_queryset(base_qs)
         )
@@ -90,11 +94,7 @@ class LogAPI(api.API):
     @api.get('service/values')
     @adapt_async(close_conn=config.db_alias)
     def service_log_values(self, query: LogQuery):
-        base_qs = ServiceLog.objects.filter(
-            service=self.supervisor.service,
-        )
-        if self.supervisor.node_id:
-            base_qs = base_qs.filter(node_id=self.supervisor.node_id)
+        base_qs = ServiceLog.objects.filter(self.log_q)
         qs = query.get_queryset(
             base_qs
         )
@@ -130,7 +130,7 @@ class LogAPI(api.API):
         users: int = 0,
         endpoints: int = 0,
     ):
-        logs = ServiceLog.objects.filter(time__gte=self.request.time - timedelta(seconds=within))
+        logs = ServiceLog.objects.filter(self.log_q, time__gte=self.request.time - timedelta(seconds=within))
         if apis:
             logs = logs.filter(endpoint__ident__in=apis)
         aggregate_info = []

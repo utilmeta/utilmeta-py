@@ -50,6 +50,11 @@ Operations 配置项的主要参数包括
 	如果你不希望让 OperationsAPI 与你的其他 API 使用同一个域，你的 `route` 参数也可以指定为一个绝对路径，例如 `route='https://ops.mysite.com'` 表示通过 `https://ops.mysite.com` 来提供 OperationsAPI ，这种情况你需要自行处理 OperationsAPI 的挂载与前端代理
 
 * `database`：必填，设置管理系统存储日志，监控等运维数据的数据库，你可以向上面的例子一样指定一个 SQLite 数据库，在生产环境中也可以指定一个 `postgresql` 数据库
+
+!!! tip
+	如果你需要配置 MySQL 或 PostgreSQL 数据库，请记得指定数据库的地址，用户名，密码等信息
+
+
 * `base_url`：为你的 API 服务指定一个可以在网络上访问到的基准 API 地址，这个地址会用于生成的 OpenAPI 文档的 `server.url`，设置后 OperationsAPI 的地址 = `base_url` + `route`
 
 !!! note
@@ -289,7 +294,7 @@ meta init --app=django_settings.wsgi.app
 app = django_settings.wsgi.app
 ```
 
-UtilMeta 框架就是靠这个文件识别 UtilMeta 项目，以及项目的核心对象的地址的
+UtilMeta 框架就是靠这个文件识别 UtilMeta 项目，以及项目的核心应用对象的地址的
 
 ### 连接 Django
 
@@ -313,11 +318,17 @@ Operations(
         engine='sqlite3'
         # or 'postgres' / 'mysql' / 'oracle'
     ),
-    base_url='https://blog.mysite.com/api',
+    base_url='https://<YOUR DOMAIN>/api',
+    # base_url='http://127.0.0.1:<YOUR_PORT>',   # 本地项目
 ).integrate(application, __name__)
 ```
 
 我们先声明了 `Operations` 配置，参数如上文介绍的一样，然后调用了配置实例的 `integrate` 方法，第一个参数传入 WSGI / ASGI 应用，第二个参数传入 `__name__`
+
+需要注意的是 `Operations` 配置的 `base_url` 参数需要提供你的 Django 服务的 **基准访问地址**，也就是你的 API 服务中定义的路径都会从这个地址延申，如果是部署在网络上的服务，请设置为能够在网络中访问到的 URL，如果是本地服务，则设置为 `http://127.0.0.1:你的端口号
+
+!!! note
+	如果你需要配置 MySQL 或 PostgreSQL 数据库，请记得指定数据库的地址，用户名，密码等信息`
 
 !!! tip
 	如果你使用了 **Django REST framework**，UtilMeta 将会自动同步 DRF 生成的 OpenAPI 文档
@@ -347,11 +358,17 @@ Operations(
         engine='sqlite3' # or 'postgresql' / 'mysql'
     ),
     base_url='https://<YOUR DOMAIN>/api',
+    # base_url='http://127.0.0.1:<YOUR_PORT>',   # 本地项目
 ).integrate(app, __name__)
 ```
 
 !!! tip
 	如果你使用了 **APIFlask**，也只需要把  Operations 配置接入 APIFlask 的 app 中，UtilMeta 将会自动同步 APIFlask 生成的 OpenAPI 文档
+
+`Operations` 配置的 `base_url` 参数需要提供你的 Flask 服务的 **基准访问地址**，也就是你的 API 服务中定义的路径都会从这个地址延申，如果是部署在网络上的服务，请设置为能够在网络中访问到的 URL，如果是本地服务，则设置为 `http://127.0.0.1:你的端口号`
+
+!!! note
+	如果你需要配置 MySQL 或 PostgreSQL 数据库，请记得指定数据库的地址，用户名，密码等信息
 
 加入配置代码后，如果你的项目是本地运行，可以在重启项目后执行如下命令连接本地服务
 
@@ -377,11 +394,17 @@ Operations(
         engine='sqlite3'  # or 'postgresql' / 'mysql'
     ),
     base_url='https://<YOUR DOMAIN>/api',
+    # base_url='http://127.0.0.1:<YOUR_PORT>',   # 本地项目
 ).integrate(app, __name__)
 ```
 
 !!! tip
 	UtilMeta 将自动同步 FastAPI 生成的 API 文档
+
+`Operations` 配置的 `base_url` 参数需要提供你的 FastAPI 服务的 **基准访问地址**，也就是你的 API 服务中定义的路径都会从这个地址延申，如果是部署在网络上的服务，请设置为能够在网络中访问到的 URL，如果是本地服务，则设置为 `http://127.0.0.1:你的端口号`
+
+!!! note
+	如果你需要配置 MySQL 或 PostgreSQL 数据库，请记得指定数据库的地址，用户名，密码等信息
 
 加入配置代码后，如果你的项目是本地运行，可以在重启项目后执行如下命令连接本地服务
 
@@ -408,11 +431,17 @@ Operations(
         engine='sqlite3' # or 'postgresql' / 'mysql'
     ),
     base_url='https://<YOUR DOMAIN>/api',
+    # base_url='http://127.0.0.1:<YOUR_PORT>',   # 本地项目
 ).integrate(app, __name__)
 ```
 
 !!! tip
 	UtilMeta 将自动同步 Sanic 的 openapi 扩展生成的 API 文档
+
+`Operations` 配置的 `base_url` 参数需要提供你的 Sanic 服务的 **基准访问地址**，也就是你的 API 服务中定义的路径都会从这个地址延申，如果是部署在网络上的服务，请设置为能够在网络中访问到的 URL，如果是本地服务，则设置为 `http://127.0.0.1:你的端口号`
+
+!!! note
+	如果你需要配置 MySQL 或 PostgreSQL 数据库，请记得指定数据库的地址，用户名，密码等信息
 
 加入配置代码后，如果你的项目是本地运行，可以在重启项目后执行如下命令连接本地服务
 

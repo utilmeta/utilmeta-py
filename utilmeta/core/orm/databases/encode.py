@@ -252,6 +252,9 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
         return _Transaction(db.connection, force_rollback=force_rollback, isolation=isolation)
 
     def check(self):
+        if self.async_engine:
+            from utilmeta.utils import check_requirement
+            check_requirement(self.async_engine, install_when_require=True)
         try:
             from databases import Database
         except (ModuleNotFoundError, ImportError) as e:

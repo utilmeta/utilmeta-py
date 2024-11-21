@@ -123,10 +123,10 @@ def get_cache_size(using: str) -> int:
 
 class CacheStatus(utype.Schema):
     pid: int = utype.Field(alias_from=['process_id'], default=None, no_output=True)
-    used_memory: int = utype.Field(alias_from=['limit_maxbytes'], default=None)
-    current_connections: int = utype.Field(alias_from=['connected_clients', 'curr_connections'], default=None)
-    total_connections: int = utype.Field(alias_from=['total_connections_received'], default=None)
-    qps: float = utype.Field(alias_from=['instantaneous_ops_per_sec'], default=None)
+    used_memory: int = utype.Field(alias_from=['limit_maxbytes'], default=0)
+    current_connections: int = utype.Field(alias_from=['connected_clients', 'curr_connections'], default=0)
+    total_connections: int = utype.Field(alias_from=['total_connections_received'], default=0)
+    qps: float = utype.Field(alias_from=['instantaneous_ops_per_sec'], default=0)
 
 
 @ignore_errors(default=None)
@@ -299,7 +299,14 @@ def get_db_max_connections(using: str) -> int:
         if db_type not in db_sql:
             return 0
         cursor.execute(db_sql[db_type])
-        return int(cursor.fetchone()[0])
+        res = cursor.fetchone()
+        for val in res:
+            try:
+                return int(val)
+            except ValueError:
+                pass
+        # for mysql: 'max_connections', [NUMBER]
+        return 0
 
 
 @ignore_errors(default=None)

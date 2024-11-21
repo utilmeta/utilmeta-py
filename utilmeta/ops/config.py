@@ -136,7 +136,8 @@ class Operations(Config):
                  task_error_log: str = None,
                  max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
                  local_scope: List[str] = ('*',),
-                 eager: bool = False,
+                 eager_migrate: bool = False,
+                 eager_mount: bool = False,
                  ):
         super().__init__(locals())
 
@@ -151,7 +152,8 @@ class Operations(Config):
         self.default_timeout = default_timeout
         self.secure_only = secure_only
         # self.local_disabled = local_disabled
-        self.eager = eager
+        self.eager_migrate = eager_migrate
+        self.eager_mount = eager_mount
 
         if isinstance(max_retention_time, timedelta):
             max_retention_time = max_retention_time.total_seconds()
@@ -187,6 +189,7 @@ class Operations(Config):
         self._node_id = None
         self._openapi = None
         self._task = None
+        self._mounted = False
 
     def load_openapi(self):
         from utilmeta import service
@@ -339,27 +342,30 @@ class Operations(Config):
         # from django.conf import settings
 
         # -------------- API
-        if not service.auto_created:
-            from utilmeta.ops.api import OperationsAPI
+        # if not service.auto_created:
+        # mount even for auto created service
+        if not self._mounted:
             parsed = urlsplit(self.route)
             if not parsed.scheme:
+                from utilmeta.ops.api import OperationsAPI
                 # route instead of URL
-                service.mount_to_api(OperationsAPI, route=self.route)
-                # try:
-                #     root_api = service.resolve()
-                # except ValueError:
-                #     return
-                # if inspect.isclass(root_api) and issubclass(root_api, api.API):
-                #     if not issubclass(root_api, OperationsAPI):
-                #         # mount the root API only
-                #         try:
-                #             root_api.__mount__(
-                #                 OperationsAPI,
-                #                 route=self.route,
-                #             )
-                #         except ValueError:
-                #             # if already exists, quit mounting
-                #             pass
+                service.mount_to_api(OperationsAPI, route=self.route, eager=self.eager_mount)
+                self._mounted = True
+            # try:
+            #     root_api = service.resolve()
+            # except ValueError:
+            #     return
+            # if inspect.isclass(root_api) and issubclass(root_api, api.API):
+            #     if not issubclass(root_api, OperationsAPI):
+            #         # mount the root API only
+            #         try:
+            #             root_api.__mount__(
+            #                 OperationsAPI,
+            #                 route=self.route,
+            #             )
+            #         except ValueError:
+            #             # if already exists, quit mounting
+            #             pass
 
         if service.meta_config:
             node_id = service.meta_config.get('node') or service.meta_config.get('node-id')
@@ -386,7 +392,7 @@ class Operations(Config):
             print('Operations task already started, ignoring...')
             return
 
-        if self.eager:
+        if self.eager_migrate:
             # migrate must be eagerly finished before the on_startup finish
             # try migrate before load first
             # use another thread to migrate
@@ -437,6 +443,8 @@ class Operations(Config):
         return OperationsDatabaseRouter
 
     def migrate(self, with_default: bool = False):
+        from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
+        DjangoDatabaseAdaptor(self.database).check()
         import warnings
         from django.db.migrations.executor import MigrationExecutor
         from django.db import connections
@@ -569,8 +577,10 @@ class Operations(Config):
         service.setup()
         # import API after setup
         if service.adaptor:
-            from .api import OperationsAPI
-            service.mount_to_api(OperationsAPI, route=route)
+            if not self._mounted:
+                from .api import OperationsAPI
+                service.mount_to_api(OperationsAPI, route=route, eager=self.eager_mount)
+                self._mounted = True
             # service.adaptor.adapt(OperationsAPI, route=parsed.path)
             service.adaptor.setup()
         else:

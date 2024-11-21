@@ -28,7 +28,9 @@ class ContentSchema(orm.Schema[BaseContent]):
         auth={'r': auth.Require()}
     )  # test read auth, test common field mount
     created_at: datetime
-    updated_at: datetime = Field(default_factory=datetime.now, no_input='aw')       # last modified
+    # updated_at: datetime = Field(default_factory=datetime.now, no_input='aw')       # last modified
+    updated_at: datetime
+    # test auto assignment
     public: bool = orm.Field(auth={
         # 'w': orm.Relate('author'),
         'a': auth.Require()

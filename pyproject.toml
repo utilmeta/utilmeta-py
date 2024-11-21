@@ -11,7 +11,7 @@ license = {file = "LICENSE"}
 authors = [
     { name = "Xulin Zhou (voidZXL)", email = "zxl@utilmeta.com" },
 ]
-keywords = ["API", "backend", "orm", "RESTful", "meta", "progressive", "declarative", "web", "utype"]
+keywords = ["API", "backend", "orm", "RESTful", "meta", "progressive", "declarative", "web", "utype", "devops"]
 classifiers = [
     "Intended Audience :: Information Technology",
     "Intended Audience :: System Administrators",
@@ -24,7 +24,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development",
     "Typing :: Typed",
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",

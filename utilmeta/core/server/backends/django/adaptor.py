@@ -14,6 +14,7 @@ from django.urls import re_path, URLPattern, path, include
 
 from utilmeta import UtilMeta
 from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
+from utilmeta.core.cache.backends.django import DjangoCacheAdaptor
 from utilmeta.core.request.backends.django import DjangoRequestAdaptor
 from utilmeta.core.response.backends.django import DjangoResponseAdaptor
 from utilmeta.core.request import Request
@@ -60,6 +61,7 @@ class DjangoServerAdaptor(ServerAdaptor):
     request_adaptor_cls = DjangoRequestAdaptor
     response_adaptor_cls = DjangoResponseAdaptor
     sync_db_adaptor_cls = DjangoDatabaseAdaptor
+    sync_cache_adaptor_cls = DjangoCacheAdaptor
     default_asynchronous = False
     URLPATTERNS = 'urlpatterns'
     DEFAULT_PORT = 8000

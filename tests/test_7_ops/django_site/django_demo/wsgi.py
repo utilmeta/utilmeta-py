@@ -27,5 +27,5 @@ Operations(
         engine='sqlite3'
     ),
     base_url='http://127.0.0.1:9091',
-    eager=True   # eager migration for test
+    eager_migrate=True   # eager migration for test
 ).integrate(application, __name__)

@@ -20,6 +20,7 @@ __all__ = [
     'function_pass',
     'common_representable',
     'get_doc',
+    'requires',
     'get_base_type',
 ]
 
@@ -201,28 +202,50 @@ def get_doc(obj) -> str:
     # return (getattr(obj, Attr.DOC, '') or '').replace('\t', '').strip('\n').strip()
 
 
-def check_requirement(pkg: str, hint: str = None, check: bool = True, install_when_require: bool = False):
-    try:
-        if check:
-            import_obj(pkg)
-        else:
-            raise ImportError
-    except (ModuleNotFoundError, ImportError):
-        if install_when_require:
-            print(f'INFO: current service require <{pkg}> package, installing...')
+def check_requirement(*pkgs: str, hint: str = None, check: bool = True, install_when_require: bool = False):
+    if len(pkgs) > 1:
+        for pkg in pkgs:
             try:
-                import sys
-                os.system(f'{sys.executable} -m pip install {pkg}')
-            except Exception as e:
-                print(f'install package failed with error: {e}, fallback to internal solution')
-                import pip
-                pip_main = import_obj('pip._internal:main')
-                pip_main(['install', pkg])
-        else:
-            if hint:
-                print(hint)
-            raise ImportError(f'package <{pkg}> is required for current settings, please install it '
-                              f'or set install-when-require=True at meta.ini to allow auto installation')
+                return import_obj(pkg)
+            except (ModuleNotFoundError, ImportError):
+                pass
+    for pkg in pkgs:
+        try:
+            if check:
+                import_obj(pkg)
+            else:
+                raise ImportError
+        except (ModuleNotFoundError, ImportError):
+            if install_when_require:
+                print(f'INFO: current service require <{pkg}> package, installing...')
+                try:
+                    import sys
+                    os.system(f'{sys.executable} -m pip install {pkg}')
+                except Exception as e:
+                    print(f'install package failed with error: {e}, fallback to internal solution')
+                    pip_main = import_obj('pip._internal:main')
+                    pip_main(['install', pkg])
+            else:
+                if hint:
+                    print(hint)
+                raise ImportError(f'package <{pkg}> is required for current settings, please install it '
+                                  f'or set install-when-require=True at meta.ini to allow auto installation')
+
+
+def requires(**mp):
+    for import_name, install_name in mp.items():
+        try:
+            return import_obj(import_name)
+        except (ModuleNotFoundError, ImportError):
+            pass
+        print(f'INFO: current service require <{install_name}> package, installing...')
+        try:
+            import sys
+            os.system(f'{sys.executable} -m pip install {install_name}')
+        except Exception as e:
+            print(f'install package failed with error: {e}, fallback to internal solution')
+            pip_main = import_obj('pip._internal:main')
+            pip_main(['install', install_name])
 
 
 def import_obj(dotted_path):

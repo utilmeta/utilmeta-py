@@ -1,3 +1,5 @@
+import warnings
+
 from utilmeta.conf.base import Config
 from utilmeta import UtilMeta
 from utilmeta.utils import awaitable, exceptions, localhost
@@ -55,6 +57,7 @@ class Cache(Config):
                     break
         self.adaptor: Optional[BaseCacheAdaptor] = None
         self.asynchronous = False
+        self._applied = False
 
     @property
     def type(self) -> str:
@@ -99,8 +102,11 @@ class Cache(Config):
                 self.adaptor = DjangoCacheAdaptor(self, alias)
         self.asynchronous = asynchronous
         self.adaptor.check()
+        self._applied = True
 
     def get_adaptor(self, asynchronous: bool = False) -> 'BaseCacheAdaptor':
+        if not self._applied:
+            self.apply('default', asynchronous)
         if self.adaptor and self.adaptor.asynchronous == asynchronous:
             return self.adaptor
         if asynchronous:
@@ -188,15 +194,59 @@ class Cache(Config):
         return await self.get_adaptor(True).alter(key, amount, limit=limit)
 
     # deprecate in the future
-    awaitable(get)(aget)
-    awaitable(fetch)(afetch)
-    awaitable(set)(aset)
-    awaitable(pop)(apop)
-    awaitable(update)(aupdate)
-    awaitable(delete)(adelete)
-    awaitable(exists)(aexists)
-    awaitable(expire)(aexpire)
-    awaitable(alter)(aalter)
+    @awaitable(get)
+    async def get(self, key: str, default=None):
+        warnings.warn(f'Deprecated in future, please use aget()', DeprecationWarning)
+        return await self.aget(key, default)
+
+    @awaitable(fetch)
+    async def fetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
+        # get many
+        warnings.warn(f'Deprecated in future, please use afetch()', DeprecationWarning)
+        return await self.afetch(args, *keys, named=named)
+
+    @awaitable(set)
+    async def set(self, key: str, value, *, timeout: Union[int, timedelta, datetime] = None,
+                   exists_only: bool = False, not_exists_only: bool = False):
+        warnings.warn(f'Deprecated in future, please use aset()', DeprecationWarning)
+        return await self.aset(
+            key, value,
+            timeout=timeout,
+            exists_only=exists_only,
+            not_exists_only=not_exists_only
+        )
+
+    @awaitable(update)
+    async def update(self, data: Dict[str, Any]):
+        warnings.warn(f'Deprecated in future, please use aupdate()', DeprecationWarning)
+        # set many
+        return await self.aupdate(data)
+
+    @awaitable(pop)
+    async def pop(self, key: str):
+        warnings.warn(f'Deprecated in future, please use apop()', DeprecationWarning)
+        # set many
+        return await self.apop(key)
+
+    @awaitable(delete)
+    async def delete(self, args=None, *keys):
+        warnings.warn(f'Deprecated in future, please use adelete()', DeprecationWarning)
+        return await self.get_adaptor(True).delete(args, *keys)
+
+    @awaitable(exists)
+    async def exists(self, args=None, *keys) -> int:
+        warnings.warn(f'Deprecated in future, please use aexists()', DeprecationWarning)
+        return await self.aexists(args, *keys)
+
+    @awaitable(expire)
+    async def expire(self, *keys: str, timeout: float):
+        warnings.warn(f'Deprecated in future, please use aexpire()', DeprecationWarning)
+        return await self.aexpire(*keys, timeout=timeout)
+
+    @awaitable(alter)
+    async def alter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
+        warnings.warn(f'Deprecated in future, please use aalter()', DeprecationWarning)
+        return await self.aalter(key, amount, limit=limit)
 
 
 class CacheConnections(Config):
@@ -210,11 +260,11 @@ class CacheConnections(Config):
 
     def add_cache(self, service: UtilMeta, alias: str, cache: Cache):
         if not cache.sync_adaptor_cls:
-            if service.adaptor and service.adaptor.sync_db_adaptor_cls:
-                cache.sync_adaptor_cls = service.adaptor.sync_db_adaptor_cls
+            if service.adaptor and service.adaptor.sync_cache_adaptor_cls:
+                cache.sync_adaptor_cls = service.adaptor.sync_cache_adaptor_cls
         if not cache.async_adaptor_cls:
-            if service.adaptor and service.adaptor.async_db_adaptor_cls:
-                cache.async_adaptor_cls = service.adaptor.async_db_adaptor_cls
+            if service.adaptor and service.adaptor.async_cache_adaptor_cls:
+                cache.async_adaptor_cls = service.adaptor.async_cache_adaptor_cls
         cache.apply(alias, asynchronous=service.asynchronous)
         if alias not in self.caches:
             self.caches.setdefault(alias, cache)

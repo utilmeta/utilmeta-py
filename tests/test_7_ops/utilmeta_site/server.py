@@ -43,7 +43,7 @@ service.use(Operations(
         name='operations_db',
         engine='sqlite3'  # or 'postgres' / 'mysql' / 'oracle'
     ),
-    eager=True
+    eager_migrate=True
     # base_url='http://127.0.0.1:{}/'.format(PORT),
 ))
 

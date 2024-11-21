@@ -55,5 +55,5 @@ Operations(
         name='operations_db',
     ),
     base_url=f'http://127.0.0.1:{PORT}',
-    eager=True
+    eager_migrate=True
 ).integrate(service)

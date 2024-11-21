@@ -213,6 +213,14 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             return True
         return self.field == self.model.meta.auto_field
 
+    @property
+    def is_auto_now(self):
+        if not self.is_concrete:
+            return False
+        param = self.params
+        auto_now = param.get('auto_now')
+        return auto_now
+
     @classmethod
     def _get_type(cls, field: models.Field) -> Optional[type]:
         if not isinstance(field, models.Field):

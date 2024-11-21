@@ -49,8 +49,8 @@ class Env(Schema):
             return json.load(open(self._file, 'r'))
 
         if self._file.endswith('.yml') or self._file.endswith('.yaml'):
-            from utilmeta.utils import check_requirement
-            check_requirement('pyyaml', install_when_require=True)
+            from utilmeta.utils import requires
+            requires(yaml='pyyaml')
             import yaml
             return yaml.safe_load(open(self._file, 'r'))
 

@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple
 import random
 from ...databases.base import BaseDatabaseAdaptor
 from ...databases.config import Database
+from utilmeta.utils import requires
 
 
 class DjangoDatabaseAdaptor(BaseDatabaseAdaptor):
@@ -101,10 +102,19 @@ class DjangoDatabaseAdaptor(BaseDatabaseAdaptor):
         return transaction.atomic(self.alias, savepoint=savepoint)
 
     def check(self):
-        try:
-            import django
-        except (ModuleNotFoundError, ImportError) as e:
-            raise e.__class__(f'{self.__class__} as database adaptor requires to install django') from e
+        # try:
+        #     import django
+        # except (ModuleNotFoundError, ImportError) as e:
+        #     raise e.__class__(f'{self.__class__} as database adaptor requires to install django') from e
+        if self.config.is_mysql:
+            requires(
+                MySQLdb='mysqlclient'
+            )
+        elif self.config.is_postgresql:
+            requires(
+                psycopg='"psycopg[binary,pool]"',
+                psycopg2='psycopg2'
+            )
 
 
 class DjangoDatabase(Database):

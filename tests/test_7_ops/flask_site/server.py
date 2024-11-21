@@ -53,7 +53,7 @@ Operations(
         engine='sqlite3'
     ),
     base_url=f'http://127.0.0.1:{PORT}',
-    eager=True
+    eager_migrate=True
 ).integrate(app, __name__)
 
 if __name__ == '__main__':

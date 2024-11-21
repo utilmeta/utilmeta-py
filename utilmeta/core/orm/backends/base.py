@@ -108,6 +108,10 @@ class ModelFieldAdaptor(BaseAdaptor):
         raise NotImplementedError
 
     @property
+    def is_auto_now(self):
+        raise NotImplementedError
+
+    @property
     def is_writable(self):
         raise NotImplementedError
 

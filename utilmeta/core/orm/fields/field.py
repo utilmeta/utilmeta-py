@@ -6,7 +6,7 @@ from utype.parser.field import ParserField
 from utype.parser.cls import ClassParser
 from utype.parser.rule import LogicalType
 from utype.types import *
-from utilmeta.utils import class_func, SEG
+from utilmeta.utils import class_func, time_now
 
 
 if TYPE_CHECKING:
@@ -222,16 +222,23 @@ class ParserQueryField(ParserField):
             # use is sub model, because pk might be its base model
 
             if self.model_field.is_auto:
-                if not self.mode:
-                    # accept 'w' to identify object
-                    if self.primary_key or self.model_field.is_writable:
-                        self.mode = 'rw'
-
-                        if self.required is True:
-                            self.required = 'r'
-
+                if self.model_field.is_auto_now:
                     if not self.no_input:
-                        self.no_input = 'a'
+                        self.no_input = 'aw'
+                    if self.default_factory is None:
+                        self.default_factory = time_now
+                    # handle auto_now differently
+                else:
+                    if not self.mode:
+                        # accept 'w' to identify object
+                        if self.primary_key or self.model_field.is_writable:
+                            self.mode = 'rw'
+
+                            if self.required is True:
+                                self.required = 'r'
+
+                        if not self.no_input:
+                            self.no_input = 'a'
 
             if not self.model_field.is_writable or self.model.cross_models(self.field_name):
                 # read only

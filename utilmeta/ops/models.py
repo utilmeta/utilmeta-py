@@ -321,7 +321,7 @@ class Worker(SystemMetrics, ServiceMetrics):
         except (psutil.Error, AttributeError):
             net_connections = []
         return dict(
-            used_memory=getattr(mem_info, 'uss', getattr(mem_info, 'rss')),
+            used_memory=getattr(mem_info, 'uss', getattr(mem_info, 'rss', 0)) or 0,
             memory_info={f: getattr(mem_info, f) for f in getattr(mem_info, '_fields')},
             total_net_connections=len(net_connections),
             active_net_connections=len([c for c in net_connections if c.status != 'CLOSE_WAIT']),

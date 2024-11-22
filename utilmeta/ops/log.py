@@ -684,22 +684,19 @@ class Logger(Property):
                 k: str
                 if isinstance(v, list):
                     result[k] = self.parse_values(v)
+                elif isinstance(v, dict):
+                    result[k] = self.parse_values(v)
                 elif file_like(v):
                     result[k] = self.get_file_repr(data)
                 else:
-                    for key in self.config.secret_names:
-                        if key in k.lower():
-                            v = SECRET
-                            break
+                    if any(key in k.lower() for key in self.config.secret_names):
+                        v = SECRET
                     result[k] = v
             return result
         if isinstance(data, list):
             result = []
             for d in data:
-                if file_like(d):
-                    result.append(self.get_file_repr(data))
-                else:
-                    result.append(d)
+                result.append(self.parse_values(d))
             return result
         if file_like(data):
             return self.get_file_repr(data)
@@ -708,7 +705,8 @@ class Logger(Property):
             data = data.decode()
         elif isinstance(data, (bytearray, memoryview)):
             data = bytes(data).decode()
-
+        if isinstance(data, (bool, int, float, str)):
+            return data
         return str(data)
 
     @classmethod

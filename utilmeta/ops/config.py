@@ -23,6 +23,7 @@ class Operations(Config):
     REF: ClassVar = 'utilmeta.ops'
     HOST: ClassVar = 'utilmeta.com'
     ROUTER_NAME: ClassVar = '_OperationsDatabaseRouter'
+    DEFAULT_SECRET_NAMES: ClassVar = DEFAULT_SECRET_NAMES
 
     Database: ClassVar = Database
 

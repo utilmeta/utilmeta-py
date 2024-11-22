@@ -61,7 +61,8 @@ service.use(Operations(
     database=Database(
         name=DB_OPS_PATH,
         engine='sqlite3',
-    )
+    ),
+    secret_names=[Operations.DEFAULT_SECRET_NAMES, 'token']
 ))
 service.use(DatabaseConnections({
     'default': Database(

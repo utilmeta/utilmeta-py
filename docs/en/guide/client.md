@@ -8,7 +8,7 @@ Like a declarative interface, `Client` a class is a declarative client. It only 
 
 ## Write a `Client` class
 
-Classes are written `Client` in the same way as [编写 API 类](../api-route), except that our class needs to inherit from the `utilmeta.core.cli.Client` class.
+Classes are written `Client` in the same way as [Writing API Class](../api-route), except that our class needs to inherit from the `utilmeta.core.cli.Client` class.
 
 ### Request function
 

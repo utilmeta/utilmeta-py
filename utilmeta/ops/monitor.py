@@ -284,7 +284,8 @@ def get_db_server_size(using: str) -> int:
         if db_type not in db_sql:
             return 0
         cursor.execute(db_sql[db_type])
-        return int(cursor.fetchone()[0])
+        conn_number = cursor.fetchone()[0] if db_type == DB.PostgreSQL else cursor.fetchone()[1]
+        return int(conn_number)
 
 
 @ignore_errors(default=None)

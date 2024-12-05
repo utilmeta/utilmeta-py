@@ -72,6 +72,7 @@ class OperationWorkerTask(BaseCycleTask):
 
     LAYER_INTERVAL = [timedelta(hours=1), timedelta(days=1)]
     DEFAULT_CPU_INTERVAL = 1
+    MAX_SYNC_RETRIES = 10
 
     def __init__(self, config: Operations):
         self.config = config
@@ -89,6 +90,8 @@ class OperationWorkerTask(BaseCycleTask):
         self.daily_aggregation = None
 
         self._init_cycle = False
+        self._synced = False
+        self._sync_retries = 0
 
     def __call__(self, *args, **kwargs):
         try:
@@ -139,18 +142,23 @@ class OperationWorkerTask(BaseCycleTask):
         self.instance = _instance
         self.supervisor = _supervisor
 
-        # 1. save logs
-        batch_save_logs()
+        try:
+            # 1. save logs
+            batch_save_logs()
+        except Exception as e:
+            warnings.warn(f'Save logs failed with error: {e}')
 
-        # 2. update worker
-        worker_logger.update_worker(
-            record=not self.config.monitor.worker_disabled,
-            interval=self.config.worker_cycle
-        )
-
-        # update worker from every worker
-        # to make sure that the connected workers has the primary role to execute the following
-        self.update_workers()
+        try:
+            # 2. update worker
+            worker_logger.update_worker(
+                record=not self.config.monitor.worker_disabled,
+                interval=self.config.worker_cycle
+            )
+            # update worker from every worker
+            # to make sure that the connected workers has the primary role to execute the following
+            self.update_workers()
+        except Exception as e:
+            warnings.warn(f'Update workers failed with error: {e}')
 
         if self._stopped:
             # if this worker is stopped
@@ -162,11 +170,17 @@ class OperationWorkerTask(BaseCycleTask):
             # Is this worker the primary worker of the current instance
             # detect the running worker with the minimum PID
 
-            if not self._init_cycle:
+            if not self._synced and self._sync_retries < self.MAX_SYNC_RETRIES:
                 # 1st cycle
-                resources = self.config.resources_manager_cls(self.service)
-                resources.sync_resources(self.supervisor)
-                # try to update
+                manager = self.config.resources_manager_cls(self.service)
+                try:
+                    manager.init_service_resources(self.supervisor, instance=self.instance)
+                    # ignore errors
+                except Exception as e:
+                    warnings.warn(f'sync resources failed with error: {e}')
+                    self._sync_retries += 1
+                else:
+                    self._synced = True
 
             self.monitor()
             self.heartbeat()

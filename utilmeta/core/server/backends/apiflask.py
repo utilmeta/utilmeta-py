@@ -8,6 +8,7 @@ import apiflask
 class APIFlaskServerAdaptor(FlaskServerAdaptor):
     backend = apiflask
     application_cls = APIFlask
+    app: APIFlask
 
     def generate(self, spec: str = 'openapi'):
         if spec == 'openapi':
@@ -19,3 +20,7 @@ class APIFlaskServerAdaptor(FlaskServerAdaptor):
         # spec = getattr(f, '_spec', None)
         f._spec = {'hide': True}
         return f
+
+    @property
+    def version(self) -> str:
+        return self.app.version

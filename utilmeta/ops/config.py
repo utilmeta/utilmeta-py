@@ -1,18 +1,16 @@
 import threading
-
-import django
-
 from utilmeta.conf import Config
 from utilmeta.core.orm.databases.config import Database, DatabaseConnections
 from utype.types import *
-from utilmeta.utils import (DEFAULT_SECRET_NAMES, url_join, localhost, HTTPMethod,
-                            cached_property, import_obj, get_origin)
+from utilmeta.utils import (DEFAULT_SECRET_NAMES, url_join, localhost, HTTPMethod, get_ip,
+                            cached_property, import_obj, get_origin, get_server_ip)
 from typing import Union
 from urllib.parse import urlsplit
 from utilmeta import UtilMeta, __version__
 from . import __website__
 import sys
 import hashlib
+import os
 
 
 class Operations(Config):
@@ -39,6 +37,7 @@ class Operations(Config):
         instance_retention: timedelta
         database_retention: timedelta
         cache_retention: timedelta
+
         # WORKER_MONITOR_RETENTION = timedelta(hours=12)
         # DISCONNECTED_WORKER_RETENTION = timedelta(hours=12)
         # DISCONNECTED_INSTANCE_RETENTION = timedelta(days=3)
@@ -47,18 +46,18 @@ class Operations(Config):
         # INSTANCE_MONITOR_RETENTION = timedelta(days=7)
 
         def __init__(
-            self,
-            worker_disabled: bool = False,
-            server_disabled: bool = False,
-            instance_disabled: bool = False,
-            database_disabled: bool = False,
-            cache_disabled: bool = False,
-            # ----------------------------
-            worker_retention: timedelta = timedelta(hours=24),
-            server_retention: timedelta = timedelta(days=7),
-            instance_retention: timedelta = timedelta(days=7),
-            database_retention: timedelta = timedelta(days=7),
-            cache_retention: timedelta = timedelta(days=7),
+                self,
+                worker_disabled: bool = False,
+                server_disabled: bool = False,
+                instance_disabled: bool = False,
+                database_disabled: bool = False,
+                cache_disabled: bool = False,
+                # ----------------------------
+                worker_retention: timedelta = timedelta(hours=24),
+                server_retention: timedelta = timedelta(days=7),
+                instance_retention: timedelta = timedelta(days=7),
+                database_retention: timedelta = timedelta(days=7),
+                cache_retention: timedelta = timedelta(days=7),
         ):
             super().__init__(locals())
 
@@ -85,28 +84,43 @@ class Operations(Config):
         hide_user_id: bool = False
 
         def __init__(
-            self,
-            store_data_level: Optional[int] = None,
-            store_result_level: Optional[int] = None,
-            store_headers_level: Optional[int] = None,
-            persist_level: int = WARN,
-            persist_duration_limit: Optional[int] = 5,
-            exclude_methods: list = (HTTPMethod.OPTIONS, HTTPMethod.CONNECT, HTTPMethod.TRACE, HTTPMethod.HEAD),
-            exclude_status: list = (),
-            exclude_request_headers: List[str] = (),
-            exclude_response_headers: List[str] = (),
-            # if these headers show up, exclude
-            default_volatile: bool = True,
-            volatile_maintain: timedelta = timedelta(days=7),
-            hide_ip_address: bool = False,
-            hide_user_id: bool = False,
-            # maintain: Optional[timedelta] = None,
-            # default
-            # - debug: info
-            # - production: WARN
+                self,
+                store_data_level: Optional[int] = None,
+                store_result_level: Optional[int] = None,
+                store_headers_level: Optional[int] = None,
+                persist_level: int = WARN,
+                persist_duration_limit: Optional[int] = 5,
+                exclude_methods: list = (HTTPMethod.OPTIONS, HTTPMethod.CONNECT, HTTPMethod.TRACE, HTTPMethod.HEAD),
+                exclude_status: list = (),
+                exclude_request_headers: List[str] = (),
+                exclude_response_headers: List[str] = (),
+                # if these headers show up, exclude
+                default_volatile: bool = True,
+                volatile_maintain: timedelta = timedelta(days=7),
+                hide_ip_address: bool = False,
+                hide_user_id: bool = False,
+                # maintain: Optional[timedelta] = None,
+                # default
+                # - debug: info
+                # - production: WARN
         ):
             exclude_methods = [m.upper() for m in exclude_methods] if exclude_methods else []
             super().__init__(locals())
+
+    class Proxy(Config):
+        base_url: str
+        forward: bool = False
+
+        def __init__(
+                self,
+                base_url: str,
+                forward: bool = False,
+        ):
+            super().__init__(locals())
+
+        @property
+        def proxy_url(self):
+            return url_join(self.base_url, 'proxy')
 
     def __init__(self,
                  route: str,
@@ -130,7 +144,7 @@ class Operations(Config):
                  # - save the logs
                  # - save the worker monitor
                  # - the main (with min pid) worker will do the monitor tasks
-                 openapi=None,     # openapi paths
+                 openapi=None,  # openapi paths
                  monitor: Monitor = Monitor(),
                  log: Log = Log(),
                  report_disabled: bool = False,
@@ -139,6 +153,11 @@ class Operations(Config):
                  local_scope: List[str] = ('*',),
                  eager_migrate: bool = False,
                  eager_mount: bool = False,
+                 # new in v2.6.5 +---------
+                 # token: str = None
+                 # proxy_url: str = None,
+                 # proxy_forward_requests: bool = None,
+                 proxy: Proxy = None,
                  ):
         super().__init__(locals())
 
@@ -173,7 +192,7 @@ class Operations(Config):
             parsed = urlsplit(base_url)
             if not parsed.scheme:
                 raise ValueError(f'Operations base_url should be an absolute url, got {base_url}')
-        self._base_url = base_url
+        self._base_url = self.parse_base_url(base_url)
 
         if self.HOST not in self.trusted_hosts:
             self.trusted_hosts.append(self.HOST)
@@ -186,13 +205,26 @@ class Operations(Config):
         self.logger_cls_string = logger_cls
         self.resources_manager_cls_string = resources_manager_cls
         self.task_error_log = task_error_log
+        # self._token = token
         self._ready = False
         self._node_id = None
         self._openapi = None
         self._task = None
         self._mounted = False
+        # ------------------
+        if proxy and not isinstance(proxy, self.Proxy):
+            raise TypeError(f'Operations proxy config must be a Proxy instance, got {proxy}')
+        self.proxy = proxy
 
-    def load_openapi(self):
+    @classmethod
+    def parse_base_url(cls, url: str):
+        if not url:
+            return url
+        if '$IP' in url:
+            url = url.replace('$IP', get_server_ip())
+        return url
+
+    def load_openapi(self, no_store: bool = False):
         from utilmeta import service
         from utilmeta.core.api.specs.openapi import OpenAPI
         openapi = OpenAPI(
@@ -200,8 +232,13 @@ class Operations(Config):
             external_docs=self.external_openapi,
             base_url=self.base_url
         )()
-        self._openapi = openapi
+        if not no_store:
+            self._openapi = openapi
         return openapi
+
+    # @property
+    # def token(self):
+    #     return self._token
 
     @property
     def local_disabled(self):
@@ -210,6 +247,24 @@ class Operations(Config):
     @property
     def is_local(self):
         return localhost(self.ops_api)
+
+    @property
+    def is_secure(self):
+        return urlsplit(self.ops_api).scheme == 'https'
+
+    @property
+    def proxy_required(self):
+        # if self.proxy:
+        #     return False
+        if self.is_local:
+            return False
+        try:
+            from ipaddress import ip_address
+            hostname = urlsplit(self.base_url).hostname
+            ip = get_ip(hostname)
+            return ip_address(ip or self.host).is_private
+        except ValueError:
+            return False
 
     @property
     def openapi(self):
@@ -441,6 +496,7 @@ class Operations(Config):
                     if db == self.db_alias:
                         return False
                     return None
+
         return OperationsDatabaseRouter
 
     def migrate(self, with_default: bool = False):
@@ -492,6 +548,48 @@ class Operations(Config):
         except ImportError:
             return None
         return url_join(service.base_url, self.route)
+        # return url_join(service.get_base_url(
+        #     no_localhost=bool(self.proxy) or service.production
+        # ), self.route)
+
+    @property
+    def host(self):
+        ip = get_server_ip(private_only=bool(self.proxy)) or '127.0.0.1'
+        try:
+            from utilmeta import service
+        except ImportError:
+            return ip
+        if not service.host or localhost(service.host):
+            return ip
+        return service.host
+
+    @property
+    def port(self):
+        try:
+            from utilmeta import service
+        except ImportError:
+            return None
+        if self._base_url:
+            parsed = urlsplit(self._base_url)
+            if parsed.port:
+                return parsed.port
+        if service.port:
+            return service.port
+        if service.adaptor:
+            return service.adaptor.DEFAULT_PORT
+        return None
+
+    @property
+    def address(self):
+        from ipaddress import ip_address
+        addr = ip_address(self.host)
+        port = self.port
+        host = self.host
+        if port:
+            if addr.version == 6:
+                host = f'[{host}]'
+            return f'{host}:{port}'
+        return host
 
     @property
     def base_url(self):
@@ -505,6 +603,39 @@ class Operations(Config):
         if not service.adaptor.backend_views_empty:
             return service.origin
         return service.base_url
+
+    @property
+    def proxy_origin(self):
+        return 'http://' + self.address
+
+    @property
+    def proxy_ops_api(self):
+        if not self.proxy:
+            return self.ops_api
+        parsed = urlsplit(self.route)
+        try:
+            from utilmeta import service
+        except ImportError:
+            return None
+        if parsed.scheme:
+            # is url
+            route = parsed.path
+        else:
+            route = url_join(service.root_url, self.route, with_scheme=False)
+        return url_join(self.proxy_origin, route)
+
+    @property
+    def proxy_base_url(self):
+        if not self.proxy:
+            return self.base_url
+        try:
+            from utilmeta import service
+        except ImportError:
+            return None
+        origin = self.proxy_origin
+        if not service.adaptor.backend_views_empty:
+            return origin
+        return url_join(origin, service.root_url)
 
     # def check_host(self):
     #     parsed = urlsplit(self.ops_api)
@@ -526,20 +657,42 @@ class Operations(Config):
                          f'if you trust this host, '
                          f'you need to add it to the [trusted_hosts] param of Operations config')
 
+    # def get_backend_name(self, backend):
+    #     name = str(getattr(backend, 'name', ''))
+    #     if name:
+    #         return name
+    #     if self.proxy:
+    #         raise ValueError('Operations with proxy must specify a valid name like '
+    #                          'integrate(name="your-service-name"), cannot use auto generation')
+    #     name = str(getattr(backend, '__name__', ''))
+    #     if not name:
+    #         ref_name = str(backend).lstrip('<').rstrip('>').strip()
+    #         if ' ' in ref_name:
+    #             ref_name = ref_name.split(' ')[0]
+    #         if '.' in ref_name:
+    #             ref_name = ref_name.split('.')[0]
+    #         name = ref_name or str(backend)
+    #     return name + '_service'
+
     @classmethod
-    def get_backend_name(cls, backend):
-        name = str(getattr(backend, 'name', ''))
-        if name:
-            return name
-        name = str(getattr(backend, '__name__', ''))
+    def get_service_name(cls, backend):
+        from utilmeta.utils import search_file, load_ini, read_from
+        meta_path = search_file('utilmeta.ini') or search_file('meta.ini')
+        name = None
+        if meta_path:
+            try:
+                config = load_ini(read_from(meta_path), parse_key=True)
+            except Exception as e:
+                import warnings
+                warnings.warn(f'load ini file: {meta_path} failed with error: {e}')
+            else:
+                meta_config = config.get('utilmeta') or config.get('service') or {}
+                if not isinstance(meta_config, dict):
+                    meta_config = {}
+                name = str(meta_config.get('name', '')).strip()
         if not name:
-            ref_name = str(backend).lstrip('<').rstrip('>').strip()
-            if ' ' in ref_name:
-                ref_name = ref_name.split(' ')[0]
-            if '.' in ref_name:
-                ref_name = ref_name.split('.')[0]
-            name = ref_name or str(backend)
-        return name + '_service'
+            name = str(getattr(backend, 'name', ''))
+        return name or os.path.basename(os.path.dirname(meta_path))
 
     def integrate(self, backend, module=None, name: str = None):
         parsed = urlsplit(self.route)
@@ -548,8 +701,12 @@ class Operations(Config):
             # is url
             origin = get_origin(self.route)
         elif not self._base_url:
-            raise ValueError('Integrate utilmeta.ops.Operations requires to set a base_url of your API service, '
-                             'eg: Operations(base_url="https://api.example.com/api")')
+            if self.proxy:
+                eg = ('eg: Operations(base_url="http://$IP:8080/api"), \n you are using a cluster proxy,'
+                      ' $IP will be your current server ip address')
+            else:
+                eg = 'eg: Operations(base_url="https://api.example.com/api")'
+            raise ValueError('Integrate utilmeta.ops.Operations requires to set a base_url of your API service, ' + eg)
         else:
             url_parsed = urlsplit(self._base_url)
             if url_parsed.path:
@@ -563,7 +720,7 @@ class Operations(Config):
             service = UtilMeta(
                 module,
                 backend=backend,
-                name=name or self.get_backend_name(backend),
+                name=name or self.get_service_name(backend),
                 origin=origin,
             )
             service._auto_created = True
@@ -617,15 +774,27 @@ class Operations(Config):
     #     return generator_func
 
     @classmethod
-    def get_django_ninja_openapi(cls, ninja_api=None, **path_ninja_apis):
+    def get_django_ninja_openapi(cls, *ninja_apis, **path_ninja_apis):
         from ninja.openapi.schema import get_schema
         from ninja import NinjaAPI
 
         def generator_func(service: 'UtilMeta'):
-            app = ninja_api
-            if isinstance(app, NinjaAPI):
-                return get_schema(app)
-            raise TypeError(f'Invalid application: {app} for django ninja. NinjaAPI() instance expected')
+            config = service.get_config(cls)
+            docs = []
+            for app in ninja_apis:
+                if isinstance(app, NinjaAPI):
+                    docs.append(get_schema(app))
+                elif isinstance(app, dict):
+                    path_ninja_apis.update(app)
+                else:
+                    raise TypeError(f'Invalid application: {app} for django ninja. NinjaAPI() instance expected')
+            for path, ninja_api in path_ninja_apis.items():
+                if isinstance(ninja_api, NinjaAPI):
+                    doc = get_schema(ninja_api)
+                    servers = doc.get('servers', [])
+                    doc['servers'] = [{'url': url_join(config.base_url, path)}] + servers
+                    docs.append(doc)
+            return docs
 
         return generator_func
 
@@ -652,4 +821,3 @@ class Operations(Config):
     #         raise TypeError(f'Invalid application: {app} for django ninja. FastAPI() instance expected')
     #
     #     return generator_func
-

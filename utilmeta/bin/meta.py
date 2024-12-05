@@ -18,6 +18,16 @@ class MetaCommand(BaseServiceCommand):
         super().__init__(*args, **kwargs)
         self.load_commands()
 
+    def command_not_found(self):
+        if self.ini_path:
+            # maybe figure out some non-invasion method in the future
+            if self.arg_name in ['connect', 'stats', 'sync', 'migrate_ops']:
+                print(YELLOW % f'meta {self.arg_name}: Operations config not integrated to application, '
+                               'please follow the document at https://docs.utilmeta.com/py/en/guide/ops/')
+            elif self.arg_name in ['add', 'makemigrations', 'migrate']:
+                print(YELLOW % f'meta {self.arg_name}: DjangoSettings config not used in application')
+        super().command_not_found()
+
     def load_commands(self):
         try:
             self.load_service()
@@ -39,6 +49,7 @@ class MetaCommand(BaseServiceCommand):
 
     @command('init')
     def init(self,
+             name: str = Arg(default=None),
              app: str = Arg(alias='--app', default=None),
              service: str = Arg(alias='--service', default=None),
              main_file: str = Arg(alias='--main', default=None),
@@ -58,20 +69,30 @@ class MetaCommand(BaseServiceCommand):
                 print('UtilMeta project already initialized at {}'.format(self.ini_path))
                 return
             print(f'Re-initialize UtilMeta project at {self.ini_path}')
-        if not app:
-            print(RED % 'meta init: you should use --app=<ref.to.your.app> '
-                        'to specify your wsgi / asgi / python application reference')
-            exit(1)
-        # try to load
-        try:
-            app_obj = import_obj(app)
-            if inspect.ismodule(app_obj):
-                raise ValueError(f'--app should be a python application object, got module: {app_obj}')
-        except Exception as e:
-            print(RED % f'meta init: python application reference: {repr(app)} failed to load: {e}')
-            exit(1)
+
+        while True:
+            if not app:
+                print(f'Please specify the reference of your WSGI / ASGI application, like package.to.your.app')
+                app = input('>>> ')
+            # try to load
+            try:
+                app_obj = import_obj(app)
+                if inspect.ismodule(app_obj):
+                    raise ValueError(f'--app should be a python application object, got module: {app_obj}')
+                print(f'Initializing UtilMeta project with python application: {BLUE % app}')
+                break
+            except Exception as e:
+                print(RED % f'python application reference: {repr(app)} failed to load: {e}')
+                app = None
+
+        if not name:
+            base_name = os.path.basename(os.path.dirname(self.ini_path))
+            print(f'Please enter your project name (default: {base_name})')
+            name = input('>>> ') or base_name
 
         settings = dict(app=app)
+        if name:
+            settings['name'] = name
         if service:
             settings['service'] = service
         if main_file:

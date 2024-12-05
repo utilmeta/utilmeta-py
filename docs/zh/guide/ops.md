@@ -268,11 +268,10 @@ UtilMeta 框架的运维管理系统除了可以连接 UtilMeta 框架的服务�
 在连接任何 Python 项目之前，请先初始化 UtilMeta 设置，方式很简单，就是进入你的项目文件夹中，输入以下命令
 
 ```
-meta init --app=ref.of.your.app
+meta init
 ```
 
-注意命令中的 `--app` 参数需要指定你的 **Python WSGI/ASGI 应用的引用路径**，比如对于下面的 Django 项目
-
+执行后将会提示你指定当前 Python 项目的 **WSGI/ASGI 应用的引用路径**，比如对于下面的 Django 项目
 ```
 /django_project
 	/django_settings
@@ -282,11 +281,7 @@ meta init --app=ref.of.your.app
 	manage.py
 ```
 
-Django 的 WSGI 应用一般位于 `wsgi.py` 中的 `application` ，当我们在 /django_project 文件夹初始化 UtilMeta 项目时，就可以执行
-
-```
-meta init --app=django_settings.wsgi.app
-```
+Django 的 WSGI 应用一般位于 `wsgi.py` 中的 `application` ，当我们在 /django_project 文件夹初始化 UtilMeta 项目时，对应的引用路径就可以输入 `django_settings.wsgi.app`
 
 对于 Flask / FastAPI / Sanic 项目，只需要找到对应的 `Flask()`, `FastAPI()`, `Sanic()` 应用的引用即可，用法和上面一样
 
@@ -344,6 +339,50 @@ meta connect
 
 如果你的服务提供了网络访问，请进入 [UtilMeta 管理平台](https://ops.utilmeta.com)，创建项目团队并按照其中的提示操作
 
+#### 同步 Django Ninja
+如果你正在使用 Django Ninja 框架，由于 Django Ninja 注入 django 应用的方式是通过 `urlpatterns`，UtilMeta 无法直接获取到 Django Ninja 的 `NinjaAPI` 应用来生成 OpenAPI 文档，所以你需要手动在 Operations 配置中指定，例如对于如下的 NinjaAPI
+
+```python
+# urls.py --------
+from ninja import NinjaAPI
+
+ninja_api = NinjaAPI()
+
+@ninja_api.get("/add")
+def add(request, a: int, b: int):
+    return {"result": a + b}
+
+urlpatterns = [
+    path("api-ninja/", ninja_api.urls),
+]
+```
+
+我们需要在 wsgi.py 的 Operations 配置中加入解析 NinjaAPI 文档的代码
+
+```python hl_lines="14-16"
+import os
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
+
+from utilmeta.ops import Operations
+from .urls import ninja_api
+
+Operations(
+    route='ops',
+    database=Operations.Database(
+        name='operations_db',
+        engine='sqlite3'
+    ),
+    openapi=Operations.get_django_ninja_openapi({
+        "api-ninja/": ninja_api
+    }),
+    base_url='https://<YOUR DOMAIN>/api',
+    # base_url='http://127.0.0.1:<YOUR_PORT>',   # 本地项目
+).integrate(application, __name__)
+```
+
+Operations 配置的 `openapi` 参数用于指定额外的 API 文档，我们这里直接调用 Operations 配置的 `get_django_ninja_openapi` 方法，其中的传入一个字典，字典的键是 NinjaAPI 挂载到 urlpatterns 的路径，比如上面例子中的 `api-ninja/`，字典的值就是对应的 `NinjaAPI()` 实例，由于 Django Ninja 可以创建多个 `NinjaAPI()` 实例，你都可以按照这个规则传入到函数中
+
 ### 连接 Flask
 
 对于 Flask 项目，我们只需要将 Operations 配置接入 Flask app 即可，如
@@ -352,6 +391,9 @@ meta connect
 from flask import Flask
 
 app = Flask(__name__)
+
+# @app.route(...)
+# 请将以下代码插入到 Flask 路由的后面，否则会影响 API 文档生成
 
 from utilmeta.ops import Operations
 Operations(
@@ -389,6 +431,10 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
+# @app.route(...)
+# app.include_router(...)
+# 请将以下代码插入到 FastAPI 路由的后面，否则会影响 API 文档生成
+
 from utilmeta.ops import Operations
 Operations(
     route='ops',
@@ -425,6 +471,9 @@ meta connect
 from sanic import Sanic
 
 app = Sanic('mysite')
+
+# @app.route(...)
+# 请将以下代码插入到 Sanic 路由的后面，否则会影响 API 文档生成
 
 from utilmeta.ops import Operations
 Operations(

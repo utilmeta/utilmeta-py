@@ -142,15 +142,15 @@ class APIRoute(BaseRoute):
         if isinstance(handler, Endpoint):
             self.method = handler.method
             if handler.is_method and route:
-                raise ValueError(f'{self.__class__}: Endpoint method: <{self.method}> '
+                raise ValueError(f'Endpoint method: <{self.method}> (with HTTP method name) '
                                  f'cannot assign route: {repr(route)}, please use another function name')
             if not route:
                 route = handler.route
         elif inspect.isclass(handler) and issubclass(handler, API):
             if not route:
-                raise ValueError(f'{self.__class__}: API handler: {handler} should specify a route, got empty')
+                raise ValueError(f'API handler: {handler} should specify a route, got empty')
         else:
-            raise TypeError(f'{self.__class__}: invalid api class or function: {handler}, must be a '
+            raise TypeError(f'invalid api class or function: {handler}, must be a '
                             f'Endpoint instance of subclass of API')
 
         super().__init__(
@@ -375,6 +375,13 @@ class APIRoute(BaseRoute):
                         # because the first match
                         path_params.setdefault(key, value)
                     path_params_attr.set(path_params)
+
+                    if self.header_names:
+                        # add allowed headers
+                        allow_headers = var.allow_headers.setup(request)
+                        headers = list(allow_headers.get() or [])
+                        distinct_add(headers, self.header_names)
+                        allow_headers.set(headers)
                 return True
         return False
 

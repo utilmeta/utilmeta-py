@@ -61,7 +61,3 @@ class SanicResponseAdaptor(ResponseAdaptor):
     @property
     def body(self):
         return self.response.body
-
-    # @property
-    # def cookies(self):
-    #     return self.response.cookies

@@ -2,12 +2,14 @@ import warnings
 from typing import Union, Type, TypeVar, Optional
 import sys
 import os
-from utilmeta.utils import (import_obj, awaitable, search_file, ignore_errors,
-                            cached_property, get_origin, load_ini, read_from)
+import re
+from utilmeta.utils import (import_obj, awaitable, search_file, ignore_errors, LOCAL_IP, requires,
+                            cached_property, get_origin, load_ini, read_from, localhost)
 from utilmeta.conf.base import Config
 import inspect
 from utilmeta.core.api import API
 from pathlib import Path
+from ipaddress import ip_address
 # if TYPE_CHECKING:
 #     from utilmeta.core.api.specs.base import BaseAPISpec
 
@@ -21,7 +23,7 @@ class UtilMeta:
         self,
         module_name: Optional[str], *,
         backend,
-        name: str,
+        name: str = None,
         title: str = None,
         description: str = None,
         production: bool = None,
@@ -69,14 +71,16 @@ class UtilMeta:
         self.asynchronous = asynchronous
 
         # print('MODULE NAME:', module_name)
-        if not name:
-            raise ValueError('UtilMeta service detect empty <name>')
         self.name = name
 
         self.title = title
         self.description = description
         self.module_name = module_name
-        self.host = host or '127.0.0.1'
+        self.host = host
+        try:
+            self.host_addr = ip_address(host) if host else None
+        except ValueError as e:
+            raise ValueError(f'UtilMeta service: invalid host: {repr(host)}, must be a valid IP address') from e
         self.port = port
         self.scheme = scheme
         self.auto_reload = auto_reload
@@ -95,6 +99,7 @@ class UtilMeta:
         self._root_api = None
         self._root_api_ref = None
         self.root_api = api
+        self.load_meta()
 
         import utilmeta
         try:
@@ -113,13 +118,16 @@ class UtilMeta:
         from utilmeta.core.server.backends.base import ServerAdaptor
         self.adaptor: Optional[ServerAdaptor] = None
         self.set_backend(backend)
-
-        self.load_meta()
         self._pool = None
 
     @property
     def module(self):
         return sys.modules.get(self.module_name or '__main__')
+
+    @property
+    def preference(self):
+        from utilmeta.conf.preference import Preference
+        return self.get_config(Preference) or Preference.get()
 
     @property
     def root_api(self):
@@ -157,6 +165,16 @@ class UtilMeta:
                 self.meta_config = config.get('utilmeta') or config.get('service') or {}
                 if not isinstance(self.meta_config, dict):
                     self.meta_config = {}
+                self.name = self.name or str(self.meta_config.get('name', '')).strip()
+
+        self.name = self.name or (os.path.basename(self.project_dir) if self.project_dir else None)
+        if not self.name:
+            raise ValueError(f'UtilMeta service name not specified, you can set name using'
+                             f' UtilMeta(name="your-project-name")')
+
+        if not re.fullmatch(r'[A-Za-z0-9_-]+', self.name):
+            raise ValueError(f'UtilMeta service name: {repr(self.name)} can only contains alphanumeric characters, '
+                             'underscore "_" and hyphen "-"')
 
     def set_asynchronous(self, asynchronous: bool):
         if asynchronous is None:
@@ -193,7 +211,7 @@ class UtilMeta:
 
         if isinstance(backend, str):
             backend_name = backend
-            backend = import_obj(backend_name)
+            backend = requires(backend_name)
         elif isinstance(backend, type) and issubclass(backend, ServerAdaptor):
             self.adaptor = backend(self)
             backend = backend.backend
@@ -235,6 +253,10 @@ class UtilMeta:
         # if not self.adaptor:
         self.adaptor = ServerAdaptor.dispatch(self)
         # self.port = self.port or self.adaptor.DEFAULT_PORT
+        self.root_url = self.root_url or self.adaptor.root_path
+        self.version = self.version or self.adaptor.version
+        if self.production is None:
+            self.production = self.adaptor.production
 
         if application and self.adaptor.application_cls:
             if not isinstance(application, self.adaptor.application_cls):
@@ -252,7 +274,7 @@ class UtilMeta:
     @property
     def version_str(self):
         if isinstance(self.version, str):
-            return self.version
+            return self.version or '0.1.0'
         if not isinstance(self.version, tuple):
             return '0.1.0'
         parts = []
@@ -465,15 +487,16 @@ class UtilMeta:
         if self.port:
             return
 
+        host = self.host or LOCAL_IP
         import socket
         if self.adaptor and self.adaptor.DEFAULT_PORT:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                if s.connect_ex((self.host, self.adaptor.DEFAULT_PORT)) != 0:
+                if s.connect_ex((host, self.adaptor.DEFAULT_PORT)) != 0:
                     self.port = self.adaptor.DEFAULT_PORT
                     return
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
+            s.bind((LOCAL_IP, 0))
             addr = s.getsockname()
             port = addr[1]
             self.port = port
@@ -495,19 +518,32 @@ class UtilMeta:
         self._application = app
         return app
 
-    @property
-    def origin(self):
-        if self._origin:
-            return self._origin
-        host = self.host or '127.0.0.1'
+    def get_origin(self, no_localhost: bool = False, force_ip: bool = False):
+        host = self.host or LOCAL_IP
+        if no_localhost and localhost(host) or force_ip:
+            host = self.ip
         port = self.port or (self.adaptor.DEFAULT_PORT if self.adaptor else None)
         if port == 80 and self.scheme == 'http':
             port = None
         elif port == 443 and self.scheme == 'https':
             port = None
         if port:
+            if self.host_addr and self.host_addr.version == 6:
+                host = f'[{host}]'
             host += f':{port}'
         return f'{self.scheme or "http"}://{host}'
+
+    @property
+    def origin(self):
+        if self._origin:
+            return self._origin
+        return self.get_origin(no_localhost=self.production)
+
+    # def get_base_url(self, no_localhost: bool = False):
+    #     origin = self.get_origin(no_localhost=no_localhost)
+    #     if self.root_url:
+    #         return origin + '/' + self.root_url
+    #     return origin
 
     @property
     def base_url(self):

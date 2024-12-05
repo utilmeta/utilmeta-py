@@ -67,6 +67,7 @@ class DjangoServerAdaptor(ServerAdaptor):
     DEFAULT_PORT = 8000
     DEFAULT_HOST = '127.0.0.1'
     settings_cls = DjangoSettings
+    ASYNC_SUPPORTED = django.VERSION >= (3, 1)
 
     def __init__(self, config: UtilMeta):
         super().__init__(config)
@@ -219,7 +220,7 @@ class DjangoServerAdaptor(ServerAdaptor):
         @sync_and_async_middleware
         def utilmeta_middleware(get_response):
             # One-time configuration and initialization goes here.
-            if self.asynchronous and inspect.iscoroutinefunction(get_response):
+            if self.asynchronous and inspect.iscoroutinefunction(get_response) and self.ASYNC_SUPPORTED:
                 async def middleware_func(request):
                     middleware = UtilMetaMiddleware(get_response)
                     # Do something here!
@@ -312,7 +313,7 @@ class DjangoServerAdaptor(ServerAdaptor):
         if not issubclass(utilmeta_api_class, API):
             raise TypeError(f'Invalid api class: {utilmeta_api_class}')
 
-        if asynchronous:
+        if asynchronous and self.ASYNC_SUPPORTED:
             async def f(request, route: str = '', *args, **kwargs):
                 req = None
                 try:
@@ -393,8 +394,8 @@ class DjangoServerAdaptor(ServerAdaptor):
                     self.config.shutdown()
                 return
 
-            from utilmeta.utils import check_requirement
-            check_requirement('uvicorn', install_when_require=True)
+            from utilmeta.utils import requires
+            requires('uvicorn')
             import uvicorn
             print('using [uvicorn] as asgi server')
             try:
@@ -422,6 +423,10 @@ class DjangoServerAdaptor(ServerAdaptor):
     @property
     def location(self):
         return f'{self.config.host or self.DEFAULT_HOST}:{self.config.port}'
+
+    @property
+    def production(self) -> bool:
+        return getattr(self.settings.django_settings, 'DEBUG', None) is False
 
     @property
     def daphne_endpoint(self):
@@ -474,4 +479,3 @@ class DjangoServerAdaptor(ServerAdaptor):
                     )
 
                     return generator.get_schema(public=True)
-

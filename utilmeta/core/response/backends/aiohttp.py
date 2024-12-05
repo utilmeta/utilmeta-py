@@ -47,6 +47,10 @@ class AiohttpClientResponseAdaptor(ResponseAdaptor):
             pass
         self.response.close()
 
+    @property
+    def request(self):
+        return self.response.request_info
+
 
 class AiohttpServerResponseAdaptor(ResponseAdaptor):
     response: ServerResponse

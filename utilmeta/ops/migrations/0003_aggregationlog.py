@@ -2,6 +2,7 @@
 
 from django.db import migrations, models
 import django.db.models.deletion
+import utype.utils.encode
 
 
 class Migration(migrations.Migration):
@@ -30,7 +31,7 @@ class Migration(migrations.Migration):
                         db_index=True, default=None, max_length=100, null=True
                     ),
                 ),
-                ("data", models.JSONField(default=dict)),
+                ("data", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
                 ("layer", models.PositiveSmallIntegerField(default=0)),
                 ("from_time", models.DateTimeField()),
                 ("to_time", models.DateTimeField()),

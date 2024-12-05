@@ -1,3 +1,5 @@
+import warnings
+
 import utype.utils.exceptions
 
 from .client import SupervisorClient
@@ -5,11 +7,11 @@ from typing import Optional, List, Type
 from .models import Supervisor, Resource
 from .config import Operations
 from .schema import NodeMetadata, ResourcesSchema, \
-    InstanceSchema, TableSchema, DatabaseSchema, CacheSchema, ResourceData
+    InstanceSchema, TableSchema, DatabaseSchema, CacheSchema, ResourceData, language_version
 from utilmeta import UtilMeta
-from utilmeta.utils import (fast_digest, json_dumps, get_ip,
-                            get_mac_address, cached_property, time_now)
+from utilmeta.utils import (fast_digest, json_dumps, get_ip, time_now, ignore_errors)
 from django.db import models
+import utilmeta
 
 
 class ModelGenerator:
@@ -84,9 +86,9 @@ class ResourcesManager:
             production=self.service.production
         )
 
-    @cached_property
-    def mac_address(self):
-        return get_mac_address()
+    # @cached_property
+    # def mac_address(self):
+    #     return get_mac_address()
 
     def get_instances(self, node_id) -> List[InstanceSchema]:
         from .schema import InstanceSchema
@@ -103,9 +105,9 @@ class ResourcesManager:
                 ).first()
             if not server:
                 continue
-            inst_data = dict()
+            inst_data = val.data
             server_data = dict(server.data)
-            if server.ident == self.mac_address:
+            if server.ident == self.ops_config.address:
                 from .monitor import get_current_server
                 inst_data.update(self.instance_data)
                 server_data.update(get_current_server())
@@ -116,6 +118,9 @@ class ResourcesManager:
                     **inst_data
                 )
             except utype.exc.ParseError:
+                # does not meet the latest spec
+                # old version instance
+                # discard it if does not upgrade
                 continue
             instances.append(inst)
         return instances
@@ -127,7 +132,11 @@ class ResourcesManager:
             asynchronous=self.service.asynchronous,
             production=self.service.production,
             backend=self.service.backend_name,
-            backend_version=self.service.backend_version
+            backend_version=self.service.backend_version,
+            cwd=str(self.service.project_dir),
+            # host=self.ops_config.host,
+            port=self.ops_config.port,
+            address=self.ops_config.address,
         )
 
     def get_current_instance(self) -> InstanceSchema:
@@ -250,13 +259,13 @@ class ResourcesManager:
 
     def get_resources(self, node_id, etag: str = None) -> Optional[ResourcesSchema]:
         instances = self.get_instances(node_id)
-        included = any(inst.server.mac == self.mac_address for inst in instances)
+        included = any(inst.address == self.ops_config.address for inst in instances)
         if not included:
             instances.append(self.get_current_instance())
 
         data = ResourcesSchema(
             metadata=self.get_metadata(),
-            openapi=self.ops_config.openapi,
+            openapi=self.ops_config.load_openapi(),     # use new openapi
             instances=instances,
             tables=self.get_tables(),
             databases=self.get_databases(),
@@ -272,7 +281,8 @@ class ResourcesManager:
                 return None
         return data
 
-    def save_resources(self, resources: List[ResourceData], supervisor: Supervisor):
+    @classmethod
+    def save_resources(cls, resources: List[ResourceData], supervisor: Supervisor):
         remote_pk_map = {val['remote_id']: val['pk'] for val in Resource.objects.filter(
             node_id=supervisor.node_id,
         ).values('pk', 'remote_id')}
@@ -292,7 +302,7 @@ class ResourcesManager:
                 updates.append(
                     Resource(
                         id=remote_pk_map[resource.remote_id],
-                        service=self.service.name,
+                        service=supervisor.service,
                         node_id=supervisor.node_id,
                         deleted_time=None,
                         updated_time=now,
@@ -302,7 +312,7 @@ class ResourcesManager:
             else:
                 obj = Resource.objects.filter(
                     models.Q(node_id__isnull=True) | models.Q(node_id=supervisor.node_id),
-                    service=self.service.name,
+                    service=supervisor.service,
                     type=resource.type,
                     remote_id=None,
                     ident=resource.ident,
@@ -317,7 +327,7 @@ class ResourcesManager:
                     updates.append(
                         Resource(
                             id=obj.pk,
-                            service=self.service.name,
+                            service=supervisor.service,
                             node_id=supervisor.node_id,
                             deleted_time=None,
                             updated_time=now,
@@ -328,7 +338,7 @@ class ResourcesManager:
 
                 creates.append(
                     Resource(
-                        service=self.service.name,
+                        service=supervisor.service,
                         node_id=supervisor.node_id,
                         **resource
                     )
@@ -472,3 +482,54 @@ class ResourcesManager:
                         supervisor.save(update_fields=['url'])
 
                     print(f'you can visit {resp.result.url} to view the updated resources')
+
+    def init_service_resources(
+        self,
+        supervisor: Supervisor = None,
+        instance: Resource = None,
+        force: bool = False
+    ):
+        if self.ops_config.proxy:
+            self.register_service(supervisor=supervisor, instance=instance)
+        else:
+            self.sync_resources(supervisor=supervisor, force=force)
+
+    def register_service(self, supervisor: Supervisor = None, instance: Resource = None):
+        if not self.ops_config.proxy:
+            return
+        if not instance:
+            return
+        resources = self.get_resources(
+            supervisor.node_id if supervisor else None,
+            etag=supervisor.resources_etag if supervisor else None
+        )
+        from .proxy import ProxyClient, RegistrySchema, RegistryResponse
+        with ProxyClient(base_url=self.ops_config.proxy.base_url, fail_silently=True) as client:
+            resp = client.register_service(data=RegistrySchema(
+                name=self.service.name,
+                instance_id=instance.pk,
+                # remote_id=instance.remote_id,
+                address=self.ops_config.address,
+                ops_api=self.ops_config.proxy_ops_api,
+                base_url=self.ops_config.proxy_base_url,
+                cwd=str(self.service.project_dir),
+                version=self.service.version_str,
+                title=self.service.title,
+                description=self.service.description,
+                production=self.service.production,
+                asynchronous=self.service.asynchronous,
+                backend=self.service.backend_name,
+                backend_version=self.service.backend_version,
+                language='python',
+                language_version=language_version,
+                utilmeta_version=utilmeta.__version__,
+                resources=resources
+            ))
+            if isinstance(resp, RegistryResponse):
+                if resp.result.node_id:
+                    from utilmeta.bin.utils import update_meta_ini_file
+                    update_meta_ini_file(node=resp.result.node_id)
+            else:
+                warnings.warn(f'register service: [{self.service.name}] to proxy: '
+                              f'{self.ops_config.proxy.base_url} failed: {resp.text}')
+                raise ValueError(f'service register failed: {resp.text}')

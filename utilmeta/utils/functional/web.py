@@ -161,14 +161,14 @@ def retrieve_path(url):
     return f'/{url}'
 
 
-def valid_url(url: str, raise_err: bool = True) -> str:
+def valid_url(url: str, raise_err: bool = True, http_only: bool = True) -> str:
     url = url.strip('/').replace(' ', '')
     res = urlparse(url)
-    if SCHEME not in url:
+    if not res.scheme:
         if raise_err:
             raise ValueError(f'Invalid url syntax: {url}')
         return ''
-    if res.scheme not in (Scheme.HTTP, Scheme.HTTPS):
+    if http_only and res.scheme not in (Scheme.HTTP, Scheme.HTTPS):
         if raise_err:
             raise ValueError(f'Invalid scheme: {res.scheme}')
         return ''

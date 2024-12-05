@@ -180,7 +180,7 @@ class Database(Config):
             raise exceptions.NotConfigured('Database adaptor not implemented')
         if self.is_sqlite and project_dir:
             if not os.path.isabs(self.name):
-                self.name = os.path.join(project_dir, self.name)
+                self.name = str(os.path.join(project_dir, self.name))
         self.asynchronous = asynchronous
         self.adaptor.check()
 

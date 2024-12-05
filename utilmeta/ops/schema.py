@@ -14,6 +14,8 @@ def get_current_instance_data() -> dict:
         from utilmeta import service
     except ImportError:
         return {}
+    from .config import Operations
+    config = service.get_config(Operations)
     return dict(
         version=service.version_str,
         asynchronous=service.asynchronous,
@@ -23,7 +25,11 @@ def get_current_instance_data() -> dict:
         utilmeta_version=utilmeta.__version__,
         spec_version=__spec_version__,
         backend=service.backend_name,
-        backend_version=service.backend_version
+        backend_version=service.backend_version,
+        cwd=str(service.project_dir),
+        # host=config.host if config.host else service.host,
+        port=config.port if config.host else service.host,
+        address=config.address
     )
 
 
@@ -77,7 +83,7 @@ class SupervisorData(Schema):
 
 
 class ResourceBase(Schema):
-    __options__ = utype.Options(addition=True)
+    # __options__ = utype.Options(addition=True)
 
     description: str = ''
     deprecated: bool = False
@@ -124,14 +130,17 @@ class ServerSchema(ResourceBase):
 
 class InstanceSchema(ResourceBase):
     server: ServerSchema
-    version: str = Field(required=False)
-    asynchronous: bool = Field(required=False)
-    production: bool = Field(required=False)
+    version: str = Field(default=None, defer_default=True)
+    asynchronous: bool = Field(default=None, defer_default=True)
+    production: bool = Field(default=None, defer_default=True)
     language: str = 'python'
     utilmeta_version: str = utilmeta.__version__
     language_version: str = language_version
-    backend: str = Field(required=False)
-    backend_version: Optional[str] = Field(required=False)
+    backend: str = Field(default=None, defer_default=True)
+    backend_version: Optional[str] = Field(default=None, defer_default=True)
+    cwd: Optional[str] = Field(default=None, defer_default=True)
+    port: Optional[int] = Field(default=None, defer_default=True)
+    address: str
 
 
 class DatabaseSchema(ResourceBase):

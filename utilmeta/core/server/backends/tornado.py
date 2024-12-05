@@ -21,6 +21,10 @@ class TornadoServerAdaptor(ServerAdaptor):
         self.app = self.config._application if isinstance(self.config._application, self.application_cls) else None
         self._ready = False
 
+    @property
+    def production(self) -> bool:
+        return not self.app.settings.get('debug')
+
     def adapt(self, api: 'API', route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous

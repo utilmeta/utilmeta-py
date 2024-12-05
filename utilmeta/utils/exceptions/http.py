@@ -43,16 +43,36 @@ class Redirect(HttpError):
     pass
 
 
+class MultipleChoices(Redirect):
+    status = 300
+
+
 class MovePermanently(Redirect):
-    pass
+    status = 301
+
+
+class Found(Redirect):
+    status = 302
+
+
+class SeeOther(Redirect):
+    status = 303
 
 
 class NotModified(Redirect):
     status = 304
 
 
+class TemporaryRedirect(Redirect):
+    status = 307
+
+
+class PermanentRedirect(Redirect):
+    status = 308
+
+
 class RequestError(HttpError):
-    pass
+    status = 400
 
 
 class BadRequest(RequestError):
@@ -73,6 +93,10 @@ class Unauthorized(RequestError):
         if isinstance(auth_params, dict):
             value += ' ' + ','.join([f'{k}={v}' for k, v in auth_params.items()])
         self.append_headers = {Header.WWW_AUTH: value}
+
+
+class PaymentRequired(RequestError):
+    status = 402
 
 
 class PermissionDenied(RequestError):
@@ -97,6 +121,8 @@ class NotFound(RequestError):
             msg.append('query: <%s> not found' % urlencode(query))
         if not msg:
             msg = ['not found']
+        self.path = path
+        self.query = query
         super().__init__(message=';'.join(msg), **kwargs)
 
 
@@ -115,6 +141,10 @@ class NotAcceptable(RequestError):
     status = 406
 
 
+class ProxyAuthenticationRequired(RequestError):
+    status = 407
+
+
 class RequestTimeout(RequestError):
     status = 408
 
@@ -127,12 +157,12 @@ class Gone(RequestError):
     status = 410
 
 
+class LengthRequired(RequestError):
+    status = 411
+
+
 class PreconditionFailed(RequestError):
     status = 412
-
-
-class PreconditionRequired(RequestError):
-    status = 428
 
 
 class RequestEntityTooLarge(RequestError):
@@ -147,12 +177,32 @@ class UnsupportedMediaType(RequestError):
     status = 415
 
 
+class RangeNotSatisfiable(RequestError):
+    status = 416
+
+
+class ExpectationFailed(RequestError):
+    status = 417
+
+
+class ImATeapot(RequestError):
+    status = 418
+
+
+class MisdirectedRequest(RequestError):
+    status = 421
+
+
 class UnprocessableEntity(RequestError):
     status = 422
 
 
 class Locked(RequestError):
     status = 423
+
+
+class FailedDependency(RequestError):
+    status = 424
 
 
 class TooEarly(RequestError):
@@ -179,8 +229,20 @@ class UpgradeRequired(RequestError):
         super().__init__(message)
 
 
+class PreconditionRequired(RequestError):
+    status = 428
+
+
 class TooManyRequests(RequestError):
     status = 429
+
+
+class RequestHeaderFieldsTooLarge(RequestError):
+    status = 431
+
+
+class UnavailableForLegalReason(RequestError):
+    status = 451
 
 
 class ServerError(HttpError):
@@ -215,6 +277,50 @@ class BadResponse(ServerError):
     # def __init__(self, error: str = None, response: HTTPResponse = None):
     #     self.response = response
     #     self.error = error
+
+
+class InternalServerError(ServerError):
+    status = 500
+
+
+class NotImplementedServerError(ServerError):
+    status = 501
+
+
+class BadGateway(ServerError):
+    status = 502
+
+
+class ServiceUnavailable(ServerError):
+    status = 503
+
+
+class GatewayTimeout(ServerError):
+    status = 504
+
+
+class HTTPVersionNotSupported(ServerError):
+    status = 505
+
+
+class VariantAlsoNegotiates(ServerError):
+    status = 506
+
+
+class InsufficientStorage(ServerError):
+    status = 507
+
+
+class LoopDetected(ServerError):
+    status = 508
+
+
+class NotExtended(ServerError):
+    status = 510
+
+
+class NetworkAuthenticationRequired(ServerError):
+    status = 511
 
 
 def http_error(status: int = 400, message: str = None):

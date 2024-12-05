@@ -33,7 +33,7 @@ class DjangoResponseAdaptor(ResponseAdaptor):
             content_type=resp.content_type,
             charset=resp.charset,
         )
-        headers = resp.prepare_headers()
+        headers = resp.prepare_headers(with_content_type=False)
         if pass_headers:
             kwargs.update(headers=headers)
         # if resp.file:

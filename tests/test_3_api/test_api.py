@@ -73,6 +73,12 @@ class TestAPIClass:
 
         with pytest.raises(Exception):
             class _API(API):  # noqa
+                @api.get('/route/{path}')
+                def get(self):
+                    pass
+
+        with pytest.raises(Exception):
+            class _API(API):  # noqa
                 def post(self):
                     pass
 

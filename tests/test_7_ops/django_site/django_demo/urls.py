@@ -20,9 +20,20 @@ class UserViewSet(viewsets.ModelViewSet):
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
 
+from ninja import NinjaAPI
+
+ninja_api = NinjaAPI()
+
+
+@ninja_api.get("/add")
+def add(request, a: int, b: int):
+    return {"result": a + b}
+
+
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.
 urlpatterns = [
     path('', include(router.urls)),
-    path('api-auth/', include('rest_framework.urls', namespace='rest_framework'))
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+    path("api-ninja/", ninja_api.urls),
 ]

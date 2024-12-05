@@ -52,6 +52,7 @@ from utilmeta.core.server.backends.django import DjangoSettings
 from utilmeta.core.orm import DatabaseConnections, Database
 from utilmeta.core.cache import CacheConnections, Cache
 from utilmeta.ops.config import Operations
+from utilmeta.conf import Preference
 
 service.use(DjangoSettings(
     apps=['app']
@@ -78,6 +79,10 @@ service.use(CacheConnections({
         engine='locmem'
     )
 }))
+service.use(Preference(
+    default_aborted_response_status=500,
+    default_timeout_response_status=500
+))
 
 # ------ SET BACKEND
 backend = None

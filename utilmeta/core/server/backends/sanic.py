@@ -28,6 +28,17 @@ class SanicServerAdaptor(ServerAdaptor):
         self._ready = False
         self._extenstion = None
 
+    @property
+    def root_path(self) -> str:
+        server_name = getattr(self.app.config, 'SERVER_NAME', '')
+        if server_name and '/' in server_name:
+            return server_name.split('/')[1]
+        return ''
+
+    @property
+    def production(self) -> bool:
+        return not self.app.debug
+
     def application(self):
         self.setup()
         return self.app

@@ -18,7 +18,8 @@ class RequestAdaptor(BaseAdaptor):
 
     def __init__(self, request, route: str = None, *args, **kwargs):
         self.request = request
-        self.route = str(route or '').strip('/')
+        self._route = None
+        self.route = route
         self.args = args
         self.kwargs = kwargs
         self.time = time_now()
@@ -36,6 +37,14 @@ class RequestAdaptor(BaseAdaptor):
         # state during request processing
         # 1. data loaded
         # 2. user loaded
+
+    @property
+    def route(self):
+        return self._route
+
+    @route.setter
+    def route(self, route):
+        self._route = str(route or '').strip('/')
 
     def __contains__(self, item):
         return item in self._context

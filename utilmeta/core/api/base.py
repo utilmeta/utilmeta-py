@@ -458,9 +458,9 @@ class API(PluginTarget):
             if isinstance(val, Hook):
                 setattr(self, key, partial(val, self))
 
-        self._init_properties()
-        self._error_hooks = self._default_error_hooks
         self._response_types = []
+        self._error_hooks = self._default_error_hooks
+        self._init_properties()
         setup_instance(self)
 
     def _init_properties(self):
@@ -503,7 +503,7 @@ class API(PluginTarget):
             allow_headers = var.allow_headers.setup(self.request)
             route_var = var.unmatched_route.setup(self.request)
             allow_methods.set(list(method_routes))
-            headers = []
+            headers = list(allow_headers.get() or [])
             for route in method_routes.values():
                 distinct_add(headers, route.header_names)
             allow_headers.set(headers)
@@ -622,4 +622,3 @@ class API(PluginTarget):
 
 setup_class.register(API)
 setup_instance.register(API)
-

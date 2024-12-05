@@ -1,11 +1,13 @@
 import pytest
 from tests.conftest import make_cmd_process
+from utilmeta.core import cli
 from utilmeta.ops.client import OperationsClient
 # test import client here, client should not depend on ops models
 import utilmeta
 from utilmeta.ops import __spec_version__
 import os
 from pathlib import Path
+import django
 
 BASE_DIR = Path(os.path.dirname(__file__))
 
@@ -47,69 +49,81 @@ utilmeta_process = make_cmd_process(
 
 
 class TestOperations:
-    def test_django_operations(self, django_wsgi_process):
-        with OperationsClient(base_url='http://127.0.0.1:9091/ops') as client:
-            info = client.get_info()
-            assert info.result.utilmeta == __spec_version__
+    if django.VERSION >= (4, 0):
+        def test_django_operations(self, django_wsgi_process):
+            with OperationsClient(base_url='http://127.0.0.1:9091/ops') as client:
+                info = client.get_info()
+                assert info.result.utilmeta == __spec_version__
 
-            openapi_resp = client.get_openapi()
-            assert openapi_resp.status == 200
-            assert openapi_resp.result.openapi
-            assert openapi_resp.result.info.title
-            assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9091'
-            paths = openapi_resp.result.paths
-            users = paths.get('/users/') or paths.get('/users')
-            assert users
-            assert users.get('get')
+                openapi_resp = client.get_openapi()
+                assert openapi_resp.status == 200
+                assert openapi_resp.result.openapi
+                assert openapi_resp.result.info.title
+                assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9091'
+                paths = openapi_resp.result.paths
+                users = paths.get('/users/') or paths.get('/users')
+                assert users
+                assert users.get('get')
+                add = paths.get('/api-ninja/add')
+                assert add
+                assert add.get('get')
 
-            # -- tables
-            table_resp = client.get_tables()
-            assert len(table_resp.result) > 0
-            for table in table_resp.result:
-                assert table.model_backend == 'django'
+                # -- tables
+                table_resp = client.get_tables()
+                assert len(table_resp.result) > 0
+                for table in table_resp.result:
+                    assert table.model_backend == 'django'
 
-            # -- inst
-            inst_resp = client.get_instances()
-            inst = inst_resp.result[0]
-            assert inst.backend == 'django'
-            assert inst.language == 'python'
-            # assert inst.backend_version == django.__version__
-            # maybe the instance is cached in local, we just don't test it for now
-            assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+                # -- inst
+                inst_resp = client.get_instances()
+                inst = inst_resp.result[0]
+                assert inst.backend == 'django'
+                assert inst.language == 'python'
+                # assert inst.backend_version == django.__version__
+                # maybe the instance is cached in local, we just don't test it for now
+                assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
 
-    def test_django_asgi_operations(self, django_asgi_process):
-        with OperationsClient(base_url='http://127.0.0.1:9100/ops') as client:
-            info = client.get_info()
-            assert info.result.utilmeta == __spec_version__
+            with cli.Client(base_url='http://127.0.0.1:9091') as client:
+                add = client.get('/api-ninja/add?a=1&b=2')
+                assert add.status == 200
+                data = add.data
+                assert isinstance(data, dict) and data.get('result') == 3
 
-            openapi_resp = client.get_openapi()
-            assert openapi_resp.status == 200
-            assert openapi_resp.result.openapi
-            assert openapi_resp.result.info.title
-            assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9100'
-            paths = openapi_resp.result.paths
-            users = paths.get('/users/') or paths.get('/users')
-            assert users
-            assert users.get('get')
+        def test_django_asgi_operations(self, django_asgi_process):
+            with OperationsClient(base_url='http://127.0.0.1:9100/ops') as client:
+                info = client.get_info()
+                assert info.result.utilmeta == __spec_version__
 
-            # -- tables
-            table_resp = client.get_tables()
-            assert len(table_resp.result) > 0
-            for table in table_resp.result:
-                assert table.model_backend == 'django'
+                openapi_resp = client.get_openapi()
+                assert openapi_resp.status == 200
+                assert openapi_resp.result.openapi
+                assert openapi_resp.result.info.title
+                assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9100'
+                paths = openapi_resp.result.paths
+                users = paths.get('/users/') or paths.get('/users')
+                assert users
+                assert users.get('get')
 
-            # -- inst
-            inst_resp = client.get_instances()
-            inst = inst_resp.result[0]
-            assert inst.backend == 'django'
-            assert inst.asynchronous is True
-            assert inst.language == 'python'
-            # assert inst.backend_version == django.__version__
-            # maybe the instance is cached in local, we just don't test it for now
-            assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+                # -- tables
+                table_resp = client.get_tables()
+                assert len(table_resp.result) > 0
+                for table in table_resp.result:
+                    assert table.model_backend == 'django'
+
+                # -- inst
+                inst_resp = client.get_instances()
+                inst = inst_resp.result[0]
+                assert inst.backend == 'django'
+                assert inst.asynchronous is True
+                assert inst.language == 'python'
+                # assert inst.backend_version == django.__version__
+                # maybe the instance is cached in local, we just don't test it for now
+                assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
 
     def test_fastapi_operations(self, fastapi_process):
-        with OperationsClient(base_url='http://127.0.0.1:9092/v1/ops') as client:
+        with OperationsClient(base_url='http://127.0.0.1:9092/api/v1/ops', base_headers={
+            'cache-control': 'no-cache'
+        }) as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
 
@@ -117,22 +131,35 @@ class TestOperations:
             assert openapi_resp.status == 200
             assert openapi_resp.result.openapi
             assert openapi_resp.result.info.title
-            assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9092'
+            assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9092/api'
             paths = openapi_resp.result.paths
             item = paths.get('/items/{item_id}')
+            assert item
+            assert item.get('get')
+            item = paths.get('/hello')
             assert item
             assert item.get('get')
             # -- inst
             inst_resp = client.get_instances()
             inst = inst_resp.result[0]
-            import fastapi
+            # import fastapi
             assert inst.backend == 'fastapi'
             assert inst.language == 'python'
             # assert inst.backend_version == fastapi.__version__
             assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
 
+        with cli.Client(base_url='http://127.0.0.1:9092') as client:
+            hello = client.get('/hello')
+            assert hello.status == 200
+            assert 'world' in hello.data
+            not_found = client.get('/v1/not_found')
+            assert not_found.status == 404
+            assert 'Not Found' in str(not_found.data)
+
     def test_flask_operations(self, flask_process):
-        with OperationsClient(base_url='http://127.0.0.1:9093/ops') as client:
+        with OperationsClient(base_url='http://127.0.0.1:9093/ops', base_headers={
+            'cache-control': 'no-cache'
+        }) as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
 
@@ -145,6 +172,9 @@ class TestOperations:
             item = paths.get('/pets/{pet_id}')
             assert item
             assert item.get('get')
+            item = paths.get('/hello')
+            assert item
+            assert item.get('get')
             # -- inst
             inst_resp = client.get_instances()
             inst = inst_resp.result[0]
@@ -154,8 +184,15 @@ class TestOperations:
             assert inst.language == 'python'
             assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
 
+        with cli.Client(base_url='http://127.0.0.1:9093') as client:
+            hello = client.get('/hello')
+            assert hello.status == 200
+            assert 'Hello' in str(hello.data)
+
     def test_sanic_operations(self, sanic_process):
-        with OperationsClient(base_url='http://127.0.0.1:9094/ops') as client:
+        with OperationsClient(base_url='http://127.0.0.1:9094/ops', base_headers={
+            'cache-control': 'no-cache'
+        }) as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
 
@@ -180,6 +217,11 @@ class TestOperations:
             # assert inst.backend_version == sanic.__version__
             assert inst.language == 'python'
             assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+
+        with cli.Client(base_url='http://127.0.0.1:9094') as client:
+            hello = client.get('/sanic')
+            assert hello.status == 200
+            assert 'Hello' in str(hello.data)
 
     def test_tornado_operations(self, tornado_process):
         with OperationsClient(base_url='http://127.0.0.1:9095/v1/ops') as client:

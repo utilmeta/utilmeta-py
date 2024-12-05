@@ -34,3 +34,7 @@ class RequestsResponseAdaptor(ResponseAdaptor):
 
     def close(self):
         self.response.close()
+
+    @property
+    def request(self):
+        return self.response.request

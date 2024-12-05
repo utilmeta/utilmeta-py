@@ -1,5 +1,6 @@
 from httpx import Response
 from .base import ResponseAdaptor
+from http.cookies import SimpleCookie
 
 
 class HttpxClientResponseAdaptor(ResponseAdaptor):
@@ -37,9 +38,22 @@ class HttpxClientResponseAdaptor(ResponseAdaptor):
         self.__dict__['body'] = self.response.content
         return self.get_content()
 
+    @property
+    def cookies(self):
+        set_cookie = self.headers.get_list('set-cookie')
+        cookies = SimpleCookie()
+        if set_cookie:
+            for cookie in set_cookie:
+                cookies.update(SimpleCookie(cookie))
+        return cookies
+
     # @property
     # def cookies(self):
     #     return self.response.cookies
 
     def close(self):
         self.response.close()
+
+    @property
+    def request(self):
+        return self.response.request

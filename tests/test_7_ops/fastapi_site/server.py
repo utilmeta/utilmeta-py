@@ -5,7 +5,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.dirname(__file__))
 
-app = FastAPI()
+app = FastAPI(root_path='/api')
 
 PORT = 9092
 
@@ -23,9 +23,15 @@ Operations(
     ),
     secure_only=False,
     trusted_hosts=['127.0.0.1'],
-    base_url=f'http://127.0.0.1:{PORT}',
+    base_url=f'http://127.0.0.1:{PORT}/api',
     eager_migrate=True
 ).integrate(app, __name__)
+# avoid this route override all the following routes
+
+
+@app.get("/hello")
+async def hello_world() -> str:
+    return 'world'
 
 
 if __name__ == '__main__':

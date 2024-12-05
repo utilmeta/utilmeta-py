@@ -11,9 +11,10 @@ from utilmeta.core.request.backends.starlette import StarletteRequestAdaptor
 from utilmeta.core.response.backends.starlette import StarletteResponseAdaptor
 from utilmeta.core.api import API
 from utilmeta.core.request import Request
-from utilmeta.utils import HAS_BODY_METHODS, RequestType
+from utilmeta.utils import HAS_BODY_METHODS, RequestType, exceptions
 import contextvars
 from typing import Optional
+from urllib.parse import urlparse
 
 _current_request = contextvars.ContextVar('_starlette.request')
 # _current_response = contextvars.ContextVar('_starlette.response')
@@ -58,6 +59,10 @@ class StarletteServerAdaptor(ServerAdaptor):
         self.app.mount(route, app)
         self._mounts[route] = app
 
+    def load_route(self, request: StarletteRequest):
+        path = request.path_params.get('path') or request.url.path
+        return super().load_route(path)
+
     @property
     def backend_views_empty(self) -> bool:
         if self._mounts:
@@ -74,6 +79,10 @@ class StarletteServerAdaptor(ServerAdaptor):
 
     # def add_middleware(self):
     #     self.app.add_middleware()
+
+    @property
+    def production(self) -> bool:
+        return not self.app.debug
 
     def setup_middlewares(self):
         if self.middlewares:
@@ -165,6 +174,7 @@ class StarletteServerAdaptor(ServerAdaptor):
             self.app,
             self.resolve(),
             asynchronous=self.asynchronous,
+            default=self.config.auto_created
         )
 
         self.setup_middlewares()
@@ -191,7 +201,8 @@ class StarletteServerAdaptor(ServerAdaptor):
     def add_wsgi(self):
         pass
 
-    def add_api(self, app: Starlette, utilmeta_api_class, route: str = '', asynchronous: bool = False):
+    def add_api(self, app: Starlette, utilmeta_api_class, route: str = '',
+                asynchronous: bool = False, default: bool = False):
         """
         Mount a API class
         make sure it is called after all your fastapi route is set
@@ -207,11 +218,11 @@ class StarletteServerAdaptor(ServerAdaptor):
         # utilmeta_api_class: Type[API]
         if asynchronous:
             # @app.route('%s/{path:path}' % route, methods=cls.HANDLED_METHODS)
-            async def f(request: StarletteRequest):
+            async def f(request: StarletteRequest, _default: bool = False):
                 req = None
                 try:
                     req = _current_request.get(None)
-                    path = self.load_route(request.path_params['path'])
+                    path = self.load_route(request)
                     if not isinstance(req, Request):
                         req = Request(self.request_adaptor_cls(request, path))
                     else:
@@ -221,17 +232,20 @@ class StarletteServerAdaptor(ServerAdaptor):
                         req
                     )()
                 except Exception as e:
+                    if _default:
+                        if isinstance(e, exceptions.NotFound) and e.path:
+                            raise
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
                 if req:
                     req.adaptor.update_context(response=resp)
                 return self.response_adaptor_cls.reconstruct(resp)
         else:
             # @app.route('%s/{path:path}' % route, methods=cls.HANDLED_METHODS)
-            def f(request: StarletteRequest):
+            def f(request: StarletteRequest, _default: bool = False):
                 req = None
                 try:
                     req = _current_request.get(None)
-                    path = self.load_route(request.path_params['path'])
+                    path = self.load_route(request)
                     if not isinstance(req, Request):
                         req = Request(self.request_adaptor_cls(request, path))
                     else:
@@ -241,16 +255,35 @@ class StarletteServerAdaptor(ServerAdaptor):
                         req
                     )()
                 except Exception as e:
+                    if _default:
+                        if isinstance(e, exceptions.NotFound) and e.path:
+                            raise
                     resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
                 if req:
                     req.adaptor.update_context(response=resp)
                 return self.response_adaptor_cls.reconstruct(resp)
         f.__wrapped__ = utilmeta_api_class
-        app.add_route(
-            path='%s{path:path}' % route,
-            route=f,
-            methods=self.HANDLED_METHODS
-        )
+        if default:
+            original_default = app.router.default
+
+            async def default_route(scope, receive, send):
+                from starlette.requests import Request
+                request = Request(scope, receive=receive, send=send)
+                try:
+                    response = f(request, True)
+                    if inspect.isawaitable(response):
+                        response = await response
+                except exceptions.NotFound:
+                    # if the root router cannot analyze, we fall back to the original default
+                    return await original_default(scope, receive, send)
+                await response(scope, receive, send)
+            app.router.default = default_route
+        else:
+            app.add_route(
+                path='%s{path:path}' % route,
+                route=f,
+                methods=self.HANDLED_METHODS
+            )
 
     def application(self):
         self.setup()

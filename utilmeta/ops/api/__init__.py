@@ -18,11 +18,15 @@ from .utils import opsRequire, WrappedResponse, config, supervisor_var, \
     SupervisorObject, resources_var, access_token_var
 from ..log import request_logger, Logger
 
+NO_CACHES = ['no-cache', 'no-store', 'max-age=0']
+
 
 @api.CORS(
     allow_origin='*',
     allow_headers=[
         'authorization',
+        'cache-control',
+        'x-utilmeta-node-id',
         'x-node-id'
     ],
     cors_max_age=3600 * 6
@@ -51,7 +55,17 @@ class OperationsAPI(api.API):
     @api.get
     @opsRequire('api.view')
     def openapi(self):
-        return response.Response(config.openapi)
+        cache_control = self.request.headers.get('Cache-Control')
+        if cache_control and any(h in cache_control for h in NO_CACHES):
+            openapi = config.load_openapi(no_store='no-store' in cache_control)
+        else:
+            openapi = config.openapi
+        return response.Response(openapi)
+
+    # @api.post
+    # @opsRequire()
+    # def sync(self):
+    #     pass
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -140,12 +154,17 @@ class OperationsAPI(api.API):
         raise exceptions.NotFound('Supervisor not found', state='supervisor_not_found')
 
     @api.before('*', excludes=(get, post))
-    def handle_token(self, node_id: str = request.HeaderParam('X-Node-ID', default=None)):
+    def handle_token(self, node_id: str = request.HeaderParam(
+        'X-UtilMeta-Node-ID',
+        alias_from=['x-node-id'],
+        default=None
+    )):
         type, token = self.request.authorization
+        node_id = node_id or self.request.query.get('node')
         if not token:
-            if not config.local_disabled:
+            if not config.local_disabled and config.is_local:
                 from utilmeta import service
-                if not service.production and str(self.request.ip_address) == service.host == '127.0.0.1':
+                if str(self.request.ip_address) == '127.0.0.1':
                     # LOCAL -> LOCAL MANAGE
                     try:
                         supervisor = SupervisorObject.init(Supervisor.objects.filter(
@@ -169,9 +188,7 @@ class OperationsAPI(api.API):
                         # raise exceptions.Unauthorized
                     var.scopes.setter(self.request, config.local_scope)
                     return
-
             raise exceptions.Unauthorized
-        node_id = node_id or self.request.query.get('node')
         # node can also be included in the query params to avoid additional headers
         if not node_id:
             raise exceptions.BadRequest('Node ID required', state='node_required')

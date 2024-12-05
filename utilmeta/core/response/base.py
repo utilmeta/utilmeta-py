@@ -1,6 +1,7 @@
 import inspect
 import json
 import os.path
+import warnings
 from http.cookies import SimpleCookie
 from pprint import pprint
 
@@ -247,7 +248,15 @@ class Response:
         self.parse_headers()
 
         pref = Preference.get()
-        self.status = self.status or pref.default_response_status or 200
+        if not self.status:
+            # if error does not specify a status
+            if self.is_timeout:
+                self.status = pref.default_timeout_response_status or 500
+            if self.is_aborted:
+                self.status = pref.default_aborted_response_status or 500
+            else:
+                self.status = pref.default_response_status or 200
+
         if self.state is None:
             self.state = 1 if self.success else 0
         # set default state after status
@@ -267,11 +276,16 @@ class Response:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def close(self):
-        if self.adaptor:
-            self.adaptor.close()
-        if self._file:
-            self._file.close()
+    def close(self, fail_silently=True):
+        try:
+            if self.adaptor:
+                self.adaptor.close()
+            if self._file:
+                self._file.close()
+        except Exception as e:
+            if not fail_silently:
+                raise
+            warnings.warn(f'close response: {Self} failed with error: {e}')
 
     def parse_content(self):
         if self.result is not None:
@@ -322,7 +336,7 @@ class Response:
             if field:
                 # resolve before parse
                 self.schema_parser.resolve_forward_refs()
-                headers = field.parse_value(headers, context=self.schema_parser.options.make_context())
+                headers = field.parse_value(headers or {}, context=self.schema_parser.options.make_context())
         self.headers = Headers(headers or {})
 
     def init_result(self, result):
@@ -383,7 +397,11 @@ class Response:
         else:
             return
         if not self.status:
-            self.status = error.status
+            if self.is_aborted:
+                self.status = error.get_status(default=None)
+            else:
+                # force a status
+                self.status = error.status
         if self.state is None:
             self.state = error.state
         if self.result is None:
@@ -617,6 +635,10 @@ class Response:
         if self._request:
             return
         self._request = r
+
+    @property
+    def raw_request(self):
+        return self.adaptor.request if self.adaptor else None
 
     @property
     def content(self):

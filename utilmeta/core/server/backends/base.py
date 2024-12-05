@@ -76,17 +76,30 @@ class ServerAdaptor(BaseAdaptor):
             return None
         return re.compile('%s/(.*)' % self.config.root_url.strip('/'))
 
+    @property
+    def root_path(self) -> str:
+        return ''
+
+    @property
+    def version(self) -> str:
+        return ''
+
+    @property
+    def production(self) -> bool:
+        return False
+
     def load_route(self, path: str):
-        path = path or ''
+        path = (path or '').strip('/')
         if not self.config.root_url:
             return path
-        path = path.strip('/')
         match = self.root_pattern.match(path)
         if match:
             return match.groups()[0]
         if path == self.config.root_url:
             return ''
-        raise exceptions.NotFound
+        if self.config.preference.strict_root_route:
+            raise exceptions.NotFound
+        return path
 
     def resolve(self):
         if self.root:

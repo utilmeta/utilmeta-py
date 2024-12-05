@@ -1,6 +1,6 @@
 from utilmeta.core import api, request
 from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
-from utilmeta.utils import reduce_value, SECRET, adapt_async, exceptions, awaitable
+from utilmeta.utils import reduce_value, SECRET, adapt_async, exceptions, awaitable, pop
 from ..schema import TableSchema
 from utilmeta.core.orm import ModelAdaptor
 from utype.types import *
@@ -126,8 +126,10 @@ class DataAPI(api.API):
     def create_data(self, data: CreateDataSchema = request.Body):
         objs = []
         for val in data.data:
-            objs.append(self.adaptor.init_instance(**val))
-        qs = self.adaptor.bulk_create(objs)
+            objs.append(self.adaptor.create(**val))
+        if not data.return_fields:
+            return
+        qs = self.adaptor.get_queryset(objs)
         values = self.adaptor.values(qs, *data.return_fields)
         return self.parse_result(values, max_length=data.return_max_length)
 
@@ -136,15 +138,10 @@ class DataAPI(api.API):
     @adapt_async(close_conn=True)
     # close all connections
     def update_data(self, data: UpdateDataSchema = request.Body):
-        objs = []
-        fields = set()
         for val in data.data:
-            obj = self.adaptor.init_instance(**val)
-            fields.update(set(val))
-            if obj.pk:
-                objs.append(obj)
-        fields = fields.difference({'pk'})
-        return self.adaptor.bulk_update(objs, fields=fields)
+            pk = pop(val, 'pk')
+            if pk:
+                self.adaptor.update(val, pk=pk)
 
     def delete_data(self,
                     id: str = request.BodyParam

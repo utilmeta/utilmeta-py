@@ -1,6 +1,7 @@
 from django.db import models
 from utype.types import *
 from utilmeta.utils import time_now, convert_time
+from utype import JSONEncoder
 
 
 class Supervisor(models.Model):
@@ -12,7 +13,7 @@ class Supervisor(models.Model):
     ident = models.CharField(max_length=20, default=None, null=True)
     # offline_enabled = BooleanField(default=True)
     # enable offline (ak/signature-only, no remote-auth/token-retrieve) to open resources to utilmeta ecosystem
-    backup_urls = models.JSONField(default=list)
+    backup_urls = models.JSONField(default=list, encoder=JSONEncoder)
     # direct callback to master url, like https://utilmeta.com/api/action/backup?id=<ID> for backup node servers
     base_url = models.URLField()
     # remote_ops_api = URLField(default=None, null=True)
@@ -44,7 +45,7 @@ class Supervisor(models.Model):
     # open for every request user
     latency = models.PositiveIntegerField(default=None, null=True)  # ms
 
-    settings: dict = models.JSONField(default=dict)
+    settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
     # heartbeat_enabled: False
     # report_enabled: true
     # notify_enabled: false
@@ -56,12 +57,12 @@ class Supervisor(models.Model):
     disabled = models.BooleanField(default=False)
 
     # -- advanced
-    alert_settings: dict = models.JSONField(default=dict)
-    task_settings: dict = models.JSONField(default=dict)
+    alert_settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
+    task_settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
     # heartbeat_settings: dict = models.JSONField(default=dict)
-    aggregate_settings: dict = models.JSONField(default=dict)
+    aggregate_settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
 
-    data = models.JSONField(default=dict)
+    data = models.JSONField(default=dict, encoder=JSONEncoder)
 
     resources_etag = models.TextField(default=None, null=True)
     # if resources etag doesn't change
@@ -113,7 +114,7 @@ class AccessToken(models.Model):
     ip = models.GenericIPAddressField(default=None, null=True)
 
     # PERMISSION ---------------
-    scope = models.JSONField(default=list)
+    scope = models.JSONField(default=list, encoder=JSONEncoder)
     # excludes = models.JSONField(default=list)
     # readonly = models.BooleanField(default=False)
     # -------
@@ -157,7 +158,7 @@ class Resource(models.Model):
         default=None, null=True
     )
     server_id: Optional[int]
-    data: dict = models.JSONField(default=dict)
+    data: dict = models.JSONField(default=dict, encoder=JSONEncoder)
 
     created_time = models.DateTimeField(auto_now_add=True)
     updated_time = models.DateTimeField(default=None, null=True)
@@ -188,10 +189,13 @@ class Resource(models.Model):
     @classmethod
     def get_current_instance(cls) -> Optional['Resource']:
         from utilmeta import service
+        from .config import Operations
+        config = service.get_config(Operations)
         return cls.filter(
             type='instance',
             service=service.name,
-            server=cls.get_current_server(),
+            ident=config.address
+            # server=cls.get_current_server(),
         ).first()
 
 
@@ -206,7 +210,7 @@ class SystemMetrics(models.Model):
     open_files = models.PositiveBigIntegerField(default=None, null=True)
     active_net_connections = models.PositiveIntegerField(default=0)
     total_net_connections = models.PositiveIntegerField(default=0)
-    net_connections_info = models.JSONField(default=dict)
+    net_connections_info = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
         abstract = True
@@ -225,7 +229,7 @@ class DatabaseConnection(models.Model):
 
     query = models.TextField(default='')
     operation = models.CharField(max_length=32, default=None, null=True)
-    tables = models.JSONField(default=list)
+    tables = models.JSONField(default=list, encoder=JSONEncoder)
 
     backend_start = models.DateTimeField(default=None, null=True)
     transaction_start = models.DateTimeField(default=None, null=True)
@@ -233,7 +237,7 @@ class DatabaseConnection(models.Model):
     query_start = models.DateTimeField(default=None, null=True)
     state_change = models.DateTimeField(default=None, null=True)
 
-    data = models.JSONField(default=dict)
+    data = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
         db_table = 'utilmeta_database_connection'
@@ -275,7 +279,7 @@ class Worker(SystemMetrics, ServiceMetrics):
     instance = models.ForeignKey(Resource, related_name='instance_workers', on_delete=models.CASCADE)
 
     pid: int = models.PositiveIntegerField()
-    memory_info = models.JSONField(default=dict)
+    memory_info = models.JSONField(default=dict, encoder=JSONEncoder)
     threads = models.PositiveIntegerField(default=0)
     start_time: datetime = models.DateTimeField(default=time_now)
     # utility = ForeignKey(ServiceUtility, related_name='workers', on_delete=SET_NULL, null=True, default=None)
@@ -288,11 +292,11 @@ class Worker(SystemMetrics, ServiceMetrics):
     user = models.CharField(max_length=100, default=None, null=True)
 
     retire_time = models.DateTimeField(default=None, null=True)    # only work for task worker for now
-    reload_params = models.JSONField(default=dict)
+    reload_params = models.JSONField(default=dict, encoder=JSONEncoder)
     # worker reload_on_rss (for uwsgi)
     # task.max_worker_memory (for task)
     # info = models.JSONField(default=dict)      # store backward compat information
-    data = models.JSONField(default=dict)
+    data = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
         db_table = 'utilmeta_worker'
@@ -406,7 +410,7 @@ class ServerMonitor(SystemMetrics):
     load_avg_5 = models.DecimalField(max_digits=8, decimal_places=2, default=None, null=True)
     load_avg_15 = models.DecimalField(max_digits=8, decimal_places=2, default=None, null=True)
     # alert = ForeignKey(AlertLog, related_name='source_metrics', on_delete=SET_NULL, null=True, default=None)
-    metrics = models.JSONField(default=dict)
+    metrics = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
         db_table = 'utilmeta_server_monitor'
@@ -421,9 +425,9 @@ class WorkerMonitor(SystemMetrics, ServiceMetrics):
     time = models.DateTimeField(default=time_now)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
     worker = models.ForeignKey(Worker, related_name='worker_metrics', on_delete=models.CASCADE)
-    memory_info = models.JSONField(default=dict)
+    memory_info = models.JSONField(default=dict, encoder=JSONEncoder)
     threads = models.PositiveIntegerField(default=0)
-    metrics = models.JSONField(default=dict)  # extra metrics
+    metrics = models.JSONField(default=dict, encoder=JSONEncoder)  # extra metrics
 
     class Meta:
         db_table = 'utilmeta_worker_monitor'
@@ -448,7 +452,7 @@ class InstanceMonitor(SystemMetrics, ServiceMetrics):
     new_spawned_workers = models.PositiveBigIntegerField(default=0)
     avg_workers = models.DecimalField(default=None, null=True, max_digits=10, decimal_places=2)
 
-    metrics = models.JSONField(default=dict)   # extra metrics
+    metrics = models.JSONField(default=dict, encoder=JSONEncoder)   # extra metrics
 
     class Meta:
         db_table = 'utilmeta_instance_monitor'
@@ -472,12 +476,12 @@ class DatabaseMonitor(models.Model):
 
     new_transactions = models.PositiveBigIntegerField(default=0)
 
-    metrics = models.JSONField(default=dict)
+    metrics = models.JSONField(default=dict, encoder=JSONEncoder)
 
     queries_num = models.PositiveBigIntegerField(default=0)
     qps = models.DecimalField(max_digits=10, decimal_places=2, default=None, null=True)
     query_avg_time = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    operations = models.JSONField(default=dict)  # {'SELECT': 100, 'UPDATE': 21, ...}
+    operations = models.JSONField(default=dict, encoder=JSONEncoder)  # {'SELECT': 100, 'UPDATE': 21, ...}
 
     class Meta:
         db_table = 'utilmeta_database_monitor'
@@ -503,7 +507,7 @@ class CacheMonitor(models.Model):
     total_connections = models.PositiveBigIntegerField(default=0)
     qps = models.DecimalField(max_digits=10, decimal_places=2, default=None, null=True)
 
-    metrics = models.JSONField(default=dict)
+    metrics = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
         db_table = 'utilmeta_cache_monitor'
@@ -519,15 +523,15 @@ class WebMixin(models.Model):
     # replace the unit property
     request_type = models.CharField(max_length=200, default=None, null=True)
     response_type = models.CharField(max_length=200, default=None, null=True)
-    request_headers = models.JSONField(default=dict, null=True)
-    response_headers = models.JSONField(default=dict, null=True)
+    request_headers = models.JSONField(default=dict, null=True, encoder=JSONEncoder)
+    response_headers = models.JSONField(default=dict, null=True, encoder=JSONEncoder)
 
-    user_agent = models.JSONField(default=None, null=True)
+    user_agent = models.JSONField(default=None, null=True, encoder=JSONEncoder)
     status = models.PositiveSmallIntegerField(default=200, null=True)
     length = models.PositiveBigIntegerField(default=0, null=True)
-    query = models.JSONField(default=dict, null=True)
-    data = models.JSONField(null=True, default=None)
-    result = models.JSONField(null=True, default=None)
+    query = models.JSONField(default=dict, null=True, encoder=JSONEncoder)
+    data = models.JSONField(null=True, default=None, encoder=JSONEncoder)
+    result = models.JSONField(null=True, default=None, encoder=JSONEncoder)
 
     full_url = models.URLField(default=None, null=True)  # xxx://xxx/xxx?xxx
     path = models.URLField(null=True, default=None)  # replace the unit property
@@ -553,7 +557,7 @@ class VersionLog(models.Model):
     # down time, None means no down time
 
     success = models.BooleanField(default=None, null=True)
-    restart_data = models.JSONField(default=dict)
+    restart_data = models.JSONField(default=dict, encoder=JSONEncoder)
     # trigger_index = models.CharField(max_length=100, default=None, null=True)
     # trigger_value = models.FloatField(default=None, null=True)
     # threshold = models.FloatField(default=None, null=True)
@@ -659,8 +663,8 @@ class AlertLog(models.Model):
     # trigger_times: list = fields.ArrayField(models.DateTimeField(), default=list)
     # trigger_values: list = fields.ArrayField(models.FloatField(), default=list)
 
-    trigger_times = models.JSONField(default=list)
-    trigger_values = models.JSONField(default=list)
+    trigger_times = models.JSONField(default=list, encoder=JSONEncoder)
+    trigger_values = models.JSONField(default=list, encoder=JSONEncoder)
 
     # [dict(value=<SOME_VALUE>, time=<SOME_TIME>), ...]
     time = models.DateTimeField(default=time_now)
@@ -671,7 +675,7 @@ class AlertLog(models.Model):
     # current_count = PositiveBigIntegerField(default=1)
     count = models.PositiveBigIntegerField(default=1)
     # message = models.TextField(default='')     # brief message to notify
-    data = models.JSONField(default=None, null=True)
+    data = models.JSONField(default=None, null=True, encoder=JSONEncoder)
 
     class Meta:
         db_table = 'utilmeta_alert_log'
@@ -755,8 +759,8 @@ class ServiceLog(WebMixin):
     # referrer = URLField(default=None, null=True)
     ip = models.GenericIPAddressField()
 
-    trace = models.JSONField(default=list)
-    messages = models.JSONField(default=list)
+    trace = models.JSONField(default=list, encoder=JSONEncoder)
+    messages = models.JSONField(default=list, encoder=JSONEncoder)
 
     alert = models.ForeignKey(
         'AlertLog', related_name='service_logs',
@@ -856,7 +860,7 @@ class QueryLog(models.Model):
     )
 
     operation = models.CharField(max_length=32, default=None, null=True)
-    tables = models.JSONField(default=list)
+    tables = models.JSONField(default=list, encoder=JSONEncoder)
 
     context_type = models.CharField(max_length=40, default=None, null=True)
     # request
@@ -881,7 +885,7 @@ class AggregationLog(models.Model):
         Supervisor, related_name='aggregation_logs', on_delete=models.SET_NULL,
         default=None, null=True,
     )
-    data = models.JSONField(default=dict)
+    data = models.JSONField(default=dict, encoder=JSONEncoder)
 
     # report the aggregated analytics from log from time span
     layer = models.PositiveSmallIntegerField(default=0)

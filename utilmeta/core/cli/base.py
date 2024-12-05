@@ -2,7 +2,7 @@ import inspect
 
 from utilmeta.utils import PluginEvent, PluginTarget, \
     Error, url_join, classonlymethod, json_dumps, \
-    COMMON_METHODS, EndpointAttr, \
+    COMMON_METHODS, EndpointAttr, valid_url, \
     parse_query_string, parse_query_dict
 
 from utype.types import *
@@ -23,6 +23,7 @@ from urllib.parse import urlsplit, urlunsplit, urlencode
 from utilmeta import UtilMeta
 from functools import partial
 from typing import TypeVar
+
 
 T = TypeVar('T')
 
@@ -211,10 +212,28 @@ class Client(PluginTarget):
         self._backend = backend
 
         self._service = service
-        self._base_url = base_url
+        self._base_query = base_query or {}
         self._default_timeout = default_timeout
         self._base_headers = base_headers or {}
-        self._base_query = base_query or {}
+
+        if base_url:
+            # check base url
+            res = urlsplit(base_url)
+            if not res.scheme:
+                # allow ws / wss in the future
+                raise ValueError(f'utilmeta.core.cli.Client: Invalid base_url: {repr(base_url)}, '
+                                 f'must be a valid url')
+            if res.query:
+                self._base_query.update(parse_query_string(res.query))
+            base_url = urlunsplit((
+                res.scheme,
+                res.netloc,
+                res.path,
+                '',  # query
+                ''   # fragment
+            ))
+
+        self._base_url = base_url
         self._proxies = proxies
         self._allow_redirects = allow_redirects
         self._charset = charset
@@ -333,13 +352,18 @@ class Client(PluginTarget):
             self._base_query.update(query)
 
     def _build_url(self, path: str, query: dict = None):
-        if self._internal:
-            return path
-
+        # if self._internal:
+        #     return path
+        query_params = dict(self._base_query or {})
+        # 1. base_query
         parsed = urlsplit(path)
-        qs = parse_query_string(parsed.query)
-        if isinstance(query, dict):
-            qs.update(parse_query_dict(query))
+        qs: str = parsed.query
+        if qs:
+            query_params.update(parse_query_string(qs))
+        # 2. path query
+        if isinstance(query, dict) and query:
+            query_params.update(parse_query_dict(query))
+        # 3. assigned query
 
         # base_url: null
         # path: https://origin.com/path?key=value
@@ -353,7 +377,7 @@ class Client(PluginTarget):
                 parsed.netloc,
                 parsed.path,
                 '',     # query
-                ''      # query
+                ''      # fragment
             ))
         else:
             url = url_join(base_url, parsed.path)
@@ -361,7 +385,7 @@ class Client(PluginTarget):
         if self._append_slash:
             url = url.rstrip('/') + '/'
 
-        return url + (('?' + urlencode(qs)) if qs else '')
+        return url + (('?' + urlencode(query_params)) if query_params else '')
 
     def _build_headers(self, headers, cookies=None):
         if cookies:
@@ -522,9 +546,9 @@ class Client(PluginTarget):
                     raise e from e
                 timeout = 'timeout' in str(e).lower()
                 response = Response(
-                    timeout=timeout,
                     error=e,
                     request=request,
+                    timeout=timeout,
                     aborted=True
                 )
             else:

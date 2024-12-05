@@ -1,12 +1,12 @@
 from utilmeta import UtilMeta
 from utilmeta.core import api
 from config import configure
-import fastapi
+import django
 
 service = UtilMeta(
     __name__,
     name='blog',
-    backend=fastapi,
+    backend=django,
     asynchronous=True,
     port=8080
 )
@@ -20,6 +20,8 @@ from blog.api import ArticleAPI
 class RootAPI(api.API):
     article: ArticleAPI
 
+
+app = service.application()
 
 if __name__ == '__main__':
     service.run()

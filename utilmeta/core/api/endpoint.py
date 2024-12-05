@@ -1,6 +1,6 @@
 from utilmeta import utils
 from utilmeta.utils import exceptions as exc
-from typing import Callable, Union, Type, List, TYPE_CHECKING, Any
+from typing import Callable, Type, List, TYPE_CHECKING
 from utilmeta.utils.plugin import PluginTarget, PluginEvent
 from utilmeta.utils.context import ContextWrapper, Property
 from utilmeta.utils.exceptions import InvalidDeclaration
@@ -241,7 +241,7 @@ class BaseEndpoint(PluginTarget):
 
     @property
     def route(self):
-        return '' if self.is_method else self.getattr('route', self.name)
+        return self.getattr('route', '' if self.is_method else self.name)
 
     @property
     def parser(self):

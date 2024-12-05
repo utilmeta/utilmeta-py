@@ -231,8 +231,11 @@ class ServersAPI(api.API):
             if id:
                 q &= models.Q(remote_id=id)
         else:
-            from utilmeta import service
-            q = models.Q(service=service.name)
+            if type != 'server':
+                from utilmeta import service
+                q = models.Q(service=service.name)
+            else:
+                q = models.Q()
             if id:
                 q &= models.Q(remote_id=id) | models.Q(id=id)
         query.update(

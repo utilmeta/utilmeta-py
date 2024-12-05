@@ -1,7 +1,12 @@
 from utype import Schema, Options
+from utype.utils.exceptions import AbsenceError
 from typing import Union, Mapping
 import os
 import json
+
+
+class EnvVarUndefined(ValueError):
+    pass
 
 
 class Env(Schema):
@@ -24,7 +29,19 @@ class Env(Schema):
         ):
             if items:
                 self._data.update(items)
-        super().__init__(**self._data)
+        try:
+            super().__init__(**self._data)
+        except AbsenceError as e:
+            route = '.'.join(e.routes) if e.routes else e.item
+            if self._sys_env_prefix:
+                msg = f'Environment variable "{self._sys_env_prefix}{route}" not set"'
+            elif self._file:
+                msg = f'variable not set in file: {self._file}'
+            else:
+                msg = 'variable not set'
+            raise EnvVarUndefined(
+                f'{self.__class__.__name__} initialize failed: required env var [{route}] undefined: {msg}'
+            ) from e
 
     def _load_from_sys_env(self) -> Mapping:
         if not self._sys_env:

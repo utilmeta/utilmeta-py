@@ -123,6 +123,9 @@ class DjangoModelAdaptor(ModelAdaptor):
 
     def get_queryset(self, q=None, **filters) -> queryset_cls:
         # for django it's like model.objects.all()
+        if isinstance(q, list):
+            q = models.Q(pk__in=[getattr(obj, 'pk', obj) for obj in q])
+
         args = (q,) if q else ()
         try:
             base = self.model.objects.all()

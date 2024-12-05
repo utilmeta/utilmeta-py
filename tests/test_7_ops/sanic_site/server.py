@@ -11,10 +11,6 @@ Sanic._app_registry = {}
 app = Sanic('MyTestApp')
 
 
-@app.get("/sanic")
-async def hello_world(request):
-    return text("Hello, world.")
-
 from utilmeta.core import api, response
 
 
@@ -46,6 +42,11 @@ Operations(
     base_url=f'http://127.0.0.1:{PORT}',
     eager_migrate=True
 ).integrate(app, __name__)
+
+
+@app.get("/sanic")
+async def hello_world(request):
+    return text("Hello, sanic")
 
 if __name__ == '__main__':
     try:

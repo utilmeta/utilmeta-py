@@ -6,6 +6,7 @@ from ..constant import RED, META_INI, BLUE
 from utilmeta.bin import template as package
 from utilmeta.utils import read_from, write_to, import_obj, check_requirement
 import shutil
+import re
 
 TEMP_PATH = package.__path__[0]
 
@@ -54,13 +55,19 @@ class SetupCommand(BaseServiceCommand):
         --t: select template: full / lite
         --ops: with operations configuration
         """
-        while not name:
-            print(f'Enter the name of your project:')
-            name = input('>>> ').strip()
 
         if self.ini_path:
             print(RED % 'meta Error: you are already inside an utilmeta project, '
                         'please chose a empty dir to setup your new project')
+            exit(1)
+
+        while not name:
+            print(f'Enter the name of your project:')
+            name = input('>>> ').strip()
+
+        if not re.fullmatch(r'[A-Za-z0-9_-]+', name):
+            print(RED % 'UtilMeta project name can only contains alphanumeric characters, '
+                  'underscore "_" and hyphen "-"')
             exit(1)
 
         project_dir = self.cwd

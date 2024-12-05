@@ -7,7 +7,8 @@ from utilmeta.bin.base import Arg
 from utilmeta.utils import omit
 import base64
 from . import __website__
-from utilmeta.bin.constant import DOT, RED, GREEN, BANNER, BLUE
+from utilmeta.bin.constant import DOT, RED, GREEN, BANNER, BLUE, YELLOW
+import webbrowser
 
 
 @omit
@@ -16,7 +17,6 @@ def try_to_connect(timeout: int = 5):
     if not config:
         return
     if not config.is_local:
-        import webbrowser
         webbrowser.open_new_tab(__website__)
         print(RED % f'connection key required to connect non-local service, please login to '
                     f'{__website__} and generate one')
@@ -39,7 +39,6 @@ def try_to_connect(timeout: int = 5):
         return
     local_manage_url = f'{__website__}/localhost?local_node={config.ops_api}'
     print(f'OperationsAPI connected at {local_manage_url}')
-    import webbrowser
     webbrowser.open_new_tab(local_manage_url)
 
 
@@ -49,6 +48,10 @@ class OperationsCommand(BaseServiceCommand):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.config = self.service.get_config(Operations)
+        if not self.config:
+            print(RED % f'meta {self.arg_name}: Operations config not integrated to application, '
+                        'please follow the document at https://docs.utilmeta.com/py/en/guide/ops/')
+            exit(1)
         # self.settings.setup(self.service)
         self.service.setup()        # setup here
 
@@ -62,10 +65,27 @@ class OperationsCommand(BaseServiceCommand):
         # 2. migrate for main database
         execute_from_command_line(['manage.py', 'migrate', 'ops'])
 
+    # @command
+    # def check_connect(self):
+    #     if not self.config:
+    #         print(RED % 'meta check_ops: Operations config not integrated to application, '
+    #                     'please follow the document')
+    #         exit(1)
+    #     self.config.migrate(with_default=True)
+    #     # before check
+    #
+    #     from .client import OperationsClient, ServiceInfoResponse
+    #     info = OperationsClient(base_url=self.config.ops_api, fail_silently=True).get_info()
+    #     live = isinstance(info, ServiceInfoResponse) and info.validate()
+    #     if live:
+    #         print(f'meta connect: OperationsAPI of [{self.service.name}] '
+    #               f'is available at {BLUE % self.config.ops_api}')
+
     @command
     def connect(self,
                 to: str = None,
                 key: str = Arg('--key', default=None),
+                force: bool = Arg('-f', default=None),
                 service: str = Arg('--service', default=None)
                 ):
         """
@@ -78,22 +98,45 @@ class OperationsCommand(BaseServiceCommand):
         from .client import OperationsClient, ServiceInfoResponse
         info = OperationsClient(base_url=self.config.ops_api, fail_silently=True).get_info()
         live = isinstance(info, ServiceInfoResponse) and info.validate()
+        failed = info.is_aborted or info.status >= 500
         if not live:
-            print(RED % 'meta connect: service not live or OperationsAPI not mounted, '
-                        f'please check your OperationsAPI: {self.config.ops_api} is accessible before connect')
-            exit(1)
+            if failed:
+                print(RED % 'meta connect: service is down, '
+                            f'please check your OperationsAPI: {self.config.ops_api} is accessible before connect')
+            else:
+                print(YELLOW % 'meta connect: OperationsAPI not mounted (or service not restarted), '
+                               f'please check your OperationsAPI: {self.config.ops_api} is accessible before connect')
+            print('If you have integrated Operations config, please restart your service and retry, '
+                  f'or add {BLUE % "-f"} to force this connect')
+            if not force:
+                exit(1)
 
         if not key:
-            import webbrowser
             # check if it is localhost
             if self.config.is_local:
                 local_manage_url = f'{__website__}/localhost?local_node={self.config.ops_api}'
                 print(f'OperationsAPI connected at {local_manage_url}')
                 webbrowser.open_new_tab(local_manage_url)
                 exit(0)
+
+        if not self.config.is_local:
+            if not self.config.proxy and self.config.proxy_required:
+                print(YELLOW % f'meta connect: it seems that you are using a private base_url: {self.config.base_url} '
+                               f'without setting '
+                               'a proxy in Operations, this service will be unable to access in the platform')
+            if not self.config.is_secure:
+                print(YELLOW % f'meta connect: you are trying to connect an insecure node:'
+                               f' {self.config.ops_api} (with HTTP protocol), '
+                               'we strongly recommend using HTTPS protocol instead')
+
+        if not key:
             webbrowser.open_new_tab(__website__)
+            if live:
+                print(f'meta connect: OperationsAPI of [{self.service.name}] '
+                      f'is available at {BLUE % self.config.ops_api}')
             print(RED % f'meta connect: --key is required to connect non-local service, please login to '
                         f'{__website__} and generate one')
+
             exit(1)
 
         from .connect import connect_supervisor
@@ -132,7 +175,7 @@ class OperationsCommand(BaseServiceCommand):
         Sync APIs and resources to supervisor
         """
         manager = self.config.resources_manager_cls(service=self.service)
-        manager.sync_resources(force=force)
+        manager.init_service_resources(force=force)
 
     @command
     def stats(self):

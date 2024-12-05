@@ -155,7 +155,20 @@ def get_network_ip(ifname: str):
         return None
 
 
+_SERVER_IP = None
+_SERVER_PRIVATE_IP = None
+
+
 def get_server_ip(private_only: bool = False) -> Optional[str]:
+    global _SERVER_IP, _SERVER_PRIVATE_IP
+
+    if private_only:
+        if _SERVER_PRIVATE_IP is not None:
+            return _SERVER_PRIVATE_IP
+    else:
+        if _SERVER_IP is not None:
+            return _SERVER_IP
+
     ip = socket.gethostbyname(socket.gethostname())
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -184,12 +197,20 @@ def get_server_ip(private_only: bool = False) -> Optional[str]:
             if addr.is_loopback:
                 # ignore loopback addr
                 continue
+            _SERVER_IP = ip
             if private_only and not addr.is_private:
                 continue
+            if private_only:
+                _SERVER_PRIVATE_IP = ip
             return ip
         except ValueError:
             continue
-    return ips.pop() if ips else constant.LOCAL_IP
+
+    _SERVER_IP = ips.pop() if ips else constant.LOCAL_IP
+    if private_only:
+        _SERVER_PRIVATE_IP = constant.LOCAL_IP
+        return _SERVER_PRIVATE_IP
+    return _SERVER_IP
 
 
 def ip_belong_networks(ip, networks: List[str]):

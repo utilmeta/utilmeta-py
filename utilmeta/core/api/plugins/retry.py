@@ -3,7 +3,7 @@ from utilmeta.core.response import Response
 from utype.types import *
 from utilmeta.utils.error import Error
 from utilmeta.utils import exceptions
-from utilmeta.utils import multi, class_func, time_now, get_interval, awaitable
+from utilmeta.utils import multi, class_func, time_now, get_interval, awaitable, DEFAULT_RETRY_ON_STATUSES
 from utype.parser.func import FunctionParser
 import random
 from utype.types import Float
@@ -17,7 +17,6 @@ class RetryPlugin(APIPlugin):
     function_parser_cls = FunctionParser
     max_retries_error_cls = exceptions.MaxRetriesExceed
     max_retries_timeout_error_cls = exceptions.MaxRetriesTimeoutExceed
-    DEFAULT_RETRY_ON_STATUS = [500, 502, 503, 504]
     DEFAULT_RETRY_ON_ERRORS = (Exception,)
     DEFAULT_RETRY_AFTER_HEADERS = ()
 
@@ -33,7 +32,7 @@ class RetryPlugin(APIPlugin):
                                       List[timedelta], Callable] = None,
                  retry_delta_ratio: float = None,
                  retry_on_errors: List[Type[Exception]] = None,
-                 retry_on_statuses: List[int] = None,
+                 retry_on_statuses: List[int] = DEFAULT_RETRY_ON_STATUSES,
                  retry_on_idempotent_only: bool = None,
                  retry_after_headers: Union[str, List[str]] = None,
                  ):
@@ -53,7 +52,7 @@ class RetryPlugin(APIPlugin):
         self.retry_on_errors = retry_on_errors or self.DEFAULT_RETRY_ON_ERRORS  # can be inherited
         if retry_on_statuses and not multi(retry_on_statuses):
             retry_on_statuses = [retry_on_statuses]
-        self.retry_on_statuses = retry_on_statuses or self.DEFAULT_RETRY_ON_STATUS
+        self.retry_on_statuses = retry_on_statuses or DEFAULT_RETRY_ON_STATUSES
         self.retry_on_idempotent_only = retry_on_idempotent_only
         if retry_after_headers and not multi(retry_after_headers):
             retry_after_headers = [retry_after_headers]

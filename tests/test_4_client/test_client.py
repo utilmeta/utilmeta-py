@@ -48,6 +48,16 @@ class TestClientClass:
             query={'k2': 'v2'}
         ) == 'https://test2.com/sub/?k1=v1&k2=v2'
 
+        client2 = Client(
+            base_url='https://test.com/path?q1=v1',
+            base_query={'q0': 'v0'},
+            append_slash=True
+        )
+        assert client2._build_url(
+            path='sub?q2=v2',
+            query={'q3': 'v3'}
+        ) == 'https://test.com/path/sub/?q0=v0&q1=v1&q2=v2&q3=v3'
+
     def test_live_server(self, server_thread, sync_request_backend):
         with TestClient(
             base_url='http://127.0.0.1:8666/api/test',

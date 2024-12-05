@@ -4,6 +4,7 @@ from utilmeta.core.cli import Client
 from utilmeta.core import response, api
 from utilmeta.core import request
 from utype.types import *
+
 from .key import encrypt_data
 from .schema import (NodeMetadata, SupervisorBasic, ServiceInfoSchema, SupervisorInfoSchema, \
                      SupervisorData, ResourcesSchema, ResourcesData, NodeInfoSchema, InstanceResourceSchema,
@@ -100,6 +101,9 @@ class SupervisorClient(Client):
     @api.post('/')
     def add_node(self, data: NodeMetadata = request.Body) -> Union[SupervisorNodeResponse, SupervisorResponse]: pass
 
+    @api.post('/')
+    async def async_add_node(self, data: NodeMetadata = request.Body) -> Union[SupervisorNodeResponse, SupervisorResponse]: pass
+
     @api.delete('/')
     def delete_node(self) -> SupervisorResponse: pass
 
@@ -107,11 +111,21 @@ class SupervisorClient(Client):
     def upload_resources(self, data: ResourcesSchema = request.Body) \
             -> Union[SupervisorResourcesResponse, SupervisorResponse]: pass
 
+    @api.post('/resources')
+    async def async_upload_resources(self, data: ResourcesSchema = request.Body) \
+            -> Union[SupervisorResourcesResponse, SupervisorResponse]: pass
+
     @api.get('/list')
     def get_supervisors(self) -> Union[SupervisorListResponse, SupervisorResponse]: pass
 
+    @api.get('/list')
+    async def async_get_supervisors(self) -> Union[SupervisorListResponse, SupervisorResponse]: pass
+
     @api.get('/')
     def get_info(self) -> Union[SupervisorInfoResponse, SupervisorResponse]: pass
+
+    @api.get('/')
+    async def async_get_info(self) -> Union[SupervisorInfoResponse, SupervisorResponse]: pass
 
     @api.post('/report')
     def report_analytics(self, data: dict = request.Body) -> Union[SupervisorReportResponse, SupervisorResponse]:
@@ -130,6 +144,8 @@ class SupervisorClient(Client):
 
     def __init__(self,
                  access_key: str = None,
+                 cluster_key: str = None,
+                 cluster_id: str = None,
                  node_id: str = None,
                  service_id: str = None,
                  node_key: str = None,
@@ -141,6 +157,15 @@ class SupervisorClient(Client):
             # only required in ADD_NODE operation
             headers.update({
                 'X-Access-Key': access_key,
+            })
+
+        if cluster_key:
+            headers.update({
+                'X-Cluster-Key': cluster_key
+            })
+        if cluster_id:
+            headers.update({
+                'X-Cluster-Id': cluster_id
             })
 
         if node_id:
@@ -172,15 +197,33 @@ class SupervisorClient(Client):
                 'X-Service-ID': service_id
             })
 
+        from .config import Operations
+        config = Operations.config()
+        if config:
+            if config.proxy and config.proxy.forward:
+                self.update_base_headers({
+                    'x-utilmeta-proxy-type': 'forward'
+                })
+                self._base_url = config.proxy.proxy_url
+            else:
+                config.check_supervisor(self._base_url)
+                # also check supervisor here
+                # --- THIS IS A SECURITY MEASURE
+                # in the worst case scenario, attacker got the ops db permission
+                # and changed the base url of supervisor (to a hostile address)
+                # the request will not be sent since it violate the [trusted_hosts]
+
         self.node_id = node_id
         self.node_key = node_key
         self.access_key = access_key
+        self.cluster_key = cluster_key
 
         self._base_headers.update(headers)
 
     def process_request(self, req: request.Request):
         if req.body is not None:
-            pub_key = self.access_key or self.node_key
+            pub_key = self.node_key or self.cluster_key or self.access_key
+            # nearest are prior
             if pub_key:
                 encrypted = encrypt_data(req.body, public_key=pub_key)
                 req.body = encrypted

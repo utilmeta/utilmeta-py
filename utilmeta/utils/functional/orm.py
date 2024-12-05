@@ -4,8 +4,6 @@ from typing import List, Set, Any, Dict, Tuple
 from functools import wraps
 
 __all__ = [
-    'add_field_id',
-    'del_field_id',
     'get_sql_info',
     'print_queries',
 ]
@@ -32,20 +30,6 @@ def print_queries(alias='default'):
         return deco(alias, 'default')
 
     return deco
-
-
-def del_field_id(field: str) -> str:
-    if not field:
-        raise ValueError(f'Empty field: {field}')
-    return field if field[-3:] != '_id' else field[:-3]
-
-
-def add_field_id(field: str) -> str:
-    if not field:
-        raise ValueError(f'Empty field: {field}')
-    if field == PK or field == ID:
-        return field
-    return field if field[-3:] == '_id' else field + '_id'
 
 
 def get_sql_info(sql_str: str, table_min_length: int = 2, str_parse: bool = True) -> Tuple[str, List[str]]:

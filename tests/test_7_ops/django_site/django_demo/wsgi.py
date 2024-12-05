@@ -20,6 +20,8 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_demo.settings")
 application = get_wsgi_application()
 
 from utilmeta.ops import Operations
+from .urls import ninja_api
+
 Operations(
     route='ops',
     database=Operations.Database(
@@ -27,5 +29,8 @@ Operations(
         engine='sqlite3'
     ),
     base_url='http://127.0.0.1:9091',
+    openapi=Operations.get_django_ninja_openapi({
+        "api-ninja/": ninja_api
+    }),
     eager_migrate=True   # eager migration for test
 ).integrate(application, __name__)

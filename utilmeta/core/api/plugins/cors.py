@@ -1,7 +1,7 @@
 import inspect
 
 from utype.types import *
-from utilmeta.utils import multi, get_origin, Header
+from utilmeta.utils import multi, get_origin, Header, distinct_add
 from utilmeta.utils import exceptions as exc
 from utilmeta.core.request import Request
 from utilmeta.core.request import var
@@ -10,7 +10,7 @@ from .base import APIPlugin
 
 
 class CORSPlugin(APIPlugin):
-    DEFAULT_ALLOW_HEADERS = ('content-Type', 'content-length', 'accept', 'origin', 'user-Agent')
+    DEFAULT_ALLOW_HEADERS = ('content-type', 'content-length', 'accept', 'origin', 'user-agent')
     EXCLUDED_STATUS = (502, 503, 504)
 
     def __init__(self,
@@ -23,6 +23,7 @@ class CORSPlugin(APIPlugin):
                  exclude_statuses: List[int] = EXCLUDED_STATUS,
                  gen_csrf_token: bool = None,
                  options_200: bool = True,
+                 override: bool = False,
                  ):
         super().__init__(locals())
 
@@ -52,9 +53,7 @@ class CORSPlugin(APIPlugin):
             allow_headers = [str(h).lower() for h in allow_headers]
 
         if multi(allow_headers):
-            for dh in self.DEFAULT_ALLOW_HEADERS:
-                if dh not in allow_headers:
-                    allow_headers.append(dh)
+            distinct_add(allow_headers, self.DEFAULT_ALLOW_HEADERS)
 
         if allow_errors and not multi(allow_errors):
             allow_errors = [allow_errors]
@@ -67,6 +66,7 @@ class CORSPlugin(APIPlugin):
         self.gen_csrf_token = gen_csrf_token
         self.exclude_statuses = exclude_statuses
         self.options_200 = options_200
+        self.override = override
 
     @property
     def allow_all_origin(self):
@@ -131,7 +131,8 @@ class CORSPlugin(APIPlugin):
             return response
         if Header.ALLOW_ORIGIN in response:
             # already processed
-            return response
+            if not self.override:
+                return response
         if self.cors_required(request):
             response.update_headers(**{
                 Header.ALLOW_ORIGIN: request.origin or '*',

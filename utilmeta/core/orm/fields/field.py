@@ -232,7 +232,14 @@ class ParserQueryField(ParserField):
                     if not self.mode:
                         # accept 'w' to identify object
                         if self.primary_key or self.model_field.is_writable:
-                            self.mode = 'rw'
+                            mode = {'r', 'w'}
+                            if isinstance(self.no_input, str):
+                                mode.update(self.no_input)
+                            if isinstance(self.no_output, str):
+                                mode.update(self.no_output)
+                            # eg. id: int = orm.Field(no_input='a')
+                            # should have mode: 'raw' instead of 'rw
+                            self.mode = ''.join(sorted(list(mode)))
 
                             if self.required is True:
                                 self.required = 'r'

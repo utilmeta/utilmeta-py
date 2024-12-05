@@ -685,6 +685,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                   with_relations: bool = None,
                   transaction: bool = False,
                   ):
+        if with_relations is None:
+            with_relations = self.pref.orm_default_save_with_relations
         with TransactionWrapper(self.model, transaction, errors_map=self.get_errors_map(False)):
             if multi(data):
                 # TODO: implement bulk create/update
@@ -769,6 +771,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                         with_relations: bool = None,
                         transaction: bool = False,
                         ):
+        if with_relations is None:
+            with_relations = self.pref.orm_default_save_with_relations
         async with TransactionWrapper(self.model, transaction, errors_map=self.get_errors_map(True)):
             if multi(data):
                 # TODO: implement bulk create/update

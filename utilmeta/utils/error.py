@@ -125,10 +125,13 @@ class Error:
 
     @property
     def status(self) -> int:
+        return self.get_status(default=500)
+
+    def get_status(self, default=None):
         status = getattr(self.exc, 'status', None)
         if isinstance(status, int) and 100 <= status <= 600:
             return status
-        return 500
+        return default
 
     @property
     def result(self):

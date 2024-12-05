@@ -58,10 +58,13 @@ def save_supervisor(data: SupervisorData) -> Supervisor:
         # from command line
         obj: Supervisor = Supervisor.objects.filter(
             init_key=data.init_key,
-            ops_api=data.ops_api
+            # ops_api=data.ops_api
         ).first()
         if not obj or obj.disabled:
             raise exceptions.NotFound('Supervisor not found or disabled')
+        if obj.node_id:
+            # already created
+            return obj
         if obj.base_url != data.base_url:
             raise exceptions.Conflict('Supervisor base_url conflicted')
         if Supervisor.objects.filter(
@@ -74,14 +77,18 @@ def save_supervisor(data: SupervisorData) -> Supervisor:
             node_id=data.node_id,
             public_key=data.public_key,
             backup_urls=data.backup_urls,
+            ops_api=data.ops_api,
+            # this ops_api might be different from the generated OperationsAPI doc
+            # maybe it is from the cluster proxy, we just update it
             connected=True,
             url=data.url,
             local=data.local,
+            init_key=None,      # empty init_key, as it is no longer useful and maybe a potential leak source
         )
         return Supervisor.objects.filter(id=obj.pk).first()     # refresh
     else:
         # from api calling
-        raise NotImplementedError
+        raise exceptions.BadRequest('Missing init_key for supervisor to be saved')
 
 
 def update_service_supervisor(service: str, node_id: str):
@@ -103,6 +110,7 @@ def connect_supervisor(
     key: str,
     base_url: str = None,
     service_id: str = None,
+    cluster_id: str = None
 ):
     from utilmeta import service
     ops_config = Operations.config()
@@ -184,9 +192,11 @@ def connect_supervisor(
     try:
         with SupervisorClient(
             base_url=base_url,
-            access_key=key,
+            access_key=None if cluster_id else key,
+            cluster_key=key if cluster_id else None,
             fail_silently=True,
-            service_id=service_id
+            service_id=service_id,
+            cluster_id=cluster_id
         ) as cli:
             resp = cli.add_node(
                 data=resources.get_metadata()
@@ -234,6 +244,8 @@ def connect_supervisor(
     print('supervisor connected successfully!')
     if url:
         print(f'please visit {url} to view and manage your APIs')
+
+    return url
 
 
 def delete_supervisor(

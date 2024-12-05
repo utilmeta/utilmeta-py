@@ -17,7 +17,7 @@ from utilmeta.core.auth.properties import User
 from utilmeta.core.response.base import Headers, JSON, OCTET_STREAM, PLAIN
 from utilmeta.utils.context import Property, ParserProperty
 from utilmeta.utils.constant import HAS_BODY_METHODS
-from utilmeta.utils import valid_url, json_dumps, get_origin, file_like, multi
+from utilmeta.utils import valid_url, json_dumps, get_origin, file_like, multi, url_join
 from utilmeta.conf import Preference
 from utype import Schema, Field, JsonSchemaGenerator
 from utype.parser.field import ParserField
@@ -371,7 +371,7 @@ class OpenAPI(BaseAPISpec):
 
         if multi(docs):
             ext_docs = []
-            for doc in external_docs:
+            for doc in docs:
                 ext_docs.extend(self.get_external_docs(doc))
             return ext_docs
 
@@ -512,6 +512,10 @@ class OpenAPI(BaseAPISpec):
                 docs = self.service.adaptor.generate(spec=self.spec)
                 if docs:
                     adaptor_docs = OpenAPISchema(docs)
+                    if not adaptor_docs.servers:
+                        adaptor_docs.servers = [
+                            ServerSchema(url=url_join(get_origin(self.base_url), self.service.adaptor.root_path))
+                        ]
             except NotImplementedError:
                 adaptor_docs = None
             except Exception as e:
@@ -523,9 +527,9 @@ class OpenAPI(BaseAPISpec):
 
         self.generate_paths()
         paths = self.paths
-        if self.base_url and paths:
-            if self.service.base_url != self.base_url:
-                paths = self.get_rel_paths(paths, self.service.base_url, self.base_url)
+        # if self.base_url and paths:
+        #     if self.service.base_url != self.base_url:
+        #         paths = self.get_rel_paths(paths, self.service.base_url, self.base_url)
 
         utilmeta_docs = OpenAPISchema(
             openapi=self.__version__,
@@ -678,19 +682,19 @@ class OpenAPI(BaseAPISpec):
             res.append({})
         return res
 
-    def get_response_name(self, response: Type[Response], routes: list = ()):
+    def get_response_name(self, response: Type[Response], names: list = ()):
         if response == Response:
             return Response.__name__
         if response in self.responses:
             for k, v in self.response_names.items():
                 if v == response:
                     return k
-        names = list(routes)
+        names = list(names)
         names.append(response.name or get_obj_name(response))
-        return '_'.join(names)
+        return re.sub('[^A-Za-z0-9]+', '_', '_'.join(names)).strip('_')
 
-    def set_response(self, response: Type[Response], routes: list = ()):
-        name = self.get_response_name(response, routes=routes)
+    def set_response(self, response: Type[Response], names: list = ()):
+        name = self.get_response_name(response, names=names)
 
         if response in self.responses:
             return name
@@ -906,12 +910,13 @@ class OpenAPI(BaseAPISpec):
             response_types.append((response_cls or Response)[rt])
 
         for resp in endpoint.response_types:
-            resp_name = self.set_response(resp, routes=operation_names)
+            resp_name = self.set_response(resp, names=operation_names)
             responses[str(resp.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
 
-        if not responses and response_cls and response_cls != Response:
-            resp_name = self.set_response(response_cls, routes=operation_names)
-            responses[str(response_cls.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
+        if response_cls and response_cls != Response:
+            resp_name = self.set_response(response_cls, names=operation_names)
+            responses.setdefault(str(response_cls.status or self.default_status),
+                                 {'$ref': f'#/components/responses/{resp_name}'})
 
         if extra_params:
             # _params = dict(extra_params)
@@ -925,7 +930,7 @@ class OpenAPI(BaseAPISpec):
         operation: dict = dict(
             operationId=operation_id,
             tags=self.add_tags(tags),
-            responses=responses,
+            responses=dict(sorted(responses.items())),
             security=self.merge_requires(extra_requires, requires)
         )
         if params:
@@ -992,12 +997,12 @@ class OpenAPI(BaseAPISpec):
 
         for after in route.after_hooks:
             for rt in after.response_types:
-                resp_name = self.set_response(rt, routes=list(tags))
+                resp_name = self.set_response(rt, names=list(tags))
                 extra_responses[str(rt.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
 
         for error, hook in route.error_hooks.items():
             for rt in hook.response_types:
-                resp_name = self.set_response(rt, routes=list(tags))
+                resp_name = self.set_response(rt, names=list(tags))
                 status = rt.status or getattr(error, 'status', None) or 'default'
                 extra_responses.setdefault(str(status), {'$ref': f'#/components/responses/{resp_name}'})
                 # set default. because error hooks is not triggered by default
@@ -1058,7 +1063,10 @@ class OpenAPI(BaseAPISpec):
         prop_params, body, prop_requires = self.parse_properties(api._properties)
         extra_params.extend(prop_params)
 
-        response_cls = getattr(api, 'response', response_cls)
+        api_response = getattr(api, 'response', None)
+        if Response.is_cls(api_response) and api_response != Response:
+            # set response
+            self.set_response(api_response, names=list(tags))
 
         for api_route in api._routes:
             if api_route.private:
@@ -1067,7 +1075,7 @@ class OpenAPI(BaseAPISpec):
                 api_route, *routes,
                 tags=tags,
                 params=extra_params,
-                response_cls=response_cls,
+                response_cls=api_response or response_cls,
                 responses=responses,
                 requires=self.merge_requires(requires, prop_requires)
             )

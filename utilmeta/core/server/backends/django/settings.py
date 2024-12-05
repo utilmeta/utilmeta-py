@@ -11,7 +11,7 @@ from utilmeta.core.orm.databases import DatabaseConnections, Database
 from utilmeta.core.cache.config import CacheConnections, Cache
 from django.conf import Settings, LazySettings
 from django.core.exceptions import ImproperlyConfigured
-from .utils import init_model_fields
+from .utils import patch_model_fields
 
 DEFAULT_MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -230,7 +230,7 @@ class DjangoSettings(Config):
         if 'sqlite' in engine:
             return {
                 'ENGINE': engine,
-                'NAME': db.name,
+                'NAME': str(db.name),
                 'OPTIONS': options
             }
         return {
@@ -344,7 +344,7 @@ class DjangoSettings(Config):
             self.change_settings('CACHES', caches, force=True)
 
         # ------------------
-        init_model_fields(service)
+        patch_model_fields(service)
         # -------------------
 
         hosts = list(self.allowed_hosts)
@@ -388,8 +388,13 @@ class DjangoSettings(Config):
             ))
 
         # set DEFAULT_AUTO_FIELD before a (probably) apps reload
+        explicit_settings = getattr(self.django_settings, '_explicit_settings', None)
         self.change_settings('DEFAULT_AUTO_FIELD',
                              self.default_autofield or DEFAULT_AUTO_FIELD, force=True)
+        if isinstance(explicit_settings, set):
+            explicit_settings.add('DEFAULT_AUTO_FIELD')
+            # this is to prevent django W042: Auto-created primary key used when not defining a
+
         if self.language:
             self.change_settings('LANGUAGE_CODE', self.language, force=True)
         if self.use_i18n:
@@ -610,7 +615,7 @@ class DjangoSettings(Config):
                 # setattr(self.django_settings, attr, value)
 
         # ------------------
-        init_model_fields(service)
+        patch_model_fields(service)
         # -------------------
 
         settings_name = self.module_name or service.module_name
@@ -642,6 +647,11 @@ class DjangoSettings(Config):
             raise ImproperlyConfigured(f'DjangoSettings: configure django failed: {e}') from e
         else:
             self.django_settings = settings
+
+            explicit_settings = getattr(self.django_settings, '_explicit_settings', None)
+            if isinstance(explicit_settings, set):
+                explicit_settings.add('DEFAULT_AUTO_FIELD')
+                # this is to prevent django W042: Auto-created primary key used when not defining a
 
     @property
     def wsgi_module_ref(self):

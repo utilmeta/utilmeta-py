@@ -232,12 +232,17 @@ def check_requirement(*pkgs: str, hint: str = None, check: bool = True, install_
                                   f'or set install-when-require=True at meta.ini to allow auto installation')
 
 
-def requires(**mp):
+def requires(*names, **mp):
+    if names:
+        for name in names:
+            mp[name] = str(name).split('.')[0]
     for import_name, install_name in mp.items():
         try:
             return import_obj(import_name)
+            # return the 1st importable
         except (ModuleNotFoundError, ImportError):
             pass
+    for import_name, install_name in mp.items():
         print(f'INFO: current service require <{install_name}> package, installing...')
         try:
             import sys
@@ -246,6 +251,11 @@ def requires(**mp):
             print(f'install package failed with error: {e}, fallback to internal solution')
             pip_main = import_obj('pip._internal:main')
             pip_main(['install', install_name])
+        try:
+            return import_obj(import_name)
+        except (ModuleNotFoundError, ImportError):
+            pass
+    return None
 
 
 def import_obj(dotted_path):

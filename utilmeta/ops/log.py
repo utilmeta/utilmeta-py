@@ -6,7 +6,7 @@ from utilmeta.utils.context import ContextProperty, Property
 from typing import List, Optional, Union
 from utilmeta.core.server import ServiceMiddleware
 from utilmeta.utils import (file_like, SECRET, HAS_BODY_METHODS,
-                            HTTPMethod, normalize, time_now, Error, ignore_errors,
+                            hide_secret_values, normalize, time_now, Error, ignore_errors,
                             replace_null, parse_user_agents, HTTP_METHODS_LOWER)
 from .config import Operations
 import threading
@@ -230,25 +230,31 @@ def setup_locals(config: Operations, close_conn: bool = False):
 
     if not _server:
         _server = Resource.get_current_server()
+        from .monitor import get_current_server
+        data = get_current_server()
         if not _server:
             from utilmeta.utils import get_mac_address
-            from .monitor import get_current_server
             mac = get_mac_address()
             _server = Resource.objects.create(
                 type='server',
-                service=service.name,
+                service=None,
+                # server is a service-neutral resource
                 node_id=node_id,
                 ident=mac,
-                data=get_current_server(),
+                data=data,
                 route=f'server/{mac}',
             )
+        else:
+            if _server.data != data:
+                _server.data = data
+                _server.save(update_fields=['data'])
 
     if not _instance:
         _instance = Resource.get_current_instance()
         from .schema import get_current_instance_data
         data = get_current_instance_data()
         if not _instance:
-            ident = _server.ident if _server else service.ip
+            ident = config.address
             _instance = Resource.objects.create(
                 type='instance',
                 service=service.name,
@@ -256,7 +262,7 @@ def setup_locals(config: Operations, close_conn: bool = False):
                 ident=ident,
                 route=f'instance/{node_id}/{ident}' if node_id else f'instance/{ident}',
                 server=_server,
-                data=get_current_instance_data()
+                data=data
             )
         else:
             if _instance.data != data:
@@ -616,14 +622,14 @@ class Logger(Property):
     def setup_request(self, request: Request):
         self._request = request
         if _supervisor:
-            supervisor_id = request.headers.get('X-Node-ID')
-            supervisor_hash = request.headers.get('X-Supervisor-Key-MD5')
+            supervisor_id = request.headers.get('x-utilmeta-node-id') or request.headers.get('x-node-id')
+            supervisor_hash = request.headers.get('X-utilmeta-supervisor-key-md5')
             if supervisor_hash and supervisor_id == _supervisor.node_id: # noqa
                 import hashlib
                 if hashlib.md5(_supervisor.public_key) == supervisor_hash: # noqa
                     self._supervised = True
         if self._supervised:
-            log_options = request.headers.get('X-Log-Options')
+            log_options = request.headers.get('x-utilmeta-log-options')
             if log_options:
                 options = [option.strip() for option in str(log_options).lower().split(',')]
                 if 'omit' in options:
@@ -674,40 +680,7 @@ class Logger(Property):
         return '<file>'
 
     def parse_values(self, data):
-        if not self.config.secret_names:
-            return data
-        if data is None:
-            return data
-        if isinstance(data, dict):
-            result = {}
-            for k, v in data.items():
-                k: str
-                if isinstance(v, list):
-                    result[k] = self.parse_values(v)
-                elif isinstance(v, dict):
-                    result[k] = self.parse_values(v)
-                elif file_like(v):
-                    result[k] = self.get_file_repr(data)
-                else:
-                    if any(key in k.lower() for key in self.config.secret_names):
-                        v = SECRET
-                    result[k] = v
-            return result
-        if isinstance(data, list):
-            result = []
-            for d in data:
-                result.append(self.parse_values(d))
-            return result
-        if file_like(data):
-            return self.get_file_repr(data)
-
-        if isinstance(data, bytes):
-            data = data.decode()
-        elif isinstance(data, (bytearray, memoryview)):
-            data = bytes(data).decode()
-        if isinstance(data, (bool, int, float, str)):
-            return data
-        return str(data)
+        return hide_secret_values(data, secret_names=self.config.secret_names, file_repr=self.get_file_repr)
 
     @classmethod
     def get_endpoint_ident(cls, request: Request) -> Optional[str]:

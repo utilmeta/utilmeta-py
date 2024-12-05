@@ -6,7 +6,6 @@ from utilmeta.core.api.endpoint import BaseEndpoint
 # from utype.parser.rule import LogicalType
 
 from utilmeta.utils import Error, function_pass
-from utilmeta.conf import Preference
 from utype.types import *
 from http.cookies import SimpleCookie
 from utilmeta.core.request import Request, properties
@@ -249,12 +248,12 @@ class ClientEndpoint(BaseEndpoint):
                     # return any
                     return response
 
-        pref = Preference.get()
+        # pref = Preference.get()
         for i, response_cls in enumerate(self.response_types):
             if response_cls.status and response.status != response_cls.status:
                 continue
             try:
-                return response_cls(response=response, strict=pref.client_default_strict_response)
+                return response_cls(response=response, strict=True)
             except Exception as e:   # noqa
                 if i == len(self.response_types) - 1 and not fail_silently:
                     raise e

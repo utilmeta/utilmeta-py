@@ -134,7 +134,7 @@ class ServerThread(threading.Thread):
         # self.asgi: Optional[Server] = None
         self.connections_override = connections_override
         self.server_class = WSGIServer if single_thread else ThreadedWSGIServer
-        self.host = self.service.host
+        self.host = self.service.host or '127.0.0.1'
         self.port = self.service.port
         super().__init__()
 
@@ -245,7 +245,7 @@ def make_live_thread(backend, port: int = None, **kwargs):
         cnt = 0
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             while True:
-                if s.connect_ex((service.host, service.port)) == 0:
+                if s.connect_ex(('127.0.0.1', service.port)) == 0:
                     break
                 time.sleep(CONNECT_INTERVAL)
                 cnt += 1
@@ -354,7 +354,7 @@ def make_live_process(backend: str = None, port: int = None, cmdline: bool = Fal
             cnt = 0
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 while True:
-                    if s.connect_ex((service.host, service.port)) == 0:
+                    if s.connect_ex(('127.0.0.1', service.port)) == 0:
                         break
                     time.sleep(CONNECT_INTERVAL)
                     cnt += 1

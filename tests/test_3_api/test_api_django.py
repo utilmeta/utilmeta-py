@@ -1,3 +1,5 @@
+import django
+
 from tests.conftest import setup_service, make_live_process, make_server_thread
 from .params import do_live_api_tests
 
@@ -15,6 +17,8 @@ django_server_thread = make_server_thread(
 
 
 def test_django_api(service, django_server_process):
+    if django.VERSION < (3, 1) and service.asynchronous:
+        return
     do_live_api_tests(service)
     service._application = None
     service.adaptor.app = None

@@ -1,5 +1,4 @@
 from .. import constant
-import typing
 import string
 import json
 import re
@@ -17,7 +16,7 @@ __all__ = [
     'gen_key', 'order_dict', 'parse_list',
     'keys_or_args',
     'order_list', 'setval', 'dict_list',
-    'regular', 'sub_regs',
+    'regular', 'hide_secret_values',
     'readable',
     'readable_size',
     'make_percent',
@@ -25,8 +24,7 @@ __all__ = [
     'map_dict',
     'copy_value', 'iterable', 'is_number',
     'dict_number_sum',
-    'temp_diff', 'temp_patch',
-    'get_arg', 'key_normalize', 'clean_line', 'camel_case',
+    'get_arg',
     'distinct_add',
     'merge_list',
     'dict_number_add',
@@ -479,111 +477,6 @@ def parse_list(data, merge=False, distinct_merge=None, merge_type: type = None) 
     return [data]
 
 
-def key_normalize(key: str) -> str:
-    from .py import valid_attr
-    if not key:
-        return ''
-    key = key.lower()
-    if '-' in key:
-        # probably header
-        key = key.replace('-', '_')
-    if valid_attr(key):
-        return key
-    if key.isdigit():
-        return 'arg_' + key
-
-    # if key in constant.NOTE_MAP:
-    #     return f'{constant.NOTE_MAP[key]}_'      # use suffix instead of prefix
-    # try:
-    #     return Filter.normalize(key)
-    # except constant.COMMON_ERRORS:
-    new_key = ''
-    for i, c in enumerate(key):
-        if c.isalnum():
-            new_key += c
-        elif c == '.':
-            new_key += '__'
-        elif c == '-':
-            new_key += '_'
-        elif c == '_':
-            new_key += c
-        elif c in ('>', '<'):
-            if i == len(key) - 2 and key[i+1] == '=':
-                new_key += f'__{constant.NOTE_MAP[c]}e'
-                break
-            new_key += f'__{constant.NOTE_MAP[c]}'
-        else:
-            new_key += '__' + constant.NOTE_MAP.get(c, '')
-    return new_key
-
-
-def camel_case(name: str, reverse: bool = False) -> str:
-    cap = True
-    s = ''
-    for i, c in enumerate(name):
-        if reverse:
-            if c.isupper():
-                if i:
-                    # not for first upper case
-                    s += '_'
-                c = c.lower()
-        else:
-            if c == '_':
-                cap = True
-                continue
-            if cap:
-                c = c.upper()
-                cap = False
-        s += c
-    return s
-
-
-def clean_line(line: str):
-    return line.replace('\t', '').replace('\n', '').replace(' ', '')
-
-
-def sub_regs(reg: str) -> typing.Tuple[tuple, dict]:
-    left_p = 0
-    right_p = 0
-    sub = None
-    ls = 0
-    ps = []
-    for i, s in enumerate(reg):
-        if s == '(':
-            if i and reg[i-1] == '\\':
-                continue
-            if sub is not None:
-                continue
-            if not left_p:
-                ls = i
-            left_p += 1
-        elif s == ')':
-            if i and reg[i-1] == '\\':
-                continue
-            if sub is not None:
-                continue
-            right_p += 1
-        elif s == '[':
-            sub = i
-        elif s == ']':
-            sub = None
-        if left_p == right_p and left_p > 0:
-            ps.append(reg[ls+1:i])
-            left_p = 0
-            right_p = 0
-    args = []
-    kwargs = {}
-    kw_reg = '\\?P<([A-Za-z0-9_-]+)>(.+)'
-    for p in ps:
-        match = re.search(kw_reg, p)
-        if match:
-            key, reg = match.groups()
-            kwargs[key] = reg
-        else:
-            args.append(p)
-    return tuple(args), kwargs
-
-
 def based_number(num: int, base: int = 10) -> str:
     num, base = int(num), int(base)
     n = abs(num)
@@ -693,56 +586,6 @@ def replace_null(data: dict, default=0):
     return {key: val or default for key, val in data.items()}
 
 
-def temp_patch(base: dict, *updates: dict):
-    def patch(b: dict, p: dict):
-        pop(p, constant.Attr.MOD)
-        for r in pop(p, constant.Attr.REM, []):
-            pop(b, r)
-        for k in list(b.keys()):
-            v = b[k]
-            if k in p:
-                if isinstance(v, dict) and isinstance(p[k], dict):
-                    patch(v, p[k])
-                elif _list_dict(v) and _list_dict(p[k]):
-                    patch(v[0], p[k][0])
-                else:
-                    b[k] = p[k]
-                p.pop(k)  # do not update this k at b
-        b.update(p)
-
-    for update in updates:
-        patch(base, update)
-    return base
-
-
-def temp_diff(base: dict, temp: dict):
-    """
-         each time a new service is generated, this method will be used
-         to compare the difference between the old root template and new one,
-         to tell the add/remove/modify of the api system, to support API version control system
-    """
-    p = {}
-    for k, v in temp.items():
-        if k not in base:
-            p[k] = v
-        elif isinstance(v, dict) and isinstance(base[k], dict):
-            df = temp_diff(base[k], v)
-            if df:
-                p[k] = df
-        elif _list_dict(v) and _list_dict(base[k]):
-            df = temp_diff(base[k][0], v[0])
-            if df:
-                p[k] = [df]
-        else:
-            if base[k] != v:
-                p[k] = v
-                setval(p, constant.Attr.MOD, v=k, array=True)
-    for k, v in base.items():
-        if k not in temp:
-            setval(p, constant.Attr.REM, v=k, array=True)
-    return p
-
-
 def make_hash(value: str, seed: str = '', mod: int = 2 ** 32):
     return int(hashlib.md5((str(value) + str(seed or '')).encode()).hexdigest(), 16) % mod
 
@@ -802,3 +645,45 @@ def gen_key(digit=64, alnum=False, lower=False, excludes: List[str] = ('$', '\\'
         sample += sample
     return ''.join(secrets.choice(sample) for i in range(digit))    # noqa
     # return ''.join(random.sample(sample, digit))
+
+
+def hide_secret_values(data, secret_names, secret_value=constant.SECRET, file_repr: Union[Callable, str] = '<file>'):
+    if not secret_names:
+        return data
+    if data is None:
+        return data
+    from .py import file_like
+    if isinstance(data, dict):
+        result = {}
+        for k, v in data.items():
+            k: str
+            if isinstance(v, list):
+                result[k] = hide_secret_values(v, secret_names, secret_value=secret_value, file_repr=file_repr)
+            elif isinstance(v, dict):
+                result[k] = hide_secret_values(v, secret_names, secret_value=secret_value, file_repr=file_repr)
+            elif file_like(v):
+                result[k] = file_repr(v) if callable(file_repr) else file_repr
+            else:
+                if any(key in k.lower() for key in secret_names):
+                    if isinstance(v, bool) or not v:
+                        # for bool value, empty value (0, None, '')
+                        # we do not hide the value
+                        pass
+                    else:
+                        v = secret_value
+                result[k] = v
+        return result
+    if isinstance(data, list):
+        result = []
+        for d in data:
+            result.append(hide_secret_values(d, secret_names, secret_value=secret_value, file_repr=file_repr))
+        return result
+    if file_like(data):
+        return file_repr(data) if callable(file_repr) else file_repr
+    if isinstance(data, bytes):
+        data = data.decode()
+    elif isinstance(data, (bytearray, memoryview)):
+        data = bytes(data).decode()
+    if isinstance(data, (bool, int, float, str)):
+        return data
+    return str(data)

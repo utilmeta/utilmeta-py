@@ -21,6 +21,10 @@ class ResponseAdaptor(BaseAdaptor):
         raise NotImplementedError
 
     @property
+    def request(self):
+        return None
+
+    @property
     def status(self):
         raise NotImplementedError
 
@@ -78,7 +82,7 @@ class ResponseAdaptor(BaseAdaptor):
         content_type = self.content_type
         if not content_type:
             return False
-        return content_type == utils.RequestType.JSON
+        return content_type.startswith(utils.RequestType.JSON)
 
     @property
     def xml_type(self):

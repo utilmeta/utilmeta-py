@@ -8,7 +8,7 @@ from apiflask import APIFlask, Schema, abort
 from apiflask.fields import Integer, String
 from apiflask.validators import Length, OneOf
 
-app = APIFlask(__name__)
+app = APIFlask(__name__, root_path='/api')
 
 pets = [
     {'id': 0, 'name': 'Kitty', 'category': 'cat'},
@@ -25,12 +25,6 @@ class PetOut(Schema):
     id = Integer()
     name = String()
     category = String()
-
-
-@app.get('/')
-def say_hello():
-    # returning a dict or list equals to use jsonify()
-    return {'message': 'Hello!'}
 
 
 @app.get('/pets/<int:pet_id>')
@@ -55,6 +49,13 @@ Operations(
     base_url=f'http://127.0.0.1:{PORT}',
     eager_migrate=True
 ).integrate(app, __name__)
+
+
+@app.get('/hello')
+def say_hello():
+    # returning a dict or list equals to use jsonify()
+    return {'message': 'Hello!'}
+
 
 if __name__ == '__main__':
     try:

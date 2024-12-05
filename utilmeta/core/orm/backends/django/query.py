@@ -1,6 +1,7 @@
 import decimal
 
-from django.db.models import sql, Case
+from django.db.models import sql
+from django.core.exceptions import EmptyResultSet
 from django.db.models.sql.compiler import SQLUpdateCompiler, SQLCompiler
 from ...databases import DatabaseConnections
 from .expressions import Ref, Value
@@ -103,7 +104,11 @@ class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
                 self.query.add_filter(*filters)
             else:
                 self.query.add_filter(filters)
-            self.query.related_ids = related_ids
+
+            if django.VERSION < (3, 2):
+                self.query.related_ids = idents
+            else:
+                self.query.related_ids = related_ids
         else:
             # The fast path. Filters and updates in one query.
             filters = ("pk__in", query)
@@ -152,12 +157,29 @@ class AwaitableQuery(sql.Query):
 
     # adapt backend
     if django.VERSION < (4, 2):
-        def exists(self, using, limit=True):
-            q = super().exists(using, limit=limit)
-            q.add_annotation(Value("1"), "a")       # use str instead of int
-            return q
+        if django.VERSION < (3, 2):
+            def exists(self, using, limit=True):
+                q = self.clone()
+                if not q.distinct:
+                    if q.group_by is True:
+                        q.add_fields((f.attname for f in self.model._meta.concrete_fields), False)
+                        # Disable GROUP BY aliases to avoid orphaning references to the
+                        # SELECT clause which is about to be cleared.
+                        q.set_group_by(allow_aliases=False)
+                    q.clear_select_clause()
+                q.clear_ordering(True)
+                q.set_limits(high=1)
+                compiler = q.get_compiler(using=using)
+                compiler.query.add_extra({'a': 1}, None, None, None, None, None)
+                compiler.query.set_extra_mask(['a'])
+                return compiler.query
+        else:
+            def exists(self, using, limit=True):
+                q = super().exists(using, limit=limit)
+                q.add_annotation(Value("1"), "a")       # use str instead of int
+                return q
 
-        def get_aggregation_query(self, added_aggregate_names):
+        def get_aggregation_query(self, added_aggregate_names, using=None):
             """
             Return the dictionary with the values of the existing aggregations.
             """
@@ -189,7 +211,10 @@ class AwaitableQuery(sql.Query):
                 from django.db.models.sql.subqueries import AggregateQuery
                 inner_query = self.clone()
                 inner_query.subquery = True
-                outer_query = AggregateQuery(self.model, inner_query)
+                if django.VERSION < (3, 2):
+                    outer_query = AggregateQuery(self.model)
+                else:
+                    outer_query = AggregateQuery(self.model, inner_query)
                 inner_query.select_for_update = False
                 inner_query.select_related = False
                 inner_query.set_annotation_mask(self.annotation_select)
@@ -242,6 +267,15 @@ class AwaitableQuery(sql.Query):
                     inner_query.select = (
                         self.model._meta.pk.get_col(inner_query.get_initial_alias()),
                     )
+
+                if django.VERSION < (3, 2):
+                    try:
+                        outer_query.add_subquery(inner_query, using)
+                    except EmptyResultSet:
+                        return {
+                            alias: None
+                            for alias in outer_query.annotation_select
+                        }
             else:
                 outer_query = self
                 self.select = ()
@@ -259,7 +293,7 @@ class AwaitableQuery(sql.Query):
             q.add_annotation(Value("1"), "a")       # use str instead of int
             return q
 
-        def get_aggregation_query(self, aggregate_exprs):
+        def get_aggregation_query(self, aggregate_exprs, using=None):
             """
             Return the dictionary with the values of the existing aggregations.
             """
@@ -404,7 +438,7 @@ class AwaitableQuery(sql.Query):
     async def aget_aggregation(self, using, added_aggregate_names):
         if not added_aggregate_names:
             return {}
-        outer_query = self.get_aggregation_query(added_aggregate_names)
+        outer_query = self.get_aggregation_query(added_aggregate_names, using=using)
         # empty_set_result = [
         #     expression.empty_result_set_value
         #     for expression in outer_query.annotation_select.values()

@@ -407,7 +407,8 @@ class TestSchemaQuery:
             username='new user 1',
             followings=[1, 2]
         )
-        user1.save(with_relations=True)
+        user1.save()
+        # test default with_relations=True
         user1_inst: User = user1.get_instance(fresh=True)
         assert user1_inst.username == 'new user 1'
         assert set(Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)) == {1, 2}
@@ -536,7 +537,9 @@ class TestSchemaQuery:
             username='async new user 1',
             followings=[1, 2]
         )
-        await user1.asave(with_relations=True)
+        await user1.asave()
+        # test default with_relations=True
+
         user1_inst: User = await user1.aget_instance(fresh=True)
         assert user1_inst.username == 'async new user 1'
         assert {v async for v in Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)} == {1, 2}

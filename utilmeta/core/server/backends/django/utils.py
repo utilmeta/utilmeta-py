@@ -1,11 +1,13 @@
 import sys
 import os
 import warnings
+import django
 
 
-def init_model_fields(service):
+def patch_model_fields(service):
     if sys.version_info >= (3, 9) or os.name != 'nt':
-        return
+        if django.VERSION >= (3, 1):
+            return
 
     # sqlite in-compat
     from utilmeta.core.orm import DatabaseConnections
@@ -21,9 +23,10 @@ def init_model_fields(service):
         if not has_sqlite:
             return
         if has_not_sqlite:
-            warnings.warn(f'You are using mixed database engines with sqlite3 in Windows under Python 3.9, '
-                          f'JSONField cannot operate properly')
-            return
+            if django.VERSION >= (3, 1):
+                warnings.warn(f'You are using mixed database engines with sqlite3 in Windows under Python 3.9, '
+                              f'JSONField cannot operate properly')
+                return
 
     from django.db import models
     from utype import JSONEncoder
@@ -72,3 +75,6 @@ def init_model_fields(service):
             return value
 
     models.JSONField = RawJSONField
+    if django.VERSION < (3, 1):
+        from django.db.models import PositiveIntegerField
+        models.PositiveBigIntegerField = PositiveIntegerField

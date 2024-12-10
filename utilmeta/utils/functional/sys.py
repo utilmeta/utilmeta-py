@@ -592,7 +592,14 @@ def path_merge(base: str, path: str):
 
     if '..' in path:
         divider = os.sep
-        dirs = path.split(divider)
+        if divider in path:
+            dirs = path.split(divider)
+        elif '/' in path:
+            dirs = path.split('/')
+        elif '\\' in path:
+            dirs = path.split('\\')
+        else:
+            dirs = [path]
         backs = dirs.count('..')
         while backs:
             base = os.path.dirname(base)

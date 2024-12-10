@@ -68,11 +68,13 @@ class OperationWorkerTask(BaseCycleTask):
     DISCONNECTED_WORKER_RETENTION = timedelta(hours=12)
     DISCONNECTED_INSTANCE_RETENTION = timedelta(days=3)
     DISCONNECTED_SERVER_RETENTION = timedelta(days=3)
-    AGGREGATION_EXPIRE_TIME = [timedelta(days=1), timedelta(days=7)]
+    AGGREGATION_EXPIRE_TIME = [timedelta(days=7), timedelta(days=30)]
 
     LAYER_INTERVAL = [timedelta(hours=1), timedelta(days=1)]
     DEFAULT_CPU_INTERVAL = 1
     MAX_SYNC_RETRIES = 10
+    UPDATE_BATCH_MAX_SIZE = 50
+    REPORT_BATCH_MAX_SIZE = 50
 
     def __init__(self, config: Operations):
         self.config = config
@@ -529,13 +531,13 @@ class OperationWorkerTask(BaseCycleTask):
         ).delete()
         VersionLog.objects.filter(
             time__lt=now - max_retention_time,
-        )
+        ).delete()
         AlertLog.objects.filter(
             time__lt=now - max_retention_time,
-        )
+        ).delete()
         AggregationLog.objects.filter(
             to_time__lt=now - max_retention_time,
-        )
+        ).delete()
         # ---------------------------------
         # WORKER RETENTION ----------------
         WorkerMonitor.objects.filter(
@@ -621,13 +623,28 @@ class OperationWorkerTask(BaseCycleTask):
     def utc_day_begin(self):
         return self._last_exec.astimezone(timezone.utc).hour == 0
 
+    @property
+    def daily_report(self):
+        if self.daily_aggregation:
+            if self.daily_aggregation.to_time == self.current_day:
+                # already
+                return False
+        if not self.is_worker_primary:
+            # check here also
+            return False
+        if not self.hourly_aggregation:
+            # wait for at least an hourly aggregation
+            return False
+        return True
+
     @ignore_errors
     def aggregation(self):
         self.logs_aggregation(0)
 
-        if self.utc_day_begin or not self.daily_aggregation or \
-                (not self.daily_aggregation.reported_time and
-                 self.hourly_aggregation and self.hourly_aggregation.reported_time):
+        if self.daily_report:
+            # 1. it is the UTC begin
+            # 2. daily aggregation not generated
+            # 3. hourly aggregation already generated and reported
             self.logs_aggregation(1)
 
     def logs_aggregation(self, layer: int = 0):
@@ -710,6 +727,7 @@ class OperationWorkerTask(BaseCycleTask):
                     if self.hourly_aggregation.reported_time:
                         report = True
                 elif self.hourly_aggregation.to_time > current_time:
+                    # already ahead of this layer 1 aggregation
                     report = True
         else:
             prob_1 = ((self._last_exec - current_time).total_seconds() + self.interval * 2) / layer_seconds
@@ -726,11 +744,12 @@ class OperationWorkerTask(BaseCycleTask):
         if self.supervisor.local:
             return
 
-        from .client import SupervisorClient
+        from .client import SupervisorClient, SupervisorReportResponse
 
         with SupervisorClient(
             node_id=self.node_id,
-            default_timeout=self.config.default_timeout
+            default_timeout=self.config.default_timeout,
+            fail_silently=True
         ) as client:
             resp = client.report_analytics(
                 data=dict(
@@ -744,45 +763,90 @@ class OperationWorkerTask(BaseCycleTask):
             if not resp.success:
                 updates.update(error=resp.message)
             else:
+                aggregation.reported_time = resp.time or self._last_exec
                 updates.update(
                     remote_id=resp.result.id,
-                    reported_time=resp.time or self._last_exec
+                    reported_time=aggregation.reported_time
                 )
 
             AggregationLog.objects.filter(
                 pk=aggregation.pk
             ).update(**updates)
 
+            success = isinstance(resp, SupervisorReportResponse) and resp.success
+            if not success:
+                return
+
             # if this report is successful, we can check if there are missing reports
-            for obj in AggregationLog.objects.filter(
+            missing_reports = AggregationLog.objects.filter(
                 supervisor=self.supervisor,
-                layer=layer,
+                # layer=layer,
+                # no restrict on the layer
                 reported_time=None,
                 created_time__gte=self._last_exec - self.AGGREGATION_EXPIRE_TIME[layer]
-            ).order_by('to_time').exclude(pk=aggregation.pk):
-                obj: AggregationLog
-                service = obj.data.get('service')
-                if not service:
-                    continue
-                resp = client.report_analytics(
-                    data=dict(
-                        time=obj.to_time.astimezone(timezone.utc),
-                        layer=obj.layer,
-                        interval=layer_seconds,
-                        **obj.data
+            ).order_by('to_time').exclude(pk=aggregation.pk)
+
+            missing_count = missing_reports.count()
+            if missing_count:
+                batch_size = self.REPORT_BATCH_MAX_SIZE
+                empty_missing_reports = []
+                updates = []
+                errors = []
+
+                for offset in range(0, missing_count, batch_size):
+                    batch_missing_reports = []
+                    # using batch to handle history missing report
+                    # avoid sending massive reports
+                    values = []
+                    for obj in list(missing_reports[offset: offset + batch_size]):
+                        obj: AggregationLog
+                        service = obj.data.get('service')
+                        if not service:
+                            empty_missing_reports.append(obj)
+                            continue
+                        batch_missing_reports.append(obj)
+                        values.append(dict(
+                            time=obj.to_time.astimezone(timezone.utc),
+                            layer=obj.layer,
+                            interval=layer_seconds,
+                            **obj.data
+                        ))
+                    if values:
+                        resp = client.batch_report_analytics(
+                            data=values
+                        )
+                        if isinstance(resp.result, list):
+
+                            for res, report in zip(resp.result, batch_missing_reports):
+                                remote_id = res.get('id') if isinstance(res, dict) else None
+                                if remote_id:
+                                    updates.append(AggregationLog(
+                                        id=report.pk,
+                                        remote_id=remote_id,
+                                        reported_time=resp.time or self._last_exec
+                                    ))
+                                else:
+                                    errors.append(AggregationLog(
+                                        id=report.pk,
+                                        error=res.get('error', str(res)) if isinstance(res, dict) else str(res)
+                                    ))
+
+                if updates:
+                    AggregationLog.objects.bulk_update(
+                        updates, fields=['remote_id', 'reported_time'],
+                        batch_size=self.UPDATE_BATCH_MAX_SIZE
                     )
-                )
-                updates = {}
-                if not resp.success:
-                    updates.update(error=resp.message)
-                else:
-                    updates.update(
-                        remote_id=resp.result.id,
-                        reported_time=resp.time or self._last_exec
+                if errors:
+                    AggregationLog.objects.bulk_update(
+                        errors, fields=['error'],
+                        batch_size=self.UPDATE_BATCH_MAX_SIZE
                     )
-                AggregationLog.objects.filter(
-                    pk=obj.pk
-                ).update(**updates)
+                if empty_missing_reports:
+                    AggregationLog.objects.filter(
+                        pk__in=[obj.pk for obj in empty_missing_reports]
+                    ).update(
+                        reported_time=self._last_exec or time_now()
+                    )
 
     def heartbeat(self):
         pass

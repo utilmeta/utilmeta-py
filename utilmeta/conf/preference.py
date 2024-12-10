@@ -49,6 +49,7 @@ class Preference(Config):
         # ---------
         orm_default_save_with_relations: bool = True,
         orm_default_query_distinct: Optional[bool] = None,
+        # orm_schema_integrity_error_cls: Optional[Type[Exception]] = None,
         # orm_default_filter_required: Optional[bool] = False,
         # orm_default_field_fail_silently: bool = False,
     ):

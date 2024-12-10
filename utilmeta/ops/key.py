@@ -2,6 +2,7 @@ from jwcrypto import jwk, jwe, jwt
 from typing import Union
 from jwcrypto.common import json_encode, json_decode
 from typing import Optional
+import base64
 
 RSA_ALGO = 'RSA-OAEP-256'
 
@@ -15,6 +16,11 @@ def generate_key_pair(identifier: str):
 
 def encrypt_data(payload, public_key: Union[str, dict]) -> str:
     if not isinstance(public_key, dict):
+        if isinstance(public_key, str):
+            if not public_key.startswith('{') or not public_key.endswith('}'):
+                # BASE64
+                public_key = base64.decodebytes(public_key.encode()).decode()
+
         public_key = json_decode(public_key)
     pubkey_obj = jwk.JWK(**public_key)
     protected_header = {

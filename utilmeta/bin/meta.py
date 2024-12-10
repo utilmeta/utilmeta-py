@@ -5,9 +5,10 @@ from .base import command, Arg
 from .commands.setup import SetupCommand
 from .commands.base import BaseServiceCommand
 from utilmeta import __version__
-from utilmeta.utils import run, import_obj
+from utilmeta.utils import run, import_obj, kill, Error
 from .constant import BLUE, RED, YELLOW
 import sys
+import psutil
 
 
 class MetaCommand(BaseServiceCommand):
@@ -53,6 +54,7 @@ class MetaCommand(BaseServiceCommand):
              app: str = Arg(alias='--app', default=None),
              service: str = Arg(alias='--service', default=None),
              main_file: str = Arg(alias='--main', default=None),
+             pid_file: str = Arg(alias='--pid', default='service.pid'),
              ):
         """
         Initialize utilmeta project with a meta.ini file
@@ -79,9 +81,11 @@ class MetaCommand(BaseServiceCommand):
                 app_obj = import_obj(app)
                 if inspect.ismodule(app_obj):
                     raise ValueError(f'--app should be a python application object, got module: {app_obj}')
-                print(f'Initializing UtilMeta project with python application: {BLUE % app}')
                 break
             except Exception as e:
+                err = Error(e)
+                err.setup()
+                print(err.message)
                 print(RED % f'python application reference: {repr(app)} failed to load: {e}')
                 app = None
 
@@ -93,10 +97,14 @@ class MetaCommand(BaseServiceCommand):
         settings = dict(app=app)
         if name:
             settings['name'] = name
-        if service:
-            settings['service'] = service
         if main_file:
             settings['main'] = main_file
+        if service:
+            settings['service'] = service
+        if pid_file:
+            settings['pidfile'] = pid_file
+
+        print(f'Initializing UtilMeta project [{BLUE % name}] with python application: {BLUE % app}')
 
         from utilmeta.utils import write_config
         write_config({
@@ -198,6 +206,47 @@ class MetaCommand(BaseServiceCommand):
             try_to_connect()
 
         run(cmd)
+
+    @command
+    def down(self):
+        pid = self.service.pid
+        if not pid:
+            if self.service.pid_file:
+                print(RED % f'meta down: PID not found in pidfile, service may not started yet')
+            else:
+                print(RED % f'meta down: requires pidfile set in meta.ini, no pid found')
+            exit(1)
+        try:
+            proc = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            print(f'meta down: service [{self.service.name}](pid={pid}) already stopped')
+            return
+        except psutil.Error as e:
+            print(RED % f'meta down: load process: {pid} failed with error: {e}')
+            exit(1)
+        proc.kill()
+        print(f'meta down: service [{self.service.name}](pid={pid}) stopped')
+
+    @command
+    def restart(self,
+                connect: bool = Arg('-c', default=False),
+                log: str = Arg('--log', default='service.log'),
+                ):
+        pid = self.service.pid
+        if not pid:
+            if self.service.pid_file:
+                return self.run(daemon=True, connect=connect, log=log)
+            print(RED % f'meta restart: requires pidfile set in meta.ini, no pid found')
+            exit(1)
+        try:
+            proc = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            return self.run(daemon=True, connect=connect, log=log)
+        except psutil.Error as e:
+            print(RED % f'meta restart: load process: {pid} failed with error: {e}')
+            exit(1)
+        proc.kill()
+        return self.run(daemon=True, connect=connect, log=log)
 
 
 def main():

@@ -5,7 +5,6 @@ from utilmeta.bin.base import command
 from .config import Operations
 from utilmeta.bin.base import Arg
 from utilmeta.utils import omit
-import base64
 from . import __website__
 from utilmeta.bin.constant import DOT, RED, GREEN, BANNER, BLUE, YELLOW
 import webbrowser
@@ -140,11 +139,6 @@ class OperationsCommand(BaseServiceCommand):
             exit(1)
 
         from .connect import connect_supervisor
-
-        if not key.startswith('{') or not key.endswith('}'):
-            # BASE64
-            key = base64.decodebytes(key.encode()).decode()
-
         connect_supervisor(
             key=key,
             base_url=to,
@@ -159,11 +153,6 @@ class OperationsCommand(BaseServiceCommand):
         # self.migrate_ops()
         # before connect
         from .connect import delete_supervisor
-
-        if not key.startswith('{') or not key.endswith('}'):
-            # BASE64
-            key = base64.decodebytes(key.encode()).decode()
-
         delete_supervisor(
             key=key,
             node_id=node

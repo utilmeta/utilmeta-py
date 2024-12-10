@@ -1,6 +1,7 @@
 from .base import BaseDatabaseAdaptor
 from typing import Mapping, TYPE_CHECKING
 import re
+from utilmeta.utils import requires
 
 if TYPE_CHECKING:
     from .config import Database
@@ -252,11 +253,19 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
         return _Transaction(db.connection, force_rollback=force_rollback, isolation=isolation)
 
     def check(self):
+        if self.config.is_mysql:
+            requires(
+                MySQLdb='mysqlclient'
+            )
+        elif self.config.is_postgresql:
+            requires(
+                psycopg='"psycopg[binary,pool]"',
+                psycopg2='psycopg2'
+            )
         if self.async_engine:
-            from utilmeta.utils import check_requirement
-            check_requirement(self.async_engine, install_when_require=True)
-        try:
-            from databases import Database
-        except (ModuleNotFoundError, ImportError) as e:
-            raise e.__class__(f'{self.__class__} as database adaptor requires to install databases. '
-                              f'use pip install databases[{self.async_engine}]') from e
+            requires(self.async_engine)
+        # try:
+        #     from databases import Database
+        # except (ModuleNotFoundError, ImportError) as e:
+        #     raise e.__class__(f'{self.__class__} as database adaptor requires to install databases. '
+        #                       f'use pip install databases[{self.async_engine}]') from e

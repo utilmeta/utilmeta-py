@@ -6,6 +6,7 @@ from typing import Optional
 from .models import Supervisor
 from .config import Operations
 from .schema import SupervisorData
+import base64
 
 # 1. meta connect --token=<ACCESS_TOKEN>
 # 2,
@@ -117,6 +118,13 @@ def connect_supervisor(
     if not ops_config:
         raise TypeError('Operations not configured')
 
+    if not key:
+        raise ValueError('Access key required to connect to supervisor')
+
+    if not key.startswith('{') or not key.endswith('}'):
+        # BASE64
+        key = base64.decodebytes(key.encode()).decode()
+
     if not base_url:
         # get action url based on the latency
         # fire 2 request for each supervisor at the same time, choose the more reliable one
@@ -131,7 +139,7 @@ def connect_supervisor(
         raise ValueError('No supervisor selected, operation failed')
 
     if service.production:
-        if not ops_config.is_local:
+        if ops_config.is_local:
             raise ValueError(f'Invalid production service operations location: {ops_config.ops_api}, '
                              f'please use UtilMeta(origin="https://YOUR-PUBLIC-HOST") '
                              f'to specify your public accessible service origin')

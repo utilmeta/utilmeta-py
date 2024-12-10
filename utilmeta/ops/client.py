@@ -92,6 +92,11 @@ class SupervisorReportResponse(SupervisorResponse):
     name = 'report'
     result: ReportResult
 
+
+class SupervisorBatchReportResponse(SupervisorResponse):
+    name = 'batch_report'
+    result: List[dict]
+
 # class AddNodeResponse(SupervisorResponse):
 #     name = 'info'
 #     result: InfoSchema
@@ -102,7 +107,8 @@ class SupervisorClient(Client):
     def add_node(self, data: NodeMetadata = request.Body) -> Union[SupervisorNodeResponse, SupervisorResponse]: pass
 
     @api.post('/')
-    async def async_add_node(self, data: NodeMetadata = request.Body) -> Union[SupervisorNodeResponse, SupervisorResponse]: pass
+    async def async_add_node(self, data: NodeMetadata = request.Body) \
+            -> Union[SupervisorNodeResponse, SupervisorResponse]: pass
 
     @api.delete('/')
     def delete_node(self) -> SupervisorResponse: pass
@@ -131,8 +137,27 @@ class SupervisorClient(Client):
     def report_analytics(self, data: dict = request.Body) -> Union[SupervisorReportResponse, SupervisorResponse]:
         pass
 
+    @api.post('/report')
+    async def async_report_analytics(self, data: dict = request.Body)\
+            -> Union[SupervisorReportResponse, SupervisorResponse]:
+        pass
+
+    @api.post('/report/batch')
+    def batch_report_analytics(self, data: list = request.Body) -> (
+            Union)[SupervisorBatchReportResponse, SupervisorResponse]:
+        pass
+
+    @api.post('/report/batch')
+    async def async_batch_report_analytics(self, data: list = request.Body) -> (
+            Union)[SupervisorBatchReportResponse, SupervisorResponse]:
+        pass
+
     @api.post('/alert')
     def alert_incident(self):
+        pass
+
+    @api.post('/alert')
+    async def async_alert_incident(self):
         pass
 
     # @utype.parse
@@ -225,7 +250,10 @@ class SupervisorClient(Client):
             pub_key = self.node_key or self.cluster_key or self.access_key
             # nearest are prior
             if pub_key:
-                encrypted = encrypt_data(req.body, public_key=pub_key)
+                try:
+                    encrypted = encrypt_data(req.body, public_key=pub_key)
+                except Exception as e:
+                    raise ValueError(f'Invalid Operations access key, encode body failed with error: {e}')
                 req.body = encrypted
                 # set request body
         return req

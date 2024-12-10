@@ -263,6 +263,7 @@ class StarletteServerAdaptor(ServerAdaptor):
                     req.adaptor.update_context(response=resp)
                 return self.response_adaptor_cls.reconstruct(resp)
         f.__wrapped__ = utilmeta_api_class
+
         if default:
             original_default = app.router.default
 

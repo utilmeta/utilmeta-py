@@ -750,7 +750,7 @@ class Logger(Property):
         response_headers = {}
         if level >= self._store_headers_level:
             request_headers = self.parse_values(dict(request.headers))
-            response_headers = self.parse_values(dict(response.headers))
+            response_headers = self.parse_values(dict(response.prepare_headers(with_content_type=True)))
 
         operation_names = var.operation_names.getter(request)
         if operation_names:

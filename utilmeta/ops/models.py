@@ -180,10 +180,21 @@ class Resource(models.Model):
     def get_current_server(cls) -> Optional['Resource']:
         # from utilmeta.utils import get_server_ip
         from utilmeta.utils import get_mac_address
-        return cls.filter(
+        from .config import Operations
+        config = Operations.config()
+        qs = cls.filter(
             type='server',
             ident=get_mac_address(),
-        ).order_by('-remote_id', 'deprecated', '-created_time').first()
+        )
+        if config.node_id:
+            qs = qs.filter(
+                models.Q(node_id=config.node_id) | models.Q(node_id=None)
+            )
+        return qs.order_by(
+            models.OrderBy(models.F('remote_id'), nulls_last=True),
+            models.OrderBy(models.F('node_id'), nulls_last=True),
+            'deprecated', '-created_time'
+        ).first()
         # first go with the remote_id
 
     @classmethod

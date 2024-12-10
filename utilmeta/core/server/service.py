@@ -3,8 +3,8 @@ from typing import Union, Type, TypeVar, Optional
 import sys
 import os
 import re
-from utilmeta.utils import (import_obj, awaitable, search_file, ignore_errors, LOCAL_IP, requires,
-                            cached_property, get_origin, load_ini, read_from, localhost)
+from utilmeta.utils import (import_obj, awaitable, search_file, ignore_errors, LOCAL_IP, requires, path_merge, get_ip,
+                            cached_property, get_origin, load_ini, read_from, write_to, localhost)
 from utilmeta.conf.base import Config
 import inspect
 from utilmeta.core.api import API
@@ -72,15 +72,21 @@ class UtilMeta:
 
         # print('MODULE NAME:', module_name)
         self.name = name
+        self.pid_file = None
 
         self.title = title
         self.description = description
         self.module_name = module_name
         self.host = host
+        self.host_addr = None
         try:
-            self.host_addr = ip_address(host) if host else None
+            host_addr = get_ip(host) if host else None
+            # try to get IP (even for a domain host)
+            if host_addr:
+                self.host_addr = ip_address(host_addr)
         except ValueError as e:
             raise ValueError(f'UtilMeta service: invalid host: {repr(host)}, must be a valid IP address') from e
+
         self.port = port
         self.scheme = scheme
         self.auto_reload = auto_reload
@@ -166,6 +172,10 @@ class UtilMeta:
                 if not isinstance(self.meta_config, dict):
                     self.meta_config = {}
                 self.name = self.name or str(self.meta_config.get('name', '')).strip()
+                self.pid_file = self.meta_config.get('pidfile') or self.meta_config.get('pid')
+                if self.pid_file:
+                    if not os.path.isabs(self.pid_file):
+                        self.pid_file = path_merge(str(self.project_dir), self.pid_file)
 
         self.name = self.name or (os.path.basename(self.project_dir) if self.project_dir else None)
         if not self.name:
@@ -175,6 +185,17 @@ class UtilMeta:
         if not re.fullmatch(r'[A-Za-z0-9_-]+', self.name):
             raise ValueError(f'UtilMeta service name: {repr(self.name)} can only contains alphanumeric characters, '
                              'underscore "_" and hyphen "-"')
+
+    @property
+    def pid(self) -> Optional[int]:
+        # main pid
+        if self.pid_file:
+            if os.path.exists(self.pid_file):
+                try:
+                    return int(read_from(self.pid_file).strip())
+                except Exception as e:
+                    warnings.warn(f'read PID failed: {e}')
+        return None
 
     def set_asynchronous(self, asynchronous: bool):
         if asynchronous is None:
@@ -508,7 +529,18 @@ class UtilMeta:
         self.resolve_port()
         self.print_info()
         self.setup()
+        self.write_pid()
         return self.adaptor.run(**kwargs)
+
+    def write_pid(self):
+        if self.pid_file:
+            pid_dir = os.path.dirname(self.pid_file)
+            if not os.path.exists(pid_dir):
+                os.makedirs(pid_dir)
+            try:
+                write_to(self.pid_file, str(os.getpid()))
+            except Exception as e:
+                warnings.warn(f'write PID to {self.pid_file} failed: {e}')
 
     def application(self):
         if not self.adaptor:

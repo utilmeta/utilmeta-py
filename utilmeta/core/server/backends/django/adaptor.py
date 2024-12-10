@@ -178,7 +178,7 @@ class DjangoServerAdaptor(ServerAdaptor):
 
             def process_response(self, django_response):
                 request = self.request or _current_request.get(None)
-                response = self.request or _current_response.get(None)
+                response = self.response or _current_response.get(None)
                 _current_request.set(None)
                 _current_response.set(None)
 

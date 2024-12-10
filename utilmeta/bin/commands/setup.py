@@ -4,11 +4,46 @@ from typing import Literal, Optional
 import os
 from ..constant import RED, META_INI, BLUE
 from utilmeta.bin import template as package
-from utilmeta.utils import read_from, write_to, import_obj, check_requirement
+from utilmeta.utils import read_from, write_to, import_obj, requires
 import shutil
 import re
 
 TEMP_PATH = package.__path__[0]
+
+DEFAULT_GIT_IGNORE = """
+.env
+*.env
+*.whl
+.idea
+.vscode
+*/.idea
+*/.vscode
+*/__pycache__
+__pycache__/
+*.py[cod]
+.coverage
+.obsidian
+*/.coverage
+*/.obsidian
+
+*.sqlite3
+*.sqlite
+*.db
+*/restats
+/.pytest_cache
+.cache
+*.pid
+*.sock
+*.log
+*.pem
+*.crt
+
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+yarn.lock
+"""
 
 
 class SetupCommand(BaseServiceCommand):
@@ -92,13 +127,13 @@ class SetupCommand(BaseServiceCommand):
                 import_obj(f'{self.SERVER_BACKENDS}.{self.backend}')
             except ModuleNotFoundError:
                 if self.backend in self.DEFAULT_SUPPORTS:
-                    check_requirement(self.backend, install_when_require=True)
+                    requires(self.backend)
                 else:
                     print(f'backend: {repr(self.backend)} not supported or not installed, please enter again')
                     self.backend = None
 
-        if self.backend == 'starlette':
-            check_requirement('uvicorn', install_when_require=True)
+        # if self.backend == 'starlette':
+        #     check_requirement('uvicorn', install_when_require=True)
 
         print(f'Enter the production host of your service (default: {self.default_host})')
         self.host = input('>>> ') or self.default_host
@@ -129,6 +164,13 @@ class SetupCommand(BaseServiceCommand):
                         with_operations=with_operations,
                         template=template
                     ))
+
+        # add gitignore file
+        write_to(os.path.join(project_path, '.gitignore'), DEFAULT_GIT_IGNORE)
+        requirements = ['utilmeta']
+        if self.backend:
+            requirements.append(self.backend)
+        write_to(os.path.join(project_path, 'requirements.txt'), '\n'.join(requirements))
 
         print(f'UtilMeta project <{BLUE % self.project_name}> successfully setup at path: {project_path}')
 

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ..base import BaseCommand, command
 from utilmeta import UtilMeta
 from utilmeta.utils import search_file, path_join, load_ini, read_from, import_obj
@@ -50,13 +52,11 @@ class BaseServiceCommand(BaseCommand):
         return self.service_config.get('service')
 
     @property
-    def main_file(self):
+    def main_file(self) -> Optional[str]:
         file: str = self.service_config.get('main')
         if not file:
-            return file
-        if file.endswith('.py'):
-            return file
-        return file + '.py'
+            return None
+        return os.path.join(self.service.project_dir, file if file.endswith('.py') else f'{file}.py')
 
     @property
     def application_ref(self):

@@ -67,6 +67,7 @@ class ModelGenerator:
 class ResourcesManager:
     EXCLUDED_APPS = ['utilmeta.ops', 'django.contrib.contenttypes']
     # we reserve other models like django users sessions
+    UPDATE_BATCH_SIZE = 50
 
     def __init__(self, service: UtilMeta = None):
         if not service:
@@ -281,8 +282,7 @@ class ResourcesManager:
                 return None
         return data
 
-    @classmethod
-    def save_resources(cls, resources: List[ResourceData], supervisor: Supervisor):
+    def save_resources(self, resources: List[ResourceData], supervisor: Supervisor):
         remote_pk_map = {val['remote_id']: val['pk'] for val in Resource.objects.filter(
             node_id=supervisor.node_id,
         ).values('pk', 'remote_id')}
@@ -297,22 +297,29 @@ class ResourcesManager:
                 remote_servers[resource.remote_id] = resource.server_id
                 resource.server_id = None
 
+            res = dict(
+                deleted_time=None,
+                service=supervisor.service,
+                node_id=supervisor.node_id,
+                **resource
+            )
+
             remote_pks.append(resource.remote_id)
             if resource.remote_id in remote_pk_map:
                 updates.append(
                     Resource(
                         id=remote_pk_map[resource.remote_id],
-                        service=supervisor.service,
-                        node_id=supervisor.node_id,
-                        deleted_time=None,
                         updated_time=now,
-                        **resource
+                        **res
                     )
                 )
             else:
+                service_q = models.Q(service=supervisor.service)
+                if resource.type == 'server':
+                    service_q |= models.Q(service=None)
                 obj = Resource.objects.filter(
                     models.Q(node_id__isnull=True) | models.Q(node_id=supervisor.node_id),
-                    service=supervisor.service,
+                    service_q,
                     type=resource.type,
                     remote_id=None,
                     ident=resource.ident,
@@ -327,28 +334,24 @@ class ResourcesManager:
                     updates.append(
                         Resource(
                             id=obj.pk,
-                            service=supervisor.service,
-                            node_id=supervisor.node_id,
-                            deleted_time=None,
                             updated_time=now,
-                            **resource
+                            **res
                         )
                     )
                     continue
 
-                creates.append(
-                    Resource(
-                        service=supervisor.service,
-                        node_id=supervisor.node_id,
-                        **resource
-                    )
-                )
+                creates.append(Resource(**res))
 
         if updates:
-            Resource.objects.bulk_update(
-                updates,
-                fields=['server_id', 'ident', 'route', 'deleted_time', 'updated_time', 'remote_id', 'ref', 'data'],
-            )
+            fields = ['server_id', 'ident', 'route',
+                      'deleted_time', 'updated_time',
+                      'node_id', 'service',
+                      'remote_id', 'ref', 'data']
+            batch_size = None
+            if self.ops_config.database and self.ops_config.database.is_sqlite:
+                batch_size = self.UPDATE_BATCH_SIZE
+            Resource.objects.bulk_update(updates, fields=fields, batch_size=batch_size)
+
         if creates:
             Resource.objects.bulk_create(
                 creates,
@@ -369,9 +372,9 @@ class ResourcesManager:
 
         for remote_id, server_id in remote_servers.items():
             server = Resource.filter(
+                models.Q(node_id__isnull=True) | models.Q(node_id=supervisor.node_id),
                 type='server',
                 remote_id=server_id,
-                node_id=supervisor.node_id,
             ).first()
             if server:
                 Resource.filter(

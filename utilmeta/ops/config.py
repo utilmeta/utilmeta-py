@@ -657,22 +657,20 @@ class Operations(Config):
                          f'if you trust this host, '
                          f'you need to add it to the [trusted_hosts] param of Operations config')
 
-    # def get_backend_name(self, backend):
-    #     name = str(getattr(backend, 'name', ''))
-    #     if name:
-    #         return name
-    #     if self.proxy:
-    #         raise ValueError('Operations with proxy must specify a valid name like '
-    #                          'integrate(name="your-service-name"), cannot use auto generation')
-    #     name = str(getattr(backend, '__name__', ''))
-    #     if not name:
-    #         ref_name = str(backend).lstrip('<').rstrip('>').strip()
-    #         if ' ' in ref_name:
-    #             ref_name = ref_name.split(' ')[0]
-    #         if '.' in ref_name:
-    #             ref_name = ref_name.split('.')[0]
-    #         name = ref_name or str(backend)
-    #     return name + '_service'
+    @classmethod
+    def get_backend_name(cls, backend):
+        name = str(getattr(backend, 'name', ''))
+        if name:
+            return name
+        name = str(getattr(backend, '__name__', ''))
+        if not name:
+            ref_name = str(backend).lstrip('<').rstrip('>').strip()
+            if ' ' in ref_name:
+                ref_name = ref_name.split(' ')[0]
+            if '.' in ref_name:
+                ref_name = ref_name.split('.')[0]
+            name = ref_name or str(backend)
+        return name + '_service'
 
     @classmethod
     def get_service_name(cls, backend):
@@ -692,11 +690,16 @@ class Operations(Config):
                 name = str(meta_config.get('name', '')).strip()
         if not name:
             name = str(getattr(backend, 'name', ''))
-        return name or os.path.basename(os.path.dirname(meta_path))
+        if name:
+            return name
+        if meta_path:
+            return os.path.basename(os.path.dirname(meta_path))
+        return cls.get_backend_name(backend)
 
     def integrate(self, backend, module=None, name: str = None):
         parsed = urlsplit(self.route)
         route = parsed.path
+        root_url = None
         if parsed.scheme:
             # is url
             origin = get_origin(self.route)
@@ -709,9 +712,10 @@ class Operations(Config):
             raise ValueError('Integrate utilmeta.ops.Operations requires to set a base_url of your API service, ' + eg)
         else:
             url_parsed = urlsplit(self._base_url)
-            if url_parsed.path:
-                route = url_join(url_parsed.path, route, with_scheme=False)
+            # if url_parsed.path:
+            #     route = url_join(url_parsed.path, route, with_scheme=False)
             origin = get_origin(self._base_url)
+            root_url = url_parsed.path
 
         from utilmeta import UtilMeta
         try:
@@ -722,6 +726,7 @@ class Operations(Config):
                 backend=backend,
                 name=name or self.get_service_name(backend),
                 origin=origin,
+                route=root_url
             )
             service._auto_created = True
         else:

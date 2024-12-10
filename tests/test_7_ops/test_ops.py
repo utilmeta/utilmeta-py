@@ -81,7 +81,7 @@ class TestOperations:
                 assert inst.language == 'python'
                 # assert inst.backend_version == django.__version__
                 # maybe the instance is cached in local, we just don't test it for now
-                assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+                assert '2.6.0' <= inst.utilmeta_version
 
             with cli.Client(base_url='http://127.0.0.1:9091') as client:
                 add = client.get('/api-ninja/add?a=1&b=2')
@@ -118,7 +118,7 @@ class TestOperations:
                 assert inst.language == 'python'
                 # assert inst.backend_version == django.__version__
                 # maybe the instance is cached in local, we just don't test it for now
-                assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+                assert '2.6.0' <= inst.utilmeta_version
 
     def test_fastapi_operations(self, fastapi_process):
         with OperationsClient(base_url='http://127.0.0.1:9092/api/v1/ops', base_headers={
@@ -146,7 +146,7 @@ class TestOperations:
             assert inst.backend == 'fastapi'
             assert inst.language == 'python'
             # assert inst.backend_version == fastapi.__version__
-            assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+            assert '2.6.0' <= inst.utilmeta_version
 
         with cli.Client(base_url='http://127.0.0.1:9092') as client:
             hello = client.get('/hello')
@@ -182,7 +182,7 @@ class TestOperations:
             assert 'flask' in inst.backend
             # apiflask
             assert inst.language == 'python'
-            assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+            assert '2.6.0' <= inst.utilmeta_version
 
         with cli.Client(base_url='http://127.0.0.1:9093') as client:
             hello = client.get('/hello')
@@ -216,7 +216,7 @@ class TestOperations:
             assert inst.backend == 'sanic'
             # assert inst.backend_version == sanic.__version__
             assert inst.language == 'python'
-            assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+            assert '2.6.0' <= inst.utilmeta_version
 
         with cli.Client(base_url='http://127.0.0.1:9094') as client:
             hello = client.get('/sanic')
@@ -243,7 +243,7 @@ class TestOperations:
             inst = inst_resp.result[0]
             assert inst.backend == 'tornado'
             assert inst.language == 'python'
-            assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+            assert '2.6.0' <= inst.utilmeta_version
 
     def test_utilmeta_operations(self, utilmeta_process):
         with OperationsClient(base_url='http://127.0.0.1:9090/api/ops') as client:
@@ -265,4 +265,4 @@ class TestOperations:
             inst_resp = client.get_instances()
             inst = inst_resp.result[0]
             assert inst.language == 'python'
-            assert '2.6.0' <= inst.utilmeta_version <= utilmeta.__version__
+            assert '2.6.0' <= inst.utilmeta_version

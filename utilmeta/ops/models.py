@@ -37,7 +37,9 @@ class Supervisor(models.Model):
     # will require an update
     url = models.URLField(default=None, null=True)
 
-    operation_timeout = models.DecimalField(max_digits=8, decimal_places=3, default=None, null=True)
+    operation_timeout = models.DecimalField(
+        max_digits=8, decimal_places=3, default=None, null=True
+    )
     # open_scopes = models.JSONField(default=list)
     # disabled_scopes = models.JSONField(default=list)
 
@@ -70,30 +72,27 @@ class Supervisor(models.Model):
     # etag is generated from supervisor
 
     class Meta:
-        db_table = 'utilmeta_supervisor'
+        db_table = "utilmeta_supervisor"
 
     @classmethod
     def filter(cls, *args, **kwargs) -> models.QuerySet:
-        q = models.Q(
-            local=True
-        ) | models.Q(
+        q = models.Q(local=True) | models.Q(
             public_key__isnull=False,
         )
-        kwargs.update(
-            node_id__isnull=False,
-            disabled=False
-        )
+        kwargs.update(node_id__isnull=False, disabled=False)
         return cls.objects.filter(*args, q, **kwargs)
 
     @classmethod
     def current(cls) -> models.QuerySet:
         from .config import Operations
+
         config = Operations.config()
         kwargs = {}
         if config and config.node_id:
             kwargs.update(node_id=config.node_id)
         else:
             from utilmeta import service
+
             kwargs.update(service=service.name)
         return cls.filter(**kwargs)
 
@@ -101,7 +100,9 @@ class Supervisor(models.Model):
 class AccessToken(models.Model):
     objects = models.Manager()
 
-    issuer = models.ForeignKey(Supervisor, related_name='access_tokens', on_delete=models.CASCADE)
+    issuer = models.ForeignKey(
+        Supervisor, related_name="access_tokens", on_delete=models.CASCADE
+    )
     token_id = models.CharField(max_length=200, unique=True)
     issued_at = models.DateTimeField(default=None, null=True)
     subject = models.CharField(max_length=500, default=None, null=True)
@@ -123,7 +124,7 @@ class AccessToken(models.Model):
     # revoke tokens of a subject if it's permission is changed or revoked
 
     class Meta:
-        db_table = 'utilmeta_access_token'
+        db_table = "utilmeta_access_token"
 
 
 class Resource(models.Model):
@@ -153,9 +154,11 @@ class Resource(models.Model):
     # supervisor = models.ForeignKey(Supervisor, related_name='resources', on_delete=models.CASCADE)
 
     server = models.ForeignKey(
-        'self', related_name='resources',
+        "self",
+        related_name="resources",
         on_delete=models.SET_NULL,
-        default=None, null=True
+        default=None,
+        null=True,
     )
     server_id: Optional[int]
     data: dict = models.JSONField(default=dict, encoder=JSONEncoder)
@@ -169,7 +172,7 @@ class Resource(models.Model):
     # server / instance / database / cached -> disconnected
 
     class Meta:
-        db_table = 'utilmeta_resource'
+        db_table = "utilmeta_resource"
 
     @classmethod
     def filter(cls, *args, **kwargs):
@@ -177,33 +180,35 @@ class Resource(models.Model):
         return cls.objects.filter(*args, **kwargs)
 
     @classmethod
-    def get_current_server(cls) -> Optional['Resource']:
+    def get_current_server(cls) -> Optional["Resource"]:
         # from utilmeta.utils import get_server_ip
+        from utilmeta.core.orm.backends.django.expressions import OrderBy
         from utilmeta.utils import get_mac_address
         from .config import Operations
+
         config = Operations.config()
         qs = cls.filter(
-            type='server',
+            type="server",
             ident=get_mac_address(),
         )
         if config.node_id:
-            qs = qs.filter(
-                models.Q(node_id=config.node_id) | models.Q(node_id=None)
-            )
+            qs = qs.filter(models.Q(node_id=config.node_id) | models.Q(node_id=None))
         return qs.order_by(
-            models.OrderBy(models.F('remote_id'), nulls_last=True),
-            models.OrderBy(models.F('node_id'), nulls_last=True),
-            'deprecated', '-created_time'
+            OrderBy(models.F("remote_id"), nulls_last=True),
+            OrderBy(models.F("node_id"), nulls_last=True),
+            "deprecated",
+            "-created_time",
         ).first()
         # first go with the remote_id
 
     @classmethod
-    def get_current_instance(cls) -> Optional['Resource']:
+    def get_current_instance(cls) -> Optional["Resource"]:
         from utilmeta import service
         from .config import Operations
+
         config = service.get_config(Operations)
         return cls.filter(
-            type='instance',
+            type="instance",
             service=service.name,
             ident=config.address
             # server=cls.get_current_server(),
@@ -230,15 +235,17 @@ class SystemMetrics(models.Model):
 class DatabaseConnection(models.Model):
     objects = models.Manager()
 
-    database: Resource = models.ForeignKey(Resource, related_name='database_connections', on_delete=models.CASCADE)
+    database: Resource = models.ForeignKey(
+        Resource, related_name="database_connections", on_delete=models.CASCADE
+    )
     # remote_id = CharField(max_length=100)
     status = models.CharField(max_length=40)
     active = models.BooleanField(default=False)
-    client_addr = models.GenericIPAddressField()   # mysql use ADDR:PORT as HOST
+    client_addr = models.GenericIPAddressField()  # mysql use ADDR:PORT as HOST
     client_port = models.PositiveIntegerField()
     pid = models.PositiveIntegerField(default=None, null=True)
 
-    query = models.TextField(default='')
+    query = models.TextField(default="")
     operation = models.CharField(max_length=32, default=None, null=True)
     tables = models.JSONField(default=list, encoder=JSONEncoder)
 
@@ -251,7 +258,7 @@ class DatabaseConnection(models.Model):
     data = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
-        db_table = 'utilmeta_database_connection'
+        db_table = "utilmeta_database_connection"
         # unique_together = ('database', 'remote_id')
 
 
@@ -259,13 +266,20 @@ class ServiceMetrics(models.Model):
     """
     request metrics that can simply be calculated in form of incr and divide
     """
-    in_traffic = models.PositiveBigIntegerField(default=0, null=True)    # in bytes
-    out_traffic = models.PositiveBigIntegerField(default=0, null=True)    # in bytes
+
+    in_traffic = models.PositiveBigIntegerField(default=0, null=True)  # in bytes
+    out_traffic = models.PositiveBigIntegerField(default=0, null=True)  # in bytes
     # avg process time of requests made from this service
-    outbound_requests = models.PositiveIntegerField(default=0)      # total request log count
+    outbound_requests = models.PositiveIntegerField(
+        default=0
+    )  # total request log count
     outbound_rps = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    outbound_timeouts = models.PositiveBigIntegerField(default=0)    # total timeout outbound_requests
-    outbound_errors = models.PositiveBigIntegerField(default=0)      # total error outbound_requests
+    outbound_timeouts = models.PositiveBigIntegerField(
+        default=0
+    )  # total timeout outbound_requests
+    outbound_errors = models.PositiveBigIntegerField(
+        default=0
+    )  # total error outbound_requests
     outbound_avg_time = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     queries_num = models.PositiveBigIntegerField(default=0)
@@ -286,23 +300,37 @@ class ServiceMetrics(models.Model):
 
 
 class Worker(SystemMetrics, ServiceMetrics):
-    server = models.ForeignKey(Resource, related_name='server_workers', on_delete=models.CASCADE)
-    instance = models.ForeignKey(Resource, related_name='instance_workers', on_delete=models.CASCADE)
+    server = models.ForeignKey(
+        Resource, related_name="server_workers", on_delete=models.CASCADE
+    )
+    instance = models.ForeignKey(
+        Resource, related_name="instance_workers", on_delete=models.CASCADE
+    )
 
     pid: int = models.PositiveIntegerField()
     memory_info = models.JSONField(default=dict, encoder=JSONEncoder)
     threads = models.PositiveIntegerField(default=0)
     start_time: datetime = models.DateTimeField(default=time_now)
     # utility = ForeignKey(ServiceUtility, related_name='workers', on_delete=SET_NULL, null=True, default=None)
-    master = models.ForeignKey('self', related_name='workers', on_delete=models.CASCADE, null=True, default=None)
+    master = models.ForeignKey(
+        "self",
+        related_name="workers",
+        on_delete=models.CASCADE,
+        null=True,
+        default=None,
+    )
     connected = models.BooleanField(default=True)
     # type = ChoiceField(WorkerType.gen(), retrieve_key=False, store_key=False, default=WorkerType.common)
-    time: datetime = models.DateTimeField(default=time_now)  # latest metrics update time
+    time: datetime = models.DateTimeField(
+        default=time_now
+    )  # latest metrics update time
 
     status = models.CharField(max_length=100, default=None, null=True)
     user = models.CharField(max_length=100, default=None, null=True)
 
-    retire_time = models.DateTimeField(default=None, null=True)    # only work for task worker for now
+    retire_time = models.DateTimeField(
+        default=None, null=True
+    )  # only work for task worker for now
     reload_params = models.JSONField(default=dict, encoder=JSONEncoder)
     # worker reload_on_rss (for uwsgi)
     # task.max_worker_memory (for task)
@@ -310,8 +338,8 @@ class Worker(SystemMetrics, ServiceMetrics):
     data = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
-        db_table = 'utilmeta_worker'
-        unique_together = ('server', 'pid')
+        db_table = "utilmeta_worker"
+        unique_together = ("server", "pid")
 
     @classmethod
     def get(cls, pid: int):
@@ -321,6 +349,7 @@ class Worker(SystemMetrics, ServiceMetrics):
 
     def get_sys_metrics(self):
         import psutil
+
         try:
             process = psutil.Process(self.pid)
         except psutil.Error:
@@ -332,25 +361,30 @@ class Worker(SystemMetrics, ServiceMetrics):
         except psutil.Error:
             open_files = 0
         try:
-            net_connections = getattr(process, 'net_connections', getattr(process, 'connections'))()
+            net_connections = getattr(
+                process, "net_connections", getattr(process, "connections")
+            )()
         except (psutil.Error, AttributeError):
             net_connections = []
         return dict(
-            used_memory=getattr(mem_info, 'uss', getattr(mem_info, 'rss', 0)) or 0,
-            memory_info={f: getattr(mem_info, f) for f in getattr(mem_info, '_fields')},
+            used_memory=getattr(mem_info, "uss", getattr(mem_info, "rss", 0)) or 0,
+            memory_info={f: getattr(mem_info, f) for f in getattr(mem_info, "_fields")},
             total_net_connections=len(net_connections),
-            active_net_connections=len([c for c in net_connections if c.status != 'CLOSE_WAIT']),
+            active_net_connections=len(
+                [c for c in net_connections if c.status != "CLOSE_WAIT"]
+            ),
             file_descriptors=process.num_fds() if psutil.POSIX else None,
             cpu_percent=process.cpu_percent(interval=1),
-            memory_percent=round(process.memory_percent('uss'), 2),
+            memory_percent=round(process.memory_percent("uss"), 2),
             open_files=open_files,
             threads=process.num_threads(),
         )
 
     @classmethod
-    def load(cls, pid: int = None, **kwargs) -> Optional['Worker']:
+    def load(cls, pid: int = None, **kwargs) -> Optional["Worker"]:
         import psutil
         import os
+
         pid = pid or os.getpid()
         try:
             proc = psutil.Process(pid)
@@ -375,13 +409,11 @@ class Worker(SystemMetrics, ServiceMetrics):
 
         data.update(kwargs)
         master = cls.objects.filter(
-            pid=parent_pid,
-            server=server,
-            instance=instance
+            pid=parent_pid, server=server, instance=instance
         ).first()
 
         if master:
-            data.update(master_id=master.pk)    # do not user master=
+            data.update(master_id=master.pk)  # do not user master=
 
         # prevent transaction
         worker_qs = cls.objects.filter(
@@ -391,21 +423,14 @@ class Worker(SystemMetrics, ServiceMetrics):
         if worker_qs.exists():
             # IMPORTANT: update time as soon as Worker.load is triggered
             # to provide realtime metrics for representative
-            data.update(
-                time=time_now(),
-                connected=True
-            )
+            data.update(time=time_now(), connected=True)
             worker_qs.update(**data)
             return worker_qs.first()
 
         from django.db.utils import IntegrityError
+
         try:
-            return cls.objects.create(
-                server=server,
-                instance=instance,
-                pid=pid,
-                **data
-            )
+            return cls.objects.create(server=server, instance=instance, pid=pid, **data)
         except IntegrityError:
             return worker_qs.first()
 
@@ -415,38 +440,48 @@ class ServerMonitor(SystemMetrics):
     # task_settings = ForeignKey(TaskSettings, on_delete=SET_NULL, default=None, null=True)
     layer = models.PositiveSmallIntegerField(default=0)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
-    server = models.ForeignKey(Resource, related_name='server_metrics', on_delete=models.CASCADE)
+    server = models.ForeignKey(
+        Resource, related_name="server_metrics", on_delete=models.CASCADE
+    )
     # version = ForeignKey(VersionLog, on_delete=SET_NULL, null=True, default=None)
-    load_avg_1 = models.DecimalField(max_digits=8, decimal_places=2, default=None, null=True)
-    load_avg_5 = models.DecimalField(max_digits=8, decimal_places=2, default=None, null=True)
-    load_avg_15 = models.DecimalField(max_digits=8, decimal_places=2, default=None, null=True)
+    load_avg_1 = models.DecimalField(
+        max_digits=8, decimal_places=2, default=None, null=True
+    )
+    load_avg_5 = models.DecimalField(
+        max_digits=8, decimal_places=2, default=None, null=True
+    )
+    load_avg_15 = models.DecimalField(
+        max_digits=8, decimal_places=2, default=None, null=True
+    )
     # alert = ForeignKey(AlertLog, related_name='source_metrics', on_delete=SET_NULL, null=True, default=None)
     metrics = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
-        db_table = 'utilmeta_server_monitor'
-        ordering = ('time',)
+        db_table = "utilmeta_server_monitor"
+        ordering = ("time",)
 
     @classmethod
-    def current(cls) -> Optional['ServerMonitor']:
-        return cls.objects.last()   # already order by time
+    def current(cls) -> Optional["ServerMonitor"]:
+        return cls.objects.last()  # already order by time
 
 
 class WorkerMonitor(SystemMetrics, ServiceMetrics):
     time = models.DateTimeField(default=time_now)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
-    worker = models.ForeignKey(Worker, related_name='worker_metrics', on_delete=models.CASCADE)
+    worker = models.ForeignKey(
+        Worker, related_name="worker_metrics", on_delete=models.CASCADE
+    )
     memory_info = models.JSONField(default=dict, encoder=JSONEncoder)
     threads = models.PositiveIntegerField(default=0)
     metrics = models.JSONField(default=dict, encoder=JSONEncoder)  # extra metrics
 
     class Meta:
-        db_table = 'utilmeta_worker_monitor'
-        ordering = ('time',)
+        db_table = "utilmeta_worker_monitor"
+        ordering = ("time",)
 
     @classmethod
-    def current(cls) -> Optional['WorkerMonitor']:
-        return cls.objects.last()   # already order by time
+    def current(cls) -> Optional["WorkerMonitor"]:
+        return cls.objects.last()  # already order by time
 
 
 class InstanceMonitor(SystemMetrics, ServiceMetrics):
@@ -454,20 +489,24 @@ class InstanceMonitor(SystemMetrics, ServiceMetrics):
     layer = models.PositiveSmallIntegerField(default=0)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
 
-    instance = models.ForeignKey(Resource, related_name='instance_metrics', on_delete=models.CASCADE)
+    instance = models.ForeignKey(
+        Resource, related_name="instance_metrics", on_delete=models.CASCADE
+    )
     threads = models.PositiveIntegerField(default=0)
 
     current_workers = models.PositiveIntegerField(default=0)
 
     avg_worker_lifetime = models.PositiveBigIntegerField(default=None, null=True)
     new_spawned_workers = models.PositiveBigIntegerField(default=0)
-    avg_workers = models.DecimalField(default=None, null=True, max_digits=10, decimal_places=2)
+    avg_workers = models.DecimalField(
+        default=None, null=True, max_digits=10, decimal_places=2
+    )
 
-    metrics = models.JSONField(default=dict, encoder=JSONEncoder)   # extra metrics
+    metrics = models.JSONField(default=dict, encoder=JSONEncoder)  # extra metrics
 
     class Meta:
-        db_table = 'utilmeta_instance_monitor'
-        ordering = ('time',)
+        db_table = "utilmeta_instance_monitor"
+        ordering = ("time",)
 
 
 class DatabaseMonitor(models.Model):
@@ -477,7 +516,9 @@ class DatabaseMonitor(models.Model):
     layer = models.PositiveSmallIntegerField(default=0)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
 
-    database = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='database_metrics')
+    database = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="database_metrics"
+    )
 
     used_space = models.PositiveBigIntegerField(default=0)  # used disk space
     server_used_space = models.PositiveBigIntegerField(default=0)  # used disk space
@@ -492,11 +533,13 @@ class DatabaseMonitor(models.Model):
     queries_num = models.PositiveBigIntegerField(default=0)
     qps = models.DecimalField(max_digits=10, decimal_places=2, default=None, null=True)
     query_avg_time = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    operations = models.JSONField(default=dict, encoder=JSONEncoder)  # {'SELECT': 100, 'UPDATE': 21, ...}
+    operations = models.JSONField(
+        default=dict, encoder=JSONEncoder
+    )  # {'SELECT': 100, 'UPDATE': 21, ...}
 
     class Meta:
-        db_table = 'utilmeta_database_monitor'
-        ordering = ('time',)
+        db_table = "utilmeta_database_monitor"
+        ordering = ("time",)
 
 
 class CacheMonitor(models.Model):
@@ -506,10 +549,16 @@ class CacheMonitor(models.Model):
     layer = models.PositiveSmallIntegerField(default=0)
     interval = models.PositiveIntegerField(default=None, null=True)  # in seconds
 
-    cache = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='cache_metrics')
+    cache = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="cache_metrics"
+    )
 
-    cpu_percent = models.DecimalField(max_digits=6, decimal_places=2, default=None, null=True)
-    memory_percent = models.DecimalField(max_digits=6, decimal_places=2, default=None, null=True)
+    cpu_percent = models.DecimalField(
+        max_digits=6, decimal_places=2, default=None, null=True
+    )
+    memory_percent = models.DecimalField(
+        max_digits=6, decimal_places=2, default=None, null=True
+    )
     used_memory = models.PositiveBigIntegerField(default=0)
     file_descriptors = models.PositiveIntegerField(default=None, null=True)
     open_files = models.PositiveBigIntegerField(default=None, null=True)
@@ -521,14 +570,15 @@ class CacheMonitor(models.Model):
     metrics = models.JSONField(default=dict, encoder=JSONEncoder)
 
     class Meta:
-        db_table = 'utilmeta_cache_monitor'
-        ordering = ('time',)
+        db_table = "utilmeta_cache_monitor"
+        ordering = ("time",)
 
 
 class WebMixin(models.Model):
     """
-        Log data using http/https schemes
+    Log data using http/https schemes
     """
+
     scheme = models.CharField(default=None, null=True, max_length=20)
     method = models.CharField(default=None, null=True, max_length=20)
     # replace the unit property
@@ -561,10 +611,12 @@ class VersionLog(models.Model):
 
     service = models.CharField(max_length=100)
     node_id = models.CharField(max_length=100, default=None, null=True, db_index=True)
-    instance: Resource = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='restart_records')
+    instance: Resource = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="restart_records"
+    )
     time: datetime = models.DateTimeField(auto_now_add=True)
     # finish_time: datetime = models.DateTimeField(default=None, null=True)
-    down_time = models.PositiveBigIntegerField(default=None, null=True)     # ms
+    down_time = models.PositiveBigIntegerField(default=None, null=True)  # ms
     # down time, None means no down time
 
     success = models.BooleanField(default=None, null=True)
@@ -586,7 +638,7 @@ class VersionLog(models.Model):
     remote_id = models.CharField(max_length=100, default=None, null=True)
 
     class Meta:
-        db_table = 'utilmeta_version_log'
+        db_table = "utilmeta_version_log"
 
     # @property
     # def message(self):
@@ -613,7 +665,7 @@ class AlertType(models.Model):
     # for downgrade types, configurable
 
     subcategory = models.CharField(max_length=200)
-    name = models.CharField(max_length=100)   # settings name or custom name
+    name = models.CharField(max_length=100)  # settings name or custom name
     target = models.TextField()
     # eg
     # type.category: resource_saturated
@@ -626,19 +678,24 @@ class AlertType(models.Model):
 
     ident = models.CharField(max_length=500)
 
-    compress_window: int = models.PositiveBigIntegerField(null=True, default=None)   # seconds
+    compress_window: int = models.PositiveBigIntegerField(
+        null=True, default=None
+    )  # seconds
     min_times: int = models.PositiveIntegerField(default=1)
 
     resource = models.ForeignKey(
-        Resource, on_delete=models.SET_NULL,
-        null=True, default=None, related_name='alert_types',
+        Resource,
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
+        related_name="alert_types",
     )
 
     created_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'utilmeta_alert_type'
-        unique_together = ('service', 'ident')
+        db_table = "utilmeta_alert_type"
+        unique_together = ("service", "ident")
 
     # @classmethod
     # def get(cls, ident: str) -> Optional['AlertSettings']:
@@ -649,18 +706,29 @@ class AlertType(models.Model):
 class AlertLog(models.Model):
     objects = models.Manager()
 
-    type: AlertType = models.ForeignKey(AlertType, on_delete=models.CASCADE, related_name='alert_logs')
+    type: AlertType = models.ForeignKey(
+        AlertType, on_delete=models.CASCADE, related_name="alert_logs"
+    )
     server: Resource = models.ForeignKey(
-        Resource, on_delete=models.CASCADE,
-        related_name='server_alert_logs', default=None, null=True,
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="server_alert_logs",
+        default=None,
+        null=True,
     )
     instance: Resource = models.ForeignKey(
-        Resource, on_delete=models.CASCADE,
-        related_name='instance_alert_logs', default=None, null=True,
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="instance_alert_logs",
+        default=None,
+        null=True,
     )
     version = models.ForeignKey(
-        VersionLog, related_name='alert_logs',
-        on_delete=models.SET_NULL, null=True, default=None,
+        VersionLog,
+        related_name="alert_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
 
     # impact_requests = models.PositiveBigIntegerField(default=None, null=True)
@@ -689,10 +757,10 @@ class AlertLog(models.Model):
     data = models.JSONField(default=None, null=True, encoder=JSONEncoder)
 
     class Meta:
-        db_table = 'utilmeta_alert_log'
+        db_table = "utilmeta_alert_log"
 
     @classmethod
-    def get(cls, id) -> Optional['AlertLog']:
+    def get(cls, id) -> Optional["AlertLog"]:
         if not id:
             return None
         return cls.objects.filter(id=id).first()
@@ -705,7 +773,9 @@ class AlertLog(models.Model):
     def compressible(self):
         if not self.type.compress_window:
             return False
-        return (time_now() - self.latest_time).total_seconds() < self.type.compress_window
+        return (
+            time_now() - self.latest_time
+        ).total_seconds() < self.type.compress_window
 
     def relieve(self):
         if self.relieved_time:
@@ -715,8 +785,8 @@ class AlertLog(models.Model):
             self.delete()
             return True
         self.relieved_time = time_now()
-        self.save(update_fields=['relieved_time'])
-        return self.compressible        # only report legit relieve
+        self.save(update_fields=["relieved_time"])
+        return self.compressible  # only report legit relieve
 
 
 class ServiceLog(WebMixin):
@@ -731,16 +801,25 @@ class ServiceLog(WebMixin):
     # global identifier
 
     version = models.ForeignKey(
-        VersionLog, related_name='service_logs',
-        on_delete=models.SET_NULL, null=True, default=None,
+        VersionLog,
+        related_name="service_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
     instance = models.ForeignKey(
-        Resource, related_name='instance_logs',
-        on_delete=models.SET_NULL, null=True, default=None,
+        Resource,
+        related_name="instance_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
     endpoint = models.ForeignKey(
-        Resource, on_delete=models.SET_NULL,
-        null=True, default=None, related_name='endpoint_logs',
+        Resource,
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
+        related_name="endpoint_logs",
     )
     # incase the endpoint not loaded yet
     endpoint_ident = models.CharField(max_length=200, default=None, null=True)
@@ -752,14 +831,19 @@ class ServiceLog(WebMixin):
     # units = ArrayField(CharField(max_length=10), default=list)
     # the orders that the process unit is called
     worker = models.ForeignKey(
-        Worker, related_name='logs',
-        on_delete=models.SET_NULL, null=True, default=None,
+        Worker,
+        related_name="logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
     # -----
 
     level = models.CharField(max_length=30)
     # volatile log will be deleted when it is not count by any aggregates
-    time = models.DateTimeField()  # not auto_now_add, cache stored log may add after request for some time
+    time = (
+        models.DateTimeField()
+    )  # not auto_now_add, cache stored log may add after request for some time
     duration = models.PositiveBigIntegerField(default=None, null=True)
     # for http requests duration is the time between server receive request and send response
     # for ws requests duration is the time between client open a ws connection and close it
@@ -774,24 +858,33 @@ class ServiceLog(WebMixin):
     messages = models.JSONField(default=list, encoder=JSONEncoder)
 
     alert = models.ForeignKey(
-        'AlertLog', related_name='service_logs',
-        on_delete=models.SET_NULL, null=True, default=None,
+        "AlertLog",
+        related_name="service_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
 
     volatile = models.BooleanField(default=True)
     # deleted_time = models.DateTimeField(default=None, null=True)
     # ----------
     supervisor = models.ForeignKey(
-        Supervisor, related_name='logs', on_delete=models.SET_NULL,
-        default=None, null=True,
+        Supervisor,
+        related_name="logs",
+        on_delete=models.SET_NULL,
+        default=None,
+        null=True,
     )
     access_token = models.ForeignKey(
-        AccessToken, related_name='logs', on_delete=models.SET_NULL,
-        default=None, null=True,
+        AccessToken,
+        related_name="logs",
+        on_delete=models.SET_NULL,
+        default=None,
+        null=True,
     )
 
     class Meta:
-        db_table = 'utilmeta_service_log'
+        db_table = "utilmeta_service_log"
 
 
 class RequestLog(WebMixin):
@@ -803,7 +896,9 @@ class RequestLog(WebMixin):
 
     # volatile = models.BooleanField(default=True)
     # requests made in other service request context
-    time = models.DateTimeField()  # not auto_now_add, cache stored log may add after request for some time
+    time = (
+        models.DateTimeField()
+    )  # not auto_now_add, cache stored log may add after request for some time
     # version = models.ForeignKey(
     #     VersionLog, related_name='service_logs',
     #     on_delete=models.SET_NULL, null=True, default=None
@@ -811,8 +906,11 @@ class RequestLog(WebMixin):
 
     duration = models.PositiveBigIntegerField(default=None, null=True)
     worker = models.ForeignKey(
-        Worker, related_name='request_logs',
-        on_delete=models.SET_NULL, null=True, default=None,
+        Worker,
+        related_name="request_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
 
     context_type = models.CharField(max_length=40, default=None, null=True)
@@ -820,28 +918,43 @@ class RequestLog(WebMixin):
     context_id = models.CharField(max_length=200, default=None, null=True)
     # log id / execution id
 
-    host = models.URLField(default=None, null=True)      # host of the requested host (ip or domain name)
+    host = models.URLField(
+        default=None, null=True
+    )  # host of the requested host (ip or domain name)
 
-    remote_log = models.TextField(default=None, null=True)     # able to supply other type ident (eg. uuid)
+    remote_log = models.TextField(
+        default=None, null=True
+    )  # able to supply other type ident (eg. uuid)
     # remote utilmeta log id (in target service) to support recursive tracing
 
     asynchronous = models.BooleanField(default=None, null=True)
-    timeout = models.DecimalField(max_digits=10, decimal_places=2, default=None, null=True)
+    timeout = models.DecimalField(
+        max_digits=10, decimal_places=2, default=None, null=True
+    )
     # SINGLE REQUEST, RETIRES NOT INCLUDED
 
-    timeout_error = models.BooleanField(default=False)     # request is timeout
-    server_error = models.BooleanField(default=False)     # ssl cert error when query the target host
-    client_error = models.BooleanField(default=False)     # ssl cert error when query the target host
-    ssl_error = models.BooleanField(default=False)     # ssl cert error when query the target host
+    timeout_error = models.BooleanField(default=False)  # request is timeout
+    server_error = models.BooleanField(
+        default=False
+    )  # ssl cert error when query the target host
+    client_error = models.BooleanField(
+        default=False
+    )  # ssl cert error when query the target host
+    ssl_error = models.BooleanField(
+        default=False
+    )  # ssl cert error when query the target host
     dns_error = models.BooleanField(default=False)
 
     alert = models.ForeignKey(
-        AlertLog, related_name='request_logs',
-        on_delete=models.SET_NULL, null=True, default=None,
+        AlertLog,
+        related_name="request_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
 
     class Meta:
-        db_table = 'utilmeta_request_log'
+        db_table = "utilmeta_request_log"
 
 
 class QueryLog(models.Model):
@@ -855,19 +968,26 @@ class QueryLog(models.Model):
     #     on_delete=models.SET_NULL, null=True, default=None
     # )
     database = models.ForeignKey(
-        Resource, on_delete=models.CASCADE,
-        related_name='database_query_logs',
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="database_query_logs",
     )
     model = models.ForeignKey(
-        Resource, on_delete=models.SET_NULL, default=None, null=True,
-        related_name='model_query_logs'
+        Resource,
+        on_delete=models.SET_NULL,
+        default=None,
+        null=True,
+        related_name="model_query_logs",
     )
     query = models.TextField()
     duration = models.PositiveBigIntegerField(default=None, null=True)  # ms
-    message = models.TextField(default='')
+    message = models.TextField(default="")
     worker = models.ForeignKey(
-        Worker, related_name='query_logs', on_delete=models.SET_NULL,
-        null=True, default=None,
+        Worker,
+        related_name="query_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
 
     operation = models.CharField(max_length=32, default=None, null=True)
@@ -879,12 +999,15 @@ class QueryLog(models.Model):
     # log id / execution id
 
     alert = models.ForeignKey(
-        AlertLog, related_name='query_logs',
-        on_delete=models.SET_NULL, null=True, default=None,
+        AlertLog,
+        related_name="query_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
     )
 
     class Meta:
-        db_table = 'utilmeta_query_log'
+        db_table = "utilmeta_query_log"
 
 
 class AggregationLog(models.Model):
@@ -893,8 +1016,11 @@ class AggregationLog(models.Model):
     service = models.CharField(max_length=100)
     node_id = models.CharField(max_length=100, default=None, null=True, db_index=True)
     supervisor = models.ForeignKey(
-        Supervisor, related_name='aggregation_logs', on_delete=models.SET_NULL,
-        default=None, null=True,
+        Supervisor,
+        related_name="aggregation_logs",
+        on_delete=models.SET_NULL,
+        default=None,
+        null=True,
     )
     data = models.JSONField(default=dict, encoder=JSONEncoder)
 
@@ -915,7 +1041,7 @@ class AggregationLog(models.Model):
     # remote id is not None means the report is successful
 
     class Meta:
-        db_table = 'utilmeta_aggregation_log'
+        db_table = "utilmeta_aggregation_log"
 
 
 supervisor_related_models = [

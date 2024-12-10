@@ -10,7 +10,7 @@ class Page(Field):
 
     @property
     def schema_annotations(self):
-        return {'class': 'page'}
+        return {"class": "page"}
 
 
 class Offset(Field):
@@ -22,7 +22,7 @@ class Offset(Field):
 
     @property
     def schema_annotations(self):
-        return {'class': 'offset'}
+        return {"class": "offset"}
 
 
 class Limit(Field):
@@ -34,4 +34,4 @@ class Limit(Field):
 
     @property
     def schema_annotations(self):
-        return {'class': 'limit'}
+        return {"class": "limit"}

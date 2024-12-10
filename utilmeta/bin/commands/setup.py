@@ -47,16 +47,9 @@ yarn.lock
 
 
 class SetupCommand(BaseServiceCommand):
-    SERVER_BACKENDS = 'utilmeta.core.server.backends'
-    DEFAULT_SUPPORTS = [
-        'django',
-        'flask',
-        'fastapi',
-        'starlette',
-        'sanic',
-        'tornado'
-    ]
-    name = 'setup'
+    SERVER_BACKENDS = "utilmeta.core.server.backends"
+    DEFAULT_SUPPORTS = ["django", "flask", "fastapi", "starlette", "sanic", "tornado"]
+    name = "setup"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -74,17 +67,22 @@ class SetupCommand(BaseServiceCommand):
     def default_host(self):
         if not self.project_name:
             return
-        return f'{self.project_name}.com'.lower()
+        return f"{self.project_name}.com".lower()
 
     @property
     def default_backend(self):
-        return 'django'
+        return "django"
 
-    @command('')
-    def setup(self, name: str = '', *,
-              template: Literal['full', 'lite'] = Arg('--temp', alias_from=['--t', '--template'], default='lite'),
-              with_operations: bool = Arg('--ops', default=False),
-              ):
+    @command("")
+    def setup(
+        self,
+        name: str = "",
+        *,
+        template: Literal["full", "lite"] = Arg(
+            "--temp", alias_from=["--t", "--template"], default="lite"
+        ),
+        with_operations: bool = Arg("--ops", default=False),
+    ):
         """
         Set up a new project
         --t: select template: full / lite
@@ -92,51 +90,63 @@ class SetupCommand(BaseServiceCommand):
         """
 
         if self.ini_path:
-            print(RED % 'meta Error: you are already inside an utilmeta project, '
-                        'please chose a empty dir to setup your new project')
+            print(
+                RED % "meta Error: you are already inside an utilmeta project, "
+                "please chose a empty dir to setup your new project"
+            )
             exit(1)
 
         while not name:
-            print(f'Enter the name of your project:')
-            name = input('>>> ').strip()
+            print(f"Enter the name of your project:")
+            name = input(">>> ").strip()
 
-        if not re.fullmatch(r'[A-Za-z0-9_-]+', name):
-            print(RED % 'UtilMeta project name can only contains alphanumeric characters, '
-                  'underscore "_" and hyphen "-"')
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+            print(
+                RED
+                % "UtilMeta project name can only contains alphanumeric characters, "
+                'underscore "_" and hyphen "-"'
+            )
             exit(1)
 
         project_dir = self.cwd
 
-        if os.sep in name or '/' in name:
-            print(RED % f'meta Error: project name ({repr(name)}) should not contains path separator')
+        if os.sep in name or "/" in name:
+            print(
+                RED
+                % f"meta Error: project name ({repr(name)}) should not contains path separator"
+            )
             exit(1)
 
         self.project_name = name
-        print(f'meta: setting up project [{name}]')
+        print(f"meta: setting up project [{name}]")
 
-        print(f'description of this project (optional)')
-        self.description = input('>>> ') or ''
+        print(f"description of this project (optional)")
+        self.description = input(">>> ") or ""
 
-        print(f'Choose the http backend of your project')
+        print(f"Choose the http backend of your project")
         for pkg in self.DEFAULT_SUPPORTS:
-            print(f' - {pkg}%s' % (' (default)' if pkg == self.default_backend else ''))
+            print(f" - {pkg}%s" % (" (default)" if pkg == self.default_backend else ""))
 
         while not self.backend:
-            self.backend = (input('>>> ') or self.default_backend).lower()
+            self.backend = (input(">>> ") or self.default_backend).lower()
             try:
-                import_obj(f'{self.SERVER_BACKENDS}.{self.backend}')
+                import_obj(f"{self.SERVER_BACKENDS}.{self.backend}")
             except ModuleNotFoundError:
                 if self.backend in self.DEFAULT_SUPPORTS:
                     requires(self.backend)
                 else:
-                    print(f'backend: {repr(self.backend)} not supported or not installed, please enter again')
+                    print(
+                        f"backend: {repr(self.backend)} not supported or not installed, please enter again"
+                    )
                     self.backend = None
 
         # if self.backend == 'starlette':
         #     check_requirement('uvicorn', install_when_require=True)
 
-        print(f'Enter the production host of your service (default: {self.default_host})')
-        self.host = input('>>> ') or self.default_host
+        print(
+            f"Enter the production host of your service (default: {self.default_host})"
+        )
+        self.host = input(">>> ") or self.default_host
 
         temp_path = os.path.join(TEMP_PATH, template)
         project_path = os.path.join(project_dir, name)
@@ -148,7 +158,10 @@ class SetupCommand(BaseServiceCommand):
         # --------------------------------------
 
         if os.path.exists(project_path):
-            print(RED % f'meta Error: project path {project_path} already exist, chose a different name')
+            print(
+                RED
+                % f"meta Error: project path {project_path} already exist, chose a different name"
+            )
             exit(1)
 
         shutil.copytree(temp_path, project_path)
@@ -157,24 +170,33 @@ class SetupCommand(BaseServiceCommand):
             for file in files:
                 path = os.path.join(ab_path, file)
 
-                if str(file).endswith('.py') or str(file).endswith('.ini'):
+                if str(file).endswith(".py") or str(file).endswith(".ini"):
                     content = read_from(path)
-                    write_to(path, self.render(
-                        content.replace('# noqa', ''),
-                        with_operations=with_operations,
-                        template=template
-                    ))
+                    write_to(
+                        path,
+                        self.render(
+                            content.replace("# noqa", ""),
+                            with_operations=with_operations,
+                            template=template,
+                        ),
+                    )
 
         # add gitignore file
-        write_to(os.path.join(project_path, '.gitignore'), DEFAULT_GIT_IGNORE)
-        requirements = ['utilmeta']
+        write_to(os.path.join(project_path, ".gitignore"), DEFAULT_GIT_IGNORE)
+        requirements = ["utilmeta"]
         if self.backend:
             requirements.append(self.backend)
-        write_to(os.path.join(project_path, 'requirements.txt'), '\n'.join(requirements))
+        write_to(
+            os.path.join(project_path, "requirements.txt"), "\n".join(requirements)
+        )
 
-        print(f'UtilMeta project <{BLUE % self.project_name}> successfully setup at path: {project_path}')
+        print(
+            f"UtilMeta project <{BLUE % self.project_name}> successfully setup at path: {project_path}"
+        )
 
-    def render(self, content, with_operations: bool = False, template: str = None) -> str:
+    def render(
+        self, content, with_operations: bool = False, template: str = None
+    ) -> str:
         def _format(text: str, *args, **kwargs):
             for i in range(0, len(args)):
                 k = "{" + str(i) + "}"
@@ -184,7 +206,7 @@ class SetupCommand(BaseServiceCommand):
                 text = text.replace(k, str(val))
             return text
 
-        if template == 'full':
+        if template == "full":
             operations_text = """
     from utilmeta.ops.config import Operations
     from utilmeta.conf.time import Time
@@ -201,7 +223,9 @@ class SetupCommand(BaseServiceCommand):
             engine='sqlite3',
         ),
     ))
-""".format(name=self.project_name)
+""".format(
+                name=self.project_name
+            )
         else:
             operations_text = """
 from utilmeta.ops.config import Operations
@@ -226,16 +250,20 @@ service.use(Operations(
         engine='sqlite3',
     ),
 ))
-""".format(name=self.project_name)
+""".format(
+                name=self.project_name
+            )
 
         return _format(
             content,
             name=self.project_name,
             backend=self.backend,
-            import_backend=f'import {self.backend}',
+            import_backend=f"import {self.backend}",
             description=self.description,
             host=self.host,
-            operations=operations_text if with_operations else '',
+            operations=operations_text if with_operations else "",
             plugins="""
-@api.CORS(allow_origin='*')""" if with_operations else ''
+@api.CORS(allow_origin='*')"""
+            if with_operations
+            else "",
         )

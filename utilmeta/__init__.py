@@ -1,7 +1,7 @@
-__website__ = 'https://utilmeta.com'
-__homepage__ = 'https://utilmeta.com/py'
-__author__ = 'Xulin Zhou (@voidZXL)'
-__version__ = '2.7.0'
+__website__ = "https://utilmeta.com"
+__homepage__ = "https://utilmeta.com/py"
+__author__ = "Xulin Zhou (@voidZXL)"
+__version__ = "2.7.0"
 
 
 def version_info() -> str:
@@ -10,12 +10,14 @@ def version_info() -> str:
     from pathlib import Path
 
     info = {
-        'utilmeta version': __version__,
-        'installed path': Path(__file__).resolve().parent,
-        'python version': sys.version,
-        'platform': platform.platform(),
+        "utilmeta version": __version__,
+        "installed path": Path(__file__).resolve().parent,
+        "python version": sys.version,
+        "platform": platform.platform(),
     }
-    return '\n'.join('{:>30} {}'.format(k + ':', str(v).replace('\n', ' ')) for k, v in info.items())
+    return "\n".join(
+        "{:>30} {}".format(k + ":", str(v).replace("\n", " ")) for k, v in info.items()
+    )
 
 
 def init_settings():
@@ -35,6 +37,6 @@ init_settings()
 
 from .core.server.service import UtilMeta
 
-service: 'UtilMeta'     # current service in this process
+service: "UtilMeta"  # current service in this process
 
 _cmd_env = False

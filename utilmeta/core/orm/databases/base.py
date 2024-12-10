@@ -8,12 +8,12 @@ class BaseDatabaseAdaptor:
     asynchronous = False
     DEFAULT_ENGINES = {}
 
-    def __init__(self, config: 'Database', alias: str = None):
+    def __init__(self, config: "Database", alias: str = None):
         self.config = config
         self.alias = alias
 
     def get_engine(self):
-        if '.' in self.config.engine:
+        if "." in self.config.engine:
             return self.config.engine
         if self.config.engine.lower() in self.DEFAULT_ENGINES:
             return self.DEFAULT_ENGINES[self.config.engine.lower()]

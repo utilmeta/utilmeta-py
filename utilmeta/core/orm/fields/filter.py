@@ -1,5 +1,6 @@
 import inspect
 from utype import Field
+
 # from utilmeta.conf import Preference
 from utype.parser.field import ParserField
 from utype.types import *
@@ -9,18 +10,21 @@ if TYPE_CHECKING:
 
 
 class Filter(Field):
-    def __init__(self,
-                 field=None,
-                 # allow at most 1 operator in 1 Filter to provide clarity
-                 *,
-                 query=None,  # expression to convert a input string to a Q object,
-                 order: Union[str, list, Callable] = None,   # use order only if this filter is provided
-                 # like order_by [1, 4, 2]
-                 # lambda val: Case(*[When(**{field: v, 'then': pos}) for pos, v in enumerate(val)])
-                 fail_silently: bool = False,
-                 required: bool = False,
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        field=None,
+        # allow at most 1 operator in 1 Filter to provide clarity
+        *,
+        query=None,  # expression to convert a input string to a Q object,
+        order: Union[
+            str, list, Callable
+        ] = None,  # use order only if this filter is provided
+        # like order_by [1, 4, 2]
+        # lambda val: Case(*[When(**{field: v, 'then': pos}) for pos, v in enumerate(val)])
+        fail_silently: bool = False,
+        required: bool = False,
+        **kwargs,
+    ):
         self.field = field
         self.query = query
         self.order = order
@@ -35,21 +39,18 @@ class Filter(Field):
     @property
     def schema_annotations(self):
         return {
-            'class': 'filter',
+            "class": "filter",
         }
 
 
 class ParserFilter(ParserField):
-    field: 'Filter'
+    field: "Filter"
     field_cls = Filter
 
-    def __init__(
-        self,
-        model: 'ModelAdaptor' = None,
-        **kwargs
-    ):
+    def __init__(self, model: "ModelAdaptor" = None, **kwargs):
         super().__init__(**kwargs)
         from ..backends.base import ModelAdaptor, ModelFieldAdaptor
+
         self.model: Optional[ModelAdaptor] = None
         self.model_field: Optional[ModelFieldAdaptor] = None
         # self.query: Optional[Callable] = None
@@ -60,13 +61,17 @@ class ParserFilter(ParserField):
 
             if isinstance(self.field, Filter):
                 if self.field_name:
-                    self.model_field = model.get_field(self.field_name, allow_addon=True, silently=True)
+                    self.model_field = model.get_field(
+                        self.field_name, allow_addon=True, silently=True
+                    )
                     if self.model_field:
                         self.validate_field()
                     else:
                         if not self.filter.query:
-                            raise ValueError(f'Filter({repr(self.field_name)}) '
-                                             f'not resolved to field in model: {model.model}')
+                            raise ValueError(
+                                f"Filter({repr(self.field_name)}) "
+                                f"not resolved to field in model: {model.model}"
+                            )
                     if not inspect.isfunction(self.query):
                         self.model.check_query(self.query)
 

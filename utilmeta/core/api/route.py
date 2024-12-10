@@ -1,6 +1,15 @@
 import re
 from typing import Union, Dict, Type, List, Optional, TYPE_CHECKING
-from utilmeta.utils import awaitable, get_doc, regular, duplicate, pop, distinct_add, multi, PATH_REGEX
+from utilmeta.utils import (
+    awaitable,
+    get_doc,
+    regular,
+    duplicate,
+    pop,
+    distinct_add,
+    multi,
+    PATH_REGEX,
+)
 
 import inspect
 from functools import partial
@@ -14,25 +23,27 @@ if TYPE_CHECKING:
 
 
 class BaseRoute:
-    def __init__(self,
-                 handler,
-                 route: Union[str, tuple],
-                 name: str,
-                 parent=None,
-                 before_hooks: List[BeforeHook] = (),
-                 after_hooks: List[AfterHook] = (),
-                 error_hooks: Dict[Type[Exception], ErrorHook] = None):
+    def __init__(
+        self,
+        handler,
+        route: Union[str, tuple],
+        name: str,
+        parent=None,
+        before_hooks: List[BeforeHook] = (),
+        after_hooks: List[AfterHook] = (),
+        error_hooks: Dict[Type[Exception], ErrorHook] = None,
+    ):
 
         self.name = name
         self.handler = handler
         self.parent = parent
 
         if isinstance(route, str):
-            route = str(route).strip('/')
+            route = str(route).strip("/")
         elif isinstance(route, tuple):
             route = self.from_routes(*route)
         else:
-            raise TypeError(f'Invalid route: {route}')
+            raise TypeError(f"Invalid route: {route}")
 
         self.route = route
         self.before_hooks = before_hooks or []
@@ -42,7 +53,7 @@ class BaseRoute:
     @classmethod
     def from_routes(cls, *routes):
         # meant to be inherited
-        return '/'.join([str(v).strip('/') for v in routes])
+        return "/".join([str(v).strip("/") for v in routes])
 
     def match_targets(self, targets: list):
         if self.route in targets:
@@ -95,14 +106,14 @@ class BaseRoute:
             parent=self.parent,
             before_hooks=list(self.before_hooks),
             after_hooks=list(self.after_hooks),
-            error_hooks=dict(self.error_hooks)
+            error_hooks=dict(self.error_hooks),
         )
 
     @property
     def no_hooks(self):
         return not self.before_hooks and not self.after_hooks and not self.error_hooks
 
-    def merge_hooks(self, route: 'BaseRoute'):
+    def merge_hooks(self, route: "BaseRoute"):
         # self: near
         # route: far
         if not route or not isinstance(route, BaseRoute):
@@ -120,38 +131,48 @@ class BaseRoute:
 
 class APIRoute(BaseRoute):
     PATH_REGEX = PATH_REGEX
-    DEFAULT_PATH_REGEX = '[^/]+'
+    DEFAULT_PATH_REGEX = "[^/]+"
 
-    def __init__(self,
-                 handler: Union[Type['API'], Endpoint],
-                 route: Union[str, tuple],
-                 name: str,
-                 parent: Type['API'] = None,
-                 summary: str = None,
-                 description: str = None,
-                 tags: list = None,
-                 deprecated: bool = None,
-                 private: bool = None,
-                 priority: int = None,
-                 before_hooks: List[BeforeHook] = (),
-                 after_hooks: List[AfterHook] = (),
-                 error_hooks: Dict[Type[Exception], ErrorHook] = None, **kwargs):
+    def __init__(
+        self,
+        handler: Union[Type["API"], Endpoint],
+        route: Union[str, tuple],
+        name: str,
+        parent: Type["API"] = None,
+        summary: str = None,
+        description: str = None,
+        tags: list = None,
+        deprecated: bool = None,
+        private: bool = None,
+        priority: int = None,
+        before_hooks: List[BeforeHook] = (),
+        after_hooks: List[AfterHook] = (),
+        error_hooks: Dict[Type[Exception], ErrorHook] = None,
+        **kwargs,
+    ):
 
         self.method = None
         from .base import API
+
         if isinstance(handler, Endpoint):
             self.method = handler.method
             if handler.is_method and route:
-                raise ValueError(f'Endpoint method: <{self.method}> (with HTTP method name) '
-                                 f'cannot assign route: {repr(route)}, please use another function name')
+                raise ValueError(
+                    f"Endpoint method: <{self.method}> (with HTTP method name) "
+                    f"cannot assign route: {repr(route)}, please use another function name"
+                )
             if not route:
                 route = handler.route
         elif inspect.isclass(handler) and issubclass(handler, API):
             if not route:
-                raise ValueError(f'API handler: {handler} should specify a route, got empty')
+                raise ValueError(
+                    f"API handler: {handler} should specify a route, got empty"
+                )
         else:
-            raise TypeError(f'invalid api class or function: {handler}, must be a '
-                            f'Endpoint instance of subclass of API')
+            raise TypeError(
+                f"invalid api class or function: {handler}, must be a "
+                f"Endpoint instance of subclass of API"
+            )
 
         super().__init__(
             handler,
@@ -160,7 +181,7 @@ class APIRoute(BaseRoute):
             parent=parent,
             before_hooks=before_hooks,
             after_hooks=after_hooks,
-            error_hooks=error_hooks
+            error_hooks=error_hooks,
         )
 
         self.kwargs = kwargs
@@ -168,7 +189,7 @@ class APIRoute(BaseRoute):
         self.description = description or get_doc(handler)
         self.tags = tags
         self.deprecated = deprecated
-        self.private = private or handler.__name__.startswith('_')
+        self.private = private or handler.__name__.startswith("_")
         self.priority = priority
         self.regex_list = []
         self.kwargs_regex = {}
@@ -185,13 +206,15 @@ class APIRoute(BaseRoute):
 
             for key, val in self.handler._properties.items():
                 name = val.field.name.lower()
-                if getattr(val.prop.__in__, '__ident__', None) == 'header':
+                if getattr(val.prop.__in__, "__ident__", None) == "header":
                     if name not in self.header_names:
                         self.header_names.append(name)
                 else:
-                    headers = getattr(val.prop, 'headers', None)
+                    headers = getattr(val.prop, "headers", None)
                     if headers and multi(headers):
-                        distinct_add(self.header_names, [str(v).lower() for v in headers])
+                        distinct_add(
+                            self.header_names, [str(v).lower() for v in headers]
+                        )
 
     def get_field(self, name: str) -> Optional[Field]:
         if isinstance(self.handler, Endpoint):
@@ -201,7 +224,7 @@ class APIRoute(BaseRoute):
             return None
         field = getattr(self.handler, name, None)
         if isinstance(field, property):
-            field = getattr(field.fget, '__field__', None)
+            field = getattr(field.fget, "__field__", None)
         if isinstance(field, Field):
             return field
         elif isinstance(field, type) and issubclass(field, Field):
@@ -221,15 +244,15 @@ class APIRoute(BaseRoute):
     def get_patterns(self):
         pattern = self.route
         for arg in self.path_args:
-            pattern = pattern.replace('{%s}' % arg, self.DEFAULT_PATH_REGEX)
+            pattern = pattern.replace("{%s}" % arg, self.DEFAULT_PATH_REGEX)
         patterns = [pattern]
         if not self.is_endpoint:
-            patterns.append(f'{pattern}/.*')
+            patterns.append(f"{pattern}/.*")
         return patterns
 
     @classmethod
     def get_pattern(cls, path: str):
-        path = path.strip('/')
+        path = path.strip("/")
         params: List[str] = cls.PATH_REGEX.findall(path)
 
         if not params:
@@ -237,13 +260,13 @@ class APIRoute(BaseRoute):
 
         pattern = path
         for arg in params:
-            pattern = pattern.replace('{%s}' % arg, cls.DEFAULT_PATH_REGEX)
+            pattern = pattern.replace("{%s}" % arg, cls.DEFAULT_PATH_REGEX)
 
         return re.compile(pattern)
 
     def compile_route(self):
         if not self.route:
-            self.regex_list = [re.compile('')]
+            self.regex_list = [re.compile("")]
             return
 
         regs = []
@@ -254,19 +277,21 @@ class APIRoute(BaseRoute):
             regs = [re.compile(self.route)]
             if not self.is_endpoint:
                 # for API
-                regs.append(re.compile(f'{self.route}/(?P<_>.*)'))
+                regs.append(re.compile(f"{self.route}/(?P<_>.*)"))
             self.regex_list = regs
             return
 
         d = duplicate(params)
-        assert not d, f"Endpoint path: {repr(self.route)} shouldn't contains duplicate param {d}"
+        assert (
+            not d
+        ), f"Endpoint path: {repr(self.route)} shouldn't contains duplicate param {d}"
 
         omit = None
         # required path params must before optional ones
         # omit is the mark of the first optional path param
         beg = 0
         divider = []
-        suffix = ''
+        suffix = ""
 
         for i, p in enumerate(params):
             field = self.get_field(p)
@@ -276,51 +301,57 @@ class APIRoute(BaseRoute):
                     if field:
                         break
                 if not field:
-                    raise ValueError(f'missing path name parameter: {repr(p)}')
+                    raise ValueError(f"missing path name parameter: {repr(p)}")
 
             if self.is_endpoint:
                 if not field.required:
                     if omit is None:
                         omit = p
                 elif omit is not None:
-                    raise ValueError(f"Required path argument ({repr(p)}) is after a optional arg "
-                                     f"({omit}), which is invalid")
+                    raise ValueError(
+                        f"Required path argument ({repr(p)}) is after a optional arg "
+                        f"({omit}), which is invalid"
+                    )
 
-            sub = '{%s}' % p
+            sub = "{%s}" % p
             end = self.route.find(sub)
             div = self.route[beg:end]
             if beg and not div:
-                raise ValueError(f"Endpoint path: {repr(self.route)} param {repr(sub)}"
-                                 f" should divide each other with string")
+                raise ValueError(
+                    f"Endpoint path: {repr(self.route)} param {repr(sub)}"
+                    f" should divide each other with string"
+                )
             divider.append((div, p))
             beg = end + len(sub)
 
         if beg < len(self.route):
             suffix = self.route[beg:]
 
-        pattern = ''
+        pattern = ""
         for div, param in divider:
             path_field = self.get_field(param)
             # use ducked attribute here
-            path_regex = getattr(path_field, 'regex', self.DEFAULT_PATH_REGEX)
+            path_regex = getattr(path_field, "regex", self.DEFAULT_PATH_REGEX)
             div = regular(div)
             pattern += div
 
-            if self.is_endpoint and (omit and param == str(omit) or param != str(omit) and regs):
+            if self.is_endpoint and (
+                omit and param == str(omit) or param != str(omit) and regs
+            ):
                 # until omit param, do not add pattern
                 # after omit param, every param should add a pattern
-                regs.append(re.compile(pattern.rstrip('/')))
+                regs.append(re.compile(pattern.rstrip("/")))
                 # omit does apply for API
 
             kwargs_reg[param] = path_regex
-            pattern += f'(?P<{param}>{path_regex})'
+            pattern += f"(?P<{param}>{path_regex})"
 
         pattern += suffix
         regs.append(re.compile(pattern))
 
         if not self.is_endpoint:
             # for API
-            regs.append(re.compile(f'{pattern}/(?P<_>.*)'))
+            regs.append(re.compile(f"{pattern}/(?P<_>.*)"))
 
         regs.reverse()
         # reverse the reg list so the longest reg match the path first,
@@ -336,19 +367,23 @@ class APIRoute(BaseRoute):
     @property
     def ident(self):
         if self.method:
-            return f'{self.method}:{self.route}'.lower()
+            return f"{self.method}:{self.route}".lower()
         return self.route
 
     def make_property(self):
         # if with_hooks:
         #     pass
         if self.is_endpoint:
-            def getter(api_inst: 'API'):
+
+            def getter(api_inst: "API"):
                 return partial(self.handler, api_inst)
+
         else:
-            def getter(api_inst: 'API'):
+
+            def getter(api_inst: "API"):
                 return self.handler(api_inst.request)
                 # api._init_plugins()
+
         return property(getter)
 
     def match_route(self, request: Request):
@@ -366,7 +401,7 @@ class APIRoute(BaseRoute):
                 if not self.method:
                     # only set path params if route is API
                     # endpoints need to match for multiple methods
-                    route_attr.set(pop(group, '_', ''))
+                    route_attr.set(pop(group, "_", ""))
 
                 if not self.method or self.method == request.method:
                     # set path params for endpoint and API in every match
@@ -385,7 +420,7 @@ class APIRoute(BaseRoute):
                 return True
         return False
 
-    def serve(self, api: 'API'):
+    def serve(self, api: "API"):
         # ---
         names_var = var.operation_names.setup(api.request)
         names = names_var.get() or []
@@ -410,7 +445,7 @@ class APIRoute(BaseRoute):
 
         return result
 
-    async def aserve(self, api: 'API'):
+    async def aserve(self, api: "API"):
         # ---
         names_var = var.operation_names.setup(api.request)
         names = await names_var.get() or []
@@ -435,9 +470,9 @@ class APIRoute(BaseRoute):
 
         return result
 
-    def __call__(self, api: 'API'):
+    def __call__(self, api: "API"):
         return self.serve(api)
 
     @awaitable(__call__)
-    async def __call__(self, api: 'API'):
+    async def __call__(self, api: "API"):
         return await self.aserve(api)

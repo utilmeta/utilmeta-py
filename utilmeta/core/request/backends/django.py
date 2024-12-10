@@ -1,9 +1,13 @@
-import io
-
 from .base import RequestAdaptor
 from django.http.request import HttpRequest
 from django.middleware.csrf import CsrfViewMiddleware, get_token
-from utilmeta.utils import parse_query_dict, cached_property, Header, LOCAL_IP, multi, exceptions, url_join
+from utilmeta.utils import (
+    parse_query_dict,
+    Header,
+    LOCAL_IP,
+    multi,
+    url_join,
+)
 from ipaddress import ip_address
 from utilmeta.core.file.backends.django import DjangoFileAdaptor
 from utilmeta.core.file.base import File
@@ -11,10 +15,12 @@ import django
 
 
 def get_request_ip(meta: dict):
-    ips = [*meta.get(Header.FORWARDED_FOR, '').replace(' ', '').split(','),
-           meta.get(Header.REMOTE_ADDR)]
-    if '' in ips:
-        ips.remove('')
+    ips = [
+        *meta.get(Header.FORWARDED_FOR, "").replace(" ", "").split(","),
+        meta.get(Header.REMOTE_ADDR),
+    ]
+    if "" in ips:
+        ips.remove("")
     if LOCAL_IP in ips:
         ips.remove(LOCAL_IP)
     for ip in ips:
@@ -33,7 +39,9 @@ class DjangoRequestAdaptor(RequestAdaptor):
         return get_token(self.request)
 
     def check_csrf_token(self) -> bool:
-        err_resp = CsrfViewMiddleware(lambda *_: None).process_view(self.request, None, None, None)
+        err_resp = CsrfViewMiddleware(lambda *_: None).process_view(
+            self.request, None, None, None
+        )
         return err_resp is None
 
     @property
@@ -49,12 +57,13 @@ class DjangoRequestAdaptor(RequestAdaptor):
         return self._address
 
     def get_url(self):
-        if hasattr(self.request, 'get_raw_uri'):
+        if hasattr(self.request, "get_raw_uri"):
             return self.request.get_raw_uri()
         try:
             return self.request.build_absolute_uri()
         except KeyError:
             from utilmeta import service
+
             return url_join(service.origin, self.path)
 
     @property
@@ -64,19 +73,19 @@ class DjangoRequestAdaptor(RequestAdaptor):
     @classmethod
     def load_form_data(cls, request):
         m = request.method
-        load_call = getattr(request, '_load_post_and_files')
-        if m in ('PUT', 'PATCH'):
-            if hasattr(request, '_post'):
-                delattr(request, '_post')
-                delattr(request, '_files')
+        load_call = getattr(request, "_load_post_and_files")
+        if m in ("PUT", "PATCH"):
+            if hasattr(request, "_post"):
+                delattr(request, "_post")
+                delattr(request, "_files")
             try:
-                request.method = 'POST'
+                request.method = "POST"
                 load_call()
                 request.method = m
             except AttributeError:
-                request.META['REQUEST_METHOD'] = 'POST'
+                request.META["REQUEST_METHOD"] = "POST"
                 load_call()
-                request.META['REQUEST_METHOD'] = m
+                request.META["REQUEST_METHOD"] = m
 
     def get_form(self):
         self.load_form_data(self.request)
@@ -85,7 +94,9 @@ class DjangoRequestAdaptor(RequestAdaptor):
         for key in self.request.FILES:
             files = self.request.FILES.getlist(key)
             if multi(files):
-                parsed_files[key] = [File(self.file_adaptor_cls(file)) for file in files]
+                parsed_files[key] = [
+                    File(self.file_adaptor_cls(file)) for file in files
+                ]
             else:
                 parsed_files[key] = File(self.file_adaptor_cls(files))
         data.update(parsed_files)

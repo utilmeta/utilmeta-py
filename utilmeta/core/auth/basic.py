@@ -4,10 +4,8 @@ from .base import BaseAuthentication
 
 
 class BasicAuth(BaseAuthentication):
-    name = 'basic'
-    headers = [
-        'authorization'
-    ]
+    name = "basic"
+    headers = ["authorization"]
 
     @classmethod
     def getter(cls, request: Request, field=None):
@@ -15,16 +13,16 @@ class BasicAuth(BaseAuthentication):
         if not token:
             return
         decoded = base64.decodebytes(token.encode())
-        lst = decoded.decode().split(':')
+        lst = decoded.decode().split(":")
         if len(lst) > 1:
-            username, password = lst[0], ':'.join(lst[1:])
+            username, password = lst[0], ":".join(lst[1:])
         else:
             username, password = lst[0], None
-        return {'username': username, 'password': password}
+        return {"username": username, "password": password}
 
     def openapi_scheme(self) -> dict:
         return {
-            'type': 'http',
-            'scheme': 'basic',
-            'description': self.description or '',
+            "type": "http",
+            "scheme": "basic",
+            "description": self.description or "",
         }

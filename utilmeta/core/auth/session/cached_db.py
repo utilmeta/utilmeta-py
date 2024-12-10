@@ -3,7 +3,7 @@ from .cache import CacheSessionSchema, CacheSession
 from .db import DBSessionSchema
 from utilmeta.core.orm import ModelAdaptor
 
-__all__ = ['CachedDBSessionSchema', 'CachedDBSession']
+__all__ = ["CachedDBSessionSchema", "CachedDBSession"]
 
 
 class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
@@ -30,7 +30,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         try:
             super().save(must_create)
         except Exception as e:
-            print(f'Save with error: {e}')
+            print(f"Save with error: {e}")
             # ignore cache failed
 
     async def asave(self, must_create: bool = False):
@@ -40,7 +40,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         try:
             await super().asave(must_create)
         except Exception as e:
-            print(f'Save with error: {e}')
+            print(f"Save with error: {e}")
             # ignore cache failed
 
     def delete(self, session_key: str = None):
@@ -49,7 +49,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         try:
             super().delete(session_key)
         except Exception as e:
-            print(f'Delete with error: {e}')
+            print(f"Delete with error: {e}")
             # ignore cache failed
 
     # @awaitable(delete)
@@ -59,7 +59,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         try:
             await super().adelete(session_key)
         except Exception as e:
-            print(f'Delete with error: {e}')
+            print(f"Delete with error: {e}")
             # ignore cache failed
 
     def load_data(self):
@@ -67,8 +67,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
             return None
         # to be inherited
         session = self._model_cls.get_instance(
-            session_key=self._session_key,
-            deleted_time=None
+            session_key=self._session_key, deleted_time=None
         )
         if session:
             try:
@@ -78,7 +77,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
                     timeout=self.timeout,
                 )
             except Exception as e:
-                print(f'Sync to cache failed: {e}')
+                print(f"Sync to cache failed: {e}")
                 # ignore
             return self.decode(session.encoded_data)
         return None
@@ -89,8 +88,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
             return None
         # to be inherited
         session = await self._model_cls.aget_instance(
-            session_key=self._session_key,
-            deleted_time=None
+            session_key=self._session_key, deleted_time=None
         )
         if session:
             try:
@@ -100,7 +98,7 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
                     timeout=self.timeout,
                 )
             except Exception as e:
-                print(f'Sync to cache failed: {e}')
+                print(f"Sync to cache failed: {e}")
                 # ignore
             return self.decode(session.encoded_data)
         return None

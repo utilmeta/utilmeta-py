@@ -6,29 +6,31 @@ import typing
 from functools import wraps
 
 __all__ = [
-    'return_type',
-    'file_like',
-    'print_time',
-    'import_obj',
-    'print_dict',
-    'class_func',
-    'get_generator_result',
-    'represent',
-    'valid_attr',
-    'check_requirement',
-    'get_root_base',
-    'function_pass',
-    'common_representable',
-    'get_doc',
-    'requires',
-    'get_base_type',
+    "return_type",
+    "file_like",
+    "print_time",
+    "import_obj",
+    "print_dict",
+    "class_func",
+    "get_generator_result",
+    "represent",
+    "valid_attr",
+    "check_requirement",
+    "get_root_base",
+    "function_pass",
+    "common_representable",
+    "get_doc",
+    "requires",
+    "get_base_type",
 ]
 
 
-def _f_pass_doc(): """"""
+def _f_pass_doc():
+    """"""
 
 
-def _f_pass(): pass
+def _f_pass():
+    pass
 
 
 PASSED_CODES = (
@@ -40,15 +42,21 @@ PASSED_CODES = (
 def represent(val) -> str:
     if isinstance(val, type):
         if val is type(None):
-            return 'type(None)'
+            return "type(None)"
         return val.__name__
-    if inspect.isfunction(val) or inspect.ismethod(val) or inspect.isclass(val) or inspect.isbuiltin(val):
+    if (
+        inspect.isfunction(val)
+        or inspect.ismethod(val)
+        or inspect.isclass(val)
+        or inspect.isbuiltin(val)
+    ):
         return val.__name__
     return repr(val)
 
 
 def common_representable(data) -> bool:
     from .data import multi
+
     if multi(data):
         for val in data:
             if not common_representable(val):
@@ -65,12 +73,16 @@ def common_representable(data) -> bool:
 
 
 def class_func(f):
-    return isinstance(f, (staticmethod, classmethod)) or inspect.ismethod(f) or inspect.isfunction(f)
+    return (
+        isinstance(f, (staticmethod, classmethod))
+        or inspect.ismethod(f)
+        or inspect.isfunction(f)
+    )
 
 
 def function_pass(f):
     if not inspect.isfunction(f):
-        f = getattr(f, '__func__', None)
+        f = getattr(f, "__func__", None)
         if not f or not inspect.isfunction(f):
             return False
     return getattr(f, constant.Attr.CODE).co_code in PASSED_CODES
@@ -78,6 +90,7 @@ def function_pass(f):
 
 def valid_attr(name: str):
     from keyword import iskeyword
+
     return name.isidentifier() and not iskeyword(name)
 
 
@@ -115,38 +128,44 @@ def print_time(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         import time
+
         start = time.time()
         r = f(*args, **kwargs)
         end = time.time()
         t = round(end - start, 3)
         name = f.__name__
-        print(f'function {name} cost {t} s')
+        print(f"function {name} cost {t} s")
         return r
+
     return wrapper
 
 
 def print_dict(data):
     if isinstance(data, list):
-        print('[')
+        print("[")
         for d in data:
             print_dict(d)
-            print(',')
-        print(']\n')
+            print(",")
+        print("]\n")
         return
-    items = getattr(data, 'items', None)
+    items = getattr(data, "items", None)
     if callable(items):
-        print('{')
+        print("{")
         for key, val in items():
-            print(f'\t{repr(key)}: {repr(val)},')
-        print('}')
+            print(f"\t{repr(key)}: {repr(val)},")
+        print("}")
         return
     print(data)
 
 
 def file_like(obj) -> bool:
     try:
-        return callable(getattr(obj, 'read')) and callable(getattr(obj, 'seek')) \
-               and callable(getattr(obj, 'write')) and callable(getattr(obj, 'close'))
+        return (
+            callable(getattr(obj, "read"))
+            and callable(getattr(obj, "seek"))
+            and callable(getattr(obj, "write"))
+            and callable(getattr(obj, "close"))
+        )
     except AttributeError:
         return False
 
@@ -156,11 +175,11 @@ def return_type(f, raw: bool = False):
         f = f.__func__
     if not f:
         return None
-    _t = getattr(f, constant.Attr.ANNOTATES).get('return')
+    _t = getattr(f, constant.Attr.ANNOTATES).get("return")
     if raw:
         return _t
     try:
-        t = typing.get_type_hints(f).get('return')
+        t = typing.get_type_hints(f).get("return")
     except NameError:
         return _t
     if t is type(None):
@@ -169,7 +188,7 @@ def return_type(f, raw: bool = False):
 
 
 def get_generator_result(result):
-    if hasattr(result, '__next__'):
+    if hasattr(result, "__next__"):
         # convert generator yield result into list
         # result = list(result)
         values = []
@@ -179,7 +198,7 @@ def get_generator_result(result):
                 v = next(result)
             except StopIteration:
                 break
-            if hasattr(v, '__next__'):
+            if hasattr(v, "__next__"):
                 recursive = True
                 result = v
             else:
@@ -195,14 +214,16 @@ def get_generator_result(result):
 
 def get_doc(obj) -> str:
     if not obj:
-        return ''
+        return ""
     if isinstance(obj, str):
         return obj
-    return inspect.cleandoc(getattr(obj, constant.Attr.DOC, '') or '')
+    return inspect.cleandoc(getattr(obj, constant.Attr.DOC, "") or "")
     # return (getattr(obj, Attr.DOC, '') or '').replace('\t', '').strip('\n').strip()
 
 
-def check_requirement(*pkgs: str, hint: str = None, check: bool = True, install_when_require: bool = False):
+def check_requirement(
+    *pkgs: str, hint: str = None, check: bool = True, install_when_require: bool = False
+):
     if len(pkgs) > 1:
         for pkg in pkgs:
             try:
@@ -217,25 +238,30 @@ def check_requirement(*pkgs: str, hint: str = None, check: bool = True, install_
                 raise ImportError
         except (ModuleNotFoundError, ImportError):
             if install_when_require:
-                print(f'INFO: current service require <{pkg}> package, installing...')
+                print(f"INFO: current service require <{pkg}> package, installing...")
                 try:
                     import sys
-                    os.system(f'{sys.executable} -m pip install {pkg}')
+
+                    os.system(f"{sys.executable} -m pip install {pkg}")
                 except Exception as e:
-                    print(f'install package failed with error: {e}, fallback to internal solution')
-                    pip_main = import_obj('pip._internal:main')
-                    pip_main(['install', pkg])
+                    print(
+                        f"install package failed with error: {e}, fallback to internal solution"
+                    )
+                    pip_main = import_obj("pip._internal:main")
+                    pip_main(["install", pkg])
             else:
                 if hint:
                     print(hint)
-                raise ImportError(f'package <{pkg}> is required for current settings, please install it '
-                                  f'or set install-when-require=True at meta.ini to allow auto installation')
+                raise ImportError(
+                    f"package <{pkg}> is required for current settings, please install it "
+                    f"or set install-when-require=True at meta.ini to allow auto installation"
+                )
 
 
 def requires(*names, **mp):
     if names:
         for name in names:
-            mp[name] = str(name).split('.')[0]
+            mp[name] = str(name).split(".")[0]
     for import_name, install_name in mp.items():
         try:
             return import_obj(import_name)
@@ -243,14 +269,17 @@ def requires(*names, **mp):
         except (ModuleNotFoundError, ImportError):
             pass
     for import_name, install_name in mp.items():
-        print(f'INFO: current service require <{install_name}> package, installing...')
+        print(f"INFO: current service require <{install_name}> package, installing...")
         try:
             import sys
-            os.system(f'{sys.executable} -m pip install {install_name}')
+
+            os.system(f"{sys.executable} -m pip install {install_name}")
         except Exception as e:
-            print(f'install package failed with error: {e}, fallback to internal solution')
-            pip_main = import_obj('pip._internal:main')
-            pip_main(['install', install_name])
+            print(
+                f"install package failed with error: {e}, fallback to internal solution"
+            )
+            pip_main = import_obj("pip._internal:main")
+            pip_main(["install", install_name])
         try:
             return import_obj(import_name)
         except (ModuleNotFoundError, ImportError):
@@ -263,8 +292,9 @@ def import_obj(dotted_path):
     Import a dotted module path and return the attribute/class designated by the
     last name in the path. Raise ImportError if the import failed.
     """
-    if '/' in dotted_path and os.path.exists(dotted_path):
+    if "/" in dotted_path and os.path.exists(dotted_path):
         from importlib.util import spec_from_file_location
+
         name = dotted_path.split(os.sep)[-1].rstrip(constant.PY)
         spec = spec_from_file_location(name, dotted_path)
         return spec.loader.load_module()
@@ -274,14 +304,14 @@ def import_obj(dotted_path):
     except (ImportError, ModuleNotFoundError) as e:
         if dotted_path not in str(e):
             raise e
-    if ':' not in dotted_path and '.' not in dotted_path:
+    if ":" not in dotted_path and "." not in dotted_path:
         # module only
         return importlib.import_module(dotted_path)
     try:
-        if ':' in dotted_path:
-            module_path, class_name = dotted_path.split(':')
+        if ":" in dotted_path:
+            module_path, class_name = dotted_path.split(":")
         else:
-            module_path, class_name = dotted_path.rsplit('.', 1)
+            module_path, class_name = dotted_path.rsplit(".", 1)
     except ValueError as err:
         raise ImportError("%s doesn't look like a module path" % dotted_path) from err
 
@@ -290,6 +320,7 @@ def import_obj(dotted_path):
     try:
         return getattr(module, class_name)
     except AttributeError as err:
-        raise ImportError('Module "%s" does not define a "%s" attribute/class' % (
-            module_path, class_name)
+        raise ImportError(
+            'Module "%s" does not define a "%s" attribute/class'
+            % (module_path, class_name)
         ) from err

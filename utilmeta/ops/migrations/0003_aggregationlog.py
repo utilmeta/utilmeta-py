@@ -31,7 +31,12 @@ class Migration(migrations.Migration):
                         db_index=True, default=None, max_length=100, null=True
                     ),
                 ),
-                ("data", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "data",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("layer", models.PositiveSmallIntegerField(default=0)),
                 ("from_time", models.DateTimeField()),
                 ("to_time", models.DateTimeField()),

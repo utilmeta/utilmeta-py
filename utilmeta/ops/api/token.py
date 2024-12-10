@@ -45,40 +45,42 @@ class TokenAPI(api.API):
         return request.var.scopes.getter(self.request) or []
 
     @api.get
-    @opsRequire('token.view')
+    @opsRequire("token.view")
     @adapt_async(close_conn=config.db_alias)
     def get(self, query: AccessTokenQuery) -> List[AccessTokenSchema]:
         if not self.supervisor.id or not self.supervisor.node_id:
-            raise exceptions.NotFound('Supervisor not found', state='supervisor_not_found')
+            raise exceptions.NotFound(
+                "Supervisor not found", state="supervisor_not_found"
+            )
         query.issuer_id = self.supervisor.id
-        return AccessTokenSchema.serialize(
-            query
-        )
+        return AccessTokenSchema.serialize(query)
 
     @api.post
-    @opsRequire('token.revoke')
+    @opsRequire("token.revoke")
     @adapt_async(close_conn=config.db_alias)
     # this token will be generated and send directly from supervisor
     def revoke(self, id_list: List[str] = request.Body) -> int:
         if not self.supervisor.id or not self.supervisor.node_id:
-            raise exceptions.NotFound('Supervisor not found', state='supervisor_not_found')
-        exists = list(AccessToken.objects.filter(
-            token_id__in=id_list,
-            issuer_id=self.supervisor.id
-        ).values_list('token_id', flat=True))
+            raise exceptions.NotFound(
+                "Supervisor not found", state="supervisor_not_found"
+            )
+        exists = list(
+            AccessToken.objects.filter(
+                token_id__in=id_list, issuer_id=self.supervisor.id
+            ).values_list("token_id", flat=True)
+        )
 
         for token_id in set(id_list).difference(exists):
             AccessToken.objects.create(
                 token_id=token_id,
                 issuer_id=self.supervisor.id,
                 expiry_time=self.request.time + timedelta(days=1),
-                revoked=True
+                revoked=True,
             )
 
         if exists:
             AccessToken.objects.filter(
-                token_id__in=id_list,
-                issuer_id=self.supervisor.id
+                token_id__in=id_list, issuer_id=self.supervisor.id
             ).update(revoked=True)
 
         return len(exists)

@@ -4,16 +4,16 @@ from utilmeta import utils
 
 
 class ClientBeforeHook(BeforeHook):
-    target_type = 'client'
+    target_type = "client"
 
-    def serve(self, client, /, request: 'Request' = None):
+    def serve(self, client, /, request: "Request" = None):
         if not request:
             return
         args, kwargs = self.parse_request(request)
         return self(client, request, *args, **kwargs)
 
     @utils.awaitable(serve)
-    async def serve(self, client, /, request: 'Request' = None):
+    async def serve(self, client, /, request: "Request" = None):
         if not request:
             return
         args, kwargs = await self.parse_request(request)
@@ -21,8 +21,8 @@ class ClientBeforeHook(BeforeHook):
 
 
 class ClientAfterHook(AfterHook):
-    target_type = 'client'
+    target_type = "client"
 
 
 class ClientErrorHook(ErrorHook):
-    target_type = 'client'
+    target_type = "client"

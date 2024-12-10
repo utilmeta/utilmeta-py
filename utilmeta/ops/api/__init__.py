@@ -14,22 +14,24 @@ from .data import DataAPI
 from .log import LogAPI
 from .servers import ServersAPI
 from .token import TokenAPI
-from .utils import opsRequire, WrappedResponse, config, supervisor_var, \
-    SupervisorObject, resources_var, access_token_var
+from .utils import (
+    opsRequire,
+    WrappedResponse,
+    config,
+    supervisor_var,
+    SupervisorObject,
+    resources_var,
+    access_token_var,
+)
 from ..log import request_logger, Logger
 
-NO_CACHES = ['no-cache', 'no-store', 'max-age=0']
+NO_CACHES = ["no-cache", "no-store", "max-age=0"]
 
 
 @api.CORS(
-    allow_origin='*',
-    allow_headers=[
-        'authorization',
-        'cache-control',
-        'x-utilmeta-node-id',
-        'x-node-id'
-    ],
-    cors_max_age=3600 * 6
+    allow_origin="*",
+    allow_headers=["authorization", "cache-control", "x-utilmeta-node-id", "x-node-id"],
+    cors_max_age=3600 * 6,
 )
 class OperationsAPI(api.API):
     __external__ = True
@@ -53,11 +55,11 @@ class OperationsAPI(api.API):
     #     openapi = OpenAPI(service)()
 
     @api.get
-    @opsRequire('api.view')
+    @opsRequire("api.view")
     def openapi(self):
-        cache_control = self.request.headers.get('Cache-Control')
+        cache_control = self.request.headers.get("Cache-Control")
         if cache_control and any(h in cache_control for h in NO_CACHES):
-            openapi = config.load_openapi(no_store='no-store' in cache_control)
+            openapi = config.load_openapi(no_store="no-store" in cache_control)
         else:
             openapi = config.openapi
         return response.Response(openapi)
@@ -82,12 +84,13 @@ class OperationsAPI(api.API):
             # this is critical
             # if the POST /api/ops redirect to GET /api/ops by 301
             # the supervisor will not notice the difference by the result data if this field is not filled
-            **self.get()
+            **self.get(),
         )
 
     def get(self):
         try:
-            from utilmeta import service    # noqa
+            from utilmeta import service  # noqa
+
             name = service.name
         except ImportError:
             # raise exceptions.ServerError('service not initialized')
@@ -99,13 +102,15 @@ class OperationsAPI(api.API):
         )
 
     @adapt_async(close_conn=config.db_alias)
-    @opsRequire('service.config')
+    @opsRequire("service.config")
     def patch(self, data: SupervisorPatch = request.Body):
         supervisor: SupervisorObject = supervisor_var.getter(self.request)
         if not supervisor or not supervisor.id:
-            raise exceptions.NotFound('Supervisor not found', state='supervisor_not_found')
+            raise exceptions.NotFound(
+                "Supervisor not found", state="supervisor_not_found"
+            )
         if supervisor.node_id != data.node_id:
-            raise exceptions.BadRequest('Inconsistent supervisor node_id')
+            raise exceptions.BadRequest("Inconsistent supervisor node_id")
         data.id = supervisor.id
         # backup_urls
         # base_url
@@ -120,70 +125,75 @@ class OperationsAPI(api.API):
         # task_settings: dict
         # aggregate_settings: dict
         data.save()
-        return dict(
-            node_id=data.node_id,
-            **self.get()
-        )
+        return dict(node_id=data.node_id, **self.get())
 
     @adapt_async(close_conn=config.db_alias)
-    @opsRequire('service.delete')
+    @opsRequire("service.delete")
     def delete(self):
         supervisor: SupervisorObject = supervisor_var.getter(self.request)
         if supervisor:
             if supervisor.init_key:
                 # this supervisor is not marked as delete
-                raise exceptions.BadRequest('Supervisor not marked as deleted', state='delete_failed')
+                raise exceptions.BadRequest(
+                    "Supervisor not marked as deleted", state="delete_failed"
+                )
             if supervisor.node_id:
                 from utilmeta import service
                 from utilmeta.ops import models
+
                 for model in models.supervisor_related_models:
                     try:
                         model.objects.filter(
                             node_id=supervisor.node_id,
-                        ).update(
-                            node_id=None,
-                            service=service.name
-                        )
+                        ).update(node_id=None, service=service.name)
                     except EmptyResultSet:
                         continue
             if config.node_id:
                 from utilmeta.bin.utils import update_meta_ini_file
-                update_meta_ini_file(node=None)     # clear local node_id
+
+                update_meta_ini_file(node=None)  # clear local node_id
             Supervisor.objects.filter(pk=supervisor.id).delete()
             return 1
-        raise exceptions.NotFound('Supervisor not found', state='supervisor_not_found')
+        raise exceptions.NotFound("Supervisor not found", state="supervisor_not_found")
 
-    @api.before('*', excludes=(get, post))
-    def handle_token(self, node_id: str = request.HeaderParam(
-        'X-UtilMeta-Node-ID',
-        alias_from=['x-node-id'],
-        default=None
-    )):
+    @api.before("*", excludes=(get, post))
+    def handle_token(
+        self,
+        node_id: str = request.HeaderParam(
+            "X-UtilMeta-Node-ID", alias_from=["x-node-id"], default=None
+        ),
+    ):
         type, token = self.request.authorization
-        node_id = node_id or self.request.query.get('node')
+        node_id = node_id or self.request.query.get("node")
         if not token:
             if not config.local_disabled and config.is_local:
                 from utilmeta import service
-                if str(self.request.ip_address) == '127.0.0.1':
+
+                if str(self.request.ip_address) == "127.0.0.1":
                     # LOCAL -> LOCAL MANAGE
                     try:
-                        supervisor = SupervisorObject.init(Supervisor.objects.filter(
-                            node_id=node_id,
-                            disabled=False,
-                            local=True,
-                            ops_api=config.ops_api,
-                        ))
+                        supervisor = SupervisorObject.init(
+                            Supervisor.objects.filter(
+                                node_id=node_id,
+                                disabled=False,
+                                local=True,
+                                ops_api=config.ops_api,
+                            )
+                        )
                         supervisor_var.setter(self.request, supervisor)
                     except orm.EmptyQueryset:
-                        supervisor_var.setter(self.request, SupervisorObject(
-                            id=None,
-                            service=service.name,
-                            node_id=None,
-                            disabled=False,
-                            ident=None,
-                            local=True,
-                            ops_api=config.ops_api,
-                        ))
+                        supervisor_var.setter(
+                            self.request,
+                            SupervisorObject(
+                                id=None,
+                                service=service.name,
+                                node_id=None,
+                                disabled=False,
+                                ident=None,
+                                local=True,
+                                ops_api=config.ops_api,
+                            ),
+                        )
                         pass
                         # raise exceptions.Unauthorized
                     var.scopes.setter(self.request, config.local_scope)
@@ -191,7 +201,7 @@ class OperationsAPI(api.API):
             raise exceptions.Unauthorized
         # node can also be included in the query params to avoid additional headers
         if not node_id:
-            raise exceptions.BadRequest('Node ID required', state='node_required')
+            raise exceptions.BadRequest("Node ID required", state="node_required")
         validated = False
         for supervisor in SupervisorObject.serialize(
             Supervisor.objects.filter(
@@ -199,56 +209,61 @@ class OperationsAPI(api.API):
                 # we don't use service name as identifier
                 # that might not be synced
                 disabled=False,
-                public_key__isnull=False
+                public_key__isnull=False,
             )
         ):
             try:
                 token_data = decode_token(token, public_key=supervisor.public_key)
             except ValueError:
-                raise exceptions.BadRequest('Invalid token format', state='token_expired')
+                raise exceptions.BadRequest(
+                    "Invalid token format", state="token_expired"
+                )
             if not token_data:
                 continue
-            token_node_id = token_data.get('nid')
+            token_node_id = token_data.get("nid")
             if token_node_id != node_id:
-                raise exceptions.Conflict(f'Invalid node id')
-            issuer = token_data.get('iss') or ''
+                raise exceptions.Conflict(f"Invalid node id")
+            issuer = token_data.get("iss") or ""
             if not str(supervisor.base_url).startswith(issuer):
-                raise exceptions.Conflict(f'Invalid token issuer: {repr(issuer)}')
-            audience = token_data.get('aud') or ''
+                raise exceptions.Conflict(f"Invalid token issuer: {repr(issuer)}")
+            audience = token_data.get("aud") or ""
             if not config.ops_api.startswith(audience):
                 # todo: log, but not force to reject
                 pass
 
-            expires = token_data.get('exp')
+            expires = token_data.get("exp")
             if not expires:
-                raise exceptions.UnprocessableEntity('Invalid token: no expires')
+                raise exceptions.UnprocessableEntity("Invalid token: no expires")
 
             if self.request.time.timestamp() > expires:
-                raise exceptions.BadRequest('Invalid token: expired', state='token_expired')
+                raise exceptions.BadRequest(
+                    "Invalid token: expired", state="token_expired"
+                )
 
             # SCOPE ----------------------------
-            scope = token_data.get('scope') or ''
-            scopes = scope.split(' ') if ' ' in scope else scope.split(',')
+            scope = token_data.get("scope") or ""
+            scopes = scope.split(" ") if " " in scope else scope.split(",")
             scope_names = []
             resources = []
             for name in scopes:
-                if ':' in name:
-                    name, resource = name.split(':')
+                if ":" in name:
+                    name, resource = name.split(":")
                     resources.append(resource)
                 scope_names.append(name)
             var.scopes.setter(self.request, scope_names)
             resources_var.setter(self.request, resources)
             # -------------------------------------
 
-            token_id = token_data.get('jti') or ''
+            token_id = token_data.get("jti") or ""
             if not token_id:
-                raise exceptions.BadRequest('Invalid token: id required', state='token_expired')
+                raise exceptions.BadRequest(
+                    "Invalid token: id required", state="token_expired"
+                )
 
             try:
                 token_obj = AccessTokenSchema.init(
                     AccessToken.objects.filter(
-                        token_id=token_id,
-                        issuer_id=supervisor.id
+                        token_id=token_id, issuer_id=supervisor.id
                     )
                 )
             except orm.EmptyQueryset:
@@ -258,7 +273,9 @@ class OperationsAPI(api.API):
                 if token_obj.revoked:
                     # force revoked
                     # e.g. the subject permissions has changed after the token issued
-                    raise exceptions.BadRequest('Invalid token: revoked', state='token_expired')
+                    raise exceptions.BadRequest(
+                        "Invalid token: revoked", state="token_expired"
+                    )
                 token_obj.last_activity = self.request.time
                 token_obj.used_times += 1
                 token_obj.save()
@@ -267,17 +284,19 @@ class OperationsAPI(api.API):
                     token_obj = AccessTokenSchema(
                         token_id=token_id,
                         issuer_id=supervisor.id,
-                        issued_at=datetime.fromtimestamp(token_data.get('iat')),
+                        issued_at=datetime.fromtimestamp(token_data.get("iat")),
                         expiry_time=datetime.fromtimestamp(expires),
-                        subject=token_data.get('sub'),
+                        subject=token_data.get("sub"),
                         last_activity=self.request.time,
                         used_times=1,
                         ip=str(self.request.ip_address),
-                        scope=scopes
+                        scope=scopes,
                     )
                     token_obj.save()
                 except IntegrityError:
-                    raise exceptions.BadRequest('Invalid token: id duplicated', state='token_expired')
+                    raise exceptions.BadRequest(
+                        "Invalid token: id duplicated", state="token_expired"
+                    )
 
             # set context vars
             # scope
@@ -288,11 +307,13 @@ class OperationsAPI(api.API):
             break
 
         if not validated:
-            raise exceptions.BadRequest('Supervisor not found', state='supervisor_not_found')
+            raise exceptions.BadRequest(
+                "Supervisor not found", state="supervisor_not_found"
+            )
 
-    @api.handle('*')
+    @api.handle("*")
     def handle_errors(self, e: Error):
         if isinstance(e.exception, DatabaseError):
             # do not expose the state of database error
-            e.exc = exceptions.ServerError('server error')
+            e.exc = exceptions.ServerError("server error")
         return self.response(request=self.request, error=e)

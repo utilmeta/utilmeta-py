@@ -26,8 +26,18 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("relieved_time", models.DateTimeField(default=None, null=True)),
-                ("trigger_times", models.JSONField(default=list, encoder=utype.utils.encode.JSONEncoder)),
-                ("trigger_values", models.JSONField(default=list, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "trigger_times",
+                    models.JSONField(
+                        default=list, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
+                (
+                    "trigger_values",
+                    models.JSONField(
+                        default=list, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "time",
                     models.DateTimeField(
@@ -41,7 +51,12 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("count", models.PositiveBigIntegerField(default=1)),
-                ("data", models.JSONField(default=None, encoder=utype.utils.encode.JSONEncoder, null=True)),
+                (
+                    "data",
+                    models.JSONField(
+                        default=None, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
             ],
             options={
                 "db_table": "utilmeta_alert_log",
@@ -71,7 +86,12 @@ class Migration(migrations.Migration):
                 ("route", models.CharField(max_length=300)),
                 ("remote_id", models.CharField(default=None, max_length=40, null=True)),
                 ("created_time", models.DateTimeField(auto_now_add=True)),
-                ("data", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "data",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("deleted", models.BooleanField(default=False)),
                 ("deprecated", models.BooleanField(default=False)),
                 (
@@ -104,7 +124,12 @@ class Migration(migrations.Migration):
                 ("service", models.CharField(max_length=100)),
                 ("node_id", models.CharField(default=None, max_length=40, null=True)),
                 ("ident", models.CharField(default=None, max_length=20, null=True)),
-                ("backup_urls", models.JSONField(default=list, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "backup_urls",
+                    models.JSONField(
+                        default=list, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("base_url", models.URLField()),
                 ("local", models.BooleanField(default=False)),
                 ("public_key", models.TextField(default=None, null=True)),
@@ -123,13 +148,38 @@ class Migration(migrations.Migration):
                     models.PositiveIntegerField(default=None, null=True),
                 ),
                 ("latency", models.PositiveIntegerField(default=None, null=True)),
-                ("settings", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "settings",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("connected", models.BooleanField(default=False)),
                 ("disabled", models.BooleanField(default=False)),
-                ("alert_settings", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
-                ("task_settings", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
-                ("aggregate_settings", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
-                ("data", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "alert_settings",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
+                (
+                    "task_settings",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
+                (
+                    "aggregate_settings",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
+                (
+                    "data",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "resources_etag",
                     models.CharField(default=None, max_length=200, null=True),
@@ -171,7 +221,12 @@ class Migration(migrations.Migration):
                 ("open_files", models.PositiveBigIntegerField(default=None, null=True)),
                 ("active_net_connections", models.PositiveIntegerField(default=0)),
                 ("total_net_connections", models.PositiveIntegerField(default=0)),
-                ("net_connections_info", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "net_connections_info",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("in_traffic", models.PositiveBigIntegerField(default=0, null=True)),
                 ("out_traffic", models.PositiveBigIntegerField(default=0, null=True)),
                 ("outbound_requests", models.PositiveIntegerField(default=0)),
@@ -205,7 +260,12 @@ class Migration(migrations.Migration):
                     models.DecimalField(decimal_places=2, default=0.0, max_digits=10),
                 ),
                 ("pid", models.PositiveIntegerField()),
-                ("memory_info", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "memory_info",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("threads", models.PositiveIntegerField(default=0)),
                 (
                     "start_time",
@@ -223,8 +283,18 @@ class Migration(migrations.Migration):
                 ("status", models.CharField(default=None, max_length=100, null=True)),
                 ("user", models.CharField(default=None, max_length=100, null=True)),
                 ("retire_time", models.DateTimeField(default=None, null=True)),
-                ("reload_params", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
-                ("data", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "reload_params",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
+                (
+                    "data",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "instance",
                     models.ForeignKey(
@@ -289,7 +359,12 @@ class Migration(migrations.Migration):
                 ("open_files", models.PositiveBigIntegerField(default=None, null=True)),
                 ("active_net_connections", models.PositiveIntegerField(default=0)),
                 ("total_net_connections", models.PositiveIntegerField(default=0)),
-                ("net_connections_info", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "net_connections_info",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("in_traffic", models.PositiveBigIntegerField(default=0, null=True)),
                 ("out_traffic", models.PositiveBigIntegerField(default=0, null=True)),
                 ("outbound_requests", models.PositiveIntegerField(default=0)),
@@ -329,9 +404,19 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("interval", models.PositiveIntegerField(default=None, null=True)),
-                ("memory_info", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "memory_info",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("threads", models.PositiveIntegerField(default=0)),
-                ("metrics", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "metrics",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "worker",
                     models.ForeignKey(
@@ -368,7 +453,12 @@ class Migration(migrations.Migration):
                 ("time", models.DateTimeField(auto_now_add=True)),
                 ("down_time", models.PositiveBigIntegerField(default=None, null=True)),
                 ("success", models.BooleanField(default=None, null=True)),
-                ("restart_data", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "restart_data",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("version", models.CharField(max_length=100)),
                 (
                     "remote_id",
@@ -400,14 +490,44 @@ class Migration(migrations.Migration):
                     "response_type",
                     models.CharField(default=None, max_length=200, null=True),
                 ),
-                ("request_headers", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder, null=True)),
-                ("response_headers", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder, null=True)),
-                ("user_agent", models.JSONField(default=None, encoder=utype.utils.encode.JSONEncoder, null=True)),
+                (
+                    "request_headers",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
+                (
+                    "response_headers",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
+                (
+                    "user_agent",
+                    models.JSONField(
+                        default=None, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
                 ("status", models.PositiveSmallIntegerField(default=200, null=True)),
                 ("length", models.PositiveBigIntegerField(default=0, null=True)),
-                ("query", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder, null=True)),
-                ("data", models.JSONField(default=None, encoder=utype.utils.encode.JSONEncoder, null=True)),
-                ("result", models.JSONField(default=None, encoder=utype.utils.encode.JSONEncoder, null=True)),
+                (
+                    "query",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
+                (
+                    "data",
+                    models.JSONField(
+                        default=None, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
+                (
+                    "result",
+                    models.JSONField(
+                        default=None, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
                 ("full_url", models.URLField(default=None, null=True)),
                 ("path", models.URLField(default=None, null=True)),
                 ("in_traffic", models.PositiveBigIntegerField(default=0)),
@@ -432,8 +552,18 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("ip", models.GenericIPAddressField()),
-                ("trace", models.JSONField(default=list, encoder=utype.utils.encode.JSONEncoder)),
-                ("messages", models.JSONField(default=list, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "trace",
+                    models.JSONField(
+                        default=list, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
+                (
+                    "messages",
+                    models.JSONField(
+                        default=list, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("volatile", models.BooleanField(default=True)),
                 (
                     "alert",
@@ -522,7 +652,12 @@ class Migration(migrations.Migration):
                 ("open_files", models.PositiveBigIntegerField(default=None, null=True)),
                 ("active_net_connections", models.PositiveIntegerField(default=0)),
                 ("total_net_connections", models.PositiveIntegerField(default=0)),
-                ("net_connections_info", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "net_connections_info",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "time",
                     models.DateTimeField(
@@ -549,7 +684,12 @@ class Migration(migrations.Migration):
                         decimal_places=2, default=None, max_digits=8, null=True
                     ),
                 ),
-                ("metrics", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "metrics",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "server",
                     models.ForeignKey(
@@ -577,14 +717,44 @@ class Migration(migrations.Migration):
                     "response_type",
                     models.CharField(default=None, max_length=200, null=True),
                 ),
-                ("request_headers", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder, null=True)),
-                ("response_headers", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder, null=True)),
-                ("user_agent", models.JSONField(default=None, encoder=utype.utils.encode.JSONEncoder, null=True)),
+                (
+                    "request_headers",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
+                (
+                    "response_headers",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
+                (
+                    "user_agent",
+                    models.JSONField(
+                        default=None, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
                 ("status", models.PositiveSmallIntegerField(default=200, null=True)),
                 ("length", models.PositiveBigIntegerField(default=0, null=True)),
-                ("query", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder, null=True)),
-                ("data", models.JSONField(default=None, encoder=utype.utils.encode.JSONEncoder, null=True)),
-                ("result", models.JSONField(default=None, encoder=utype.utils.encode.JSONEncoder, null=True)),
+                (
+                    "query",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
+                (
+                    "data",
+                    models.JSONField(
+                        default=None, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
+                (
+                    "result",
+                    models.JSONField(
+                        default=None, encoder=utype.utils.encode.JSONEncoder, null=True
+                    ),
+                ),
                 ("full_url", models.URLField(default=None, null=True)),
                 ("path", models.URLField(default=None, null=True)),
                 ("in_traffic", models.PositiveBigIntegerField(default=0)),
@@ -656,7 +826,12 @@ class Migration(migrations.Migration):
                 ("duration", models.PositiveBigIntegerField(default=None, null=True)),
                 ("message", models.TextField(default="")),
                 ("operation", models.CharField(default=None, max_length=32, null=True)),
-                ("tables", models.JSONField(default=list, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "tables",
+                    models.JSONField(
+                        default=list, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "context_type",
                     models.CharField(default=None, max_length=40, null=True),
@@ -730,7 +905,12 @@ class Migration(migrations.Migration):
                 ("open_files", models.PositiveBigIntegerField(default=None, null=True)),
                 ("active_net_connections", models.PositiveIntegerField(default=0)),
                 ("total_net_connections", models.PositiveIntegerField(default=0)),
-                ("net_connections_info", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "net_connections_info",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("in_traffic", models.PositiveBigIntegerField(default=0, null=True)),
                 ("out_traffic", models.PositiveBigIntegerField(default=0, null=True)),
                 ("outbound_requests", models.PositiveIntegerField(default=0)),
@@ -784,7 +964,12 @@ class Migration(migrations.Migration):
                         decimal_places=2, default=None, max_digits=10, null=True
                     ),
                 ),
-                ("metrics", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "metrics",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "instance",
                     models.ForeignKey(
@@ -825,7 +1010,12 @@ class Migration(migrations.Migration):
                 ("current_connections", models.PositiveBigIntegerField(default=0)),
                 ("server_connections", models.PositiveBigIntegerField(default=0)),
                 ("new_transactions", models.PositiveBigIntegerField(default=0)),
-                ("metrics", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "metrics",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("queries_num", models.PositiveBigIntegerField(default=0)),
                 (
                     "qps",
@@ -837,7 +1027,12 @@ class Migration(migrations.Migration):
                     "query_avg_time",
                     models.DecimalField(decimal_places=2, default=0, max_digits=10),
                 ),
-                ("operations", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "operations",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "database",
                     models.ForeignKey(
@@ -871,13 +1066,23 @@ class Migration(migrations.Migration):
                 ("pid", models.PositiveIntegerField(default=None, null=True)),
                 ("query", models.TextField(default="")),
                 ("operation", models.CharField(default=None, max_length=32, null=True)),
-                ("tables", models.JSONField(default=list, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "tables",
+                    models.JSONField(
+                        default=list, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("backend_start", models.DateTimeField(default=None, null=True)),
                 ("transaction_start", models.DateTimeField(default=None, null=True)),
                 ("wait_event", models.TextField(default=None, null=True)),
                 ("query_start", models.DateTimeField(default=None, null=True)),
                 ("state_change", models.DateTimeField(default=None, null=True)),
-                ("data", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "data",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "database",
                     models.ForeignKey(
@@ -937,7 +1142,12 @@ class Migration(migrations.Migration):
                         decimal_places=2, default=None, max_digits=10, null=True
                     ),
                 ),
-                ("metrics", models.JSONField(default=dict, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "metrics",
+                    models.JSONField(
+                        default=dict, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 (
                     "cache",
                     models.ForeignKey(
@@ -1065,7 +1275,12 @@ class Migration(migrations.Migration):
                 ("last_activity", models.DateTimeField(default=None, null=True)),
                 ("used_times", models.PositiveIntegerField(default=0)),
                 ("ip", models.GenericIPAddressField(default=None, null=True)),
-                ("scope", models.JSONField(default=list, encoder=utype.utils.encode.JSONEncoder)),
+                (
+                    "scope",
+                    models.JSONField(
+                        default=list, encoder=utype.utils.encode.JSONEncoder
+                    ),
+                ),
                 ("revoked", models.BooleanField(default=False)),
                 (
                     "issuer",

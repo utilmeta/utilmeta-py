@@ -18,38 +18,44 @@ class TornadoServerAdaptor(ServerAdaptor):
 
     def __init__(self, config):
         super().__init__(config)
-        self.app = self.config._application if isinstance(self.config._application, self.application_cls) else None
+        self.app = (
+            self.config._application
+            if isinstance(self.config._application, self.application_cls)
+            else None
+        )
         self._ready = False
 
     @property
     def production(self) -> bool:
-        return not self.app.settings.get('debug')
+        return not self.app.settings.get("debug")
 
-    def adapt(self, api: 'API', route: str, asynchronous: bool = None):
+    def adapt(self, api: "API", route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
-        func = self.get_request_handler(api, asynchronous=asynchronous, append_slash=True)
-        path = rf'/{route.strip("/")}(\/.*)?' if route.strip('/') else '(.*)'
-        self.app.add_handlers(
-            '.*', [
-                (path, func)
-            ]
+        func = self.get_request_handler(
+            api, asynchronous=asynchronous, append_slash=True
         )
+        path = rf'/{route.strip("/")}(\/.*)?' if route.strip("/") else "(.*)"
+        self.app.add_handlers(".*", [(path, func)])
 
     def load_route(self, path: str):
-        return (path or '').strip('/')
+        return (path or "").strip("/")
 
-    def get_request_handler(self, utilmeta_api_class, asynchronous: bool = False, append_slash: bool = False):
+    def get_request_handler(
+        self, utilmeta_api_class, asynchronous: bool = False, append_slash: bool = False
+    ):
         request_adaptor_cls = self.request_adaptor_cls
         service = self
 
         if append_slash:
             decorator = tornado.web.addslash
         else:
+
             def decorator(f):
                 return f
 
         if asynchronous:
+
             class Handler(RequestHandler):
                 @decorator
                 async def get(self, *args, **kwargs):
@@ -97,7 +103,9 @@ class TornadoServerAdaptor(ServerAdaptor):
                         if not isinstance(response, Response):
                             response = Response(response=response, request=request)
                     except Exception as e:
-                        response = getattr(utilmeta_api_class, 'response', Response)(error=e, request=request)
+                        response = getattr(utilmeta_api_class, "response", Response)(
+                            error=e, request=request
+                        )
 
                     for middleware in service.middlewares:
                         _response = middleware.process_response(response)
@@ -111,7 +119,9 @@ class TornadoServerAdaptor(ServerAdaptor):
                         return
                     body = response.prepare_body()
                     self.write(body)
+
         else:
+
             class Handler(RequestHandler):
                 @decorator
                 def get(self, *args, **kwargs):
@@ -159,7 +169,9 @@ class TornadoServerAdaptor(ServerAdaptor):
                         if not isinstance(response, Response):
                             response = Response(response=response, request=request)
                     except Exception as e:
-                        response = getattr(utilmeta_api_class, 'response', Response)(error=e, request=request)
+                        response = getattr(utilmeta_api_class, "response", Response)(
+                            error=e, request=request
+                        )
 
                     for middleware in service.middlewares:
                         _response = middleware.process_response(response) or response
@@ -179,10 +191,7 @@ class TornadoServerAdaptor(ServerAdaptor):
 
     @property
     def request_handler(self):
-        return self.get_request_handler(
-            self.resolve(),
-            asynchronous=self.asynchronous
-        )
+        return self.get_request_handler(self.resolve(), asynchronous=self.asynchronous)
 
     def application(self):
         return self.setup()
@@ -206,20 +215,14 @@ class TornadoServerAdaptor(ServerAdaptor):
 
         root_api = self.resolve()
         if self.config.root_url:
-            url_pattern = rf'/{self.config.root_url}(\/.*)?'
+            url_pattern = rf"/{self.config.root_url}(\/.*)?"
         else:
-            url_pattern = '/' + root_api._get_route_pattern().lstrip('^')
+            url_pattern = "/" + root_api._get_route_pattern().lstrip("^")
 
         if self.app:
-            self.app.add_handlers(
-                '.*', [
-                    (url_pattern, self.request_handler)
-                ]
-            )
+            self.app.add_handlers(".*", [(url_pattern, self.request_handler)])
             return self.app
-        self.app = self.application_cls([
-            (url_pattern, self.request_handler)
-        ])
+        self.app = self.application_cls([(url_pattern, self.request_handler)])
         self._ready = True
         return self.app
 

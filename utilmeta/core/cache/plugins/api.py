@@ -1,4 +1,12 @@
-from utilmeta.utils import pop, get_interval, Header, time_now, http_time, COMMON_ERRORS, fast_digest
+from utilmeta.utils import (
+    pop,
+    get_interval,
+    Header,
+    time_now,
+    http_time,
+    COMMON_ERRORS,
+    fast_digest,
+)
 from utype import type_transform
 from utype.parser.func import FunctionParser
 from utilmeta.utils import exceptions as exc
@@ -15,7 +23,7 @@ NUM_TYPES = (int, float)
 NUM = Union[int, float]
 VAL = Union[str, bytes, list, tuple, dict]
 
-__all__ = ['ServerCache']
+__all__ = ["ServerCache"]
 
 
 NOT_MODIFIED_KEEP_HEADERS = (
@@ -30,23 +38,23 @@ NOT_MODIFIED_KEEP_HEADERS = (
 
 
 class ServerCache(BaseCacheInterface):
-    NO_CACHE = 'no-cache'
-    NO_STORE = 'no-store'
-    NO_TRANSFORM = 'no-transform'
-    PUBLIC = 'public'
-    MAX_AGE = 'max-age'
-    MAX_STALE = 'max-stale'
-    MAX_FRESH = 'max-fresh'
-    PRIVATE = 'private'
-    MUST_REVALIDATE = 'must-revalidate'
+    NO_CACHE = "no-cache"
+    NO_STORE = "no-store"
+    NO_TRANSFORM = "no-transform"
+    PUBLIC = "public"
+    MAX_AGE = "max-age"
+    MAX_STALE = "max-stale"
+    MAX_FRESH = "max-fresh"
+    PRIVATE = "private"
+    MUST_REVALIDATE = "must-revalidate"
 
     # volatile strategy
-    OBSOLETE_LRU = 'LRU'    # least recently updated
-    OBSOLETE_LFU = 'LFU'    # least frequently used
-    OBSOLETE_RANDOM = 'RANDOM'
+    OBSOLETE_LRU = "LRU"  # least recently updated
+    OBSOLETE_LFU = "LFU"  # least frequently used
+    OBSOLETE_RANDOM = "RANDOM"
 
     # omit
-    OMIT_ARG_NAMES = ('self', 'cls', 'mcs')
+    OMIT_ARG_NAMES = ("self", "cls", "mcs")
     FOREVER_TIMEDELTA = timedelta(days=365 * 50)
 
     # standard vary
@@ -76,7 +84,7 @@ class ServerCache(BaseCacheInterface):
             month=current_time.month,
             day=current_time.day,
             hour=current_time.hour,
-            minute=current_time.minute
+            minute=current_time.minute,
         ) + timedelta(minutes=1)
 
     @classmethod
@@ -86,7 +94,7 @@ class ServerCache(BaseCacheInterface):
             year=current_time.year,
             month=current_time.month,
             day=current_time.day,
-            hour=current_time.hour
+            hour=current_time.hour,
         ) + timedelta(hours=1)
 
     @classmethod
@@ -96,7 +104,7 @@ class ServerCache(BaseCacheInterface):
             year=current_time.year,
             month=current_time.month,
             day=current_time.day,
-            hour=0
+            hour=0,
         ) + timedelta(days=1)
 
     @classmethod
@@ -107,7 +115,7 @@ class ServerCache(BaseCacheInterface):
             year=current_time.year,
             month=current_time.month,
             day=current_time.day,
-            hour=0
+            hour=0,
         ) + timedelta(days=delta_days)
 
     @classmethod
@@ -119,32 +127,27 @@ class ServerCache(BaseCacheInterface):
         else:
             year = current_time.year
             month = current_time.month + 1
-        return datetime(
-            year=year,
-            month=month,
-            day=0
-        )
+        return datetime(year=year, month=month, day=0)
 
     @classmethod
     def expires_next_year(cls):
         current_time = time_now()
-        return datetime(
-            year=current_time.year + 1,
-            month=1,
-            day=0
-        )
+        return datetime(year=current_time.year + 1, month=1, day=0)
 
     @classmethod
     def expires_next_utc_day(cls):
         current_time = time_now().astimezone(timezone.utc)
-        return (datetime(
-            year=current_time.year,
-            month=current_time.month,
-            day=current_time.day,
-            hour=0
-        ) + timedelta(days=1)).replace(tzinfo=timezone.utc)
+        return (
+            datetime(
+                year=current_time.year,
+                month=current_time.month,
+                day=current_time.day,
+                hour=0,
+            )
+            + timedelta(days=1)
+        ).replace(tzinfo=timezone.utc)
 
-    entity_cls: Type[CacheEntity]   # can be override
+    entity_cls: Type[CacheEntity]  # can be override
     cache_alias: str
     # expiry_time: Union[int, datetime, timedelta, Callable]
     scope_prefix: str
@@ -152,31 +155,33 @@ class ServerCache(BaseCacheInterface):
     vary_header: Union[str, List[str]]
     # vary_function: Callable[['Request'], str]
 
-    def __init__(self, cache_alias: str = 'default',
-                 scope_prefix: str = None,
-                 # user can manually assign, and allow two cache instance have the same scope key
-                 cache_control: str = None,
-                 cache_response: bool = False,
-                 etag_response: bool = False,
-                 vary_header: Union[str, List[str]] = None,
-                 vary_function=None,
-                 expiry_time: Union[int, datetime, timedelta, Callable, None] = 0,
-                 # normalizer, take the request and return the normalized result
-                 max_entries: int = None,  # None means unlimited
-                 max_entries_policy: str = OBSOLETE_LFU,
-                 max_entries_tolerance: int = 0,
-                 # if vary is specified, max_entries is relative to each variant
-                 max_variants: int = None,
-                 max_variants_policy: str = OBSOLETE_LFU,
-                 max_variants_tolerance: int = 0,
-                 trace_keys: bool = None,
-                 default_timeout: Union[int, float, timedelta] = None,
-                 entity_cls: Type[CacheEntity] = None,
-                 document: str = None,
-                 ):
+    def __init__(
+        self,
+        cache_alias: str = "default",
+        scope_prefix: str = None,
+        # user can manually assign, and allow two cache instance have the same scope key
+        cache_control: str = None,
+        cache_response: bool = False,
+        etag_response: bool = False,
+        vary_header: Union[str, List[str]] = None,
+        vary_function=None,
+        expiry_time: Union[int, datetime, timedelta, Callable, None] = 0,
+        # normalizer, take the request and return the normalized result
+        max_entries: int = None,  # None means unlimited
+        max_entries_policy: str = OBSOLETE_LFU,
+        max_entries_tolerance: int = 0,
+        # if vary is specified, max_entries is relative to each variant
+        max_variants: int = None,
+        max_variants_policy: str = OBSOLETE_LFU,
+        max_variants_tolerance: int = 0,
+        trace_keys: bool = None,
+        default_timeout: Union[int, float, timedelta] = None,
+        entity_cls: Type[CacheEntity] = None,
+        document: str = None,
+    ):
 
         _locals = dict(locals())
-        pop(_locals, 'self')
+        pop(_locals, "self")
         super().__init__(**_locals)
 
         # from utilmeta.conf import config
@@ -184,8 +189,11 @@ class ServerCache(BaseCacheInterface):
         if expiry_time:
             if isinstance(expiry_time, (classmethod, staticmethod)):
                 expiry_time = expiry_time.__func__
-            assert isinstance(expiry_time, (int, float, datetime, timedelta)) or callable(expiry_time), \
-                f'Invalid Cache expiry_time: {expiry_time}, must be instance of int/datetime/timedelta or a callable'
+            assert isinstance(
+                expiry_time, (int, float, datetime, timedelta)
+            ) or callable(
+                expiry_time
+            ), f"Invalid Cache expiry_time: {expiry_time}, must be instance of int/datetime/timedelta or a callable"
             if callable(expiry_time):
                 expiry_time = self.function_parser_cls.apply_for(expiry_time)
 
@@ -199,20 +207,27 @@ class ServerCache(BaseCacheInterface):
                     # default function: vary to cookie
                     vary_header = self.VARY_COOKIE
                 else:
-                    warnings.warn(f'Cache with vary_function ({vary_function}) should specify a vary_header'
-                                  f' to generate response["Vary"] header, like use vary_header="Cookie" '
-                                  f'when you vary to user_id / session_id, because it is derived from cookie')
+                    warnings.warn(
+                        f"Cache with vary_function ({vary_function}) should specify a vary_header"
+                        f' to generate response["Vary"] header, like use vary_header="Cookie" '
+                        f"when you vary to user_id / session_id, because it is derived from cookie"
+                    )
 
-            assert callable(vary_function), f'Cache.vary_function must be a callable, got {vary_function}'
+            assert callable(
+                vary_function
+            ), f"Cache.vary_function must be a callable, got {vary_function}"
             # if config.preference.validate_request_functions:
             from utilmeta.core.request import Request
+
             _res = vary_function(Request())
 
         self.vary_header = vary_header
         self.vary_function = vary_function
 
         if not self.varied and self.max_variants:
-            raise ValueError(f'Cache with max_variants: {self.max_variants} got no vary_header or vary_function')
+            raise ValueError(
+                f"Cache with max_variants: {self.max_variants} got no vary_header or vary_function"
+            )
 
         # private properties
         self._expiry_time = expiry_time
@@ -222,7 +237,7 @@ class ServerCache(BaseCacheInterface):
         self._max_stale = None
         self._stale = False
         self._max_fresh = None
-        self._expiry_datetime = None    # runtime
+        self._expiry_datetime = None  # runtime
         self._if_modified_since: Optional[datetime] = None
         self._if_none_match: Optional[str] = None
         self._if_unmodified_since: Optional[datetime] = None
@@ -242,7 +257,7 @@ class ServerCache(BaseCacheInterface):
     def variant(self) -> str:
         return self._variant
 
-    def init_expiry(self, request: 'Request') -> Optional[datetime]:
+    def init_expiry(self, request: "Request") -> Optional[datetime]:
         expiry = self._expiry_time
         if callable(expiry):
             expiry = expiry(request)
@@ -273,7 +288,7 @@ class ServerCache(BaseCacheInterface):
                 self._expiry_datetime = time_now() + timedelta(seconds=inv)
                 self._max_age = int(inv)
 
-    def get_variant(self, request: 'Request') -> Optional[str]:
+    def get_variant(self, request: "Request") -> Optional[str]:
         if self.vary_function:
             # try not to contains sensitive data in vary_function results
             key = self.vary_function(request)
@@ -290,6 +305,7 @@ class ServerCache(BaseCacheInterface):
     def etag_function(cls, value):
         # can be inherit
         from utilmeta.utils import etag
+
         return etag(value)
 
     @property
@@ -314,7 +330,10 @@ class ServerCache(BaseCacheInterface):
         but run the function and get the un-cached response
         we may store it to cache if max_entries is not 0 and not full (unlike no-store)
         """
-        return self.request_cache_control in (self.NO_CACHE, self.NO_STORE) or not self.has_entries
+        return (
+            self.request_cache_control in (self.NO_CACHE, self.NO_STORE)
+            or not self.has_entries
+        )
 
     @property
     def last_modified(self):
@@ -334,8 +353,12 @@ class ServerCache(BaseCacheInterface):
     def etag(self, val):
         self._etag = self.etag_function(val)
 
-    def check_modified(self, last_modified: Union[datetime, int, float, str] = None,
-                       resource=None, etag: str = None):
+    def check_modified(
+        self,
+        last_modified: Union[datetime, int, float, str] = None,
+        resource=None,
+        etag: str = None,
+    ):
         if last_modified:
             self.last_modified = last_modified
         if etag or resource:
@@ -351,11 +374,17 @@ class ServerCache(BaseCacheInterface):
 
         return False
 
-    def check_precondition(self, last_modified: Union[datetime, int, float, str] = None,
-                           resource=None, etag: str = None):
+    def check_precondition(
+        self,
+        last_modified: Union[datetime, int, float, str] = None,
+        resource=None,
+        etag: str = None,
+    ):
         if not self._if_unmodified_since and not self._if_match:
-            raise exc.PreconditionRequired(f'Request should provide precondition headers like '
-                                           f'{Header.IF_MATCH} or {Header.IF_UNMODIFIED_SINCE}')
+            raise exc.PreconditionRequired(
+                f"Request should provide precondition headers like "
+                f"{Header.IF_MATCH} or {Header.IF_UNMODIFIED_SINCE}"
+            )
 
         if last_modified:
             self.last_modified = last_modified
@@ -364,10 +393,14 @@ class ServerCache(BaseCacheInterface):
 
         if self.etag and self._if_match:
             if self.etag != self._if_match:
-                raise exc.PreconditionFailed(f'Resource is modified: not match {self._if_match}')
+                raise exc.PreconditionFailed(
+                    f"Resource is modified: not match {self._if_match}"
+                )
         if self.last_modified and self._if_unmodified_since:
             if self.last_modified > self._if_unmodified_since:
-                raise exc.PreconditionFailed(f'Resource has been modified since {self._if_unmodified_since}')
+                raise exc.PreconditionFailed(
+                    f"Resource has been modified since {self._if_unmodified_since}"
+                )
 
         return True
 
@@ -394,7 +427,7 @@ class ServerCache(BaseCacheInterface):
             return self.NO_CACHE
         max_age = self.max_age
         if max_age:
-            return f'{self.MAX_AGE}={max_age}'
+            return f"{self.MAX_AGE}={max_age}"
         return None
 
     @response_cache_control.setter
@@ -419,13 +452,17 @@ class ServerCache(BaseCacheInterface):
 
     @property
     def headers(self) -> dict:
-        return {k: v for k, v in {
-            Header.ETAG: self.etag,
-            Header.LAST_MODIFIED: http_time(self.last_modified),
-            Header.CACHE_CONTROL: self.response_cache_control,
-            Header.EXPIRES: http_time(self.expiry_datetime),
-            Header.VARY: self.vary_header
-        }.items() if v}
+        return {
+            k: v
+            for k, v in {
+                Header.ETAG: self.etag,
+                Header.LAST_MODIFIED: http_time(self.last_modified),
+                Header.CACHE_CONTROL: self.response_cache_control,
+                Header.EXPIRES: http_time(self.expiry_datetime),
+                Header.VARY: self.vary_header,
+            }.items()
+            if v
+        }
 
     @property
     def expiry_datetime(self) -> datetime:
@@ -437,12 +474,14 @@ class ServerCache(BaseCacheInterface):
 
     def make_from_params(self, result, **func_params):
         if not self._context_func:
-            warnings.warn('Cache: no context func is set')
+            warnings.warn("Cache: no context func is set")
             return
-        dumped_key = f'{self._context_func.__name__}(%s)' % self.dump_kwargs(**func_params)
+        dumped_key = f"{self._context_func.__name__}(%s)" % self.dump_kwargs(
+            **func_params
+        )
         # use func.__name__ cause when cache is define in API and not in Unit
         # __ref__ will not contains func name
-        key = self.encode(dumped_key, ':')
+        key = self.encode(dumped_key, ":")
         return self.make_response(result, response_key=key)
 
     def make_response(self, result, response_key=None):
@@ -452,7 +491,7 @@ class ServerCache(BaseCacheInterface):
 
         from django.http.response import HttpResponseBase
 
-        if hasattr(result, '__next__'):
+        if hasattr(result, "__next__"):
             return result
 
         if isinstance(result, HttpResponseBase):
@@ -491,10 +530,11 @@ class ServerCache(BaseCacheInterface):
         return result
 
     @classmethod
-    def _normalize_func_kwargs(cls, func, /, *args, **kwargs): # noqa
+    def _normalize_func_kwargs(cls, func, /, *args, **kwargs):  # noqa
         if not args:
             return kwargs
         import inspect
+
         try:
             # make all args kwargs with it's arg name
             params = inspect.getcallargs(func, *args, **kwargs)
@@ -517,7 +557,7 @@ class ServerCache(BaseCacheInterface):
         #         pop(params, p)
         return params
 
-    def encode(self, key: VAL, _con: str = '-', _variant=None):
+    def encode(self, key: VAL, _con: str = "-", _variant=None):
         return super().encode(key, _con, _variant=_variant or self._variant)
 
     def decode(self, key: VAL, _variant=None):
@@ -541,16 +581,18 @@ class ServerCache(BaseCacheInterface):
         if you just want to cache a function with Cache
         use self.cache.apply(func, *args, **kwargs) or @api.cache to decorate the target function
         """
-        assert callable(func), f'Cache.apply must apply to a callable function, got {func}'
+        assert callable(
+            func
+        ), f"Cache.apply must apply to a callable function, got {func}"
         self.check_modified()
         key = None
         self._context_func = func
         if self.cache_response and not self.no_cache:
             params = self._normalize_func_kwargs(func, *args, **kwargs)
-            dumped_key = f'{func.__name__}(%s)' % self.dump_kwargs(**params)
+            dumped_key = f"{func.__name__}(%s)" % self.dump_kwargs(**params)
             # use func.__name__ cause when cache is define in API and not in Unit
             # __ref__ will not contains func name
-            key = self.encode(dumped_key, ':')
+            key = self.encode(dumped_key, ":")
             if not self._response_key:
                 self._response_key = key
             # use another connector
@@ -565,7 +607,10 @@ class ServerCache(BaseCacheInterface):
 
         # keep in the same scope
         from utilmeta.core.request import Request
-        assert isinstance(request, Request), f'Invalid request: {request}, must be Request object'
+
+        assert isinstance(
+            request, Request
+        ), f"Invalid request: {request}, must be Request object"
         headers = request.headers
         modified_since = headers.get(Header.IF_MODIFIED_SINCE)
         unmodified_since = headers.get(Header.IF_UNMODIFIED_SINCE)
@@ -573,23 +618,27 @@ class ServerCache(BaseCacheInterface):
             try:
                 cache._if_modified_since = type_transform(modified_since, datetime)
             except COMMON_ERRORS as e:
-                warnings.warn(f'Cache: transform {Header.IF_MODIFIED_SINCE} failed with: {e}')
+                warnings.warn(
+                    f"Cache: transform {Header.IF_MODIFIED_SINCE} failed with: {e}"
+                )
         if unmodified_since:
             try:
                 cache._if_unmodified_since = type_transform(unmodified_since, datetime)
             except COMMON_ERRORS as e:
-                warnings.warn(f'Cache: transform {Header.IF_UNMODIFIED_SINCE} failed with: {e}')
+                warnings.warn(
+                    f"Cache: transform {Header.IF_UNMODIFIED_SINCE} failed with: {e}"
+                )
         cache._if_none_match = headers.get(Header.IF_NONE_MATCH)
         cache._if_match = headers.get(Header.IF_MATCH)
         cache._variant = cache.get_variant(request)
         cache._cache_control = headers.get(Header.CACHE_CONTROL)
         if cache._cache_control:
-            for derivative in [v.strip() for v in cache._cache_control.split(',')]:
+            for derivative in [v.strip() for v in cache._cache_control.split(",")]:
                 if derivative.startswith(self.MAX_FRESH):
-                    cache._max_fresh = int(derivative.split('=')[1])
+                    cache._max_fresh = int(derivative.split("=")[1])
                 elif derivative.startswith(self.MAX_STALE):
-                    if '=' in derivative:
-                        cache._max_stale = int(derivative.split('=')[1])
+                    if "=" in derivative:
+                        cache._max_stale = int(derivative.split("=")[1])
                     else:
                         cache._stale = True
         cache.init_expiry(request)

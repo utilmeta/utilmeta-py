@@ -3,7 +3,7 @@ from utilmeta.conf import Env
 
 class ServiceEnvironment(Env):
     PRODUCTION: bool = False
-    DJANGO_SECRET_KEY: str = ''
+    DJANGO_SECRET_KEY: str = ""
 
 
-env = ServiceEnvironment(sys_env='META_')
+env = ServiceEnvironment(sys_env="META_")

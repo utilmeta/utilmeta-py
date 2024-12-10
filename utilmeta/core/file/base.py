@@ -6,7 +6,7 @@ from utilmeta.utils.exceptions import UnprocessableEntity
 from utilmeta.utils import file_like
 from pathlib import Path
 
-__all__ = ['File', 'Image', 'Audio', 'Video', 'FileType']
+__all__ = ["File", "Image", "Audio", "Video", "FileType"]
 
 
 class InvalidFileType(UnprocessableEntity):
@@ -15,8 +15,8 @@ class InvalidFileType(UnprocessableEntity):
 
 class File:
     file: BytesIO
-    format = 'binary'
-    accept = '*/*'
+    format = "binary"
+    accept = "*/*"
     # FOR JSON SCHEMA
 
     encoding = property(lambda self: self.file.encoding)
@@ -58,7 +58,7 @@ class File:
             return value
         if isinstance(value, (bytes, memoryview, bytearray)):
             return BytesIO(value)
-        charset = self.charset or 'utf-8'
+        charset = self.charset or "utf-8"
         if isinstance(value, str):
             return BytesIO(value.encode(charset))
         # Handle non-string types.
@@ -70,7 +70,7 @@ class File:
 
     @property
     def closed(self):
-        return not self.file or getattr(self.file, 'closed', None)
+        return not self.file or getattr(self.file, "closed", None)
 
     def close(self):
         self.adaptor.close()
@@ -124,71 +124,78 @@ class File:
 
     @property
     def suffix(self) -> str:
-        if '.' in self.filename:
-            return str(self.filename.split('.')[-1]).lower()
+        if "." in self.filename:
+            return str(self.filename.split(".")[-1]).lower()
         type = self.content_type
         if not type:
-            return ''
-        if '/' in type:
-            return str(type.split('/')[1]).lower()
+            return ""
+        if "/" in type:
+            return str(type.split("/")[1]).lower()
         return type.lower()
 
     @property
     def is_image(self):
-        return self.content_type.startswith('image')
+        return self.content_type.startswith("image")
 
     @property
     def is_audio(self):
-        return self.content_type.startswith('audio')
+        return self.content_type.startswith("audio")
 
     @property
     def is_video(self):
-        return self.content_type.startswith('video')
+        return self.content_type.startswith("video")
 
 
 class Image(File):
-    accept = 'image/*'
+    accept = "image/*"
 
     def validate(self):
         if not self.content_type or not self.is_image:
-            raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, image expected')
+            raise InvalidFileType(
+                f"Invalid file type: {repr(self.content_type)}, image expected"
+            )
 
     def get_image(self):
         from PIL import Image, ImageOps
+
         return ImageOps.exif_transpose(Image.open(self.file))
 
 
 class Audio(File):
-    accept = 'audio/*'
+    accept = "audio/*"
 
     def validate(self):
         if not self.content_type or not self.is_audio:
-            raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, audio expected')
+            raise InvalidFileType(
+                f"Invalid file type: {repr(self.content_type)}, audio expected"
+            )
 
 
 class Video(File):
-    accept = 'video/*'
+    accept = "video/*"
 
     def validate(self):
         if not self.content_type or not self.is_video:
-            raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, video expected')
+            raise InvalidFileType(
+                f"Invalid file type: {repr(self.content_type)}, video expected"
+            )
 
 
 def FileType(content_type: str):
-    if '/' in content_type:
-        content_class, suffix = content_type.split('/')
+    if "/" in content_type:
+        content_class, suffix = content_type.split("/")
     else:
         content_class, suffix = content_type, None
 
     class FileCls(File):
         def validate_type(self):
             if self.content_type:
-                if '/' in self.content_type:
-                    cc, suf = self.content_type.split('/')
-                    if content_class != '*':
+                if "/" in self.content_type:
+                    cc, suf = self.content_type.split("/")
+                    if content_class != "*":
                         if content_class != cc:
                             return False
-                    if suffix not in (None, '*'):
+                    if suffix not in (None, "*"):
                         if suf != suffix:
                             return False
                     return True
@@ -196,7 +203,9 @@ def FileType(content_type: str):
 
         def validate(self):
             if not self.validate_type():
-                raise InvalidFileType(f'Invalid file type: {repr(self.content_type)}, video expected')
+                raise InvalidFileType(
+                    f"Invalid file type: {repr(self.content_type)}, video expected"
+                )
 
     return FileCls
 
@@ -206,7 +215,7 @@ def transform_file(transformer, file, cls: Type[File]):
     if isinstance(file, (list, tuple)) and file:
         file = file[0]
     if file is None:
-        raise TypeError('Invalid file: None')
+        raise TypeError("Invalid file: None")
     if isinstance(file, cls):
         return cls(file.adaptor)
     return cls(file)

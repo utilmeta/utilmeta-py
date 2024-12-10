@@ -38,7 +38,7 @@ class WerkzeugServerAdaptor(ServerAdaptor):
     def application_cls(self):
         class _Application(Application):
             def dispatch_request(self, request):
-                return Response('Hello World!')
+                return Response("Hello World!")
 
             def wsgi_app(self, environ, start_response):
                 request = Request(environ)
@@ -47,6 +47,7 @@ class WerkzeugServerAdaptor(ServerAdaptor):
 
             def __call__(self, environ, start_response):
                 return self.wsgi_app(environ, start_response)
+
         return _Application
 
     def application(self):
@@ -56,8 +57,9 @@ class WerkzeugServerAdaptor(ServerAdaptor):
     @property
     def root_route(self):
         if not self.config.root_url:
-            return ''
-        return '/' + self.config.root_url.strip('/')
+            return ""
+        return "/" + self.config.root_url.strip("/")
+
     #
     # def setup(self):
     #     if self._ready:
@@ -117,5 +119,3 @@ class WerkzeugServerAdaptor(ServerAdaptor):
     #             except Exception as e:
     #                 resp = getattr(utilmeta_api_class, 'response', Response)(error=e)
     #             return cls.response_adaptor_cls.reconstruct(resp)
-
-

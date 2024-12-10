@@ -4,11 +4,11 @@ from jwcrypto.common import json_encode, json_decode
 from typing import Optional
 import base64
 
-RSA_ALGO = 'RSA-OAEP-256'
+RSA_ALGO = "RSA-OAEP-256"
 
 
 def generate_key_pair(identifier: str):
-    key = jwk.JWK.generate(kty='RSA', size=2048, alg=RSA_ALGO, kid=identifier)
+    key = jwk.JWK.generate(kty="RSA", size=2048, alg=RSA_ALGO, kid=identifier)
     public_key = key.export_public()
     private_key = key.export_private()
     return public_key, private_key
@@ -17,7 +17,7 @@ def generate_key_pair(identifier: str):
 def encrypt_data(payload, public_key: Union[str, dict]) -> str:
     if not isinstance(public_key, dict):
         if isinstance(public_key, str):
-            if not public_key.startswith('{') or not public_key.endswith('}'):
+            if not public_key.startswith("{") or not public_key.endswith("}"):
                 # BASE64
                 public_key = base64.decodebytes(public_key.encode()).decode()
 
@@ -34,10 +34,8 @@ def encrypt_data(payload, public_key: Union[str, dict]) -> str:
             payload = json_encode(payload)
         else:
             payload = str(payload)
-        payload = payload.encode('utf-8')
-    jwe_token = jwe.JWE(payload,
-                        recipient=pubkey_obj,
-                        protected=protected_header)
+        payload = payload.encode("utf-8")
+    jwe_token = jwe.JWE(payload, recipient=pubkey_obj, protected=protected_header)
     return jwe_token.serialize()
 
 
@@ -51,7 +49,7 @@ def decrypt_data(encrypted: Union[str, bytes], private_key: Union[str, dict]) ->
     jwetoken.deserialize(encrypted, key=privkey_obj)
     payload = jwetoken.payload
     if isinstance(payload, bytes):
-        payload = payload.decode('utf-8')
+        payload = payload.decode("utf-8")
     return payload
 
 

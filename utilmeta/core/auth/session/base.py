@@ -11,13 +11,11 @@ from ..base import BaseAuthentication
 
 class BaseSession(BaseAuthentication):
     __private__ = True
-    name = 'session'
+    name = "session"
     Cookie = Cookie
-    DEFAULT_CONTEXT_VAR = var.RequestContextVar('_session', cached=True)
+    DEFAULT_CONTEXT_VAR = var.RequestContextVar("_session", cached=True)
     DEFAULT_ENGINE = None
-    headers = [
-        'cookie'
-    ]
+    headers = ["cookie"]
 
     def get_session(self, request: Request, engine=None):
         session_key = request.cookies.get(self.cookie_name)
@@ -49,7 +47,7 @@ class BaseSession(BaseAuthentication):
         if isinstance(None, engine) or not engine:
             engine = self.engine
         if not callable(engine):
-            raise TypeError('No engine specified')
+            raise TypeError("No engine specified")
         return engine
 
     def init(self, field: ParserField):
@@ -86,16 +84,17 @@ class BaseSession(BaseAuthentication):
 
         return SessionPlugin(_session_self)
 
-    def __init__(self,
-                 engine: Union[str, type] = None,
-                 expire_at_browser_close: bool = False,
-                 save_every_request: bool = False,
-                 cycle_key_at_login: bool = True,
-                 allow_localhost: bool = False,
-                 interrupted: Literal['override', 'cycle', 'error'] = 'override',
-                 cookie: Cookie = Cookie(http_only=True),
-                 context_var=None,
-                 ):
+    def __init__(
+        self,
+        engine: Union[str, type] = None,
+        expire_at_browser_close: bool = False,
+        save_every_request: bool = False,
+        cycle_key_at_login: bool = True,
+        allow_localhost: bool = False,
+        interrupted: Literal["override", "cycle", "error"] = "override",
+        cookie: Cookie = Cookie(http_only=True),
+        context_var=None,
+    ):
         super().__init__()
         assert isinstance(cookie, Cookie)
         if isinstance(engine, str):
@@ -103,9 +102,9 @@ class BaseSession(BaseAuthentication):
         self.engine = engine or self.DEFAULT_ENGINE
         # self.engine = import_obj(engine) if isinstance(engine, str) else engine
         self.cookie = cookie
-        self.cookie_name = cookie.name or 'sessionid'
+        self.cookie_name = cookie.name or "sessionid"
         if not self.cookie.http_only:
-            warnings.warn(f'Session using cookie should turn http_only=True')
+            warnings.warn(f"Session using cookie should turn http_only=True")
 
         self.context_var = context_var or self.DEFAULT_CONTEXT_VAR
         # self.cache_alias = cache_alias
@@ -180,7 +179,13 @@ class BaseSession(BaseAuthentication):
     async def save_session(self, response: Response, session):
         raise NotImplementedError
 
-    def _set_cookie(self, response: Response, session_key: str, max_age: int = None, expires: str = None):
+    def _set_cookie(
+        self,
+        response: Response,
+        session_key: str,
+        max_age: int = None,
+        expires: str = None,
+    ):
         cookie_domain = self.cookie.domain
         secure = self.cookie.secure or None
         same_site = self.cookie.same_site
@@ -189,7 +194,7 @@ class BaseSession(BaseAuthentication):
                 secure = None
                 cookie_domain = None
                 if not localhost(response.request.host):
-                    same_site = 'None'
+                    same_site = "None"
                     secure = True
                     # secure is required to use SameSite=None
         response.set_cookie(
@@ -206,8 +211,8 @@ class BaseSession(BaseAuthentication):
 
     def openapi_scheme(self) -> dict:
         return {
-            'type': 'apiKey',
-            'name': self.cookie_name,
-            'in': 'cookie',
-            'description': self.description or '',
+            "type": "apiKey",
+            "name": self.cookie_name,
+            "in": "cookie",
+            "description": self.description or "",
         }

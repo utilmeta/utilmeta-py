@@ -8,25 +8,23 @@ from utype import Schema, Options, Field
 from functools import cached_property
 
 
-__all__ = ['ClientCache']
+__all__ = ["ClientCache"]
 
-NO_CACHE = 'no-cache'
-NO_STORE = 'no-store'
-NO_TRANSFORM = 'no-transform'
-PUBLIC = 'public'
-IMMUTABLE = 'immutable'
-MAX_AGE = 'max-age'
-MAX_STALE = 'max-stale'
-MAX_FRESH = 'max-fresh'
-PRIVATE = 'private'
-MUST_REVALIDATE = 'must-revalidate'
+NO_CACHE = "no-cache"
+NO_STORE = "no-store"
+NO_TRANSFORM = "no-transform"
+PUBLIC = "public"
+IMMUTABLE = "immutable"
+MAX_AGE = "max-age"
+MAX_STALE = "max-stale"
+MAX_FRESH = "max-fresh"
+PRIVATE = "private"
+MUST_REVALIDATE = "must-revalidate"
 
 
 class CacheHeaderSchema(Schema):
     __options__ = Options(
-        case_insensitive=True,
-        ignore_required=True,
-        force_default=None
+        case_insensitive=True, ignore_required=True, force_default=None
     )
 
     cache_control: str = Field(alias_from=[Header.CACHE_CONTROL, Header.PRAGMA])
@@ -48,7 +46,7 @@ class CacheHeaderSchema(Schema):
     def cache_control_derivatives(self):
         if not self.cache_control:
             return []
-        return [v.strip() for v in self.cache_control.split(',')]
+        return [v.strip() for v in self.cache_control.split(",")]
 
     @property
     def immutable(self):
@@ -65,14 +63,22 @@ class CacheHeaderSchema(Schema):
     @property
     def no_cache(self):
         # no-cache and no-store all means do not attempt to read from cached response
-        return NO_CACHE in self.cache_control_derivatives or NO_STORE in self.cache_control_derivatives
+        return (
+            NO_CACHE in self.cache_control_derivatives
+            or NO_STORE in self.cache_control_derivatives
+        )
 
     @property
     def no_store(self):
-        if self.vary == '*':
+        if self.vary == "*":
             # vary for all, this response is not cache-able
             return True
-        if not self.cache_control and not self.expires and not self.etag and not self.last_modified:
+        if (
+            not self.cache_control
+            and not self.expires
+            and not self.etag
+            and not self.last_modified
+        ):
             # no cache headers is presenting
             return True
         return NO_STORE in self.cache_control_derivatives
@@ -85,32 +91,34 @@ class CacheHeaderSchema(Schema):
     def max_age(self) -> Optional[int]:
         for d in self.cache_control_derivatives:
             if d.startswith(MAX_AGE):
-                return int(d.split('=')[1].strip())
+                return int(d.split("=")[1].strip())
         if self.expires:
             # fallback to expires
-            return max(0, int((self.expires - (self.date or time_now())).total_seconds()))
+            return max(
+                0, int((self.expires - (self.date or time_now())).total_seconds())
+            )
         return None
 
     @property
     def vary_headers(self):
         if not self.vary:
             return []
-        return [v.strip() for v in self.vary.split(',')]
+        return [v.strip() for v in self.vary.split(",")]
 
     @property
     def max_stale(self) -> Optional[int]:
         for d in self.cache_control_derivatives:
             if d.startswith(MAX_STALE):
-                if '=' not in d:
+                if "=" not in d:
                     return -1
-                return int(d.split('=')[1].strip())
+                return int(d.split("=")[1].strip())
         return None
 
     @property
     def max_fresh(self) -> Optional[int]:
         for d in self.cache_control_derivatives:
             if d.startswith(MAX_FRESH):
-                return int(d.split('=')[1].strip())
+                return int(d.split("=")[1].strip())
         return None
 
 
@@ -124,9 +132,10 @@ class ClientCache(BaseCacheInterface):
     * Last-Modified  ~ If-Modified-Since
     * Etag           ~ If-None-Match
     """
+
     def __init__(
         self,
-        cache_alias: str = 'default',
+        cache_alias: str = "default",
         scope_prefix: str = None,
         services_sharing: bool = False,
         # enable this param will make cache key without service_prefix
@@ -145,13 +154,17 @@ class ClientCache(BaseCacheInterface):
         default_timeout: int = None,
         excluded_statuses: List[int] = None,
         included_statuses: List[int] = None,
-        included_methods: List[str] = ('GET', 'HEAD'),
-        excluded_hosts: Union[str, List[str]] = None,   # do not cache responses from these hosts
-        included_hosts: Union[str, List[str]] = None,   # only cache responses from these hosts
+        included_methods: List[str] = ("GET", "HEAD"),
+        excluded_hosts: Union[
+            str, List[str]
+        ] = None,  # do not cache responses from these hosts
+        included_hosts: Union[
+            str, List[str]
+        ] = None,  # only cache responses from these hosts
     ):
         # use max hosts as max_variants to be part of locals()
         _locals = dict(locals())
-        pop(_locals, 'self')
+        pop(_locals, "self")
         super().__init__(**_locals)
 
         self.disable_304 = disable_304
@@ -194,7 +207,7 @@ class ClientCache(BaseCacheInterface):
                 return True
         return False
 
-    def bypass_response(self, response: 'Response'):
+    def bypass_response(self, response: "Response"):
         if self.bypass_request(response.request):
             # url not set, cannot cache
             return True
@@ -258,11 +271,13 @@ class ClientCache(BaseCacheInterface):
                 # modify the If-None-Match header
         if cached_headers.last_modified:
             if not headers.if_modified_since:
-                request.headers.setdefault(Header.IF_MODIFIED_SINCE, cached_headers.last_modified)
+                request.headers.setdefault(
+                    Header.IF_MODIFIED_SINCE, cached_headers.last_modified
+                )
                 # modify the If-Modified-Since header
         return request
 
-    def get_cached_response(self, request: Request) -> Optional['Response']:
+    def get_cached_response(self, request: Request) -> Optional["Response"]:
         resp_key = self.get_response_key(request)
         if not resp_key:
             return None
@@ -282,11 +297,11 @@ class ClientCache(BaseCacheInterface):
         # not using vary values as cache key
         # us vary as a validation (to validate whether the cache is still fresh)
         return self.encode(
-            key=f'{request.method.lower()}:{request.encoded_path}',
-            _variant=self.vary_function(request)
+            key=f"{request.method.lower()}:{request.encoded_path}",
+            _variant=self.vary_function(request),
         )
 
-    def process_response(self, response: 'Response'):   # hook
+    def process_response(self, response: "Response"):  # hook
         if self.bypass_response(response):
             # url not set, cannot cache
             return response
@@ -349,11 +364,7 @@ class ClientCache(BaseCacheInterface):
         response.request = None
         # ---
 
-        entity.set(
-            key=resp_key,
-            val=response,
-            timeout=timeout
-        )
+        entity.set(key=resp_key, val=response, timeout=timeout)
         response.data = data
         response.raw_response = raw
         response.request = request

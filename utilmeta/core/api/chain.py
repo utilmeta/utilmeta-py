@@ -13,11 +13,13 @@ class BaseChainBuilder:
         self.targets = targets
         self.pref = Preference.get()
 
-    def chain_plugins(self, *events: PluginEvent,
-                      required: bool = False,
-                      reverse: bool = False,
-                      asynchronous: bool = None
-                      ) -> Tuple[Callable, ...]:
+    def chain_plugins(
+        self,
+        *events: PluginEvent,
+        required: bool = False,
+        reverse: bool = False,
+        asynchronous: bool = None,
+    ) -> Tuple[Callable, ...]:
         targets = self.targets
         _classes = set()
         for target in reversed(targets) if reverse else targets:
@@ -29,12 +31,17 @@ class BaseChainBuilder:
             if not plugins or not isinstance(plugins, dict):
                 continue
 
-            for plugin_cls, plugin in reversed(plugins.items()) if reverse else plugins.items():
+            for plugin_cls, plugin in (
+                reversed(plugins.items()) if reverse else plugins.items()
+            ):
                 if plugin_cls in _classes:
                     # in case for more than 1 plugin target
                     continue
 
-                handlers = [event.get(plugin, target=target, asynchronous=asynchronous) for event in events]
+                handlers = [
+                    event.get(plugin, target=target, asynchronous=asynchronous)
+                    for event in events
+                ]
 
                 if not any(handlers):
                     continue
@@ -75,8 +82,9 @@ class BaseChainBuilder:
 class APIChainBuilder(BaseChainBuilder):
     def __init__(self, api, endpoint: Endpoint = None):
         from utilmeta.core.api import API
+
         if not isinstance(api, API):
-            raise TypeError(f'Invalid API: {api}')
+            raise TypeError(f"Invalid API: {api}")
         super().__init__(endpoint or api)
         self.api = api
         self.endpoint = endpoint
@@ -99,8 +107,7 @@ class APIChainBuilder(BaseChainBuilder):
         while True:
             try:
                 api.request.adaptor.update_context(
-                    retry_index=retry_index,
-                    idempotent=self.idempotent
+                    retry_index=retry_index, idempotent=self.idempotent
                 )
                 req = api.request
                 if request_handler:
@@ -114,8 +121,7 @@ class APIChainBuilder(BaseChainBuilder):
                     response = req
                 if response_handler:
                     res = await self.async_process(
-                        api._make_response(response, force=True),
-                        response_handler
+                        api._make_response(response, force=True), response_handler
                     )
                 else:
                     # successfully get response without response handler
@@ -135,7 +141,9 @@ class APIChainBuilder(BaseChainBuilder):
                 break
             retry_index += 1
             if retry_index >= self.pref.api_max_retry_loops:
-                raise exceptions.MaxRetriesExceed(max_retries=self.pref.api_max_retry_loops)
+                raise exceptions.MaxRetriesExceed(
+                    max_retries=self.pref.api_max_retry_loops
+                )
         return res
 
     def api_handler(
@@ -150,8 +158,7 @@ class APIChainBuilder(BaseChainBuilder):
         while True:
             try:
                 api.request.adaptor.update_context(
-                    retry_index=retry_index,
-                    idempotent=self.idempotent
+                    retry_index=retry_index, idempotent=self.idempotent
                 )
                 req = api.request
                 if request_handler:
@@ -163,8 +170,7 @@ class APIChainBuilder(BaseChainBuilder):
                     response = req
                 if response_handler:
                     res = self.process(
-                        api._make_response(response, force=True),
-                        response_handler
+                        api._make_response(response, force=True), response_handler
                     )
                 else:
                     # successfully get response without response handler
@@ -184,7 +190,9 @@ class APIChainBuilder(BaseChainBuilder):
                 break
             retry_index += 1
             if retry_index >= self.pref.api_max_retry_loops:
-                raise exceptions.MaxRetriesExceed(max_retries=self.pref.api_max_retry_loops)
+                raise exceptions.MaxRetriesExceed(
+                    max_retries=self.pref.api_max_retry_loops
+                )
         return res
 
     def chain_api_handler(
@@ -193,38 +201,49 @@ class APIChainBuilder(BaseChainBuilder):
         request_handler=None,
         response_handler=None,
         error_handler=None,
-        asynchronous: bool = None
+        asynchronous: bool = None,
     ):
         if not any([request_handler, response_handler, error_handler]):
             return handler
 
         from utilmeta.core.api import API
+
         if asynchronous:
+
             @wraps(handler)
             async def wrapper(api: API = self.api):
                 return await self.async_api_handler(
-                    api, handler,
+                    api,
+                    handler,
                     request_handler=request_handler,
                     response_handler=response_handler,
-                    error_handler=error_handler
+                    error_handler=error_handler,
                 )
+
         else:
+
             @wraps(handler)
             def wrapper(api: API = self.api):
                 return self.api_handler(
-                    api, handler,
+                    api,
+                    handler,
                     request_handler=request_handler,
                     response_handler=response_handler,
-                    error_handler=error_handler
+                    error_handler=error_handler,
                 )
+
         return wrapper
 
     def build_api_handler(self, handler, asynchronous: bool = None):
         # ---
         if asynchronous is None:
-            asynchronous = inspect.iscoroutinefunction(handler) or inspect.isasyncgenfunction(handler)
+            asynchronous = inspect.iscoroutinefunction(
+                handler
+            ) or inspect.isasyncgenfunction(handler)
         for request_handler, response_handler, error_handler in self.chain_plugins(
-            process_request, process_response, handle_error,
+            process_request,
+            process_response,
+            handle_error,
             required=False,
             asynchronous=asynchronous,
         ):
@@ -233,6 +252,6 @@ class APIChainBuilder(BaseChainBuilder):
                 request_handler=request_handler,
                 response_handler=response_handler,
                 error_handler=error_handler,
-                asynchronous=asynchronous
+                asynchronous=asynchronous,
             )
         return handler

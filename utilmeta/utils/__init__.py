@@ -8,4 +8,5 @@ from .base import Util, Meta
 from .error import Error
 from .logical import LogicUtil
 from .plugin import PluginEvent, PluginBase, PluginTarget
+
 Plugin = PluginBase

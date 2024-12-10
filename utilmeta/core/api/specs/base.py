@@ -8,7 +8,7 @@ class BaseAPISpec:
     spec = None
     __version__ = None
 
-    def __init__(self, service: 'UtilMeta'):
+    def __init__(self, service: "UtilMeta"):
         self.service = service
         self.format = format
 

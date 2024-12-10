@@ -2,6 +2,7 @@ from utilmeta import utils
 from utilmeta.utils import exceptions as exc
 import inspect
 from utilmeta.core.api.endpoint import BaseEndpoint
+
 # from utilmeta.core.response import Response
 # from utype.parser.rule import LogicalType
 
@@ -24,7 +25,7 @@ def prop_is(prop: properties.Property, ident):
 def prop_in(prop: properties.Property, ident):
     if not prop.__in__:
         return False
-    in_ident = getattr(prop.__in__, '__ident__', None)
+    in_ident = getattr(prop.__in__, "__ident__", None)
     if in_ident:
         return in_ident == ident
     return prop.__in__ == ident
@@ -33,13 +34,13 @@ def prop_in(prop: properties.Property, ident):
 class ClientRoute(BaseRoute):
     def __init__(
         self,
-        handler: Union[Type['Client'], 'ClientEndpoint'],
+        handler: Union[Type["Client"], "ClientEndpoint"],
         route: str,
         name: str,
         parent=None,
         before_hooks: List[ClientBeforeHook] = (),
         after_hooks: List[ClientAfterHook] = (),
-        error_hooks: Dict[Type[Exception], ClientErrorHook] = None
+        error_hooks: Dict[Type[Exception], ClientErrorHook] = None,
     ):
         super().__init__(
             handler,
@@ -48,7 +49,7 @@ class ClientRoute(BaseRoute):
             parent=parent,
             before_hooks=before_hooks,
             after_hooks=after_hooks,
-            error_hooks=error_hooks
+            error_hooks=error_hooks,
         )
 
 
@@ -59,8 +60,8 @@ class ClientEndpoint(BaseEndpoint):
     error_cls = Error
 
     @classmethod
-    def apply_for(cls, func: Callable, client: Type['Client'] = None):
-        _cls = getattr(func, 'cls', None)
+    def apply_for(cls, func: Callable, client: Type["Client"] = None):
+        _cls = getattr(func, "cls", None)
         _async = inspect.iscoroutinefunction(func) or inspect.isasyncgenfunction(func)
         if not _cls or not issubclass(_cls, ClientEndpoint):
             # override current class
@@ -82,20 +83,19 @@ class ClientEndpoint(BaseEndpoint):
             kwargs.update(client=client)
         return _cls(func, **kwargs)
 
-    def __init__(self, f: Callable, *,
-                 client: Type['Client'] = None,
-                 method: str,
-                 plugins: list = None,
-                 idempotent: bool = None,
-                 eager: bool = False
-                 ):
+    def __init__(
+        self,
+        f: Callable,
+        *,
+        client: Type["Client"] = None,
+        method: str,
+        plugins: list = None,
+        idempotent: bool = None,
+        eager: bool = False,
+    ):
 
         super().__init__(
-            f,
-            plugins=plugins,
-            method=method,
-            idempotent=idempotent,
-            eager=eager
+            f, plugins=plugins, method=method, idempotent=idempotent, eager=eager
         )
         # self.is_async = self.parser.is_asynchronous
         self.client = client
@@ -106,11 +106,13 @@ class ClientEndpoint(BaseEndpoint):
         )
         self.client_wrap = False
         if self.client:
-            self.client_wrap = not all([
-                function_pass(self.client.process_request),
-                function_pass(self.client.process_response),
-                function_pass(self.client.handle_error),
-            ])
+            self.client_wrap = not all(
+                [
+                    function_pass(self.client.process_request),
+                    function_pass(self.client.process_response),
+                    function_pass(self.client.handle_error),
+                ]
+            )
         self.path_args = self.PATH_REGEX.findall(self.route)
 
         # if self.parser.is_asynchronous:
@@ -121,12 +123,12 @@ class ClientEndpoint(BaseEndpoint):
     @property
     def ref(self) -> str:
         if self.client:
-            return f'{self.client.__ref__}.{self.f.__name__}'
+            return f"{self.client.__ref__}.{self.f.__name__}"
         if self.module_name:
-            return f'{self.module_name}.{self.f.__name__}'
+            return f"{self.module_name}.{self.f.__name__}"
         return self.f.__name__
 
-    def __call__(self, client: 'Client', /, *args, **kwargs):
+    def __call__(self, client: "Client", /, *args, **kwargs):
         if not self.is_passed:
             return self.executor(client, *args, **kwargs)
         if self.parser.is_asynchronous:
@@ -134,20 +136,26 @@ class ClientEndpoint(BaseEndpoint):
         else:
             return client.__request__(self, *args, **kwargs)
 
-    def build_request(self, client: 'Client', /, *args, **kwargs) -> Request:
+    def build_request(self, client: "Client", /, *args, **kwargs) -> Request:
         # get Call object from kwargs
-        args, kwargs = self.parser.parse_params(args, kwargs, context=self.parser.options.make_context())
+        args, kwargs = self.parser.parse_params(
+            args, kwargs, context=self.parser.options.make_context()
+        )
         for i, arg in enumerate(args):
             kwargs[self.parser.pos_key_map[i]] = arg
 
         client_params = client.get_client_params()
         try:
             url = utils.url_join(
-                client_params.base_url or '', self.route, append_slash=client_params.append_slash
+                client_params.base_url or "",
+                self.route,
+                append_slash=client_params.append_slash,
             )
         except Exception as e:
-            raise e.__class__(f'utilmeta.core.cli.Client: build request url with base_url:'
-                              f' {repr(client_params.base_url)} and route: {repr(self.route)} failed: {e}') from e
+            raise e.__class__(
+                f"utilmeta.core.cli.Client: build request url with base_url:"
+                f" {repr(client_params.base_url)} and route: {repr(self.route)} failed: {e}"
+            ) from e
 
         query = dict(client_params.base_query or {})
         headers = dict(client_params.base_headers or {})
@@ -172,23 +180,23 @@ class ClientEndpoint(BaseEndpoint):
             if not prop:
                 continue
 
-            if prop_in(prop, 'path'):
+            if prop_in(prop, "path"):
                 # PathParam
                 path_params[key] = value
-            elif prop_in(prop, 'query'):
+            elif prop_in(prop, "query"):
                 # QueryParam
                 query[key] = value
-            elif prop_is(prop, 'query'):
+            elif prop_is(prop, "query"):
                 # Query
                 if isinstance(value, Mapping):
                     query.update(value)
-            elif prop_in(prop, 'body'):
+            elif prop_in(prop, "body"):
                 # BodyParam
                 if isinstance(body, dict):
                     body[key] = value
                 else:
                     body = {key: value}
-            elif prop_is(prop, 'body'):
+            elif prop_is(prop, "body"):
                 # Body
                 if isinstance(body, dict) and isinstance(value, Mapping):
                     body.update(value)
@@ -196,30 +204,38 @@ class ClientEndpoint(BaseEndpoint):
                     body = value
                 if isinstance(prop, properties.Body):
                     if prop.content_type:
-                        headers.update({'content-type': prop.content_type})
-            elif prop_in(prop, 'header'):
+                        headers.update({"content-type": prop.content_type})
+            elif prop_in(prop, "header"):
                 # HeaderParam
                 headers[key] = value
-            elif prop_is(prop, 'header'):
+            elif prop_is(prop, "header"):
                 # Headers
                 if isinstance(value, Mapping):
                     headers.update(value)
-            elif prop_in(prop, 'cookie'):
+            elif prop_in(prop, "cookie"):
                 # CookieParam
                 cookies[key] = value
-            elif prop_is(prop, 'cookie'):
+            elif prop_is(prop, "cookie"):
                 # Cookies
                 if isinstance(value, Mapping):
                     cookies.update(value)
 
         for key, val in path_params.items():
-            unit = '{%s}' % key
+            unit = "{%s}" % key
             url = url.replace(unit, str(val))
 
         if isinstance(cookies, SimpleCookie) and cookies:
-            headers.update({
-                'cookie': ';'.join([f'{key}={val.value}' for key, val in cookies.items() if val.value])
-            })
+            headers.update(
+                {
+                    "cookie": ";".join(
+                        [
+                            f"{key}={val.value}"
+                            for key, val in cookies.items()
+                            if val.value
+                        ]
+                    )
+                }
+            )
 
         return client.request_cls(
             method=self.method,
@@ -227,10 +243,12 @@ class ClientEndpoint(BaseEndpoint):
             query=query,
             data=body,
             headers=headers,
-            backend=client_params.backend
+            backend=client_params.backend,
         )
 
-    def parse_response(self, response: Response, fail_silently: bool = False) -> Response:
+    def parse_response(
+        self, response: Response, fail_silently: bool = False
+    ) -> Response:
         if not isinstance(response, Response):
             response = Response(response)
 
@@ -254,7 +272,7 @@ class ClientEndpoint(BaseEndpoint):
                 continue
             try:
                 return response_cls(response=response, strict=True)
-            except Exception as e:   # noqa
+            except Exception as e:  # noqa
                 if i == len(self.response_types) - 1 and not fail_silently:
                     raise e
                 continue
@@ -265,7 +283,7 @@ class ClientEndpoint(BaseEndpoint):
 class SyncClientEndpoint(ClientEndpoint):
     ASYNCHRONOUS = False
 
-    def __call__(self, client: 'Client', *args, **kwargs):
+    def __call__(self, client: "Client", *args, **kwargs):
         with self.client_route.merge_hooks(client.client_route) as route:
             r = None
             request = None
@@ -278,7 +296,7 @@ class SyncClientEndpoint(ClientEndpoint):
                 if not self.is_passed:
                     r = self.executor(client, *args, **kwargs)
                     if inspect.isawaitable(r):
-                        raise exc.ServerError('awaitable detected in sync function')
+                        raise exc.ServerError("awaitable detected in sync function")
 
                 if r is None:
                     r = client.__request__(self, request)
@@ -288,7 +306,9 @@ class SyncClientEndpoint(ClientEndpoint):
 
             except Exception as e:
                 error = self.error_cls(e, request=request)
-                hook = error.get_hook(route.error_hooks, exact=isinstance(error.exception, exc.Redirect))
+                hook = error.get_hook(
+                    route.error_hooks, exact=isinstance(error.exception, exc.Redirect)
+                )
                 # hook applied before handel_error plugin event
                 if hook:
                     r = hook(self, error)
@@ -301,7 +321,7 @@ class SyncClientEndpoint(ClientEndpoint):
 class AsyncClientEndpoint(ClientEndpoint):
     ASYNCHRONOUS = True
 
-    async def __call__(self, client: 'Client', *args, **kwargs):
+    async def __call__(self, client: "Client", *args, **kwargs):
         # async with self:
         with self.client_route.merge_hooks(client.client_route) as route:
             r = None
@@ -329,7 +349,9 @@ class AsyncClientEndpoint(ClientEndpoint):
 
             except Exception as e:
                 error = self.error_cls(e, request=request)
-                hook = error.get_hook(route.error_hooks, exact=isinstance(error.exception, exc.Redirect))
+                hook = error.get_hook(
+                    route.error_hooks, exact=isinstance(error.exception, exc.Redirect)
+                )
                 # hook applied before handel_error plugin event
                 if hook:
                     r = hook(self, error)

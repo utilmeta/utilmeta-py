@@ -23,7 +23,7 @@ class SanicResponseAdaptor(ResponseAdaptor):
         return isinstance(obj, HTTPResponse)
 
     @classmethod
-    def reconstruct(cls, resp: Union['ResponseAdaptor', 'Response']):
+    def reconstruct(cls, resp: Union["ResponseAdaptor", "Response"]):
         if isinstance(resp, HTTPResponse):
             return resp
 
@@ -38,7 +38,7 @@ class SanicResponseAdaptor(ResponseAdaptor):
             resp.prepare_body(),
             status=resp.status,
             headers=Header(resp.prepare_headers()),
-            content_type=resp.content_type
+            content_type=resp.content_type,
         )
         return response
 

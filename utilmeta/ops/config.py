@@ -2,8 +2,17 @@ import threading
 from utilmeta.conf import Config
 from utilmeta.core.orm.databases.config import Database, DatabaseConnections
 from utype.types import *
-from utilmeta.utils import (DEFAULT_SECRET_NAMES, url_join, localhost, HTTPMethod, get_ip,
-                            cached_property, import_obj, get_origin, get_server_ip)
+from utilmeta.utils import (
+    DEFAULT_SECRET_NAMES,
+    url_join,
+    localhost,
+    HTTPMethod,
+    get_ip,
+    cached_property,
+    import_obj,
+    get_origin,
+    get_server_ip,
+)
 from typing import Union
 from urllib.parse import urlsplit
 from utilmeta import UtilMeta, __version__
@@ -17,10 +26,10 @@ class Operations(Config):
     __eager__: ClassVar = True
     # setup need to execute before django settings
 
-    NAME: ClassVar = 'ops'
-    REF: ClassVar = 'utilmeta.ops'
-    HOST: ClassVar = 'utilmeta.com'
-    ROUTER_NAME: ClassVar = '_OperationsDatabaseRouter'
+    NAME: ClassVar = "ops"
+    REF: ClassVar = "utilmeta.ops"
+    HOST: ClassVar = "utilmeta.com"
+    ROUTER_NAME: ClassVar = "_OperationsDatabaseRouter"
     DEFAULT_SECRET_NAMES: ClassVar = DEFAULT_SECRET_NAMES
 
     Database: ClassVar = Database
@@ -46,18 +55,18 @@ class Operations(Config):
         # INSTANCE_MONITOR_RETENTION = timedelta(days=7)
 
         def __init__(
-                self,
-                worker_disabled: bool = False,
-                server_disabled: bool = False,
-                instance_disabled: bool = False,
-                database_disabled: bool = False,
-                cache_disabled: bool = False,
-                # ----------------------------
-                worker_retention: timedelta = timedelta(hours=24),
-                server_retention: timedelta = timedelta(days=7),
-                instance_retention: timedelta = timedelta(days=7),
-                database_retention: timedelta = timedelta(days=7),
-                cache_retention: timedelta = timedelta(days=7),
+            self,
+            worker_disabled: bool = False,
+            server_disabled: bool = False,
+            instance_disabled: bool = False,
+            database_disabled: bool = False,
+            cache_disabled: bool = False,
+            # ----------------------------
+            worker_retention: timedelta = timedelta(hours=24),
+            server_retention: timedelta = timedelta(days=7),
+            instance_retention: timedelta = timedelta(days=7),
+            database_retention: timedelta = timedelta(days=7),
+            cache_retention: timedelta = timedelta(days=7),
         ):
             super().__init__(locals())
 
@@ -84,27 +93,34 @@ class Operations(Config):
         hide_user_id: bool = False
 
         def __init__(
-                self,
-                store_data_level: Optional[int] = None,
-                store_result_level: Optional[int] = None,
-                store_headers_level: Optional[int] = None,
-                persist_level: int = WARN,
-                persist_duration_limit: Optional[int] = 5,
-                exclude_methods: list = (HTTPMethod.OPTIONS, HTTPMethod.CONNECT, HTTPMethod.TRACE, HTTPMethod.HEAD),
-                exclude_status: list = (),
-                exclude_request_headers: List[str] = (),
-                exclude_response_headers: List[str] = (),
-                # if these headers show up, exclude
-                default_volatile: bool = True,
-                volatile_maintain: timedelta = timedelta(days=7),
-                hide_ip_address: bool = False,
-                hide_user_id: bool = False,
-                # maintain: Optional[timedelta] = None,
-                # default
-                # - debug: info
-                # - production: WARN
+            self,
+            store_data_level: Optional[int] = None,
+            store_result_level: Optional[int] = None,
+            store_headers_level: Optional[int] = None,
+            persist_level: int = WARN,
+            persist_duration_limit: Optional[int] = 5,
+            exclude_methods: list = (
+                HTTPMethod.OPTIONS,
+                HTTPMethod.CONNECT,
+                HTTPMethod.TRACE,
+                HTTPMethod.HEAD,
+            ),
+            exclude_status: list = (),
+            exclude_request_headers: List[str] = (),
+            exclude_response_headers: List[str] = (),
+            # if these headers show up, exclude
+            default_volatile: bool = True,
+            volatile_maintain: timedelta = timedelta(days=7),
+            hide_ip_address: bool = False,
+            hide_user_id: bool = False,
+            # maintain: Optional[timedelta] = None,
+            # default
+            # - debug: info
+            # - production: WARN
         ):
-            exclude_methods = [m.upper() for m in exclude_methods] if exclude_methods else []
+            exclude_methods = (
+                [m.upper() for m in exclude_methods] if exclude_methods else []
+            )
             super().__init__(locals())
 
     class Proxy(Config):
@@ -112,58 +128,59 @@ class Operations(Config):
         forward: bool = False
 
         def __init__(
-                self,
-                base_url: str,
-                forward: bool = False,
+            self,
+            base_url: str,
+            forward: bool = False,
         ):
             super().__init__(locals())
 
         @property
         def proxy_url(self):
-            return url_join(self.base_url, 'proxy')
+            return url_join(self.base_url, "proxy")
 
-    def __init__(self,
-                 route: str,
-                 database: Union[str, Database],
-                 base_url: Optional[str] = None,
-                 # replace service.base_url
-                 disabled_scope: List[str] = (),
-                 secret_names: List[str] = DEFAULT_SECRET_NAMES,
-                 trusted_hosts: List[str] = (),
-                 # trusted_packages: List[str] = (),
-                 default_timeout: int = 30,
-                 secure_only: bool = True,
-                 # local_disabled: bool = False,
-                 logger_cls=None,
-                 max_backlog: int = 100,
-                 # will trigger a log save if the log hits this limit
-                 worker_cycle: Union[int, float, timedelta] = timedelta(seconds=30),
-                 worker_task_cls=None,
-                 resources_manager_cls=None,
-                 # every worker cycle, a worker will do
-                 # - save the logs
-                 # - save the worker monitor
-                 # - the main (with min pid) worker will do the monitor tasks
-                 openapi=None,  # openapi paths
-                 monitor: Monitor = Monitor(),
-                 log: Log = Log(),
-                 report_disabled: bool = False,
-                 task_error_log: str = None,
-                 max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
-                 local_scope: List[str] = ('*',),
-                 eager_migrate: bool = False,
-                 eager_mount: bool = False,
-                 # new in v2.6.5 +---------
-                 # token: str = None
-                 # proxy_url: str = None,
-                 # proxy_forward_requests: bool = None,
-                 proxy: Proxy = None,
-                 ):
+    def __init__(
+        self,
+        route: str,
+        database: Union[str, Database],
+        base_url: Optional[str] = None,
+        # replace service.base_url
+        disabled_scope: List[str] = (),
+        secret_names: List[str] = DEFAULT_SECRET_NAMES,
+        trusted_hosts: List[str] = (),
+        # trusted_packages: List[str] = (),
+        default_timeout: int = 30,
+        secure_only: bool = True,
+        # local_disabled: bool = False,
+        logger_cls=None,
+        max_backlog: int = 100,
+        # will trigger a log save if the log hits this limit
+        worker_cycle: Union[int, float, timedelta] = timedelta(seconds=30),
+        worker_task_cls=None,
+        resources_manager_cls=None,
+        # every worker cycle, a worker will do
+        # - save the logs
+        # - save the worker monitor
+        # - the main (with min pid) worker will do the monitor tasks
+        openapi=None,  # openapi paths
+        monitor: Monitor = Monitor(),
+        log: Log = Log(),
+        report_disabled: bool = False,
+        task_error_log: str = None,
+        max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
+        local_scope: List[str] = ("*",),
+        eager_migrate: bool = False,
+        eager_mount: bool = False,
+        # new in v2.6.5 +---------
+        # token: str = None
+        # proxy_url: str = None,
+        # proxy_forward_requests: bool = None,
+        proxy: Proxy = None,
+    ):
         super().__init__(locals())
 
         self.route = route
         self.database = database if isinstance(database, Database) else None
-        self.db_alias = database if isinstance(database, str) else '__ops'
+        self.db_alias = database if isinstance(database, str) else "__ops"
 
         self.disabled_scope = set(disabled_scope)
         self.secret_names = [k.lower() for k in secret_names]
@@ -191,15 +208,19 @@ class Operations(Config):
         if base_url:
             parsed = urlsplit(base_url)
             if not parsed.scheme:
-                raise ValueError(f'Operations base_url should be an absolute url, got {base_url}')
+                raise ValueError(
+                    f"Operations base_url should be an absolute url, got {base_url}"
+                )
         self._base_url = self.parse_base_url(base_url)
 
         if self.HOST not in self.trusted_hosts:
             self.trusted_hosts.append(self.HOST)
         if not isinstance(monitor, self.Monitor):
-            raise TypeError(f'Operations monitor config must be a Monitor instance, got {monitor}')
+            raise TypeError(
+                f"Operations monitor config must be a Monitor instance, got {monitor}"
+            )
         if not isinstance(log, self.Log):
-            raise TypeError(f'Operations log config must be a Log instance, got {log}')
+            raise TypeError(f"Operations log config must be a Log instance, got {log}")
         self.monitor = monitor
         self.log = log
         self.logger_cls_string = logger_cls
@@ -213,24 +234,25 @@ class Operations(Config):
         self._mounted = False
         # ------------------
         if proxy and not isinstance(proxy, self.Proxy):
-            raise TypeError(f'Operations proxy config must be a Proxy instance, got {proxy}')
+            raise TypeError(
+                f"Operations proxy config must be a Proxy instance, got {proxy}"
+            )
         self.proxy = proxy
 
     @classmethod
     def parse_base_url(cls, url: str):
         if not url:
             return url
-        if '$IP' in url:
-            url = url.replace('$IP', get_server_ip())
+        if "$IP" in url:
+            url = url.replace("$IP", get_server_ip())
         return url
 
     def load_openapi(self, no_store: bool = False):
         from utilmeta import service
         from utilmeta.core.api.specs.openapi import OpenAPI
+
         openapi = OpenAPI(
-            service,
-            external_docs=self.external_openapi,
-            base_url=self.base_url
+            service, external_docs=self.external_openapi, base_url=self.base_url
         )()
         if not no_store:
             self._openapi = openapi
@@ -250,7 +272,7 @@ class Operations(Config):
 
     @property
     def is_secure(self):
-        return urlsplit(self.ops_api).scheme == 'https'
+        return urlsplit(self.ops_api).scheme == "https"
 
     @property
     def proxy_required(self):
@@ -260,6 +282,7 @@ class Operations(Config):
             return False
         try:
             from ipaddress import ip_address
+
             hostname = urlsplit(self.base_url).hostname
             ip = get_ip(hostname)
             return ip_address(ip or self.host).is_private
@@ -279,42 +302,54 @@ class Operations(Config):
     @cached_property
     def logger_cls(self):
         from utilmeta.ops.log import Logger
+
         if not self.logger_cls_string:
             return Logger
         cls = import_obj(self.logger_cls_string)
         if not issubclass(cls, Logger):
-            raise TypeError(f'Operations.logger_cls must inherit utilmeta.ops.log.Logger, got {cls}')
+            raise TypeError(
+                f"Operations.logger_cls must inherit utilmeta.ops.log.Logger, got {cls}"
+            )
         return cls
 
     @cached_property
     def resources_manager_cls(self):
         from utilmeta.ops.resources import ResourcesManager
+
         if not self.resources_manager_cls_string:
             return ResourcesManager
         cls = import_obj(self.resources_manager_cls_string)
         if not issubclass(cls, ResourcesManager):
-            raise TypeError(f'Operations.logger_cls must inherit utilmeta.ops.log.Logger, got {cls}')
+            raise TypeError(
+                f"Operations.logger_cls must inherit utilmeta.ops.log.Logger, got {cls}"
+            )
         return cls
 
     @cached_property
     def worker_task_cls(self):
         from utilmeta.ops.task import OperationWorkerTask
+
         if not self.worker_task_cls_string:
             return OperationWorkerTask
         cls = import_obj(self.worker_task_cls_string)
         if not issubclass(cls, OperationWorkerTask):
-            raise TypeError(f'Operations.worker_task_cls must inherit '
-                            f'utilmeta.ops.task.OperationWorkerTask, got {cls}')
+            raise TypeError(
+                f"Operations.worker_task_cls must inherit "
+                f"utilmeta.ops.task.OperationWorkerTask, got {cls}"
+            )
         return cls
 
     @classmethod
     def get_secret_key(cls, service: UtilMeta):
-        seed = f'{service.module_name}:{service.name}:' \
-               f'{service.backend_name}:{service.backend_version}:{service.base_url}:{__version__}:{sys.version}'
+        seed = (
+            f"{service.module_name}:{service.name}:"
+            f"{service.backend_name}:{service.backend_version}:{service.base_url}:{__version__}:{sys.version}"
+        )
         return hashlib.md5(seed.encode()).hexdigest()
 
     def hook(self, service: UtilMeta):
         from .cmd import OperationsCommand
+
         service.register_command(OperationsCommand)
 
     def setup(self, service: UtilMeta):
@@ -323,11 +358,11 @@ class Operations(Config):
 
         # --- add log middleware
         if service.adaptor:
-            service.adaptor.add_middleware(
-                self.logger_cls.middleware_cls(self)
-            )
+            service.adaptor.add_middleware(self.logger_cls.middleware_cls(self))
         else:
-            raise NotImplementedError('Operations setup error: service backend not specified')
+            raise NotImplementedError(
+                "Operations setup error: service backend not specified"
+            )
 
         # from django.core.exceptions import ImproperlyConfigured
         # django_settings = None
@@ -345,13 +380,14 @@ class Operations(Config):
         #     print('SETTINGS CONFIGURED')
 
         from utilmeta.core.server.backends.django.settings import DjangoSettings
+
         django_config = service.get_config(DjangoSettings)
 
         db_routers = []
-        if self.db_alias != 'default':
+        if self.db_alias != "default":
             db_router = self.get_database_router()
             setattr(service.module, self.ROUTER_NAME, db_router)
-            db_routers.append(f'{service.module_name}.{self.ROUTER_NAME}')
+            db_routers.append(f"{service.module_name}.{self.ROUTER_NAME}")
 
         if django_config:
             if self.REF not in django_config.apps:
@@ -368,7 +404,7 @@ class Operations(Config):
                 apps=[self.REF],
                 database_routers=tuple(db_routers),
                 secret_key=self.get_secret_key(service),
-                append_slash=True
+                append_slash=True,
             )
             service.use(django_config)
 
@@ -377,20 +413,20 @@ class Operations(Config):
         if dbs_config:
             if self.database:
                 dbs_config.add_database(
-                    service=service,
-                    alias=self.db_alias,
-                    database=self.database
+                    service=service, alias=self.db_alias, database=self.database
                 )
             else:
                 self.database = dbs_config.databases.get(self.db_alias)
                 if not self.database:
-                    raise ValueError(f'Operations config: database required, got invalid {repr(self.db_alias)}')
+                    raise ValueError(
+                        f"Operations config: database required, got invalid {repr(self.db_alias)}"
+                    )
         else:
             if not self.database:
-                raise ValueError(f'Operations config: database required, got invalid {repr(self.db_alias)}')
-            service.use(DatabaseConnections({
-                self.db_alias: self.database
-            }))
+                raise ValueError(
+                    f"Operations config: database required, got invalid {repr(self.db_alias)}"
+                )
+            service.use(DatabaseConnections({self.db_alias: self.database}))
 
         # setup here, before importing APIs
         django_config.setup(service)
@@ -404,8 +440,11 @@ class Operations(Config):
             parsed = urlsplit(self.route)
             if not parsed.scheme:
                 from utilmeta.ops.api import OperationsAPI
+
                 # route instead of URL
-                service.mount_to_api(OperationsAPI, route=self.route, eager=self.eager_mount)
+                service.mount_to_api(
+                    OperationsAPI, route=self.route, eager=self.eager_mount
+                )
                 self._mounted = True
             # try:
             #     root_api = service.resolve()
@@ -424,7 +463,9 @@ class Operations(Config):
             #             pass
 
         if service.meta_config:
-            node_id = service.meta_config.get('node') or service.meta_config.get('node-id')
+            node_id = service.meta_config.get("node") or service.meta_config.get(
+                "node-id"
+            )
             if node_id:
                 self._node_id = node_id
 
@@ -445,7 +486,7 @@ class Operations(Config):
             self.load_openapi()
 
         if self._task:
-            print('Operations task already started, ignoring...')
+            print("Operations task already started, ignoring...")
             return
 
         if self.eager_migrate:
@@ -459,8 +500,10 @@ class Operations(Config):
             else:
                 self.migrate()
 
-        print(f'UtilMeta OperationsAPI loaded at {ops_api}, '
-              f'connect your APIs at {__website__}')
+        print(
+            f"UtilMeta OperationsAPI loaded at {ops_api}, "
+            f"connect your APIs at {__website__}"
+        )
         # from .log import setup_locals
         # threading.Thread(target=setup_locals, args=(self,)).start()
         # task
@@ -501,31 +544,38 @@ class Operations(Config):
 
     def migrate(self, with_default: bool = False):
         from utilmeta.core.orm.backends.django.database import DjangoDatabaseAdaptor
+
         DjangoDatabaseAdaptor(self.database).check()
         import warnings
         from django.db.migrations.executor import MigrationExecutor
         from django.db import connections
+
         ops_conn = connections[self.db_alias]
         executor = MigrationExecutor(ops_conn)
-        migrate_apps = ['ops', 'contenttypes']
+        migrate_apps = ["ops", "contenttypes"]
         try:
             targets = [
-                key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
+                key
+                for key in executor.loader.graph.leaf_nodes()
+                if key[0] in migrate_apps
             ]
             plan = executor.migration_plan(targets)
             if not plan:
                 return
             executor.migrate(targets, plan)
         except Exception as e:
-            warnings.warn(f'migrate operation models failed with error: {e}')
+            warnings.warn(f"migrate operation models failed with error: {e}")
         if with_default:
             from django.db import connection
+
             # ----------
             if connection != ops_conn:
                 try:
                     executor = MigrationExecutor(connection)
                     targets = [
-                        key for key in executor.loader.graph.leaf_nodes() if key[0] in migrate_apps
+                        key
+                        for key in executor.loader.graph.leaf_nodes()
+                        if key[0] in migrate_apps
                     ]
                     plan = executor.migration_plan(targets)
                     if not plan:
@@ -533,7 +583,9 @@ class Operations(Config):
                     executor.migrate(targets, plan)
                 except Exception as e:
                     # ignore migration in default db
-                    warnings.warn(f'migrate operation models to default database failed: {e}')
+                    warnings.warn(
+                        f"migrate operation models to default database failed: {e}"
+                    )
 
     @property
     def ops_api(self):
@@ -554,7 +606,7 @@ class Operations(Config):
 
     @property
     def host(self):
-        ip = get_server_ip(private_only=bool(self.proxy)) or '127.0.0.1'
+        ip = get_server_ip(private_only=bool(self.proxy)) or "127.0.0.1"
         try:
             from utilmeta import service
         except ImportError:
@@ -582,13 +634,14 @@ class Operations(Config):
     @property
     def address(self):
         from ipaddress import ip_address
+
         addr = ip_address(self.host)
         port = self.port
         host = self.host
         if port:
             if addr.version == 6:
-                host = f'[{host}]'
-            return f'{host}:{port}'
+                host = f"[{host}]"
+            return f"{host}:{port}"
         return host
 
     @property
@@ -606,7 +659,7 @@ class Operations(Config):
 
     @property
     def proxy_origin(self):
-        return 'http://' + self.address
+        return "http://" + self.address
 
     @property
     def proxy_ops_api(self):
@@ -646,50 +699,56 @@ class Operations(Config):
     def check_supervisor(self, base_url: str):
         parsed = urlsplit(base_url)
         if self.secure_only:
-            if parsed.scheme not in ['https', 'wss']:
-                raise ValueError(f'utilmeta.ops.Operations: Insecure supervisor: {base_url}, '
-                                 f'HTTPS is required, or you need to turn secure_only=False')
+            if parsed.scheme not in ["https", "wss"]:
+                raise ValueError(
+                    f"utilmeta.ops.Operations: Insecure supervisor: {base_url}, "
+                    f"HTTPS is required, or you need to turn secure_only=False"
+                )
         host = str(parsed.hostname)
         for trusted in self.trusted_hosts:
-            if host == trusted or host.endswith(f'.{trusted}'):
+            if host == trusted or host.endswith(f".{trusted}"):
                 return True
-        raise ValueError(f'utilmeta.ops.Operations: Untrusted supervisor host: {parsed.hostname}, '
-                         f'if you trust this host, '
-                         f'you need to add it to the [trusted_hosts] param of Operations config')
+        raise ValueError(
+            f"utilmeta.ops.Operations: Untrusted supervisor host: {parsed.hostname}, "
+            f"if you trust this host, "
+            f"you need to add it to the [trusted_hosts] param of Operations config"
+        )
 
     @classmethod
     def get_backend_name(cls, backend):
-        name = str(getattr(backend, 'name', ''))
+        name = str(getattr(backend, "name", ""))
         if name:
             return name
-        name = str(getattr(backend, '__name__', ''))
+        name = str(getattr(backend, "__name__", ""))
         if not name:
-            ref_name = str(backend).lstrip('<').rstrip('>').strip()
-            if ' ' in ref_name:
-                ref_name = ref_name.split(' ')[0]
-            if '.' in ref_name:
-                ref_name = ref_name.split('.')[0]
+            ref_name = str(backend).lstrip("<").rstrip(">").strip()
+            if " " in ref_name:
+                ref_name = ref_name.split(" ")[0]
+            if "." in ref_name:
+                ref_name = ref_name.split(".")[0]
             name = ref_name or str(backend)
-        return name + '_service'
+        return name + "_service"
 
     @classmethod
     def get_service_name(cls, backend):
         from utilmeta.utils import search_file, load_ini, read_from
-        meta_path = search_file('utilmeta.ini') or search_file('meta.ini')
+
+        meta_path = search_file("utilmeta.ini") or search_file("meta.ini")
         name = None
         if meta_path:
             try:
                 config = load_ini(read_from(meta_path), parse_key=True)
             except Exception as e:
                 import warnings
-                warnings.warn(f'load ini file: {meta_path} failed with error: {e}')
+
+                warnings.warn(f"load ini file: {meta_path} failed with error: {e}")
             else:
-                meta_config = config.get('utilmeta') or config.get('service') or {}
+                meta_config = config.get("utilmeta") or config.get("service") or {}
                 if not isinstance(meta_config, dict):
                     meta_config = {}
-                name = str(meta_config.get('name', '')).strip()
+                name = str(meta_config.get("name", "")).strip()
         if not name:
-            name = str(getattr(backend, 'name', ''))
+            name = str(getattr(backend, "name", ""))
         if name:
             return name
         if meta_path:
@@ -705,11 +764,16 @@ class Operations(Config):
             origin = get_origin(self.route)
         elif not self._base_url:
             if self.proxy:
-                eg = ('eg: Operations(base_url="http://$IP:8080/api"), \n you are using a cluster proxy,'
-                      ' $IP will be your current server ip address')
+                eg = (
+                    'eg: Operations(base_url="http://$IP:8080/api"), \n you are using a cluster proxy,'
+                    " $IP will be your current server ip address"
+                )
             else:
                 eg = 'eg: Operations(base_url="https://api.example.com/api")'
-            raise ValueError('Integrate utilmeta.ops.Operations requires to set a base_url of your API service, ' + eg)
+            raise ValueError(
+                "Integrate utilmeta.ops.Operations requires to set a base_url of your API service, "
+                + eg
+            )
         else:
             url_parsed = urlsplit(self._base_url)
             # if url_parsed.path:
@@ -718,6 +782,7 @@ class Operations(Config):
             root_url = url_parsed.path
 
         from utilmeta import UtilMeta
+
         try:
             from utilmeta import service
         except ImportError:
@@ -726,7 +791,7 @@ class Operations(Config):
                 backend=backend,
                 name=name or self.get_service_name(backend),
                 origin=origin,
-                route=root_url
+                route=root_url,
             )
             service._auto_created = True
         else:
@@ -734,7 +799,9 @@ class Operations(Config):
                 if module:
                     service.module_name = module
                 else:
-                    raise ValueError(f'Operations.integrate second param should pass __name__, got {module}')
+                    raise ValueError(
+                        f"Operations.integrate second param should pass __name__, got {module}"
+                    )
 
         service.use(self)
         service.setup()
@@ -742,18 +809,22 @@ class Operations(Config):
         if service.adaptor:
             if not self._mounted:
                 from .api import OperationsAPI
+
                 service.mount_to_api(OperationsAPI, route=route, eager=self.eager_mount)
                 self._mounted = True
             # service.adaptor.adapt(OperationsAPI, route=parsed.path)
             service.adaptor.setup()
         else:
-            raise NotImplementedError('Operations integrate error: service backend not specified')
+            raise NotImplementedError(
+                "Operations integrate error: service backend not specified"
+            )
 
         if service.module:
             # ATTRIBUTE FINDER
-            setattr(service.module, 'utilmeta', service)
+            setattr(service.module, "utilmeta", service)
 
         import utilmeta
+
         if not utilmeta._cmd_env:
             # trigger start
             self.on_startup(service)
@@ -783,7 +854,7 @@ class Operations(Config):
         from ninja.openapi.schema import get_schema
         from ninja import NinjaAPI
 
-        def generator_func(service: 'UtilMeta'):
+        def generator_func(service: "UtilMeta"):
             config = service.get_config(cls)
             docs = []
             for app in ninja_apis:
@@ -792,12 +863,16 @@ class Operations(Config):
                 elif isinstance(app, dict):
                     path_ninja_apis.update(app)
                 else:
-                    raise TypeError(f'Invalid application: {app} for django ninja. NinjaAPI() instance expected')
+                    raise TypeError(
+                        f"Invalid application: {app} for django ninja. NinjaAPI() instance expected"
+                    )
             for path, ninja_api in path_ninja_apis.items():
                 if isinstance(ninja_api, NinjaAPI):
                     doc = get_schema(ninja_api)
-                    servers = doc.get('servers', [])
-                    doc['servers'] = [{'url': url_join(config.base_url, path)}] + servers
+                    servers = doc.get("servers", [])
+                    doc["servers"] = [
+                        {"url": url_join(config.base_url, path)}
+                    ] + servers
                     docs.append(doc)
             return docs
 

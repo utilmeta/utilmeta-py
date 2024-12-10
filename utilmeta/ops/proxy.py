@@ -1,23 +1,24 @@
 import utype
 
 from utilmeta.core import cli, request, response
+
 # from utilmeta.utils import url_join
 from utype import Schema, Field
 from utype.types import *
 
 
 class RegistrySchema(Schema):
-    name: str = utype.Field(alias_from=['service_name', 'service_id'])
+    name: str = utype.Field(alias_from=["service_name", "service_id"])
     title: Optional[str] = utype.Field(default=None, defer_default=True)
-    description: str = ''
-    address: str    # host + port
+    description: str = ""
+    address: str  # host + port
     # host: str = utype.Field(alias_from=['ip'])
     # port: Optional[int] = None
     # host:port
     base_url: str
     # address + base_route
     ops_api: str
-    instance_id: str = utype.Field(alias_from=['resource_id'])
+    instance_id: str = utype.Field(alias_from=["resource_id"])
     # this field will be checked by the proxy
     # server_id: Optional[str] = Field(default=None, defer_default=True)
     # remote_id: Optional[str] = Field(default=None, defer_default=True)
@@ -32,21 +33,22 @@ class RegistrySchema(Schema):
     # python / java / go / javascript / php
     utilmeta_version: str
     # python version
-    backend: str = 'utilmeta'
+    backend: str = "utilmeta"
     # runtime framework
     backend_version: str = Field(required=False)
     resources: Optional[dict] = Field(default=None, defer_default=True)
 
     def get_metadata(self):
         from .client import NodeMetadata
-        data = (self.resources or {}).get('metadata') or dict(
+
+        data = (self.resources or {}).get("metadata") or dict(
             ops_api=self.ops_api,
             base_url=self.base_url,
             name=self.name,
             title=self.title,
             description=self.description,
             version=self.version,
-            production=self.production
+            production=self.production,
         )
         return NodeMetadata(data)
 
@@ -96,7 +98,7 @@ class RegistryResponse(response.Response):
 class ProxyClient(cli.Client):
     proxy: cli.Client
 
-    @cli.post('registry')
+    @cli.post("registry")
     def register_service(self, data: RegistrySchema = request.Body) -> RegistryResponse:
         pass
 

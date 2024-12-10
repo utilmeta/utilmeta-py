@@ -2,13 +2,14 @@ from .base import Config
 from utilmeta.utils import TimeZone, get_timezone
 from typing import Optional
 import time
+
 SERVER_UTCOFFSET = -time.timezone
 from datetime import datetime, timezone, timedelta
 
 
 class Time(Config):
-    DATE_DEFAULT = '%Y-%m-%d'
-    TIME_DEFAULT = '%H:%M:%S'
+    DATE_DEFAULT = "%Y-%m-%d"
+    TIME_DEFAULT = "%H:%M:%S"
     DATETIME_DEFAULT = "%Y-%m-%d %H:%M:%S"
 
     # ----
@@ -18,15 +19,17 @@ class Time(Config):
     use_tz: Optional[bool] = None
     time_zone: Optional[str] = None
 
-    def __init__(self, *,
-                 date_format: str = DATE_DEFAULT,
-                 time_format: str = TIME_DEFAULT,
-                 datetime_format: str = DATETIME_DEFAULT,
-                 # to_timestamp: bool = False,
-                 # to_ms_timestamp: bool = False,
-                 use_tz: Optional[bool] = True,
-                 time_zone: Optional[str] = None,
-                 ):
+    def __init__(
+        self,
+        *,
+        date_format: str = DATE_DEFAULT,
+        time_format: str = TIME_DEFAULT,
+        datetime_format: str = DATETIME_DEFAULT,
+        # to_timestamp: bool = False,
+        # to_ms_timestamp: bool = False,
+        use_tz: Optional[bool] = True,
+        time_zone: Optional[str] = None,
+    ):
         super().__init__(locals())
         self.time_format = time_format
         self.date_format = date_format
@@ -115,5 +118,7 @@ class Time(Config):
         if dt.tzinfo:
             return self.time_local(dt)
         if self.timezone_utcoffset != self.server_utcoffset:
-            return dt + timedelta(seconds=self.timezone_utcoffset - self.server_utcoffset)
+            return dt + timedelta(
+                seconds=self.timezone_utcoffset - self.server_utcoffset
+            )
         return dt

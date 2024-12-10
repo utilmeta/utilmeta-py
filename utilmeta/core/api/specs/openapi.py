@@ -34,37 +34,39 @@ import re
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
 
-MULTIPART = 'multipart/form-data'
+MULTIPART = "multipart/form-data"
 
 
 def guess_content_type(schema: dict):
     if not schema:
         return JSON
 
-    type = schema.get('type')
-    format = schema.get('format')
+    type = schema.get("type")
+    format = schema.get("format")
 
-    if type in ('object', 'array'):
+    if type in ("object", "array"):
         return JSON
 
-    if schema.get('$ref'):
+    if schema.get("$ref"):
         return JSON
 
-    if format == 'binary':
+    if format == "binary":
         return OCTET_STREAM
 
     return PLAIN
 
 
-def get_operation_id(method: str, path: str, excludes: list = (), attribute: bool = False):
+def get_operation_id(
+    method: str, path: str, excludes: list = (), attribute: bool = False
+):
     ident = f'{method.lower()}:{path.strip("/")}'
     if attribute:
-        ident = re.sub('[^A-Za-z0-9]+', '_', ident).strip('_')
+        ident = re.sub("[^A-Za-z0-9]+", "_", ident).strip("_")
     if excludes:
         i = 1
         origin = ident
         while ident in excludes:
-            ident = f'{origin}_{i}'
+            ident = f"{origin}_{i}"
             i += 1
     return ident
 
@@ -81,10 +83,15 @@ class OpenAPIGenerator(JsonSchemaGenerator):
             data.update(accept=t.accept)
         if isinstance(t, LogicalType) and f.discriminator_map:
             # not part of json-schema, but in OpenAPI
-            data.update(discriminator=dict(
-                propertyName=f.field.discriminator,
-                mapping={k: self.generate_for_type(v) for k, v in f.discriminator_map.items()}
-            ))
+            data.update(
+                discriminator=dict(
+                    propertyName=f.field.discriminator,
+                    mapping={
+                        k: self.generate_for_type(v)
+                        for k, v in f.discriminator_map.items()
+                    },
+                )
+            )
         return data
 
     def get_ref_object(self, ref: str):
@@ -98,7 +105,7 @@ class OpenAPIGenerator(JsonSchemaGenerator):
     def get_schema(self, schema: dict):
         if not schema or not isinstance(schema, dict):
             return None
-        ref = schema.get('$ref')
+        ref = schema.get("$ref")
         if ref:
             return self.get_ref_schema(ref)
         return schema
@@ -106,39 +113,39 @@ class OpenAPIGenerator(JsonSchemaGenerator):
     def get_body_content_type(self, body_schema: dict):
         if not body_schema or not isinstance(body_schema, dict):
             return None
-        ref = body_schema.get('$ref')
+        ref = body_schema.get("$ref")
         if ref:
             body_schema = self.get_ref_schema(ref)
             if not body_schema or not isinstance(body_schema, dict):
                 return None
-        if body_schema.get('type') == 'object':
-            for key, field in body_schema.get('properties', {}).items():
-                if field.get('format') == 'binary':
+        if body_schema.get("type") == "object":
+            for key, field in body_schema.get("properties", {}).items():
+                if field.get("format") == "binary":
                     return MULTIPART
-                if field.get('type') == 'array':
-                    if field.get('items', {}).get('format') == 'binary':
+                if field.get("type") == "array":
+                    if field.get("items", {}).get("format") == "binary":
                         return MULTIPART
             return JSON
         return guess_content_type(body_schema)
 
     def generate_for_response(self, response: Type[Response]):
-        parser = getattr(response, '__parser__', None)
-        result_field = parser.get_field('result') if parser else None
-        headers_field = parser.get_field('headers') if parser else None
+        parser = getattr(response, "__parser__", None)
+        result_field = parser.get_field("result") if parser else None
+        headers_field = parser.get_field("headers") if parser else None
 
         result_schema = self.generate_for_field(result_field) if result_field else None
-        headers_schema = self.__class__(headers_field.type, output=True)() \
-            if headers_field and headers_field.type != Headers else {}
+        headers_schema = (
+            self.__class__(headers_field.type, output=True)()
+            if headers_field and headers_field.type != Headers
+            else {}
+        )
         # headers is different, doesn't need to generate $ref
 
-        headers_props = headers_schema.get('properties') or {}
-        headers_required = headers_schema.get('required') or []
+        headers_props = headers_schema.get("properties") or {}
+        headers_required = headers_schema.get("required") or []
         headers = {}
         for key, val_schema in headers_props.items():
-            headers[key] = {
-                'schema': val_schema,
-                'required': key in headers_required
-            }
+            headers[key] = {"schema": val_schema, "required": key in headers_required}
 
         content_type = response.content_type
         # todo: headers wrapped
@@ -147,36 +154,36 @@ class OpenAPIGenerator(JsonSchemaGenerator):
             keys = {}
             if response.result_key:
                 props[response.result_key] = result_schema
-                keys.update({'x-response-result-key': response.result_key})
+                keys.update({"x-response-result-key": response.result_key})
             if response.message_key:
                 msg = dict(self.generate_for_type(str))
                 msg.update(
-                    title='Message',
-                    description='an error message of response',
+                    title="Message",
+                    description="an error message of response",
                 )
                 props[response.message_key] = msg
-                keys.update({'x-response-message-key': response.message_key})
+                keys.update({"x-response-message-key": response.message_key})
             if response.state_key:
                 state = dict(self.generate_for_type(str))
                 state.update(
-                    title='State',
-                    description='action state code of response',
+                    title="State",
+                    description="action state code of response",
                 )
                 props[response.state_key] = state
-                keys.update({'x-response-state-key': response.state_key})
+                keys.update({"x-response-state-key": response.state_key})
             if response.count_key:
                 cnt = dict(self.generate_for_type(int))
                 cnt.update(
-                    title='Count',
-                    description='a count of the total number of query result',
+                    title="Count",
+                    description="a count of the total number of query result",
                 )
                 props[response.count_key] = cnt
-                keys.update({'x-response-count-key': response.count_key})
+                keys.update({"x-response-count-key": response.count_key})
 
             data_schema = {
-                'type': 'object',
-                'properties': props,
-                'required': list(props)
+                "type": "object",
+                "properties": props,
+                "required": list(props),
             }
             if keys:
                 data_schema.update(keys)
@@ -187,16 +194,14 @@ class OpenAPIGenerator(JsonSchemaGenerator):
                 content_type = guess_content_type(data_schema)
 
         response_schema = dict(
-            content={content_type: {
-                'schema': data_schema
-            }},
+            content={content_type: {"schema": data_schema}},
         )
         if headers:
             response_schema.update(headers=headers)
         if response.description:
             response_schema.update(description=response.description)
         if response.name:
-            response_schema.update({'x-response-name': response.name})
+            response_schema.update({"x-response-name": response.name})
 
         return response_schema
 
@@ -204,15 +209,15 @@ class OpenAPIGenerator(JsonSchemaGenerator):
 class OpenAPIInfo(Schema):
     title: str
     version: str
-    description: str = Field(default='')
-    term_of_service: str = Field(alias='termsOfService', alias_from=['tos'], default='')
+    description: str = Field(default="")
+    term_of_service: str = Field(alias="termsOfService", alias_from=["tos"], default="")
     contact: dict = Field(default_factory=dict)
     license: dict = Field(default_factory=dict)
 
 
 class ServerSchema(Schema):
     url: str
-    description: str = Field(default='')
+    description: str = Field(default="")
     variables: dict = Field(default_factory=dict)
 
 
@@ -245,21 +250,23 @@ _generated_document = None
 
 
 class OpenAPI(BaseAPISpec):
-    spec = 'openapi'
-    __version__ = '3.1.0'
+    spec = "openapi"
+    __version__ = "3.1.0"
     generator_cls = OpenAPIGenerator
     schema_cls = OpenAPISchema
-    FORMATS = ['json', 'yaml']
-    PARAMS_IN = ['path', 'query', 'header', 'cookie']
+    FORMATS = ["json", "yaml"]
+    PARAMS_IN = ["path", "query", "header", "cookie"]
     URL_FETCH_TIMEOUT = 5
     # None -> dict
     # json -> json string
     # yml -> yml string
 
-    def __init__(self, service: 'UtilMeta',
-                 external_docs: Union[str, dict, Callable] = None,
-                 base_url: str = None,
-                 ):
+    def __init__(
+        self,
+        service: "UtilMeta",
+        external_docs: Union[str, dict, Callable] = None,
+        base_url: str = None,
+    ):
         super().__init__(service)
         self.defs = {}
         self.names = {}
@@ -337,13 +344,13 @@ class OpenAPI(BaseAPISpec):
 
             security.extend(doc.security)
             for tag in doc.tags:
-                tag_name = tag.get('name') if isinstance(tag, dict) else str(tag)
+                tag_name = tag.get("name") if isinstance(tag, dict) else str(tag)
                 if not tag_name:
                     continue
                 if tag_name in tag_names:
                     continue
                 tags.append(tag_name)
-                tags.append(tag if isinstance(tag, dict) else {'name': tag_name})
+                tags.append(tag if isinstance(tag, dict) else {"name": tag_name})
             for key, val in doc.items():
                 if key not in self.schema_cls.__parser__.fields:
                     additions[key] = val
@@ -355,7 +362,7 @@ class OpenAPI(BaseAPISpec):
             components=components,
             security=security,
             tags=tags,
-            **additions
+            **additions,
         )
 
     def get_external_docs(self, external_docs) -> List[OpenAPISchema]:
@@ -366,7 +373,9 @@ class OpenAPI(BaseAPISpec):
             try:
                 docs = docs(self.service)
             except Exception as e:
-                warnings.warn(f'call external docs function: {external_docs} failed: {e}')
+                warnings.warn(
+                    f"call external docs function: {external_docs} failed: {e}"
+                )
                 return []
 
         if multi(docs):
@@ -387,29 +396,32 @@ class OpenAPI(BaseAPISpec):
             docs = docs.decode()
 
         if file and file.filename and isinstance(docs, str):
-            if file.filename.endswith('.yaml') or file.filename.endswith('.yml'):
+            if file.filename.endswith(".yaml") or file.filename.endswith(".yml"):
                 import yaml
+
                 docs = yaml.safe_load(docs)
 
         if isinstance(docs, dict):
             try:
                 return [OpenAPISchema(docs)]
             except utype.exc.ParseError as e:
-                warnings.warn(f'parse external docs object failed: {e}')
+                warnings.warn(f"parse external docs object failed: {e}")
                 return []
         if isinstance(docs, str):
             if valid_url(docs):
                 from urllib.request import urlopen
                 from http.client import HTTPResponse
+
                 try:
                     resp: HTTPResponse = urlopen(docs, timeout=self.URL_FETCH_TIMEOUT)
                 except Exception as e:
-                    warnings.warn(f'parse external docs url: {docs} failed: {e}')
+                    warnings.warn(f"parse external docs url: {docs} failed: {e}")
                     return []
                 if resp.status == 200:
-                    content_type = resp.getheader('Content-Type') or ''
-                    if 'yaml' in content_type or 'json' in content_type:
+                    content_type = resp.getheader("Content-Type") or ""
+                    if "yaml" in content_type or "json" in content_type:
                         import yaml
+
                         obj = yaml.safe_load(resp.read())
                     else:
                         obj = json.loads(resp.read())
@@ -418,12 +430,13 @@ class OpenAPI(BaseAPISpec):
                 resp.close()
             elif os.path.exists(docs):
                 try:
-                    docs_content = open(docs, 'r', errors='ignore').read()
+                    docs_content = open(docs, "r", errors="ignore").read()
                 except Exception as e:
-                    warnings.warn(f'parse external docs file: {docs} failed: {e}')
+                    warnings.warn(f"parse external docs file: {docs} failed: {e}")
                     return []
-                if docs.endswith('.yaml') or docs.endswith('.yml'):
+                if docs.endswith(".yaml") or docs.endswith(".yml"):
                     import yaml
+
                     obj = yaml.safe_load(docs_content)
                 else:
                     obj = json.loads(docs_content)
@@ -434,15 +447,18 @@ class OpenAPI(BaseAPISpec):
                 except json.JSONDecodeError:
                     try:
                         import yaml
+
                         obj = yaml.safe_load(docs)
                     except Exception as e:
-                        warnings.warn(f'parse external docs content failed with error: {e}')
+                        warnings.warn(
+                            f"parse external docs content failed with error: {e}"
+                        )
                         return []
             if obj:
                 try:
                     return [OpenAPISchema(obj)]
                 except utype.exc.ParseError as e:
-                    warnings.warn(f'parse external docs failed: {e}')
+                    warnings.warn(f"parse external docs failed: {e}")
                     return []
 
         return []
@@ -453,51 +469,57 @@ class OpenAPI(BaseAPISpec):
         # 1, base_url: http://127.0.0.1:8000
         # 2, base_url: http://new.location.com/some/route
         # 3, base_url: http://new.location.com
-        if not current_base_url or not base_url or current_base_url == base_url or not paths:
+        if (
+            not current_base_url
+            or not base_url
+            or current_base_url == base_url
+            or not paths
+        ):
             return paths
-        prefix = ''
+        prefix = ""
         prefix_strip = False
         # only support prefix
         if current_base_url.startswith(base_url):
-            prefix = current_base_url[len(base_url):]
+            prefix = current_base_url[len(base_url) :]
         elif base_url.startswith(current_base_url):
-            prefix = base_url[len(current_base_url):]
+            prefix = base_url[len(current_base_url) :]
             prefix_strip = True
         else:
             from urllib.parse import urlparse
+
             current_parsed = urlparse(current_base_url)
             url_parsed = urlparse(base_url)
             if current_parsed.path.startswith(url_parsed.path):
-                prefix = current_parsed.path[len(url_parsed.path):]
+                prefix = current_parsed.path[len(url_parsed.path) :]
             elif url_parsed.path.startswith(current_parsed.path):
-                prefix = url_parsed.path[len(current_parsed.path):]
+                prefix = url_parsed.path[len(current_parsed.path) :]
                 prefix_strip = True
             elif current_parsed.path:
                 # todo: deal with this situation
                 prefix = current_parsed.path
-        prefix = prefix.strip('/')
+        prefix = prefix.strip("/")
 
         if not prefix:
             return paths
 
-        prefix = '/' + prefix
+        prefix = "/" + prefix
 
         new_paths = {}
         for key, path in paths.items():
             if prefix_strip:
-                key = '/' + str(key).lstrip('/')
-                if key == prefix or key.startswith(prefix + '/'):
+                key = "/" + str(key).lstrip("/")
+                if key == prefix or key.startswith(prefix + "/"):
                     # prefix: /api
                     # key: /api/articles -> /articles
                     #     /api/ ----------> /
                     #     /api -----------> /
                     #     /static --------> none
-                    new_path = '/' + key[len(prefix):].lstrip('/')
+                    new_path = "/" + key[len(prefix) :].lstrip("/")
                 else:
                     continue
             else:
-                if key.strip('/'):
-                    new_path = prefix + '/' + str(key).lstrip('/')
+                if key.strip("/"):
+                    new_path = prefix + "/" + str(key).lstrip("/")
                 else:
                     new_path = prefix
             new_paths[new_path] = path
@@ -514,13 +536,21 @@ class OpenAPI(BaseAPISpec):
                     adaptor_docs = OpenAPISchema(docs)
                     if not adaptor_docs.servers:
                         adaptor_docs.servers = [
-                            ServerSchema(url=url_join(get_origin(self.base_url), self.service.adaptor.root_path))
+                            ServerSchema(
+                                url=url_join(
+                                    get_origin(self.base_url),
+                                    self.service.adaptor.root_path,
+                                )
+                            )
                         ]
             except NotImplementedError:
                 adaptor_docs = None
             except Exception as e:
-                warnings.warn(f'generate OpenAPI docs for [{self.service.backend_name}] failed: {e}')
+                warnings.warn(
+                    f"generate OpenAPI docs for [{self.service.backend_name}] failed: {e}"
+                )
                 from utilmeta.utils import Error
+
                 err = Error(e)
                 err.setup()
                 print(err.full_info)
@@ -537,7 +567,7 @@ class OpenAPI(BaseAPISpec):
             components=self.components,
             paths=paths,
             tags=list(self.tags.values()),
-            servers=[self.server]
+            servers=[self.server],
         )
         docs = [utilmeta_docs]
         # even of no paths: some adaptor generate no server.url
@@ -561,7 +591,7 @@ class OpenAPI(BaseAPISpec):
         return dict(
             schemas=self.get_defs(),
             responses=self.get_responses(),
-            securitySchemes=self.security_schemas
+            securitySchemes=self.security_schemas,
         )
 
     @property
@@ -574,12 +604,13 @@ class OpenAPI(BaseAPISpec):
 
     @classmethod
     def save_to(cls, schema, file: str):
-        if file.endswith('.yaml') or file.endswith('.yml'):
+        if file.endswith(".yaml") or file.endswith(".yml"):
             import yaml  # requires pyyaml
+
             content = yaml.dump(schema)
         else:
             content = json_dumps(schema, indent=4)
-        with open(file, mode='w', encoding='utf-8') as f:
+        with open(file, mode="w", encoding="utf-8") as f:
             f.write(content)
 
         if not os.path.isabs(file):
@@ -615,17 +646,19 @@ class OpenAPI(BaseAPISpec):
                 #     _path = self.request.path
                 if path:
                     file_path = os.path.join(service.project_dir, path)
-                    if path.endswith('.yml'):
+                    if path.endswith(".yml"):
                         import yaml  # requires pyyaml
+
                         content = yaml.dump(_generated_document)
                     else:
                         content = json_dumps(_generated_document)
-                    with open(file_path, 'w') as f:
+                    with open(file_path, "w") as f:
                         f.write(content)
                     return content
                 else:
-                    if '.yaml' in self.request.path or '.yml' in self.request.path:
+                    if ".yaml" in self.request.path or ".yml" in self.request.path:
                         import yaml  # requires pyyaml
+
                         content = yaml.dump(_generated_document)
                         return content
 
@@ -635,13 +668,13 @@ class OpenAPI(BaseAPISpec):
 
     @classmethod
     def _path_join(cls, *routes):
-        return '/' + '/'.join([str(r or '').strip('/') for r in routes]).rstrip('/')
+        return "/" + "/".join([str(r or "").strip("/") for r in routes]).rstrip("/")
 
     def generate_info(self) -> OpenAPIInfo:
         data = dict(
             title=self.service.title or self.service.name,
-            description=self.service.description or self.service.title or '',
-            version=self.service.version_str
+            description=self.service.description or self.service.title or "",
+            version=self.service.version_str,
         )
         if self.service.info:
             data.update(self.service.info)
@@ -650,7 +683,7 @@ class OpenAPI(BaseAPISpec):
     def generate_paths(self):
         api = self.service.resolve()
         if not issubclass(api, API):
-            raise TypeError(f'Invalid root_api: {api}')
+            raise TypeError(f"Invalid root_api: {api}")
         # return self.from_api(api, path=self.service.root_url)
         return self.from_api(api)
 
@@ -691,7 +724,7 @@ class OpenAPI(BaseAPISpec):
                     return k
         names = list(names)
         names.append(response.name or get_obj_name(response))
-        return re.sub('[^A-Za-z0-9]+', '_', '_'.join(names)).strip('_')
+        return re.sub("[^A-Za-z0-9]+", "_", "_".join(names)).strip("_")
 
     def set_response(self, response: Type[Response], names: list = ()):
         name = self.get_response_name(response, names=names)
@@ -709,20 +742,22 @@ class OpenAPI(BaseAPISpec):
                 # exact data
                 return name
             # de-duplicate name
-            name += '_1'
+            name += "_1"
 
         self.responses[response] = data
         self.response_names[name] = response
         return name
 
-    def parse_properties(self, props: Dict[str, ParserProperty]) -> Tuple[list, dict, list]:
+    def parse_properties(
+        self, props: Dict[str, ParserProperty]
+    ) -> Tuple[list, dict, list]:
         params = []
         media_types = {}
         body_params = {}
         body_form = False
         body_params_required = []
         body_required = False
-        body_description = ''
+        body_description = ""
         auth_requirements = []
 
         for key, prop_holder in props.items():
@@ -735,7 +770,7 @@ class OpenAPI(BaseAPISpec):
             auth = None
             scope = []
             if isinstance(prop, User):
-                scope = ['login']
+                scope = ["login"]
                 auth = prop.authentication
                 if not prop.required:
                     auth_requirements.append({})
@@ -763,29 +798,29 @@ class OpenAPI(BaseAPISpec):
                 else:
                     _in = str(prop.__in__)
 
-                if _in == 'body':
+                if _in == "body":
                     if field.is_required(generator.options):
                         body_params_required.append(name)
                     body_params[name] = field_schema
                     if field_schema:
-                        if field_schema.get('type') == 'array':
-                            if field_schema.get('items', {}).get('format') == 'binary':
+                        if field_schema.get("type") == "array":
+                            if field_schema.get("items", {}).get("format") == "binary":
                                 body_form = True
-                        elif field_schema.get('format') == 'binary':
+                        elif field_schema.get("format") == "binary":
                             body_form = True
 
                 elif _in in self.PARAMS_IN:
                     data = {
-                        'in': _in,
-                        'name': name,
-                        'required': field.required,
+                        "in": _in,
+                        "name": name,
+                        "required": field.required,
                         # prop may be injected
-                        'schema': field_schema,
+                        "schema": field_schema,
                     }
                     if prop.description:
-                        data['description'] = prop.description
+                        data["description"] = prop.description
                     if prop.deprecated:
-                        data['deprecated'] = True
+                        data["deprecated"] = True
 
                     if isinstance(field.field, properties.RequestParam):
                         if field.field.style:
@@ -795,16 +830,14 @@ class OpenAPI(BaseAPISpec):
 
                     params.append(data)
 
-            elif prop.__ident__ == 'body':
+            elif prop.__ident__ == "body":
                 schema = field_schema
                 # treat differently
-                content_type = getattr(prop, 'content_type', None)
+                content_type = getattr(prop, "content_type", None)
                 if not content_type:
                     # guess
                     content_type = generator.get_body_content_type(schema) or PLAIN
-                media_types[content_type] = {
-                    'schema': schema
-                }
+                media_types[content_type] = {"schema": schema}
                 body_description = prop.description
                 body_required = prop.required
 
@@ -813,37 +846,41 @@ class OpenAPI(BaseAPISpec):
                 # should ex
                 schema = field_schema
                 prop_schema = generator.get_schema(schema) or {}
-                schema_type = prop_schema.get('type')
+                schema_type = prop_schema.get("type")
 
-                if not prop_schema or schema_type != 'object':
-                    raise TypeError(f'Invalid object type: {field.type} for request property: '
-                                    f'{repr(prop.__ident__)}, must be a object type, got {repr(schema_type)}')
+                if not prop_schema or schema_type != "object":
+                    raise TypeError(
+                        f"Invalid object type: {field.type} for request property: "
+                        f"{repr(prop.__ident__)}, must be a object type, got {repr(schema_type)}"
+                    )
 
-                props = prop_schema.get('properties') or {}
-                required = prop_schema.get('required') or []
+                props = prop_schema.get("properties") or {}
+                required = prop_schema.get("required") or []
                 for prop_name, value in props.items():
-                    params.append({
-                        'in': prop.__ident__,
-                        'name': prop_name,
-                        'schema': value,
-                        'required': prop_name in required,
-                        # 'style': 'form',
-                        # 'explode': True
-                    })
+                    params.append(
+                        {
+                            "in": prop.__ident__,
+                            "name": prop_name,
+                            "schema": value,
+                            "required": prop_name in required,
+                            # 'style': 'form',
+                            # 'explode': True
+                        }
+                    )
 
         if media_types:
             if body_params:
                 generator = self.get_generator(None)
 
                 for ct in list(media_types):
-                    schema: dict = media_types[ct].get('schema')
+                    schema: dict = media_types[ct].get("schema")
                     if not schema:
                         continue
                     body_schema = dict(generator.get_schema(schema))
-                    body_props = body_schema.get('properties') or {}
+                    body_props = body_schema.get("properties") or {}
                     body_props.update(body_params)
-                    body_schema['properties'] = body_props
-                    media_types[ct]['schema'] = body_schema
+                    body_schema["properties"] = body_props
+                    media_types[ct]["schema"] = body_schema
 
                     if body_form and ct != MULTIPART:
                         media_types[MULTIPART] = media_types.pop(ct)
@@ -853,43 +890,42 @@ class OpenAPI(BaseAPISpec):
             content_type = MULTIPART if body_form else JSON
             media_types = {
                 content_type: {
-                    'schema': {
-                        'type': 'object',
-                        'properties': body_params,
-                        'required': body_params_required
+                    "schema": {
+                        "type": "object",
+                        "properties": body_params,
+                        "required": body_params_required,
                     }
                 }
             }
 
         body = None
         if media_types:
-            body = dict(
-                content=media_types,
-                required=body_required
-            )
+            body = dict(content=media_types, required=body_required)
             if body_description:
                 body.update(description=body_description)
         return params, body, auth_requirements
 
     @property
     def default_status(self):
-        return str(self.pref.default_response_status or 'default')
+        return str(self.pref.default_response_status or "default")
 
-    def from_endpoint(self, endpoint: Endpoint,
-                      tags: list = (),
-                      extra_params: list = None,
-                      extra_body: dict = None,
-                      response_cls: Type[Response] = None,
-                      extra_responses: dict = None,
-                      extra_requires: list = None
-                      ) -> dict:
+    def from_endpoint(
+        self,
+        endpoint: Endpoint,
+        tags: list = (),
+        extra_params: list = None,
+        extra_body: dict = None,
+        response_cls: Type[Response] = None,
+        extra_responses: dict = None,
+        extra_requires: list = None,
+    ) -> dict:
         # https://spec.openapis.org/oas/v3.1.0#operationObject
         operation_names = list(tags) + [endpoint.name]
         operation_id = endpoint.operation_id
         if not operation_id or operation_id in self.operations:
-            operation_id = '_'.join(operation_names)
+            operation_id = "_".join(operation_names)
             if operation_id in self.operations:
-                operation_id = endpoint.ref.replace('.', '_')
+                operation_id = endpoint.ref.replace(".", "_")
         self.operations.add(operation_id)
 
         # tags -----
@@ -911,12 +947,16 @@ class OpenAPI(BaseAPISpec):
 
         for resp in endpoint.response_types:
             resp_name = self.set_response(resp, names=operation_names)
-            responses[str(resp.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
+            responses[str(resp.status or self.default_status)] = {
+                "$ref": f"#/components/responses/{resp_name}"
+            }
 
         if response_cls and response_cls != Response:
             resp_name = self.set_response(response_cls, names=operation_names)
-            responses.setdefault(str(response_cls.status or self.default_status),
-                                 {'$ref': f'#/components/responses/{resp_name}'})
+            responses.setdefault(
+                str(response_cls.status or self.default_status),
+                {"$ref": f"#/components/responses/{resp_name}"},
+            )
 
         if extra_params:
             # _params = dict(extra_params)
@@ -931,16 +971,16 @@ class OpenAPI(BaseAPISpec):
             operationId=operation_id,
             tags=self.add_tags(tags),
             responses=dict(sorted(responses.items())),
-            security=self.merge_requires(extra_requires, requires)
+            security=self.merge_requires(extra_requires, requires),
         )
         if params:
             operation.update(parameters=params)
         if body and endpoint.method in HAS_BODY_METHODS:
             operation.update(requestBody=body)
         if endpoint.idempotent is not None:
-            operation.update({'x-idempotent': endpoint.idempotent})
+            operation.update({"x-idempotent": endpoint.idempotent})
         if endpoint.ref:
-            operation.update({'x-ref': endpoint.ref})
+            operation.update({"x-ref": endpoint.ref})
         extension = endpoint.openapi_extension
         if extension:
             operation.update(extension)
@@ -957,39 +997,52 @@ class OpenAPI(BaseAPISpec):
             if isinstance(tag, str):
                 tag_name = tag
             elif isinstance(tag, dict):
-                tag_name = tag.get('name')
+                tag_name = tag.get("name")
             if not tag_name:
                 continue
             tag_names.append(tag_name)
             if tag_name not in self.tags:
-                self.tags[tag_name] = tag if isinstance(tag, dict) else {'name': tag_name}
+                self.tags[tag_name] = (
+                    tag if isinstance(tag, dict) else {"name": tag_name}
+                )
         return tag_names
 
-    def from_route(self, route: APIRoute,
-                   *routes: str,
-                   tags: list = (),
-                   params: list = None,
-                   response_cls: Type[Response] = None,
-                   responses: dict = None,
-                   requires: list = None) -> dict:
+    def from_route(
+        self,
+        route: APIRoute,
+        *routes: str,
+        tags: list = (),
+        params: list = None,
+        response_cls: Type[Response] = None,
+        responses: dict = None,
+        requires: list = None,
+    ) -> dict:
         # https://spec.openapis.org/oas/v3.1.0#pathItemObject
         new_routes = [*routes, route.route] if route.route else list(routes)
         new_tags = [*tags, route.name] if route.name else list(tags)
         # route_tags = route.get_tags()
         path = self._path_join(*new_routes)
-        route_data = {k: v for k, v in dict(
-            summary=route.summary,
-            description=route.description,
-            deprecated=route.deprecated
-        ).items() if v is not None}
+        route_data = {
+            k: v
+            for k, v in dict(
+                summary=route.summary,
+                description=route.description,
+                deprecated=route.deprecated,
+            ).items()
+            if v is not None
+        }
 
         extra_body = None
         extra_params = []
         extra_requires = []
-        extra_responses = dict(responses or {})     # the deeper (close to the api response) is prior
+        extra_responses = dict(
+            responses or {}
+        )  # the deeper (close to the api response) is prior
         # before hooks
         for before in route.before_hooks:
-            prop_params, body, before_requires = self.parse_properties(before.wrapper.properties)
+            prop_params, body, before_requires = self.parse_properties(
+                before.wrapper.properties
+            )
             if body and not extra_body:
                 extra_body = body
             extra_params.extend(prop_params)
@@ -998,13 +1051,17 @@ class OpenAPI(BaseAPISpec):
         for after in route.after_hooks:
             for rt in after.response_types:
                 resp_name = self.set_response(rt, names=list(tags))
-                extra_responses[str(rt.status or self.default_status)] = {'$ref': f'#/components/responses/{resp_name}'}
+                extra_responses[str(rt.status or self.default_status)] = {
+                    "$ref": f"#/components/responses/{resp_name}"
+                }
 
         for error, hook in route.error_hooks.items():
             for rt in hook.response_types:
                 resp_name = self.set_response(rt, names=list(tags))
-                status = rt.status or getattr(error, 'status', None) or 'default'
-                extra_responses.setdefault(str(status), {'$ref': f'#/components/responses/{resp_name}'})
+                status = rt.status or getattr(error, "status", None) or "default"
+                extra_responses.setdefault(
+                    str(status), {"$ref": f"#/components/responses/{resp_name}"}
+                )
                 # set default. because error hooks is not triggered by default
 
         path_data = {}
@@ -1018,7 +1075,7 @@ class OpenAPI(BaseAPISpec):
                 extra_body=extra_body,
                 response_cls=response_cls,
                 extra_responses=extra_responses,
-                extra_requires=extra_requires
+                extra_requires=extra_requires,
             )
             # inject data in the endpoint, not the route with probably other endpoints
             endpoint_data.update(route_data)
@@ -1036,12 +1093,13 @@ class OpenAPI(BaseAPISpec):
             common_params = list(params or [])
             common_params.extend(extra_params)
             core_data = self.from_api(
-                route.handler, *new_routes,
+                route.handler,
+                *new_routes,
                 tags=new_tags,
                 params=common_params,
                 response_cls=response_cls,
                 responses=extra_responses,
-                requires=requires
+                requires=requires,
             )
             if core_data:
                 core_data.update(route_data)
@@ -1049,12 +1107,16 @@ class OpenAPI(BaseAPISpec):
 
         return path_data
 
-    def from_api(self, api: Type[API], *routes,
-                 tags: list = (),
-                 params: list = None,
-                 response_cls: Type[Response] = None,
-                 responses: dict = None,
-                 requires: list = None) -> Optional[dict]:
+    def from_api(
+        self,
+        api: Type[API],
+        *routes,
+        tags: list = (),
+        params: list = None,
+        response_cls: Type[Response] = None,
+        responses: dict = None,
+        requires: list = None,
+    ) -> Optional[dict]:
         if api.__external__:
             # external APIs will not participate in docs
             return None
@@ -1063,7 +1125,7 @@ class OpenAPI(BaseAPISpec):
         prop_params, body, prop_requires = self.parse_properties(api._properties)
         extra_params.extend(prop_params)
 
-        api_response = getattr(api, 'response', None)
+        api_response = getattr(api, "response", None)
         if Response.is_cls(api_response) and api_response != Response:
             # set response
             self.set_response(api_response, names=list(tags))
@@ -1072,12 +1134,13 @@ class OpenAPI(BaseAPISpec):
             if api_route.private:
                 continue
             route_paths = self.from_route(
-                api_route, *routes,
+                api_route,
+                *routes,
                 tags=tags,
                 params=extra_params,
                 response_cls=api_response or response_cls,
                 responses=responses,
-                requires=self.merge_requires(requires, prop_requires)
+                requires=self.merge_requires(requires, prop_requires),
             )
             if not api_route.route and api_route.method:
                 # core api methods

@@ -12,7 +12,7 @@ NUM_TYPES = (int, float)
 
 
 class RedisCacheEntity(CacheEntity):
-    backend_name = 'redis'
+    backend_name = "redis"
 
     @property
     def con(self) -> Redis:
@@ -30,8 +30,10 @@ class RedisCacheEntity(CacheEntity):
 
     def keys(self):
         if not self.src.trace_keys:
-            raise NotImplementedError(f'Cache.keys not implemented, '
-                                      f'please set trace_keys=True to enable this method')
+            raise NotImplementedError(
+                f"Cache.keys not implemented, "
+                f"please set trace_keys=True to enable this method"
+            )
         tot_keys: List[bytes] = self.con.zrange(self.update_key, 0, -1)
         if not tot_keys:
             return []
@@ -65,8 +67,10 @@ class RedisCacheEntity(CacheEntity):
 
     def last_modified(self, *keys: str) -> Optional[datetime]:
         if not self.src.trace_keys:
-            raise NotImplementedError(f'Cache.last_modified not implemented, '
-                                      f'please set trace_keys=True to enable this method')
+            raise NotImplementedError(
+                f"Cache.last_modified not implemented, "
+                f"please set trace_keys=True to enable this method"
+            )
         times = []
         for key in keys:
             sc = self.con.zscore(self.update_key, key)
@@ -78,8 +82,10 @@ class RedisCacheEntity(CacheEntity):
 
     def clear(self):
         if not self.src.trace_keys:
-            raise NotImplementedError(f'Cache.clear not implemented, '
-                                      f'please set trace_keys=True to enable this method')
+            raise NotImplementedError(
+                f"Cache.clear not implemented, "
+                f"please set trace_keys=True to enable this method"
+            )
         keys = [v.decode() for v in self.con.zrange(self.update_key, 0, -1)]
         # do not need to validate exists now
         self.con.delete(*keys, self.requests_key, self.update_key, self.hits_key)
@@ -92,19 +98,25 @@ class RedisCacheEntity(CacheEntity):
         if not keys:
             return
         if self.readonly:
-            raise RuntimeError(f'Attempt to delete key ({keys}) at a readonly cache')
+            raise RuntimeError(f"Attempt to delete key ({keys}) at a readonly cache")
 
         # upd_keys = self.last_update_key(keys)
         self.con.delete(*keys)
 
         if self.src.trace_keys:
-            self.con.zrem(self.hits_key, *keys)    # remove deleted keys from hit statistics
-            self.con.zrem(self.update_key, *keys)    # remove deleted keys from last update
+            self.con.zrem(
+                self.hits_key, *keys
+            )  # remove deleted keys from hit statistics
+            self.con.zrem(
+                self.update_key, *keys
+            )  # remove deleted keys from last update
 
     def count(self) -> int:
         if not self.src.trace_keys:
-            raise NotImplementedError(f'Cache.keys not implemented, '
-                                      f'please set trace_keys=True to enable this method')
+            raise NotImplementedError(
+                f"Cache.keys not implemented, "
+                f"please set trace_keys=True to enable this method"
+            )
         # return self.con.zcard(self.total_key)
         # consider key timeout, we cannot cat the accurate exists metrics from total key only
         tot_keys = self.con.zrange(self.update_key, 0, -1)
@@ -113,7 +125,9 @@ class RedisCacheEntity(CacheEntity):
     def exists(self, *keys: str) -> int:
         return self.con.exists(*keys)
 
-    def alter(self, key: str, amount: Union[int, float], limit: Union[int, float] = None):
+    def alter(
+        self, key: str, amount: Union[int, float], limit: Union[int, float] = None
+    ):
         if self.readonly:
             return None
         self.prepare(key)
@@ -132,22 +146,25 @@ class RedisCacheEntity(CacheEntity):
         if isinstance(result, NUM_TYPES):
             return result
         if isinstance(result, bytes):
-            result = result.decode()    # noqa
-        return get_number(result)       # noqa
+            result = result.decode()  # noqa
+        return get_number(result)  # noqa
 
     def lock(self, *keys: str, block: bool = False):
         return RedisLocker(
-            self.con, *keys,
+            self.con,
+            *keys,
             block=block,
             timeout=self.src.lock_timeout,
-            blocking_timeout=self.src.lock_blocking_timeout
+            blocking_timeout=self.src.lock_blocking_timeout,
         )
 
     def lpush(self, key: str, *values):
         if not values:
             return
         if self.readonly:
-            raise PermissionError(f'Attempt to lpush ({key} -> {values}) to a readonly cache')
+            raise PermissionError(
+                f"Attempt to lpush ({key} -> {values}) to a readonly cache"
+            )
         res = self.con.lpush(key, *values)
         if self.src.trace_keys:
             self.con.zadd(self.update_key, {key: utc_ms_ts()})
@@ -157,7 +174,9 @@ class RedisCacheEntity(CacheEntity):
         if not values:
             return
         if self.readonly:
-            raise PermissionError(f'Attempt to rpush ({key} -> {values}) to a readonly cache')
+            raise PermissionError(
+                f"Attempt to rpush ({key} -> {values}) to a readonly cache"
+            )
         res = self.con.rpush(key, *values)
         if self.src.trace_keys:
             self.con.zadd(self.update_key, {key: utc_ms_ts()})
@@ -165,7 +184,7 @@ class RedisCacheEntity(CacheEntity):
 
     def lpop(self, key: str):
         if self.readonly:
-            raise PermissionError(f'Attempt to lpop ({key}) to a readonly cache')
+            raise PermissionError(f"Attempt to lpop ({key}) to a readonly cache")
         res = self.con.lpop(key)
         if self.src.trace_keys:
             self.con.zadd(self.update_key, {key: utc_ms_ts()})
@@ -173,7 +192,7 @@ class RedisCacheEntity(CacheEntity):
 
     def rpop(self, key: str):
         if self.readonly:
-            raise PermissionError(f'Attempt to rpop ({key}) to a readonly cache')
+            raise PermissionError(f"Attempt to rpop ({key}) to a readonly cache")
         res = self.con.rpop(key)
         if self.src.trace_keys:
             self.con.zadd(self.update_key, {key: utc_ms_ts()})
@@ -231,7 +250,9 @@ class RedisCacheEntity(CacheEntity):
             current_keys = self.con.zrange(self.update_key, 0, -1)
             excess: int = self.exists(*current_keys, *keys) - self.src.max_entries
 
-            if excess > self.src.max_entries_tolerance:     # default to 0, but can set a throttle value
+            if (
+                excess > self.src.max_entries_tolerance
+            ):  # default to 0, but can set a throttle value
                 # total_key >= max_entries
                 # delete the least frequently hit key
                 target_key = None
@@ -246,7 +267,9 @@ class RedisCacheEntity(CacheEntity):
 
                 if target_key:
                     try:
-                        del_keys = [items[0] for items in self.con.zpopmin(target_key, excess)]
+                        del_keys = [
+                            items[0] for items in self.con.zpopmin(target_key, excess)
+                        ]
                     except (ResponseError, *COMMON_ERRORS):
                         # old version of redis or windows not support this command, downgrade
                         for k in self.con.zrange(target_key, 0, -1):
@@ -263,7 +286,9 @@ class RedisCacheEntity(CacheEntity):
             if self.src.max_variants:
                 excess = self.con.zcard(self.vary_hits_key) - self.src.max_variants
 
-                if excess > self.src.max_variants_tolerance:  # default to 0, but can set a throttle value
+                if (
+                    excess > self.src.max_variants_tolerance
+                ):  # default to 0, but can set a throttle value
                     # total_key >= max_entries
                     # delete the least frequently hit key
                     target_key = None
@@ -278,7 +303,10 @@ class RedisCacheEntity(CacheEntity):
 
                     if target_key:
                         try:
-                            del_keys = [items[0] for items in self.con.zpopmin(target_key, excess)]
+                            del_keys = [
+                                items[0]
+                                for items in self.con.zpopmin(target_key, excess)
+                            ]
                         except (ResponseError, *COMMON_ERRORS):
                             # old version of redis or windows not support this command, downgrade
                             for k in self.con.zrange(target_key, 0, -1):
@@ -293,7 +321,7 @@ class RedisCacheEntity(CacheEntity):
 
     def update(self, data: dict, timeout: float = None):
         if self.readonly:
-            raise PermissionError(f'Attempt to set val {data} to a readonly cache')
+            raise PermissionError(f"Attempt to set val {data} to a readonly cache")
         if timeout == 0:
             # will expire ASAP
             return
@@ -304,10 +332,18 @@ class RedisCacheEntity(CacheEntity):
         # for incrby / decrby / incrbyfloat work fine at lua script number typed data will not be dump
         self.con.mset(dumped)
 
-    def set(self, key: str, val, timeout: float = None,
-            exists_only: bool = False, not_exists_only: bool = False):
+    def set(
+        self,
+        key: str,
+        val,
+        timeout: float = None,
+        exists_only: bool = False,
+        not_exists_only: bool = False,
+    ):
         if self.readonly:
-            raise PermissionError(f'Attempt to set val ({self.keys} -> {repr(val)}) to a readonly cache')
+            raise PermissionError(
+                f"Attempt to set val ({self.keys} -> {repr(val)}) to a readonly cache"
+            )
         if timeout == 0:
             # will expire ASAP
             return

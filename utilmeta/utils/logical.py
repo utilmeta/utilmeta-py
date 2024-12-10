@@ -4,7 +4,7 @@ from . import exceptions as exc
 from typing import Dict, Any, List, Optional, Union
 
 
-__all__ = ['LogicUtil']
+__all__ = ["LogicUtil"]
 
 
 class LogicUtil(Util, metaclass=Meta):
@@ -65,8 +65,11 @@ class LogicUtil(Util, metaclass=Meta):
                         if xor is None:
                             xor = con
                         else:
-                            errors.append(self.XOR_ERROR_CLS(
-                                f'More than 1 conditions ({xor}, {con}) is True in XOR conditions'))
+                            errors.append(
+                                self.XOR_ERROR_CLS(
+                                    f"More than 1 conditions ({xor}, {con}) is True in XOR conditions"
+                                )
+                            )
                             xor = None
                             break
                     except Exception as e:
@@ -79,13 +82,16 @@ class LogicUtil(Util, metaclass=Meta):
                 try:
                     con = self._conditions[0]
                     result = con(*args, **kwargs)
-                    errors.append(self.XOR_ERROR_CLS(f'Negate condition: {con} is violated'))
+                    errors.append(
+                        self.XOR_ERROR_CLS(f"Negate condition: {con} is violated")
+                    )
                 except Exception as e:
                     # use error as result
                     result = self._get_error_result(e, *args, **kwargs)
 
         if errors:  # apply negate
             from .error import Error
+
             err = exc.CombinedError(*errors) if len(errors) > 1 else errors[0]
             raise Error(err).throw()
         return result
@@ -98,8 +104,9 @@ class LogicUtil(Util, metaclass=Meta):
 
     def _combine(self, other, operator):
         name = self.__class__.__name__
-        assert isinstance(other, self.__class__), \
-            f"{name} instance must combine with other {name} instance, got {other}"
+        assert isinstance(
+            other, self.__class__
+        ), f"{name} instance must combine with other {name} instance, got {other}"
         util = self.__class__()
         util._operator = operator
         if self._operator == operator:
@@ -114,7 +121,12 @@ class LogicUtil(Util, metaclass=Meta):
 
     def _repr(self, params: List[str] = None, excludes: List[str] = None):
         if self._logic_applied:
-            return self._operator.join([(f'({str(c)})' if c._logic_applied else str(c)) for c in self._conditions])
+            return self._operator.join(
+                [
+                    (f"({str(c)})" if c._logic_applied else str(c))
+                    for c in self._conditions
+                ]
+            )
         return f'{Logic.NOT if self._negate else ""}{super()._repr(params=params, excludes=excludes)}'
 
     def __copy__(self):
@@ -125,7 +137,7 @@ class LogicUtil(Util, metaclass=Meta):
             util._conditions = self._copy(self._conditions)
         return util
 
-    def __eq__(self, other: 'LogicUtil'):
+    def __eq__(self, other: "LogicUtil"):
         if not isinstance(other, self.__class__):
             return False
         if self._operator:
@@ -136,13 +148,13 @@ class LogicUtil(Util, metaclass=Meta):
                 return False
         return super(LogicUtil, self).__eq__(other)
 
-    def __or__(self, other: 'LogicUtil'):
+    def __or__(self, other: "LogicUtil"):
         return self._combine(other, Logic.OR)
 
-    def __xor__(self, other: 'LogicUtil'):
+    def __xor__(self, other: "LogicUtil"):
         return self._combine(other, Logic.XOR)
 
-    def __and__(self, other: 'LogicUtil'):
+    def __and__(self, other: "LogicUtil"):
         return self._combine(other, Logic.AND)
 
     def __invert__(self):

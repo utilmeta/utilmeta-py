@@ -76,6 +76,7 @@ class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
             self.query.clear_where()
         else:
             from django.db.models.sql.where import WhereNode
+
             self.query.where = WhereNode()
 
         if self.query.related_updates or must_pre_select:
@@ -84,6 +85,7 @@ class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
             # selecting from the updating table (e.g. MySQL).
             idents = []
             import collections
+
             related_ids = collections.defaultdict(list)
             compiler = query.get_compiler(self.using)
             q, params = compiler.as_sql()
@@ -133,11 +135,10 @@ class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
         if q:
             await db.fetchone(q, params)
         from django.db import connections
+
         for query in self.query.get_related_updates():
             compiler = self.__class__(
-                query,
-                connection=connections[self.using],
-                using=self.using
+                query, connection=connections[self.using], using=self.using
             )
             await compiler.async_execute_sql(case_update)
 
@@ -148,7 +149,7 @@ class AwaitableSQLUpdateCompiler(SQLUpdateCompiler):
         elif isinstance(param, timedelta):
             return param.total_seconds()
         elif isinstance(param, (list, tuple, set)):
-            return '{%s}' % ','.join([str(p) for p in param])
+            return "{%s}" % ",".join([str(p) for p in param])
         return param
 
 
@@ -158,11 +159,14 @@ class AwaitableQuery(sql.Query):
     # adapt backend
     if django.VERSION < (4, 2):
         if django.VERSION < (3, 2):
+
             def exists(self, using, limit=True):
                 q = self.clone()
                 if not q.distinct:
                     if q.group_by is True:
-                        q.add_fields((f.attname for f in self.model._meta.concrete_fields), False)
+                        q.add_fields(
+                            (f.attname for f in self.model._meta.concrete_fields), False
+                        )
                         # Disable GROUP BY aliases to avoid orphaning references to the
                         # SELECT clause which is about to be cleared.
                         q.set_group_by(allow_aliases=False)
@@ -170,13 +174,15 @@ class AwaitableQuery(sql.Query):
                 q.clear_ordering(True)
                 q.set_limits(high=1)
                 compiler = q.get_compiler(using=using)
-                compiler.query.add_extra({'a': 1}, None, None, None, None, None)
-                compiler.query.set_extra_mask(['a'])
+                compiler.query.add_extra({"a": 1}, None, None, None, None, None)
+                compiler.query.set_extra_mask(["a"])
                 return compiler.query
+
         else:
+
             def exists(self, using, limit=True):
                 q = super().exists(using, limit=limit)
-                q.add_annotation(Value("1"), "a")       # use str instead of int
+                q.add_annotation(Value("1"), "a")  # use str instead of int
                 return q
 
         def get_aggregation_query(self, added_aggregate_names, using=None):
@@ -209,6 +215,7 @@ class AwaitableQuery(sql.Query):
                 or self.combinator
             ):
                 from django.db.models.sql.subqueries import AggregateQuery
+
                 inner_query = self.clone()
                 inner_query.subquery = True
                 if django.VERSION < (3, 2):
@@ -236,7 +243,9 @@ class AwaitableQuery(sql.Query):
                     )
                     if inner_query.default_cols and has_existing_aggregate_annotations:
                         inner_query.group_by = (
-                            self.model._meta.pk.get_col(inner_query.get_initial_alias()),
+                            self.model._meta.pk.get_col(
+                                inner_query.get_initial_alias()
+                            ),
                         )
                     inner_query.default_cols = False
 
@@ -248,7 +257,9 @@ class AwaitableQuery(sql.Query):
                 for alias, expression in list(inner_query.annotation_select.items()):
                     annotation_select_mask = inner_query.annotation_select_mask
                     if expression.is_summary:
-                        expression, col_cnt = inner_query.rewrite_cols(expression, col_cnt)
+                        expression, col_cnt = inner_query.rewrite_cols(
+                            expression, col_cnt
+                        )
                         outer_query.annotations[alias] = expression.relabeled_clone(
                             relabels
                         )
@@ -272,10 +283,7 @@ class AwaitableQuery(sql.Query):
                     try:
                         outer_query.add_subquery(inner_query, using)
                     except EmptyResultSet:
-                        return {
-                            alias: None
-                            for alias in outer_query.annotation_select
-                        }
+                        return {alias: None for alias in outer_query.annotation_select}
             else:
                 outer_query = self
                 self.select = ()
@@ -287,10 +295,12 @@ class AwaitableQuery(sql.Query):
             outer_query.select_for_update = False
             outer_query.select_related = False
             return outer_query
+
     else:
+
         def exists(self, limit=True):
             q = super().exists(limit=limit)
-            q.add_annotation(Value("1"), "a")       # use str instead of int
+            q.add_annotation(Value("1"), "a")  # use str instead of int
             return q
 
         def get_aggregation_query(self, aggregate_exprs, using=None):
@@ -357,7 +367,9 @@ class AwaitableQuery(sql.Query):
                     # used.
                     if inner_query.default_cols and has_existing_aggregation:
                         inner_query.group_by = (
-                            self.model._meta.pk.get_col(inner_query.get_initial_alias()),
+                            self.model._meta.pk.get_col(
+                                inner_query.get_initial_alias()
+                            ),
                         )
                     inner_query.default_cols = False
                     if not qualify:

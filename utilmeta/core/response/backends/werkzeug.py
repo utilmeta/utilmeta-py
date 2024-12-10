@@ -7,7 +7,7 @@ class WerkzeugResponseAdaptor(ResponseAdaptor):
     response: WerkzeugResponse
 
     @classmethod
-    def reconstruct(cls, resp: Union['ResponseAdaptor', 'WerkzeugResponse']):
+    def reconstruct(cls, resp: Union["ResponseAdaptor", "WerkzeugResponse"]):
         if isinstance(resp, WerkzeugResponse):
             return resp
 
@@ -36,7 +36,7 @@ class WerkzeugResponseAdaptor(ResponseAdaptor):
 
     @property
     def reason(self):
-        return ''
+        return ""
 
     @property
     def headers(self):

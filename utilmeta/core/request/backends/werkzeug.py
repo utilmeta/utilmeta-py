@@ -2,7 +2,7 @@ from .base import RequestAdaptor
 from werkzeug.wrappers import Request
 from utilmeta.core.file.backends.werkzeug import WerkzeugFileAdaptor
 from utilmeta.core.file.base import File
-from utilmeta.utils import Headers, exceptions, HAS_BODY_METHODS
+from utilmeta.utils import Headers, HAS_BODY_METHODS
 import werkzeug
 
 
@@ -50,7 +50,7 @@ class WerkzeugRequestAdaptor(RequestAdaptor):
 
     @property
     def body(self):
-        return self._body or b''
+        return self._body or b""
 
     @property
     def headers(self):

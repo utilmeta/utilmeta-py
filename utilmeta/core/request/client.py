@@ -4,24 +4,35 @@ from typing import Optional, Union, Dict
 from .backends.base import RequestAdaptor
 from http.cookies import SimpleCookie
 from urllib.parse import urlsplit, urlencode, urlunsplit
-from utilmeta.utils import Headers, pop, file_like, guess_mime_type, \
-    RequestType, encode_multipart_form, json_dumps, multi,\
-    parse_query_string, parse_query_dict
+from utilmeta.utils import (
+    Headers,
+    pop,
+    file_like,
+    guess_mime_type,
+    RequestType,
+    encode_multipart_form,
+    json_dumps,
+    multi,
+    parse_query_string,
+    parse_query_dict,
+)
 from collections.abc import Mapping
 from utilmeta.core.file import File
 
 
 class ClientRequest:
-    def __init__(self,
-                 method: str,
-                 url: str,
-                 query: dict = None,
-                 data=None,
-                 headers: Dict[str, str] = None):
+    def __init__(
+        self,
+        method: str,
+        url: str,
+        query: dict = None,
+        data=None,
+        headers: Dict[str, str] = None,
+    ):
 
         self._method = method
         self.headers = Headers(headers or {})
-        cookie = SimpleCookie(self.headers.get('cookie', {}))
+        cookie = SimpleCookie(self.headers.get("cookie", {}))
         self.cookies = {k: v.value for k, v in cookie.items()}
 
         self._data = data
@@ -30,7 +41,7 @@ class ClientRequest:
         self._form: Optional[dict] = None
         self._json: Union[dict, list, None] = None
 
-        self._url = url or ''
+        self._url = url or ""
         self._query = parse_query_dict(query or {})
 
         self.build_url()
@@ -81,26 +92,28 @@ class ClientRequest:
         url_parsed = urlsplit(self._url)
         url_query = parse_query_string(url_parsed.query) if url_parsed.query else {}
         url_query.update(self._query)
-        self._url = urlunsplit((
-            url_parsed.scheme,
-            url_parsed.netloc,
-            url_parsed.path,
-            urlencode(url_query),
-            url_parsed.fragment
-        ))
+        self._url = urlunsplit(
+            (
+                url_parsed.scheme,
+                url_parsed.netloc,
+                url_parsed.path,
+                urlencode(url_query),
+                url_parsed.fragment,
+            )
+        )
 
     @property
     def route(self):
-        return urlsplit(self.url).path.strip('/')
+        return urlsplit(self.url).path.strip("/")
 
     @property
     def content_type(self) -> Optional[str]:
-        return self.headers.get('content-type')
+        return self.headers.get("content-type")
 
     @content_type.setter
     def content_type(self, t):
         if t:
-            self.headers['content-type'] = t
+            self.headers["content-type"] = t
 
     @property
     def contains_files(self):
@@ -140,7 +153,7 @@ class ClientRequest:
         if self.data is None:
             return
 
-        pop(self.headers, 'content-length')
+        pop(self.headers, "content-length")
         # there are difference between JSON.stringify in js and json.dumps in python
         # while JSON.stringify leave not spaces and json.dumps leave space between a comma and next key
         # difference like {"a":1,"b":2} and {"a": 1, "b": 2}
@@ -156,7 +169,11 @@ class ClientRequest:
 
             if self.content_type:
                 if self.content_type.startswith(RequestType.JSON):
-                    self._json = json.loads(self.data) if isinstance(self.data, bytes) else json.load(self.data)
+                    self._json = (
+                        json.loads(self.data)
+                        if isinstance(self.data, bytes)
+                        else json.load(self.data)
+                    )
 
                 elif self.content_type.startswith(RequestType.FORM_URLENCODED):
                     qs = self.data
@@ -223,7 +240,7 @@ class ClientRequest:
                     self._json = list(self.data)
 
                 elif file_like(self.data):
-                    name = getattr(self.data, 'name', None)
+                    name = getattr(self.data, "name", None)
                     content_type = None
                     if name:
                         content_type, encoding = guess_mime_type(name)
@@ -253,7 +270,8 @@ class ClientRequestAdaptor(RequestAdaptor):
     @property
     def address(self):
         from ipaddress import ip_address
-        return ip_address('127.0.0.1')
+
+        return ip_address("127.0.0.1")
 
     # @property
     # def content_type(self) -> Optional[str]:
@@ -266,7 +284,7 @@ class ClientRequestAdaptor(RequestAdaptor):
 
     @property
     def content_length(self) -> int:
-        length = self.headers.get('content-length')
+        length = self.headers.get("content-length")
         if length is not None:
             return int(length or 0)
         if self.body:
@@ -305,7 +323,7 @@ class ClientRequestAdaptor(RequestAdaptor):
 
     @property
     def scheme(self):
-        return urlsplit(self.request.url).scheme or 'http'
+        return urlsplit(self.request.url).scheme or "http"
 
     @property
     def headers(self):

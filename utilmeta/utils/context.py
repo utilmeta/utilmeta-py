@@ -9,7 +9,7 @@ from contextvars import ContextVar
 
 
 class ParserProperty:
-    def __init__(self, prop: Union[Type['Property'], 'Property'], field: ParserField):
+    def __init__(self, prop: Union[Type["Property"], "Property"], field: ParserField):
         self.prop = prop
         self.field = field
         self.get = partial(self.prop.getter, field=self.field)
@@ -75,7 +75,7 @@ class ContextProperty(Property):
 
 
 class DuplicateContextProperty(ValueError):
-    def __init__(self, msg='', ident: str = None):
+    def __init__(self, msg="", ident: str = None):
         super().__init__(msg)
         self.ident = ident
 
@@ -84,12 +84,16 @@ class ContextWrapper:
     """
     A universal context parser, often used to process Request context
     """
+
     context_cls = object
     default_property = None
 
-    def __init__(self, parser: BaseParser,
-                 default_properties: dict = None,
-                 excluded_names: List[str] = None):
+    def __init__(
+        self,
+        parser: BaseParser,
+        default_properties: dict = None,
+        excluded_names: List[str] = None,
+    ):
         properties = {}
         attrs = {}
         ident_props = {}
@@ -104,12 +108,14 @@ class ContextWrapper:
                 prop = None
                 # detect property from type input including Union and Optional
                 for origin in val.input_origins:
-                    prop_field = getattr(origin, '__field__', None)
+                    prop_field = getattr(origin, "__field__", None)
                     if prop_field:
                         if isinstance(prop_field, Property):
                             prop = prop_field
                             break
-                        elif inspect.isclass(prop_field) and issubclass(prop_field, Property):
+                        elif inspect.isclass(prop_field) and issubclass(
+                            prop_field, Property
+                        ):
                             prop = prop_field()
                             break
                 if not prop:
@@ -129,7 +135,7 @@ class ContextWrapper:
         self.attrs: Dict[str, ParserProperty] = attrs
         self.parser = parser
 
-    def init_prop(self, prop, val) -> ParserProperty:    # noqa, to be inherit
+    def init_prop(self, prop, val) -> ParserProperty:  # noqa, to be inherit
         return prop.init(val)
 
     def parse_context(self, context: object) -> dict:

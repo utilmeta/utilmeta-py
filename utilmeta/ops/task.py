@@ -48,7 +48,9 @@ class BaseCycleTask:
 
             if self._stopped:
                 break
-            wait_for = max(0.0, self.interval - (time_now() - self._last_exec).total_seconds())
+            wait_for = max(
+                0.0, self.interval - (time_now() - self._last_exec).total_seconds()
+            )
             if wait_for:
                 time.sleep(wait_for)
 
@@ -86,6 +88,7 @@ class OperationWorkerTask(BaseCycleTask):
         self.supervisor = None
 
         from utilmeta import service
+
         self.service = service
 
         self.hourly_aggregation = None
@@ -106,6 +109,7 @@ class OperationWorkerTask(BaseCycleTask):
     def clear_connections(cls):
         # close all connections
         from django.db import connections
+
         connections.close_all()
 
     @property
@@ -119,9 +123,13 @@ class OperationWorkerTask(BaseCycleTask):
         if self.config.task_error_log:
             try:
                 from utilmeta.utils import write_to
-                content = (f'[{os.getpid()}] {self._last_exec} Operations task worker execute cycle failed with error\n'
-                           + err.full_info + '\n')
-                write_to(self.config.task_error_log, content, mode='a')
+
+                content = (
+                    f"[{os.getpid()}] {self._last_exec} Operations task worker execute cycle failed with error\n"
+                    + err.full_info
+                    + "\n"
+                )
+                write_to(self.config.task_error_log, content, mode="a")
             except Exception as e:
                 pass
 
@@ -139,6 +147,7 @@ class OperationWorkerTask(BaseCycleTask):
 
         # try to set up locals before
         from .log import _server, _worker, _instance, _supervisor
+
         self.worker = _worker
         self.server = _server
         self.instance = _instance
@@ -148,19 +157,19 @@ class OperationWorkerTask(BaseCycleTask):
             # 1. save logs
             batch_save_logs()
         except Exception as e:
-            warnings.warn(f'Save logs failed with error: {e}')
+            warnings.warn(f"Save logs failed with error: {e}")
 
         try:
             # 2. update worker
             worker_logger.update_worker(
                 record=not self.config.monitor.worker_disabled,
-                interval=self.config.worker_cycle
+                interval=self.config.worker_cycle,
             )
             # update worker from every worker
             # to make sure that the connected workers has the primary role to execute the following
             self.update_workers()
         except Exception as e:
-            warnings.warn(f'Update workers failed with error: {e}')
+            warnings.warn(f"Update workers failed with error: {e}")
 
         if self._stopped:
             # if this worker is stopped
@@ -176,10 +185,12 @@ class OperationWorkerTask(BaseCycleTask):
                 # 1st cycle
                 manager = self.config.resources_manager_cls(self.service)
                 try:
-                    manager.init_service_resources(self.supervisor, instance=self.instance)
+                    manager.init_service_resources(
+                        self.supervisor, instance=self.instance
+                    )
                     # ignore errors
                 except Exception as e:
-                    warnings.warn(f'sync resources failed with error: {e}')
+                    warnings.warn(f"sync resources failed with error: {e}")
                     self._sync_retries += 1
                 else:
                     self._synced = True
@@ -195,17 +206,19 @@ class OperationWorkerTask(BaseCycleTask):
     @property
     def connected_workers(self):
         from .models import Worker
+
         if not self.instance or not self.server:
             return Worker.objects.none()
-        
+
         return Worker.objects.filter(
             instance=self.instance,
             server=self.server,
             connected=True,
         )
-    
+
     def update_workers(self):
         from .models import Worker
+
         if not self.instance or not self.server:
             return
 
@@ -219,99 +232,115 @@ class OperationWorkerTask(BaseCycleTask):
                 disconnected.append(worker.pk)
                 continue
 
-        Worker.objects.filter(
-            instance=self.instance
-        ).filter(
-            models.Q(
-                time__lte=time_now() - timedelta(
-                    seconds=self.interval * 2
-                )
-            ) | models.Q(
-                pk__in=disconnected
-            )
+        Worker.objects.filter(instance=self.instance).filter(
+            models.Q(time__lte=time_now() - timedelta(seconds=self.interval * 2))
+            | models.Q(pk__in=disconnected)
         ).update(connected=False)
 
     def get_total_memory(self):
         mem = 0
         try:
-            for pss, uss in self.connected_workers.values_list('memory_info__pss', 'memory_info__uss'):
+            for pss, uss in self.connected_workers.values_list(
+                "memory_info__pss", "memory_info__uss"
+            ):
                 mem += pss or uss or 0
-        except Exception:   # noqa
+        except Exception:  # noqa
             # field error / Operational error
             # maybe sqlite, not support json lookup
-            for mem_info in self.connected_workers.values_list('memory_info', flat=True):
-                mem += mem_info.get('pss') or mem_info.get('uss') or 0
+            for mem_info in self.connected_workers.values_list(
+                "memory_info", flat=True
+            ):
+                mem += mem_info.get("pss") or mem_info.get("uss") or 0
         return mem
 
     def get_instance_metrics(self):
         total = self.connected_workers.aggregate(
-            outbound_requests=models.Sum('outbound_requests'),
-            queries_num=models.Sum('queries_num'),
-            requests=models.Sum('requests')
+            outbound_requests=models.Sum("outbound_requests"),
+            queries_num=models.Sum("queries_num"),
+            requests=models.Sum("requests"),
         )
         avg_aggregates = {}
-        if total['outbound_requests']:
+        if total["outbound_requests"]:
             avg_aggregates.update(
-                outbound_avg_time=models.Sum(models.F('outbound_avg_time') * models.F('outbound_requests'),
-                                             output_field=models.DecimalField()) / total['outbound_requests'])
-        if total['queries_num']:
+                outbound_avg_time=models.Sum(
+                    models.F("outbound_avg_time") * models.F("outbound_requests"),
+                    output_field=models.DecimalField(),
+                )
+                / total["outbound_requests"]
+            )
+        if total["queries_num"]:
             avg_aggregates.update(
-                query_avg_time=models.Sum(models.F('query_avg_time') * models.F('queries_num'),
-                                          output_field=models.DecimalField()) / total['queries_num'])
-        if total['requests']:
-            avg_aggregates.update(avg_time=models.Sum(models.F('avg_time') * models.F('requests'),
-                                                      output_field=models.DecimalField()) / total['requests'])
+                query_avg_time=models.Sum(
+                    models.F("query_avg_time") * models.F("queries_num"),
+                    output_field=models.DecimalField(),
+                )
+                / total["queries_num"]
+            )
+        if total["requests"]:
+            avg_aggregates.update(
+                avg_time=models.Sum(
+                    models.F("avg_time") * models.F("requests"),
+                    output_field=models.DecimalField(),
+                )
+                / total["requests"]
+            )
 
         used_memory = self.get_total_memory()
 
         import psutil
+
         sys_total_memory = psutil.virtual_memory().total
         sys_cpu_num = os.cpu_count()
 
         total.update(
             used_memory=used_memory,
-            memory_percent=round(100 * used_memory / sys_total_memory, 3)
+            memory_percent=round(100 * used_memory / sys_total_memory, 3),
         )
 
-        return replace_null(dict(**self.connected_workers.aggregate(
-            total_net_connections=models.Sum('total_net_connections'),
-            active_net_connections=models.Sum('active_net_connections'),
-            file_descriptors=models.Sum('file_descriptors'),
-            cpu_percent=models.Sum('cpu_percent') / sys_cpu_num,
-            threads=models.Sum('threads'),
-            open_files=models.Sum('open_files'),
-            in_traffic=models.Sum('in_traffic'),
-            out_traffic=models.Sum('out_traffic'),
-            outbound_rps=models.Sum('outbound_rps'),
-            outbound_timeouts=models.Sum('outbound_timeouts'),
-            outbound_errors=models.Sum('outbound_errors'),
-            qps=models.Sum('qps'),
-            errors=models.Sum('errors'),
-            rps=models.Sum('rps'),
-            **avg_aggregates,
-        ), **total))
+        return replace_null(
+            dict(
+                **self.connected_workers.aggregate(
+                    total_net_connections=models.Sum("total_net_connections"),
+                    active_net_connections=models.Sum("active_net_connections"),
+                    file_descriptors=models.Sum("file_descriptors"),
+                    cpu_percent=models.Sum("cpu_percent") / sys_cpu_num,
+                    threads=models.Sum("threads"),
+                    open_files=models.Sum("open_files"),
+                    in_traffic=models.Sum("in_traffic"),
+                    out_traffic=models.Sum("out_traffic"),
+                    outbound_rps=models.Sum("outbound_rps"),
+                    outbound_timeouts=models.Sum("outbound_timeouts"),
+                    outbound_errors=models.Sum("outbound_errors"),
+                    qps=models.Sum("qps"),
+                    errors=models.Sum("errors"),
+                    rps=models.Sum("rps"),
+                    **avg_aggregates,
+                ),
+                **total,
+            )
+        )
 
     def monitor(self):
         if not self.config.monitor.server_disabled:
             try:
                 self.server_monitor()
             except Exception as e:
-                warnings.warn(f'utilmeta.ops.task: server monitor failed: {e}')
+                warnings.warn(f"utilmeta.ops.task: server monitor failed: {e}")
         if not self.config.monitor.instance_disabled:
             try:
                 self.instance_monitor()
             except Exception as e:
-                warnings.warn(f'utilmeta.ops.task: instance monitor failed: {e}')
+                warnings.warn(f"utilmeta.ops.task: instance monitor failed: {e}")
         if not self.config.monitor.database_disabled:
             try:
                 self.database_monitor()
             except Exception as e:
-                warnings.warn(f'utilmeta.ops.task: database monitor failed: {e}')
+                warnings.warn(f"utilmeta.ops.task: database monitor failed: {e}")
         if not self.config.monitor.cache_disabled:
             try:
                 self.cache_monitor()
             except Exception as e:
-                warnings.warn(f'utilmeta.ops.task: cache monitor failed: {e}')
+                warnings.warn(f"utilmeta.ops.task: cache monitor failed: {e}")
 
     def instance_monitor(self):
         if not self.instance:
@@ -321,6 +350,7 @@ class OperationWorkerTask(BaseCycleTask):
             # no workers
             return
         from .models import InstanceMonitor
+
         metrics = self.get_instance_metrics()
         # now = time_now()
         # last: InstanceMonitor = InstanceMonitor.objects.filter(
@@ -330,17 +360,18 @@ class OperationWorkerTask(BaseCycleTask):
         # data = dict(self.instance.data or {})
         # data.update(time=self._last_exec.timestamp())
         self.instance.updated_time = self._last_exec
-        self.instance.save(update_fields=['updated_time'])
+        self.instance.save(update_fields=["updated_time"])
         InstanceMonitor.objects.create(
             time=self._last_exec,
             instance=self.instance,
             interval=self.interval,
             current_workers=workers_num,
-            **metrics
+            **metrics,
         )
 
     def server_monitor(self):
         from .models import ServerMonitor
+
         if not self.server:
             return
         metrics = get_sys_metrics(cpu_interval=self.DEFAULT_CPU_INTERVAL)
@@ -348,24 +379,28 @@ class OperationWorkerTask(BaseCycleTask):
             l1, l5, l15 = psutil.getloadavg()
         except (AttributeError, OSError):
             l1, l5, l15 = 0, 0, 0
-        loads = dict(
-            load_avg_1=l1,
-            load_avg_5=l5,
-            load_avg_15=l15
-        )
+        loads = dict(load_avg_1=l1, load_avg_5=l5, load_avg_15=l15)
         ServerMonitor.objects.create(
             server=self.server,
             interval=self.interval,
             time=self._last_exec,
             **metrics,
-            **loads
+            **loads,
         )
 
     def database_monitor(self):
-        from .monitor import (get_db_size, get_db_transactions, get_db_connections, get_db_server_size,
-                              get_db_server_connections, get_db_connections_num, get_db_max_connections)
+        from .monitor import (
+            get_db_size,
+            get_db_transactions,
+            get_db_connections,
+            get_db_server_size,
+            get_db_server_connections,
+            get_db_connections_num,
+            get_db_max_connections,
+        )
         from utilmeta.core.orm import DatabaseConnections
         from .models import Resource, DatabaseMonitor, DatabaseConnection
+
         db_config = DatabaseConnections.config()
         if not db_config:
             return
@@ -375,9 +410,7 @@ class OperationWorkerTask(BaseCycleTask):
         update_conn = []
         create_conn = []
         for database in Resource.filter(
-            type='database',
-            node_id=self.node_id,
-            ident__in=list(db_config.databases)
+            type="database", node_id=self.node_id, ident__in=list(db_config.databases)
         ):
             database: Resource
             db = DatabaseConnections.get(database.ident)
@@ -388,7 +421,7 @@ class OperationWorkerTask(BaseCycleTask):
             size = get_db_size(db.alias)
             connected = size is not None
             db_data = dict(database.data)
-            current_transactions = db_data.get('transactions') or 0
+            current_transactions = db_data.get("transactions") or 0
             new_transactions = max(0, transactions - current_transactions)
             db_metrics = dict(
                 max_server_connections=max_conn,
@@ -405,24 +438,26 @@ class OperationWorkerTask(BaseCycleTask):
             # database.save(update_fields=update_fields)
             update_databases.append(database)
             current, active = get_db_connections_num(db.alias)
-            db_monitors.append(DatabaseMonitor(
-                database=database,
-                interval=self.interval,
-                time=self._last_exec,
-                used_space=size or 0,
-                server_used_space=get_db_server_size(db.alias) or 0,
-                server_connections=get_db_server_connections(db.alias) or 0,
-                current_connections=current or 0,
-                active_connections=active or 0,
-                new_transactions=new_transactions,
-                metrics=db_metrics,
-            ))
+            db_monitors.append(
+                DatabaseMonitor(
+                    database=database,
+                    interval=self.interval,
+                    time=self._last_exec,
+                    used_space=size or 0,
+                    server_used_space=get_db_server_size(db.alias) or 0,
+                    server_connections=get_db_server_connections(db.alias) or 0,
+                    current_connections=current or 0,
+                    active_connections=active or 0,
+                    new_transactions=new_transactions,
+                    metrics=db_metrics,
+                )
+            )
             connections = get_db_connections(db.alias)
 
             if connections:
-                current_connections = list(DatabaseConnection.objects.filter(
-                    database=database
-                ))
+                current_connections = list(
+                    DatabaseConnection.objects.filter(database=database)
+                )
                 for conn in connections:
                     for c in current_connections:
                         c: DatabaseConnection
@@ -436,32 +471,47 @@ class OperationWorkerTask(BaseCycleTask):
         if db_monitors:
             DatabaseMonitor.objects.bulk_create(db_monitors)
         if update_databases:
-            Resource.objects.bulk_update(update_databases, fields=['updated_time', 'data'])
+            Resource.objects.bulk_update(
+                update_databases, fields=["updated_time", "data"]
+            )
         if create_conn:
             DatabaseConnection.objects.bulk_create(create_conn)
         if update_conn:
             DatabaseConnection.objects.bulk_update(
-                update_conn, fields=['status', 'active', 'client_addr', 'client_port',
-                                     'pid', 'backend_start', 'query_start', 'state_change',
-                                     'wait_event', 'transaction_start', 'query', 'operation', 'tables'])
+                update_conn,
+                fields=[
+                    "status",
+                    "active",
+                    "client_addr",
+                    "client_port",
+                    "pid",
+                    "backend_start",
+                    "query_start",
+                    "state_change",
+                    "wait_event",
+                    "transaction_start",
+                    "query",
+                    "operation",
+                    "tables",
+                ],
+            )
         if update_databases:
-            DatabaseConnection.objects.filter(
-                database__in=update_databases
-            ).exclude(pk__in=[conn.pk for conn in create_conn + update_conn]).delete()
+            DatabaseConnection.objects.filter(database__in=update_databases).exclude(
+                pk__in=[conn.pk for conn in create_conn + update_conn]
+            ).delete()
 
     def cache_monitor(self):
         from .monitor import get_cache_stats
         from .models import CacheMonitor, Resource
         from utilmeta.core.cache import CacheConnections
+
         cache_config = CacheConnections.config()
         if not cache_config:
             return
         updated_caches = []
         cache_monitors = []
         for cache_obj in Resource.filter(
-            type='cache',
-            node_id=self.node_id,
-            ident__in=list(cache_config.caches)
+            type="cache", node_id=self.node_id, ident__in=list(cache_config.caches)
         ):
             cache_obj: Resource
             cache = CacheConnections.get(cache_obj.ident)
@@ -472,7 +522,7 @@ class OperationWorkerTask(BaseCycleTask):
             connected = stats is not None
             cache_data = dict(connected=connected)
             data = dict(stats or {})
-            pid = data.get('pid')
+            pid = data.get("pid")
             # cpu_percent = memory_percent = fds = open_files = None
             if pid and cache.local:
                 try:
@@ -485,7 +535,7 @@ class OperationWorkerTask(BaseCycleTask):
                         cpu_percent=cpu_percent,
                         memory_percent=memory_percent,
                         file_descriptors=fds,
-                        open_files=open_files
+                        open_files=open_files,
                     )
                 except psutil.Error:
                     pass
@@ -497,25 +547,42 @@ class OperationWorkerTask(BaseCycleTask):
                 cache_obj.data = cache_data
                 # update_fields.append('data')
             updated_caches.append(cache_obj)
-            cache_monitors.append(CacheMonitor(
-                time=self._last_exec,
-                interval=self.interval,
-                cache=cache_obj,
-                **data
-            ))
+            cache_monitors.append(
+                CacheMonitor(
+                    time=self._last_exec,
+                    interval=self.interval,
+                    cache=cache_obj,
+                    **data,
+                )
+            )
         if updated_caches:
-            Resource.objects.bulk_update(updated_caches, fields=['updated_time', 'data'])
+            Resource.objects.bulk_update(
+                updated_caches, fields=["updated_time", "data"]
+            )
         if cache_monitors:
             CacheMonitor.objects.bulk_create(cache_monitors)
 
     @ignore_errors
     def clear(self):
-        from .models import ServiceLog, RequestLog, QueryLog, VersionLog, WorkerMonitor, CacheMonitor, \
-            InstanceMonitor, ServerMonitor, DatabaseMonitor, AggregationLog, AlertLog, Worker, Resource
+        from .models import (
+            ServiceLog,
+            RequestLog,
+            QueryLog,
+            VersionLog,
+            WorkerMonitor,
+            CacheMonitor,
+            InstanceMonitor,
+            ServerMonitor,
+            DatabaseMonitor,
+            AggregationLog,
+            AlertLog,
+            Worker,
+            Resource,
+        )
+
         now = self._last_exec or time_now()
         ServiceLog.objects.filter(
-            time__lt=now - self.config.log.volatile_maintain,
-            volatile=True
+            time__lt=now - self.config.log.volatile_maintain, volatile=True
         ).delete()
 
         # MAX RETENTION ------------------
@@ -544,44 +611,33 @@ class OperationWorkerTask(BaseCycleTask):
             time__lt=now - self.config.monitor.worker_retention
         ).delete()
         Worker.objects.filter(
-            time__lt=now - self.DISCONNECTED_WORKER_RETENTION,
-            connected=False
+            time__lt=now - self.DISCONNECTED_WORKER_RETENTION, connected=False
         ).delete()
 
         # MONITOR RETENTION ----------------
-        Resource.objects.filter(
-            type='instance',
-            node_id=self.node_id,
-        ).annotate(
-            latest_time=models.Max('instance_metrics__time')
-        ).filter(
-            latest_time__lt=now - self.DISCONNECTED_INSTANCE_RETENTION
-        ).update(deleted_time=now, deprecated=True)
+        Resource.objects.filter(type="instance", node_id=self.node_id,).annotate(
+            latest_time=models.Max("instance_metrics__time")
+        ).filter(latest_time__lt=now - self.DISCONNECTED_INSTANCE_RETENTION).update(
+            deleted_time=now, deprecated=True
+        )
         InstanceMonitor.objects.filter(
-            layer=0,
-            time__lt=now - self.config.monitor.instance_retention
+            layer=0, time__lt=now - self.config.monitor.instance_retention
         ).delete()
 
-        Resource.objects.filter(
-            type='server',
-            node_id=self.node_id,
-        ).annotate(
-            latest_time=models.Max('server_metrics__time')
-        ).filter(
-            latest_time__lt=now - self.DISCONNECTED_SERVER_RETENTION
-        ).update(deleted_time=now, deprecated=True)
+        Resource.objects.filter(type="server", node_id=self.node_id,).annotate(
+            latest_time=models.Max("server_metrics__time")
+        ).filter(latest_time__lt=now - self.DISCONNECTED_SERVER_RETENTION).update(
+            deleted_time=now, deprecated=True
+        )
         ServerMonitor.objects.filter(
-            layer=0,
-            time__lt=now - self.config.monitor.server_retention
+            layer=0, time__lt=now - self.config.monitor.server_retention
         ).delete()
 
         DatabaseMonitor.objects.filter(
-            layer=0,
-            time__lt=now - self.config.monitor.database_retention
+            layer=0, time__lt=now - self.config.monitor.database_retention
         ).delete()
         CacheMonitor.objects.filter(
-            layer=0,
-            time__lt=now - self.config.monitor.cache_retention
+            layer=0, time__lt=now - self.config.monitor.cache_retention
         ).delete()
 
     def alert(self):
@@ -601,22 +657,13 @@ class OperationWorkerTask(BaseCycleTask):
     @property
     def current_day(self) -> datetime:
         t = self._last_exec or time_now()
-        return datetime(
-            year=t.year,
-            month=t.month,
-            day=t.day,
-            tzinfo=t.tzinfo
-        )
+        return datetime(year=t.year, month=t.month, day=t.day, tzinfo=t.tzinfo)
 
     @property
     def current_hour(self) -> datetime:
         t = self._last_exec or time_now()
         return datetime(
-            year=t.year,
-            month=t.month,
-            day=t.day,
-            hour=t.hour,
-            tzinfo=t.tzinfo
+            year=t.year, month=t.month, day=t.day, hour=t.hour, tzinfo=t.tzinfo
         )
 
     @property
@@ -669,37 +716,40 @@ class OperationWorkerTask(BaseCycleTask):
                 supervisor=self.supervisor,
                 from_time=last_time,
                 to_time=current_time,
-                layer=layer
+                layer=layer,
             ).first()
 
         if not aggregation:
             service_data = aggregate_logs(
-                service=self.service.name,
-                to_time=current_time,
-                layer=layer
+                service=self.service.name, to_time=current_time, layer=layer
             )
-            endpoints = aggregate_endpoint_logs(
-                service=self.service.name,
-                to_time=current_time,
-                layer=layer
-            ) if service_data else None
+            endpoints = (
+                aggregate_endpoint_logs(
+                    service=self.service.name, to_time=current_time, layer=layer
+                )
+                if service_data
+                else None
+            )
             aggregation = AggregationLog.objects.create(
                 service=self.service.name,
                 node_id=self.node_id,
                 supervisor=self.supervisor,
-                data=normalize(dict(
-                    service=service_data,
-                    endpoints=endpoints,
-                ), _json=True),
+                data=normalize(
+                    dict(
+                        service=service_data,
+                        endpoints=endpoints,
+                    ),
+                    _json=True,
+                ),
                 layer=layer,
                 from_time=last_time,
                 to_time=current_time,
-                reported_time=self._last_exec if not service_data else None
+                reported_time=self._last_exec if not service_data else None,
             )
 
             # check daily ---------------------------------------------
         else:
-            service_data = (aggregation.data or {}).get('service')
+            service_data = (aggregation.data or {}).get("service")
 
         if layer == 0:
             self.hourly_aggregation = aggregation
@@ -730,7 +780,9 @@ class OperationWorkerTask(BaseCycleTask):
                     # already ahead of this layer 1 aggregation
                     report = True
         else:
-            prob_1 = ((self._last_exec - current_time).total_seconds() + self.interval * 2) / layer_seconds
+            prob_1 = (
+                (self._last_exec - current_time).total_seconds() + self.interval * 2
+            ) / layer_seconds
             prob = (2 * self.interval / layer_seconds) + prob_1
             if prob_1 >= 1:
                 report = True
@@ -749,14 +801,14 @@ class OperationWorkerTask(BaseCycleTask):
         with SupervisorClient(
             node_id=self.node_id,
             default_timeout=self.config.default_timeout,
-            fail_silently=True
+            fail_silently=True,
         ) as client:
             resp = client.report_analytics(
                 data=dict(
                     time=current_time.astimezone(timezone.utc),
                     layer=layer,
                     interval=layer_seconds,
-                    **aggregation.data
+                    **aggregation.data,
                 )
             )
             updates = {}
@@ -765,26 +817,28 @@ class OperationWorkerTask(BaseCycleTask):
             else:
                 aggregation.reported_time = resp.time or self._last_exec
                 updates.update(
-                    remote_id=resp.result.id,
-                    reported_time=aggregation.reported_time
+                    remote_id=resp.result.id, reported_time=aggregation.reported_time
                 )
 
-            AggregationLog.objects.filter(
-                pk=aggregation.pk
-            ).update(**updates)
+            AggregationLog.objects.filter(pk=aggregation.pk).update(**updates)
 
             success = isinstance(resp, SupervisorReportResponse) and resp.success
             if not success:
                 return
 
             # if this report is successful, we can check if there are missing reports
-            missing_reports = AggregationLog.objects.filter(
-                supervisor=self.supervisor,
-                # layer=layer,
-                # no restrict on the layer
-                reported_time=None,
-                created_time__gte=self._last_exec - self.AGGREGATION_EXPIRE_TIME[layer]
-            ).order_by('to_time').exclude(pk=aggregation.pk)
+            missing_reports = (
+                AggregationLog.objects.filter(
+                    supervisor=self.supervisor,
+                    # layer=layer,
+                    # no restrict on the layer
+                    reported_time=None,
+                    created_time__gte=self._last_exec
+                    - self.AGGREGATION_EXPIRE_TIME[layer],
+                )
+                .order_by("to_time")
+                .exclude(pk=aggregation.pk)
+            )
 
             missing_count = missing_reports.count()
             if missing_count:
@@ -798,55 +852,61 @@ class OperationWorkerTask(BaseCycleTask):
                     # using batch to handle history missing report
                     # avoid sending massive reports
                     values = []
-                    for obj in list(missing_reports[offset: offset + batch_size]):
+                    for obj in list(missing_reports[offset : offset + batch_size]):
                         obj: AggregationLog
-                        service = obj.data.get('service')
+                        service = obj.data.get("service")
                         if not service:
                             empty_missing_reports.append(obj)
                             continue
                         batch_missing_reports.append(obj)
-                        values.append(dict(
-                            time=obj.to_time.astimezone(timezone.utc),
-                            layer=obj.layer,
-                            interval=layer_seconds,
-                            **obj.data
-                        ))
-                    if values:
-                        resp = client.batch_report_analytics(
-                            data=values
+                        values.append(
+                            dict(
+                                time=obj.to_time.astimezone(timezone.utc),
+                                layer=obj.layer,
+                                interval=layer_seconds,
+                                **obj.data,
+                            )
                         )
+                    if values:
+                        resp = client.batch_report_analytics(data=values)
                         if isinstance(resp.result, list):
 
                             for res, report in zip(resp.result, batch_missing_reports):
-                                remote_id = res.get('id') if isinstance(res, dict) else None
+                                remote_id = (
+                                    res.get("id") if isinstance(res, dict) else None
+                                )
                                 if remote_id:
-                                    updates.append(AggregationLog(
-                                        id=report.pk,
-                                        remote_id=remote_id,
-                                        reported_time=resp.time or self._last_exec
-                                    ))
+                                    updates.append(
+                                        AggregationLog(
+                                            id=report.pk,
+                                            remote_id=remote_id,
+                                            reported_time=resp.time or self._last_exec,
+                                        )
+                                    )
                                 else:
-                                    errors.append(AggregationLog(
-                                        id=report.pk,
-                                        error=res.get('error', str(res)) if isinstance(res, dict) else str(res)
-                                    ))
+                                    errors.append(
+                                        AggregationLog(
+                                            id=report.pk,
+                                            error=res.get("error", str(res))
+                                            if isinstance(res, dict)
+                                            else str(res),
+                                        )
+                                    )
 
                 if updates:
                     AggregationLog.objects.bulk_update(
-                        updates, fields=['remote_id', 'reported_time'],
-                        batch_size=self.UPDATE_BATCH_MAX_SIZE
+                        updates,
+                        fields=["remote_id", "reported_time"],
+                        batch_size=self.UPDATE_BATCH_MAX_SIZE,
                     )
                 if errors:
                     AggregationLog.objects.bulk_update(
-                        errors, fields=['error'],
-                        batch_size=self.UPDATE_BATCH_MAX_SIZE
+                        errors, fields=["error"], batch_size=self.UPDATE_BATCH_MAX_SIZE
                     )
                 if empty_missing_reports:
                     AggregationLog.objects.filter(
                         pk__in=[obj.pk for obj in empty_missing_reports]
-                    ).update(
-                        reported_time=self._last_exec or time_now()
-                    )
+                    ).update(reported_time=self._last_exec or time_now())
 
     def heartbeat(self):
         pass

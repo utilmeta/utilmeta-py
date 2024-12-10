@@ -2,9 +2,9 @@ from . import multi, represent, Attr, SEG, ImmutableDict, distinct_add
 from typing import Dict, Any, TypeVar, List
 import inspect
 
-T = TypeVar('T')
+T = TypeVar("T")
 
-__all__ = ['Util', 'Meta']
+__all__ = ["Util", "Meta"]
 
 
 # class UtilKey:
@@ -19,7 +19,7 @@ class Meta(type):
     def __init__(cls, name, bases: tuple, attrs: dict, **kwargs):
         super().__init__(name, bases, attrs)
 
-        __init = attrs.get(Attr.INIT)   # only track current init
+        __init = attrs.get(Attr.INIT)  # only track current init
 
         cls._kwargs = kwargs
         cls._pos_var = None
@@ -72,11 +72,11 @@ class Meta(type):
 
         cls._defaults = ImmutableDict(defaults)
         cls._requires = requires
-        cls._attr_names = [a for a in attrs if not a.startswith('_')]
+        cls._attr_names = [a for a in attrs if not a.startswith("_")]
 
     @property
     def cls_path(cls):
-        return f'{cls.__module__}.{cls.__name__}'
+        return f"{cls.__module__}.{cls.__name__}"
 
     @property
     def kw_keys(cls):
@@ -107,7 +107,7 @@ class Util(metaclass=Meta):
                 if isinstance(val, dict):
                     _kwargs = {k: v for k, v in val.items() if not k.startswith(SEG)}
                     kwargs.update(_kwargs)
-                    spec.update(_kwargs)    # also update spec
+                    spec.update(_kwargs)  # also update spec
                 continue
             elif key in self._pos_keys:
                 args.append(key)
@@ -115,7 +115,9 @@ class Util(metaclass=Meta):
                 kwargs[key] = val
             else:
                 continue
-            if val != self._defaults.get(key):   # for key_var or pos_var the default is None
+            if val != self._defaults.get(
+                key
+            ):  # for key_var or pos_var the default is None
                 spec[key] = val
 
         self.__args__ = tuple(args)
@@ -125,12 +127,15 @@ class Util(metaclass=Meta):
     def __hash__(self):
         return hash(repr(self))
 
-    def __eq__(self, other: 'Util'):
+    def __eq__(self, other: "Util"):
         if inspect.isclass(self):
             return super().__eq__(other)
         if not isinstance(other, self.__class__):
             return False
-        return self.__spec_kwargs__ == other.__spec_kwargs__ and self.__args__ == other.__args__
+        return (
+            self.__spec_kwargs__ == other.__spec_kwargs__
+            and self.__args__ == other.__args__
+        )
 
     def __bool__(self):
         # !! return not self.vacuum
@@ -169,7 +174,9 @@ class Util(metaclass=Meta):
             # pop(attrs, Attr.LOCK)       # pop __lock__
             cls: type = self.__class__
             return cls(self.__name__, bases, self._copy(attrs))
-        return self.__class__(*self._copy(self.__args__), **self._copy(self.__spec_kwargs__))
+        return self.__class__(
+            *self._copy(self.__args__), **self._copy(self.__spec_kwargs__)
+        )
 
     @property
     def _cls_name(self):
@@ -189,12 +196,12 @@ class Util(metaclass=Meta):
         for k, v in self.__spec_kwargs__.items():
             # if not isinstance(v, bool) and any([s in str(k).lower() for s in self._secret_names]) and v:
             #     v = SECRET
-            if k.startswith('_'):
+            if k.startswith("_"):
                 continue
             if params is not None and k not in params:
                 continue
             if excludes is not None and k in excludes:
                 continue
-            attrs.append(k + '=' + represent(v))     # str(self.display(v)))
-        s = ', '.join([represent(v) for v in self.__args__] + attrs)
-        return f'{self._cls_name}({s})'
+            attrs.append(k + "=" + represent(v))  # str(self.display(v)))
+        s = ", ".join([represent(v) for v in self.__args__] + attrs)
+        return f"{self._cls_name}({s})"

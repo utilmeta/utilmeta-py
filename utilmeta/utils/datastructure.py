@@ -12,10 +12,10 @@ class ImmutableDict(dict):
     __setitem__ = __error__
 
     def __str__(self):
-        return f'{self.__class__.__name__}({super().__repr__()})'
+        return f"{self.__class__.__name__}({super().__repr__()})"
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({super().__repr__()})'
+        return f"{self.__class__.__name__}({super().__repr__()})"
 
     setdefault = __error__
     pop = __error__
@@ -29,10 +29,10 @@ class ImmutableList(list):
         raise AttributeError("ImmutableList can not modify value")
 
     def __str__(self):
-        return f'{self.__class__.__name__}({super().__repr__()})'
+        return f"{self.__class__.__name__}({super().__repr__()})"
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({super().__repr__()})'
+        return f"{self.__class__.__name__}({super().__repr__()})"
 
     append = error
     clear = error
@@ -108,20 +108,25 @@ class Static:
     def __init_subclass__(cls, ignore_duplicate: bool = False, **kwargs):
         attrs = []
         for name, attr in cls.__dict__.items():
-            if name.startswith('_'):
+            if name.startswith("_"):
                 continue
             if attr in attrs and not ignore_duplicate:
-                raise ValueError(f'Static value cannot be duplicated, got {attr}')
+                raise ValueError(f"Static value cannot be duplicated, got {attr}")
             attrs.append(attr)
 
     @classmethod
     def gen(cls) -> tuple:
         attrs = []
         for name, attr in cls.__dict__.items():
-            if '__' in name:
+            if "__" in name:
                 continue
-            if callable(attr) or inspect.isfunction(attr) or inspect.ismethod(attr) or\
-                    isinstance(attr, classmethod) or isinstance(attr, staticmethod):
+            if (
+                callable(attr)
+                or inspect.isfunction(attr)
+                or inspect.ismethod(attr)
+                or isinstance(attr, classmethod)
+                or isinstance(attr, staticmethod)
+            ):
                 continue
             attrs.append(attr)
         return tuple(attrs)
@@ -130,10 +135,15 @@ class Static:
     def dict(cls, reverse: bool = False, lower: bool = False):
         attrs = {}
         for name, attr in cls.__dict__.items():
-            if '__' in name:
+            if "__" in name:
                 continue
-            if callable(attr) or inspect.isfunction(attr) or inspect.ismethod(attr) or \
-                    isinstance(attr, classmethod) or isinstance(attr, staticmethod):
+            if (
+                callable(attr)
+                or inspect.isfunction(attr)
+                or inspect.ismethod(attr)
+                or isinstance(attr, classmethod)
+                or isinstance(attr, staticmethod)
+            ):
                 continue
             name = name.lower() if lower else name
             if reverse:
@@ -268,13 +278,18 @@ try:
         def __init__(self, ref: str):
             def _load_func():
                 from .functional import import_obj
+
                 return import_obj(ref)
-            self.__dict__['_ref'] = ref
+
+            self.__dict__["_ref"] = ref
             super().__init__(_load_func)
 
 except (ModuleNotFoundError, ImportError):
+
     class classonlymethod(classmethod):
         def __get__(self, instance, cls=None):
             if instance is not None:
-                raise AttributeError("This method is available only on the class, not on instances.")
+                raise AttributeError(
+                    "This method is available only on the class, not on instances."
+                )
             return super().__get__(instance, cls)

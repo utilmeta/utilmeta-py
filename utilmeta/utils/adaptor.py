@@ -28,22 +28,28 @@ class BaseAdaptor:
 
         name = cls.get_module_name(obj)
         if name:
-            ref = f'{cls.__backends_package__}.{name}' if cls.__backends_package__ else name
+            ref = (
+                f"{cls.__backends_package__}.{name}"
+                if cls.__backends_package__
+                else name
+            )
             import_obj(ref)
         else:
             cls.load_from_base()
 
         if cls.qualify(obj):
-            return cls(obj, *args, **kwargs)     # noqa
+            return cls(obj, *args, **kwargs)  # noqa
         to = cls.recursively_dispatch(cls, obj, *args, **kwargs)
         if to:
             return to
-        raise NotImplementedError(f'{cls}: adaptor for {obj}: {repr(name)} is not implemented')
+        raise NotImplementedError(
+            f"{cls}: adaptor for {obj}: {repr(name)} is not implemented"
+        )
 
     @classmethod
     def recursively_dispatch(cls, base, obj, *args, **kwargs):
         for impl in base.__subclasses__():
-            impl: Type['BaseAdaptor']
+            impl: Type["BaseAdaptor"]
             try:
                 if impl.qualify(obj):
                     return impl(obj, *args, **kwargs)  # noqa
@@ -56,7 +62,7 @@ class BaseAdaptor:
         return None
 
     @classmethod
-    def reconstruct(cls, adaptor: 'BaseAdaptor'):
+    def reconstruct(cls, adaptor: "BaseAdaptor"):
         raise NotImplementedError
 
     @classmethod
@@ -69,7 +75,11 @@ class BaseAdaptor:
             return
         if cls.__backends_names__:
             for name in cls.__backends_names__:
-                ref = f'{cls.__backends_package__}.{name}' if cls.__backends_package__ else name
+                ref = (
+                    f"{cls.__backends_package__}.{name}"
+                    if cls.__backends_package__
+                    else name
+                )
                 import_obj(ref)
         cls.__path_loaded__ = True
 
@@ -77,13 +87,13 @@ class BaseAdaptor:
     def set_backends_pkg(cls):
         if cls.__backends_package__:
             return
-        module_parts = cls.__module__.split('.')
+        module_parts = cls.__module__.split(".")
         module = sys.modules[cls.__module__]
-        if not hasattr(module, '__path__'):
+        if not hasattr(module, "__path__"):
             module_parts = module_parts[:-1]
         if cls.__backends_route__:
             module_parts.append(cls.__backends_route__)
-        cls.__backends_package__ = '.'.join(module_parts)
+        cls.__backends_package__ = ".".join(module_parts)
 
     def __init_subclass__(cls, **kwargs):
         cls.set_backends_pkg()

@@ -12,12 +12,15 @@ class FileAdaptor(BaseAdaptor):
     def get_module_name(cls, obj):
         from io import BytesIO, TextIOWrapper, BufferedRandom, BufferedReader
         from utilmeta.core.response.base import Response, ResponseAdaptor
+
         if isinstance(obj, BytesIO):
-            return 'bytesio'
+            return "bytesio"
         elif isinstance(obj, (BufferedReader, BufferedRandom, TextIOWrapper)):
-            return 'fileio'
-        elif isinstance(obj, (Response, ResponseAdaptor)) or Response.response_like(obj):
-            return 'response'
+            return "fileio"
+        elif isinstance(obj, (Response, ResponseAdaptor)) or Response.response_like(
+            obj
+        ):
+            return "response"
         return super().get_module_name(obj)
 
     def get_object(self):
@@ -61,8 +64,10 @@ class FileAdaptor(BaseAdaptor):
                 file_path = os.path.join(file_path, name)
         else:
             if os.path.isdir(file_path):
-                raise PermissionError(f'Attempt to write file to directory: {file_path}')
-        with open(file_path, 'wb') as fp:
+                raise PermissionError(
+                    f"Attempt to write file to directory: {file_path}"
+                )
+        with open(file_path, "wb") as fp:
             if self.seekable:
                 self.object.seek(0)
             content = self.object.read()
@@ -81,7 +86,7 @@ class FileAdaptor(BaseAdaptor):
             if os.path.isdir(file_path):
                 file_path = os.path.join(file_path, name)
 
-        with open(file_path, 'wb') as fp:
+        with open(file_path, "wb") as fp:
             if self.seekable:
                 r = self.object.seek(0)
                 if inspect.isawaitable(r):
@@ -96,8 +101,8 @@ class FileAdaptor(BaseAdaptor):
         return file_path
 
     def close(self):
-        if hasattr(self.object, 'close'):
+        if hasattr(self.object, "close"):
             try:
                 self.object.close()
-            except Exception:    # noqa
+            except Exception:  # noqa
                 pass

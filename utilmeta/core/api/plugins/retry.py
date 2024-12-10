@@ -3,7 +3,14 @@ from utilmeta.core.response import Response
 from utype.types import *
 from utilmeta.utils.error import Error
 from utilmeta.utils import exceptions
-from utilmeta.utils import multi, class_func, time_now, get_interval, awaitable, DEFAULT_RETRY_ON_STATUSES
+from utilmeta.utils import (
+    multi,
+    class_func,
+    time_now,
+    get_interval,
+    awaitable,
+    DEFAULT_RETRY_ON_STATUSES,
+)
 from utype.parser.func import FunctionParser
 import random
 from utype.types import Float
@@ -20,22 +27,25 @@ class RetryPlugin(APIPlugin):
     DEFAULT_RETRY_ON_ERRORS = (Exception,)
     DEFAULT_RETRY_AFTER_HEADERS = ()
 
-    def __init__(self,
-                 max_retries: int = 1,
-                 max_retries_timeout: Union[float, int, timedelta] = None,
-                 retry_interval: Union[float, int, timedelta, List[float], List[int],
-                                       List[timedelta], Callable] = None,
-                 # a value: 1 / 15.5 / timedelta(seconds=3.5)
-                 # a callable: will take 2 optional params (current_retries, max_retries)
-                 # a list of values:  [1, 3, 10, 15, 30], will be mapped to each retries
-                 retry_timeout: Union[float, int, timedelta, List[float], List[int],
-                                      List[timedelta], Callable] = None,
-                 retry_delta_ratio: float = None,
-                 retry_on_errors: List[Type[Exception]] = None,
-                 retry_on_statuses: List[int] = DEFAULT_RETRY_ON_STATUSES,
-                 retry_on_idempotent_only: bool = None,
-                 retry_after_headers: Union[str, List[str]] = None,
-                 ):
+    def __init__(
+        self,
+        max_retries: int = 1,
+        max_retries_timeout: Union[float, int, timedelta] = None,
+        retry_interval: Union[
+            float, int, timedelta, List[float], List[int], List[timedelta], Callable
+        ] = None,
+        # a value: 1 / 15.5 / timedelta(seconds=3.5)
+        # a callable: will take 2 optional params (current_retries, max_retries)
+        # a list of values:  [1, 3, 10, 15, 30], will be mapped to each retries
+        retry_timeout: Union[
+            float, int, timedelta, List[float], List[int], List[timedelta], Callable
+        ] = None,
+        retry_delta_ratio: float = None,
+        retry_on_errors: List[Type[Exception]] = None,
+        retry_on_statuses: List[int] = DEFAULT_RETRY_ON_STATUSES,
+        retry_on_idempotent_only: bool = None,
+        retry_after_headers: Union[str, List[str]] = None,
+    ):
         super().__init__(locals())
 
         self.max_retries = max_retries
@@ -49,23 +59,29 @@ class RetryPlugin(APIPlugin):
         self.retry_delta_ratio = retry_delta_ratio
         if retry_on_errors and not multi(retry_on_errors):
             retry_on_errors = [retry_on_errors]
-        self.retry_on_errors = retry_on_errors or self.DEFAULT_RETRY_ON_ERRORS  # can be inherited
+        self.retry_on_errors = (
+            retry_on_errors or self.DEFAULT_RETRY_ON_ERRORS
+        )  # can be inherited
         if retry_on_statuses and not multi(retry_on_statuses):
             retry_on_statuses = [retry_on_statuses]
         self.retry_on_statuses = retry_on_statuses or DEFAULT_RETRY_ON_STATUSES
         self.retry_on_idempotent_only = retry_on_idempotent_only
         if retry_after_headers and not multi(retry_after_headers):
             retry_after_headers = [retry_after_headers]
-        self.retry_after_headers = retry_after_headers or self.DEFAULT_RETRY_AFTER_HEADERS
+        self.retry_after_headers = (
+            retry_after_headers or self.DEFAULT_RETRY_AFTER_HEADERS
+        )
         # self.max_retry_after = max_retry_after
 
-    def whether_retry(self, request: Request = None, response: Response = None, error: Error = None):
+    def whether_retry(
+        self, request: Request = None, response: Response = None, error: Error = None
+    ):
         """
         Can inherit and custom, like base on response's header values
         """
         if self.retry_on_idempotent_only:
             if request:
-                idempotent = request.adaptor.get_context('idempotent')
+                idempotent = request.adaptor.get_context("idempotent")
                 if not idempotent:
                     return False
             else:
@@ -81,10 +97,12 @@ class RetryPlugin(APIPlugin):
         return False
 
     def process_request(self, request: Request):
-        current_retry = request.adaptor.get_context('retry_index') or 0
+        current_retry = request.adaptor.get_context("retry_index") or 0
         if current_retry >= self.max_retries:
-            raise self.max_retries_error_cls(f'{self.__class__}: max_retries: {self.max_retries} exceeded',
-                                             max_retries=self.max_retries)
+            raise self.max_retries_error_cls(
+                f"{self.__class__}: max_retries: {self.max_retries} exceeded",
+                max_retries=self.max_retries,
+            )
         self.handle_max_retries_timeout(request, set_timeout=True)
         return request
 
@@ -97,26 +115,34 @@ class RetryPlugin(APIPlugin):
         if delta <= 0:
             # max retries time exceeded
             raise self.max_retries_timeout_error_cls(
-                f'{self.__class__}: max_retries_timeout exceed for {abs(delta)} seconds',
-                max_retries_timeout=self.max_retries_timeout)
+                f"{self.__class__}: max_retries_timeout exceed for {abs(delta)} seconds",
+                max_retries_timeout=self.max_retries_timeout,
+            )
 
         # reset request timeout
         if set_timeout:
             if self.retry_timeout:
-                current_retry = request.adaptor.get_context('retry_index') or 0
+                current_retry = request.adaptor.get_context("retry_index") or 0
                 timeout = self.retry_timeout
                 if callable(timeout):
-                    timeout = timeout(current_retry, self.max_retries, self.max_retries_timeout)
+                    timeout = timeout(
+                        current_retry, self.max_retries, self.max_retries_timeout
+                    )
                 if multi(timeout):
                     timeout = timeout[min(len(timeout) - 1, current_retry)]
                 timeout = get_interval(timeout, null=True)
                 if timeout:
                     if self.retry_delta_ratio:
-                        timeout = timeout + (random.random() * 2 - 1) * self.retry_delta_ratio * timeout
+                        timeout = (
+                            timeout
+                            + (random.random() * 2 - 1)
+                            * self.retry_delta_ratio
+                            * timeout
+                        )
 
                 request.adaptor.update_context(timeout=timeout)
 
-            to = request.adaptor.get_context('timeout')
+            to = request.adaptor.get_context("timeout")
             if not to or to > delta:
                 request.adaptor.update_context(timeout=delta)
 
@@ -124,7 +150,7 @@ class RetryPlugin(APIPlugin):
         request = response.request
         if not request:
             return response
-        current_retry = request.get_context('retry_index') or 0
+        current_retry = request.get_context("retry_index") or 0
         if current_retry + 1 >= self.max_retries:
             # cannot retry
             return response
@@ -140,7 +166,7 @@ class RetryPlugin(APIPlugin):
         request = response.request
         if not request:
             return response
-        current_retry = request.get_context('retry_index') or 0
+        current_retry = request.get_context("retry_index") or 0
         if current_retry + 1 >= self.max_retries:
             # cannot retry
             return response
@@ -152,13 +178,16 @@ class RetryPlugin(APIPlugin):
         return request  # return request to make SDK retry this request
 
     def handle_error(self, e: Error):
-        if isinstance(e.exception, (self.max_retries_error_cls, self.max_retries_timeout_error_cls)):
+        if isinstance(
+            e.exception,
+            (self.max_retries_error_cls, self.max_retries_timeout_error_cls),
+        ):
             return
         request = e.request
         if not request:
             # raise error
             return
-        current_retry = request.adaptor.get_context('retry_index') or 0
+        current_retry = request.adaptor.get_context("retry_index") or 0
         if current_retry + 1 >= self.max_retries:
             # cannot retry
             return  # proceed to handle error instead of raise
@@ -171,13 +200,16 @@ class RetryPlugin(APIPlugin):
 
     @awaitable(handle_error)
     async def handle_error(self, e: Error):
-        if isinstance(e.exception, (self.max_retries_error_cls, self.max_retries_timeout_error_cls)):
+        if isinstance(
+            e.exception,
+            (self.max_retries_error_cls, self.max_retries_timeout_error_cls),
+        ):
             return
         request = e.request
         if not request:
             # raise error
             return
-        current_retry = request.adaptor.get_context('retry_index') or 0
+        current_retry = request.adaptor.get_context("retry_index") or 0
         if current_retry + 1 >= self.max_retries:
             # cannot retry
             return  # proceed to handle error instead of raise
@@ -188,7 +220,9 @@ class RetryPlugin(APIPlugin):
         self.handle_max_retries_timeout(request, set_timeout=False)
         return request
 
-    def get_retry_after(self, request: Request, response: Response = None) -> Optional[float]:
+    def get_retry_after(
+        self, request: Request, response: Response = None
+    ) -> Optional[float]:
         """
         Treat 429 specially, cause the headers/data may indicate the next_request_time
         """
@@ -198,7 +232,7 @@ class RetryPlugin(APIPlugin):
         current_time = time_now()
         start_time = request.time
         passed = (current_time - start_time).total_seconds()
-        current_retry = request.adaptor.get_context('retry_index') or 0
+        current_retry = request.adaptor.get_context("retry_index") or 0
 
         retry_after = None
         if response:
@@ -226,14 +260,19 @@ class RetryPlugin(APIPlugin):
                 return 0
             if callable(retry_after):
                 # function parser can consume
-                retry_after = retry_after(current_retry, self.max_retries, self.max_retries_timeout)
+                retry_after = retry_after(
+                    current_retry, self.max_retries, self.max_retries_timeout
+                )
             if multi(retry_after):
                 retry_after = retry_after[min(len(retry_after) - 1, current_retry)]
             retry_after = get_interval(retry_after, null=True)
 
         if isinstance(retry_after, (int, float)):
             if self.retry_delta_ratio:
-                retry_after = retry_after + (random.random() * 2 - 1) * self.retry_delta_ratio * retry_after
+                retry_after = (
+                    retry_after
+                    + (random.random() * 2 - 1) * self.retry_delta_ratio * retry_after
+                )
 
             if self.max_retries_timeout:
                 # cannot wait longer than the max timeout
@@ -249,14 +288,18 @@ class RetryPlugin(APIPlugin):
             return False
         if retry_after:
             import time
+
             time.sleep(retry_after)
         return True
 
-    async def async_handle_retry_after(self, request: Request, response: Response = None):
+    async def async_handle_retry_after(
+        self, request: Request, response: Response = None
+    ):
         retry_after = self.get_retry_after(request, response)
         if retry_after is None:
             return False
         if retry_after:
             import asyncio
+
             await asyncio.sleep(retry_after)
         return True

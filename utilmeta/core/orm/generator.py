@@ -14,13 +14,14 @@ if TYPE_CHECKING:
 
 
 class BaseQuerysetGenerator:
-    def __init__(self,
-                 parser: QueryClassParser,
-                 values: dict,
-                 # --- config params
-                 distinct: bool = None,
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        parser: QueryClassParser,
+        values: dict,
+        # --- config params
+        distinct: bool = None,
+        **kwargs
+    ):
         self.parser = parser
         self.model = parser.model
         self.values = values
@@ -58,10 +59,7 @@ class BaseQuerysetGenerator:
         raise NotImplementedError
 
     def get_context(self, **kwargs):
-        kwargs.update(
-            includes=self.includes,
-            excludes=self.excludes
-        )
+        kwargs.update(includes=self.includes, excludes=self.excludes)
         return QueryContext(**kwargs)
 
     @property
@@ -84,7 +82,9 @@ class BaseQuerysetGenerator:
     def process_filter(self, field: ParserFilter, value):
         raise NotImplementedError
 
-    def process_order(self, order: Order, field: 'ModelFieldAdaptor', name: str, flag: int = 1):
+    def process_order(
+        self, order: Order, field: "ModelFieldAdaptor", name: str, flag: int = 1
+    ):
         raise NotImplementedError
 
     def process_value(self, field, value):
@@ -97,10 +97,7 @@ class BaseQuerysetGenerator:
                 if o in field.orders:
                     order, f, flag = field.orders[o]
                     self.process_order(
-                        order,
-                        field=f,
-                        flag=flag,
-                        name=str(o).lstrip(field.desc_prefix)
+                        order, field=f, flag=flag, name=str(o).lstrip(field.desc_prefix)
                     )
         elif isinstance(field.field, Page):
             self.page = value

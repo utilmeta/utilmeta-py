@@ -2,7 +2,7 @@ from utype import register_transformer, TypeTransformer, register_encoder
 from collections.abc import Mapping
 
 
-@register_transformer(attr='__attrs_attrs__')
+@register_transformer(attr="__attrs_attrs__")
 def transform_attrs(transformer: TypeTransformer, data, cls):
     if not transformer.no_explicit_cast and not isinstance(data, (dict, Mapping)):
         data = transformer.to_dict(data)
@@ -11,7 +11,7 @@ def transform_attrs(transformer: TypeTransformer, data, cls):
     return cls(**data)
 
 
-@register_encoder(attr='__attrs_attrs__')
+@register_encoder(attr="__attrs_attrs__")
 def encode_attrs(encoder, data):
     values = {}
     for v in data.__attrs_attrs__:

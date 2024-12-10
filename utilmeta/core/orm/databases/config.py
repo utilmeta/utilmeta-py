@@ -13,11 +13,9 @@ class Database(Config):
     This is just a declaration interface for database
     the real implementation is database adaptor
     """
-    DEFAULT_HOST = '127.0.0.1'
-    DEFAULT_PORTS = {
-        'postgres': 5432,
-        'mysql': 3306
-    }
+
+    DEFAULT_HOST = "127.0.0.1"
+    DEFAULT_PORTS = {"postgres": 5432, "mysql": 3306}
 
     sync_adaptor_cls = None
     async_adaptor_cls = EncodeDatabasesAsyncAdaptor
@@ -27,33 +25,35 @@ class Database(Config):
 
     # ---
     name: str
-    engine: str = 'sqlite'
-    user: str = ''
-    password: str = ''
-    host: str = ''
+    engine: str = "sqlite"
+    user: str = ""
+    password: str = ""
+    host: str = ""
     port: Optional[int] = None
     time_zone: Optional[str] = None
     ssl: Any = None
     max_size: Optional[int] = None
     min_size: Optional[int] = None
     max_age: Optional[int] = 0
-    replica_of: Optional['Database'] = None
+    replica_of: Optional["Database"] = None
     options: Optional[dict] = None
 
-    def __init__(self,
-                 name: str,
-                 engine: str = 'sqlite',
-                 user: str = '',
-                 password: str = '',
-                 host: str = '',
-                 port: Optional[int] = None,
-                 time_zone: Optional[str] = None,
-                 ssl: Any = None,
-                 max_size: Optional[int] = None,      # connection pool
-                 min_size: Optional[int] = None,      # connection pool
-                 max_age: Optional[int] = 0,    # connection max age
-                 replica_of: Optional['Database'] = None,
-                 options: Optional[dict] = None):
+    def __init__(
+        self,
+        name: str,
+        engine: str = "sqlite",
+        user: str = "",
+        password: str = "",
+        host: str = "",
+        port: Optional[int] = None,
+        time_zone: Optional[str] = None,
+        ssl: Any = None,
+        max_size: Optional[int] = None,  # connection pool
+        min_size: Optional[int] = None,  # connection pool
+        max_age: Optional[int] = 0,  # connection max age
+        replica_of: Optional["Database"] = None,
+        options: Optional[dict] = None,
+    ):
         super().__init__(locals())
         self.host = self.host or self.DEFAULT_HOST
         if not self.port:
@@ -68,7 +68,7 @@ class Database(Config):
     def params(self):
         options = dict(self.options or {})
         if self.ssl:
-            options.update(ssl=self.ssl)        # True or other ssl context
+            options.update(ssl=self.ssl)  # True or other ssl context
         if self.max_size:
             options.update(max_size=self.max_size)
         if self.min_size:
@@ -85,23 +85,23 @@ class Database(Config):
     def location(self):
         if self.is_sqlite:
             return self.name
-        return f'{self.host}:{self.port}'
+        return f"{self.host}:{self.port}"
 
     @property
     def is_sqlite(self):
-        return 'sqlite' in self.engine
+        return "sqlite" in self.engine
 
     @property
     def is_postgresql(self):
-        return 'postgres' in self.engine
+        return "postgres" in self.engine
 
     @property
     def is_mysql(self):
-        return 'mysql' in self.engine
+        return "mysql" in self.engine
 
     @property
     def is_oracle(self):
-        return 'oracle' in self.engine
+        return "oracle" in self.engine
 
     @property
     def alias(self):
@@ -120,13 +120,13 @@ class Database(Config):
     @property
     def type(self):
         if self.is_sqlite:
-            return 'sqlite'
+            return "sqlite"
         elif self.is_postgresql:
-            return 'postgresql'
+            return "postgresql"
         elif self.is_mysql:
-            return 'mysql'
+            return "mysql"
         elif self.is_oracle:
-            return 'oracle'
+            return "oracle"
         return self.engine
 
     @property
@@ -139,30 +139,31 @@ class Database(Config):
             # https://stackoverflow.com/a/19262231/14026109
             # Also, as Windows doesn't have the concept of root
             # and instead uses drives, you have to specify absolute path with 3 slashes
-            return '/' + self.name
+            return "/" + self.name
         else:
             user = self.user
             if self.password:
                 from urllib.parse import quote
+
                 # for special chars like @ will disrupt DNS
-                user += f':{quote(self.password)}'
+                user += f":{quote(self.password)}"
             netloc = self.host
             if self.port:
-                netloc += f':{self.port}'
-            return f'{user}@{netloc}/{self.name}'
+                netloc += f":{self.port}"
+            return f"{user}@{netloc}/{self.name}"
 
     @property
     def protected_dsn(self):
         if self.is_sqlite:
-            return '/' + self.name
+            return "/" + self.name
         else:
             user = self.user
             if self.password:
-                user += f':******'
+                user += f":******"
             netloc = self.host
             if self.port:
-                netloc += f':{self.port}'
-            return f'{user}@{netloc}/{self.name}'
+                netloc += f":{self.port}"
+            return f"{user}@{netloc}/{self.name}"
 
     def apply(self, alias: str, asynchronous: bool = None, project_dir: str = None):
         if asynchronous:
@@ -174,10 +175,11 @@ class Database(Config):
             else:
                 # default
                 from ..backends.django.database import DjangoDatabaseAdaptor
+
                 self.adaptor = DjangoDatabaseAdaptor(self, alias)
 
         if not self.adaptor:
-            raise exceptions.NotConfigured('Database adaptor not implemented')
+            raise exceptions.NotConfigured("Database adaptor not implemented")
         if self.is_sqlite and project_dir:
             if not os.path.isabs(self.name):
                 self.name = str(os.path.join(project_dir, self.name))
@@ -226,11 +228,19 @@ class Database(Config):
     async def fetchall(self, sql, params=None) -> List[dict]:
         return await self.get_adaptor(True).fetchall(sql, params)
 
-    def transaction(self, savepoint=None, isolation=None, force_rollback: bool = False) -> ContextManager:
-        return self.get_adaptor(False).transaction(savepoint, isolation, force_rollback=force_rollback)
+    def transaction(
+        self, savepoint=None, isolation=None, force_rollback: bool = False
+    ) -> ContextManager:
+        return self.get_adaptor(False).transaction(
+            savepoint, isolation, force_rollback=force_rollback
+        )
 
-    def async_transaction(self, savepoint=None, isolation=None, force_rollback: bool = False) -> AsyncContextManager:
-        return self.get_adaptor(True).transaction(savepoint, isolation, force_rollback=force_rollback)
+    def async_transaction(
+        self, savepoint=None, isolation=None, force_rollback: bool = False
+    ) -> AsyncContextManager:
+        return self.get_adaptor(True).transaction(
+            savepoint, isolation, force_rollback=force_rollback
+        )
 
 
 class DatabaseConnections(Config):
@@ -251,12 +261,14 @@ class DatabaseConnections(Config):
         if not database.async_adaptor_cls:
             if service.adaptor and service.adaptor.async_db_adaptor_cls:
                 database.async_adaptor_cls = service.adaptor.async_db_adaptor_cls
-        database.apply(alias, asynchronous=service.asynchronous, project_dir=service.project_dir)
+        database.apply(
+            alias, asynchronous=service.asynchronous, project_dir=service.project_dir
+        )
         if alias not in self.databases:
             self.databases.setdefault(alias, database)
 
     @classmethod
-    def get(cls, alias: str = 'default') -> Database:
+    def get(cls, alias: str = "default") -> Database:
         config = cls.config()
         if not config:
             raise exceptions.NotConfigured(cls)

@@ -8,14 +8,20 @@ from ..compiler import BaseQueryCompiler
 
 class ModelFieldAdaptor(BaseAdaptor):
     @classmethod
-    def reconstruct(cls, adaptor: 'BaseAdaptor'):
+    def reconstruct(cls, adaptor: "BaseAdaptor"):
         pass
 
-    __backends_route__ = 'backends'
+    __backends_route__ = "backends"
     model_adaptor_cls = None
 
     # hold a model field or expression
-    def __init__(self, field, addon: str = None, model: 'ModelAdaptor' = None, lookup_name: str = None):
+    def __init__(
+        self,
+        field,
+        addon: str = None,
+        model: "ModelAdaptor" = None,
+        lookup_name: str = None,
+    ):
         self.field = field
         self.addon = addon
         self.lookup_name = lookup_name
@@ -30,11 +36,11 @@ class ModelFieldAdaptor(BaseAdaptor):
         return None
 
     @property
-    def related_model(self) -> Optional['ModelAdaptor']:
+    def related_model(self) -> Optional["ModelAdaptor"]:
         raise NotImplementedError
 
     @property
-    def remote_field(self) -> Optional['ModelFieldAdaptor']:
+    def remote_field(self) -> Optional["ModelFieldAdaptor"]:
         raise NotImplementedError
 
     # @property
@@ -46,15 +52,17 @@ class ModelFieldAdaptor(BaseAdaptor):
         return self.model.get_reverse_lookup(self.lookup_name)
 
     @property
-    def target_field(self) -> Optional['ModelFieldAdaptor']:
+    def target_field(self) -> Optional["ModelFieldAdaptor"]:
         raise NotImplementedError
 
     @property
-    def through_model(self) -> Optional['ModelAdaptor']:
+    def through_model(self) -> Optional["ModelAdaptor"]:
         raise NotImplementedError
 
     @property
-    def through_fields(self) -> Tuple[Optional['ModelFieldAdaptor'], Optional['ModelFieldAdaptor']]:
+    def through_fields(
+        self,
+    ) -> Tuple[Optional["ModelFieldAdaptor"], Optional["ModelFieldAdaptor"]]:
         raise NotImplementedError
 
     @property
@@ -187,24 +195,24 @@ class ModelAdaptor(BaseAdaptor):
     model_cls = None
     queryset_cls = None
 
-    __backends_names__ = ['django', 'peewee', 'sqlalchemy']
+    __backends_names__ = ["django", "peewee", "sqlalchemy"]
 
     @classmethod
-    def reconstruct(cls, adaptor: 'BaseAdaptor'):
+    def reconstruct(cls, adaptor: "BaseAdaptor"):
         pass
 
     def __init__(self, model):
         if not self.qualify(model):
-            raise TypeError(f'{self.__class__}: Invalid model: {model}')
+            raise TypeError(f"{self.__class__}: Invalid model: {model}")
         self.model = model
 
     @property
     def ident(self):
-        return f'{self.model.__module__}.{self.model.__name__}'
+        return f"{self.model.__module__}.{self.model.__name__}"
 
     @property
     def field_errors(self) -> Tuple[Type[Exception], ...]:
-        return (Exception, )
+        return (Exception,)
 
     @property
     def pk_field(self) -> field_adaptor_cls:
@@ -286,7 +294,7 @@ class ModelAdaptor(BaseAdaptor):
     def check_queryset(self, qs, check_model: bool = False):
         raise NotImplementedError
 
-    def get_model(self, qs) -> 'ModelAdaptor':
+    def get_model(self, qs) -> "ModelAdaptor":
         raise NotImplementedError
 
     @property
@@ -302,7 +310,7 @@ class ModelAdaptor(BaseAdaptor):
 
     @property
     def default_db_alias(self) -> str:
-        return 'default'
+        return "default"
 
     def get_parents(self) -> list:
         raise NotImplementedError
@@ -310,9 +318,13 @@ class ModelAdaptor(BaseAdaptor):
     def cross_models(self, field):
         raise NotImplementedError
 
-    def get_field(self, name: str, validator: Callable = None,
-                  silently: bool = False,
-                  allow_addon: bool = False) -> Optional[field_adaptor_cls]:
+    def get_field(
+        self,
+        name: str,
+        validator: Callable = None,
+        silently: bool = False,
+        allow_addon: bool = False,
+    ) -> Optional[field_adaptor_cls]:
         """
         Get name from a field references
         """
@@ -333,7 +345,9 @@ class ModelAdaptor(BaseAdaptor):
     def get_related_adaptor(self, field):
         return self.__class__(field.related_model) if field.related_model else None
 
-    def gen_lookup_keys(self, field: str, keys, strict: bool = True, excludes: List[str] = None) -> list:
+    def gen_lookup_keys(
+        self, field: str, keys, strict: bool = True, excludes: List[str] = None
+    ) -> list:
         raise NotImplementedError
 
     def gen_lookup_filter(self, field, q, excludes: List[str] = None):

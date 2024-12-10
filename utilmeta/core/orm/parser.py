@@ -3,6 +3,7 @@ from .fields.field import ParserQueryField
 from .fields.filter import ParserFilter
 from . import exceptions
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .compiler import BaseQueryCompiler
     from .generator import BaseQuerysetGenerator
@@ -12,8 +13,9 @@ class QueryClassParser(ClassParser):
     parser_field_cls = ParserFilter
 
     def __init__(self, obj, *args, **kwargs):
-        model = getattr(obj, '__model__', None)
+        model = getattr(obj, "__model__", None)
         from .backends.base import ModelAdaptor
+
         self.model = ModelAdaptor.dispatch(model) if model else None
         super().__init__(obj, *args, **kwargs)
 
@@ -21,7 +23,7 @@ class QueryClassParser(ClassParser):
     def kwargs(self):
         return dict(model=self.model)
 
-    def get_generator(self, values: dict, **kwargs) -> 'BaseQuerysetGenerator':
+    def get_generator(self, values: dict, **kwargs) -> "BaseQuerysetGenerator":
         return self.model.generator_cls(self, values, **kwargs)
 
     @property
@@ -36,15 +38,18 @@ class SchemaClassParser(ClassParser):
     parser_field_cls = ParserQueryField
 
     def __init__(self, obj, *args, **kwargs):
-        model = getattr(obj, '__model__', None)
+        model = getattr(obj, "__model__", None)
         from .backends.base import ModelAdaptor
+
         self.model = ModelAdaptor.dispatch(model) if model else None
         super().__init__(obj, *args, **kwargs)
 
-        serialize_options = getattr(obj, '__serialize_options__', None)
-        self.output_options = self.options_cls.generate_from(
-            serialize_options
-        ) if serialize_options else None
+        serialize_options = getattr(obj, "__serialize_options__", None)
+        self.output_options = (
+            self.options_cls.generate_from(serialize_options)
+            if serialize_options
+            else None
+        )
 
         pk_names = set()
         if self.model:
@@ -61,8 +66,10 @@ class SchemaClassParser(ClassParser):
                             field = field.reconstruct(self.model)
                             field.setup(self.options)
                         except Exception as e:
-                            raise e.__class__(f'{self.name}(orm.Schema): setup field [{repr(name)}] '
-                                              f'for model: {self.model} failed with error: {e}') from e
+                            raise e.__class__(
+                                f"{self.name}(orm.Schema): setup field [{repr(name)}] "
+                                f"for model: {self.model} failed with error: {e}"
+                            ) from e
 
                         self.fields[name] = field
             # if pk_names:
@@ -78,14 +85,16 @@ class SchemaClassParser(ClassParser):
     def kwargs(self):
         return dict(model=self.model)
 
-    def get_compiler(self, queryset, context=None) -> 'BaseQueryCompiler':
+    def get_compiler(self, queryset, context=None) -> "BaseQueryCompiler":
         if not self.model:
-            raise exceptions.ModelRequired(f'{self.name}: model is required for query execution')
+            raise exceptions.ModelRequired(
+                f"{self.name}: model is required for query execution"
+            )
         return self.model.compiler_cls(self, queryset, context=context)
 
     def get_instance(self, data: dict):
         # pk = self.get_pk(data)
-        inst = dict(pk=getattr(data, 'pk', None))
+        inst = dict(pk=getattr(data, "pk", None))
         for key, val in data.items():
             field = self.get_field(key)
             if isinstance(field, ParserQueryField):

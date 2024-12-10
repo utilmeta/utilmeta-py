@@ -1,9 +1,9 @@
 from tornado.httpserver import HTTPRequest as ServerRequest
+
 # from tornado.httpclient import HTTPRequest as ClientRequest
 from ..base import RequestAdaptor
 from utilmeta.core.file.backends.tornado import TornadoFileAdaptor
 from utilmeta.core.file.base import File
-from utilmeta.utils import exceptions as exc
 import tornado
 
 
@@ -13,7 +13,7 @@ class TornadoServerRequestAdaptor(RequestAdaptor):
     backend = tornado
 
     @classmethod
-    def reconstruct(cls, adaptor: 'RequestAdaptor') -> ServerRequest:
+    def reconstruct(cls, adaptor: "RequestAdaptor") -> ServerRequest:
         if isinstance(adaptor, cls):
             return adaptor.request
         raise ServerRequest(

@@ -1,6 +1,11 @@
 from peewee import Model, ModelSelect, Expression, fn
 from typing import Type
-from ..base import ModelAdaptor, QuerysetAdaptor, QueryExpressionAdaptor, ModelFieldAdaptor
+from ..base import (
+    ModelAdaptor,
+    QuerysetAdaptor,
+    QueryExpressionAdaptor,
+    ModelFieldAdaptor,
+)
 
 
 class PeeweeModelFieldAdaptor(ModelFieldAdaptor):
@@ -44,4 +49,3 @@ class PeeweeModelAdaptor(ModelAdaptor):
 
     def get_queryset(self):
         return self.model.select()
-

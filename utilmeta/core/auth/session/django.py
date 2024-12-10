@@ -10,13 +10,14 @@ from django.contrib.sessions.backends.base import SessionBase
 
 
 class DjangoSession(BaseSession):
-    def __init__(self,
-                 engine: Union[str, Callable] = None,
-                 cache_alias: str = 'default',
-                 file_path: str = None,
-                 serializer: str = None,
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        engine: Union[str, Callable] = None,
+        cache_alias: str = "default",
+        file_path: str = None,
+        serializer: str = None,
+        **kwargs,
+    ):
         super().__init__(engine, **kwargs)
         self.cache_alias = cache_alias
         self.file_path = file_path
@@ -31,26 +32,27 @@ class DjangoSession(BaseSession):
         if isinstance(None, engine):
             engine = self.engine
         if not issubclass(engine, SessionBase):
-            raise TypeError(f'Invalid django engine: {engine}')
+            raise TypeError(f"Invalid django engine: {engine}")
         return engine
 
     def init(self, field: ParserField):
         from utilmeta.core.server.backends.django import DjangoSettings
+
         dj_settings = DjangoSettings.config()
         if dj_settings:
             dj_settings.register(self)
         else:
-            warnings.warn('No DjangoSettings is used in service')
+            warnings.warn("No DjangoSettings is used in service")
         super().init(field)
 
     def as_django(self):
         return {
-            'SESSION_CACHE_ALIAS': self.cache_alias,
-            'SESSION_SERIALIZER': self.serializer,
-            'SESSION_ENGINE': self.engine,
-            'SESSION_EXPIRE_AT_BROWSER_CLOSE': self.expire_at_browser_close,
-            'SESSION_FILE_PATH': self.file_path,
-            **self.cookie.as_django(prefix='SESSION')
+            "SESSION_CACHE_ALIAS": self.cache_alias,
+            "SESSION_SERIALIZER": self.serializer,
+            "SESSION_ENGINE": self.engine,
+            "SESSION_EXPIRE_AT_BROWSER_CLOSE": self.expire_at_browser_close,
+            "SESSION_FILE_PATH": self.file_path,
+            **self.cookie.as_django(prefix="SESSION"),
         }
 
     def login(self, request, key: str, expiry_age: int = None, user_id_var=var.user_id):

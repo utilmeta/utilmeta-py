@@ -9,17 +9,17 @@ from .context import QueryContext
 from .fields.field import ParserQueryField
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 __caches__: dict = {}
 
 
 class Schema(utype.Schema):
     __serialize_options__ = utype.Options(
-        mode='r',
+        mode="r",
         addition=True,
         ignore_required=True,
-        ignore_constraints=True     # skip constraints validation when querying from db
+        ignore_constraints=True  # skip constraints validation when querying from db
         # no_default=True,
         # no default, but default can be calculated when attr is called
     )
@@ -34,10 +34,7 @@ class Schema(utype.Schema):
         k = (cls, item)
         if k in __caches__:
             return __caches__[k]
-        attrs = {
-            '__qualname__': cls.__qualname__,
-            '__module__': cls.__module__
-        }
+        attrs = {"__qualname__": cls.__qualname__, "__module__": cls.__module__}
 
         options = None
         annotations = {}
@@ -82,19 +79,19 @@ class Schema(utype.Schema):
             if name in self:
                 _set = True
         if not _set:
-            self.__dict__['pk'] = val
+            self.__dict__["pk"] = val
 
     def get_instance(self, fresh: bool = True):
         if fresh:
             if self.pk is None:
-                raise exceptions.MissingPrimaryKey('pk is missing for query instance')
+                raise exceptions.MissingPrimaryKey("pk is missing for query instance")
             return self.__parser__.model.get_instance(pk=self.pk)
         return self.__parser__.get_instance(self)
 
     async def aget_instance(self, fresh: bool = True):
         if fresh:
             if self.pk is None:
-                raise exceptions.MissingPrimaryKey('pk is missing for query instance')
+                raise exceptions.MissingPrimaryKey("pk is missing for query instance")
             return await self.__parser__.model.aget_instance(pk=self.pk)
         return self.__parser__.get_instance(self)
 
@@ -133,10 +130,10 @@ class Schema(utype.Schema):
         if k in __caches__:
             return __caches__[k]
 
-        suffix = f'_RELATIONAL_UPDATE_{field}'
+        suffix = f"_RELATIONAL_UPDATE_{field}"
         attrs = {
-            '__qualname__': cls.__qualname__ + suffix,
-            '__module__': cls.__module__,
+            "__qualname__": cls.__qualname__ + suffix,
+            "__module__": cls.__module__,
         }
         if isinstance(mode, str):
             attrs.update(__options__=utype.Options(mode=mode))
@@ -145,21 +142,32 @@ class Schema(utype.Schema):
 
         model_field = cls.__parser__.model.get_field(field)
         if not model_field:
-            raise ValueError(f'Invalid relation remote_field: {repr(field)}, not exists')
+            raise ValueError(
+                f"Invalid relation remote_field: {repr(field)}, not exists"
+            )
         if not model_field.is_fk:
-            raise ValueError(f'Invalid relation remote_field: {repr(field)}, must be ForeignKey')
+            raise ValueError(
+                f"Invalid relation remote_field: {repr(field)}, must be ForeignKey"
+            )
 
         relational_fields = []
         for name, parser_field in cls.__parser__.fields.items():
             parser_field: SchemaClassParser.parser_field_cls
-            if parser_field.model_field and parser_field.model_field.name == model_field.name:
-                if name == 'pk':
+            if (
+                parser_field.model_field
+                and parser_field.model_field.name == model_field.name
+            ):
+                if name == "pk":
                     continue
-                attrs[parser_field.attname] = parser_field.field_cls(no_input=mode, mode=mode)
+                attrs[parser_field.attname] = parser_field.field_cls(
+                    no_input=mode, mode=mode
+                )
                 if not parser_field.no_output:
                     relational_fields.append(parser_field.attname)
         if not relational_fields:
-            attrs[field] = cls.__parser_cls__.parser_field_cls.field_cls(no_input=mode, mode=mode, no_output=False)
+            attrs[field] = cls.__parser_cls__.parser_field_cls.field_cls(
+                no_input=mode, mode=mode, no_output=False
+            )
             relational_fields = [field]
 
         attrs.update(
@@ -194,7 +202,7 @@ class Schema(utype.Schema):
         cls: Type[Schema]
         values = cls._get_compiler(queryset, context=context, single=True).get_values()
         if not values:
-            raise exceptions.EmptyQueryset(f'Empty queryset')
+            raise exceptions.EmptyQueryset(f"Empty queryset")
         return cls.__from__(values[0], cls.__serialize_options__)
 
     @classmethod
@@ -203,39 +211,46 @@ class Schema(utype.Schema):
         # initialize this schema with the given queryset (first element)
         # raise error if queryset is empty
         cls: Type[Schema]
-        values = await cls._get_compiler(queryset, context=context, single=True).get_values()
+        values = await cls._get_compiler(
+            queryset, context=context, single=True
+        ).get_values()
         if not values:
-            raise exceptions.EmptyQueryset(f'Empty queryset')
+            raise exceptions.EmptyQueryset(f"Empty queryset")
         return cls.__from__(values[0], cls.__serialize_options__)
 
-    def commit(self, queryset: T) -> T:   # -> queryset
+    def commit(self, queryset: T) -> T:  # -> queryset
         # commit the data in the schema to the queryset (update)
         # id is ignored here
         compiler = self._get_compiler(queryset)
         return compiler.commit_data(self)
 
     # @awaitable(commit)
-    async def acommit(self, queryset: T) -> T:     # -> queryset
+    async def acommit(self, queryset: T) -> T:  # -> queryset
         # commit the data in the schema to the queryset (update)
         # id is ignored here
         compiler = self._get_compiler(queryset)
         return await compiler.commit_data(self)
 
-    def save(self: T,
-             must_create: bool = None,
-             must_update: bool = None,
-             with_relations: bool = None,
-             ignore_relation_errors: Union[bool, Type[Exception], List[Type[Exception]]] = False,
-             transaction: Union[bool, str] = False,
-             ) -> T:  # -> queryset
+    def save(
+        self: T,
+        must_create: bool = None,
+        must_update: bool = None,
+        with_relations: bool = None,
+        ignore_relation_errors: Union[
+            bool, Type[Exception], List[Type[Exception]]
+        ] = False,
+        transaction: Union[bool, str] = False,
+    ) -> T:  # -> queryset
         # no id: create
         # id: create -(integrityError)-> update
         if must_update and must_create:
-            raise ValueError(f'{__class__.__name__}.save(): must_create and must_update cannot both be True')
+            raise ValueError(
+                f"{__class__.__name__}.save(): must_create and must_update cannot both be True"
+            )
         if must_create is None:
             if must_update:
                 must_create = False
-            elif self.__options__.mode == 'a' and not self.pk:
+            elif self.__options__.mode == "a" and not self.pk:
                 must_create = True
         # if with_relations is None:
         #     with_relations = True
@@ -250,26 +265,31 @@ class Schema(utype.Schema):
             must_update=must_update,
             with_relations=with_relations,
             ignore_relation_errors=ignore_relation_errors,
-            transaction=transaction
+            transaction=transaction,
         )
         return self
 
     # @awaitable(save)
-    async def asave(self: T,
-                    must_create: bool = None,
-                    must_update: bool = None,
-                    with_relations: bool = None,
-                    ignore_relation_errors: Union[bool, Type[Exception], List[Type[Exception]]] = False,
-                    transaction: Union[bool, str] = False,
-                    ) -> T:    # -> queryset
+    async def asave(
+        self: T,
+        must_create: bool = None,
+        must_update: bool = None,
+        with_relations: bool = None,
+        ignore_relation_errors: Union[
+            bool, Type[Exception], List[Type[Exception]]
+        ] = False,
+        transaction: Union[bool, str] = False,
+    ) -> T:  # -> queryset
         # no id: create
         # id: create -(integrityError)-> update
         if must_update and must_create:
-            raise ValueError(f'{__class__.__name__}.asave(): must_create and must_update cannot both be True')
+            raise ValueError(
+                f"{__class__.__name__}.asave(): must_create and must_update cannot both be True"
+            )
         if must_create is None:
             if must_update:
                 must_create = False
-            elif self.__options__.mode == 'a' and not self.pk:
+            elif self.__options__.mode == "a" and not self.pk:
                 must_create = True
         # if with_relations is None:
         #     with_relations = True
@@ -284,26 +304,29 @@ class Schema(utype.Schema):
             must_update=must_update,
             with_relations=with_relations,
             ignore_relation_errors=ignore_relation_errors,
-            transaction=transaction
+            transaction=transaction,
         )
         return self
 
     @classmethod
-    def bulk_save(cls: Type[T],
-                  data: List[T],
-                  must_create: bool = False,
-                  must_update: bool = False,
-                  with_relations: bool = None,
-                  ignore_errors: Union[bool, Type[Exception], List[Type[Exception]]] = False,
-                  ignore_relation_errors: Union[bool, Type[Exception], List[Type[Exception]]] = False,
-                  transaction: Union[bool, str] = False,
-                  ) -> List[T]:
+    def bulk_save(
+        cls: Type[T],
+        data: List[T],
+        must_create: bool = False,
+        must_update: bool = False,
+        with_relations: bool = None,
+        ignore_errors: Union[bool, Type[Exception], List[Type[Exception]]] = False,
+        ignore_relation_errors: Union[
+            bool, Type[Exception], List[Type[Exception]]
+        ] = False,
+        transaction: Union[bool, str] = False,
+    ) -> List[T]:
         # the queryset is contained in the data,
         # data with id will be updated (try, and create after not exists)
         # data without id will be created
         compiler = cls._get_compiler(None)
         if not isinstance(data, list):
-            raise TypeError(f'Invalid data: {data}, must be list')
+            raise TypeError(f"Invalid data: {data}, must be list")
         # 1. transform data list to schema instance list
         values = [val if isinstance(val, cls) else cls.__from__(val) for val in data]
         # 2. bulk create
@@ -315,30 +338,33 @@ class Schema(utype.Schema):
                 with_relations=with_relations,
                 ignore_bulk_errors=ignore_errors,
                 ignore_relation_errors=ignore_relation_errors,
-                transaction=transaction
+                transaction=transaction,
             ),
-            values
+            values,
         ):
             if pk:
                 val.pk = pk
         return values
 
     @classmethod
-    async def abulk_save(cls: Type[T],
-                         data: List[T],
-                         must_create: bool = False,
-                         must_update: bool = False,
-                         with_relations: bool = None,
-                         ignore_errors: Union[bool, Type[Exception], List[Type[Exception]]] = False,
-                         ignore_relation_errors: Union[bool, Type[Exception], List[Type[Exception]]] = False,
-                         transaction: Union[bool, str] = False,
-                         ) -> List[T]:
+    async def abulk_save(
+        cls: Type[T],
+        data: List[T],
+        must_create: bool = False,
+        must_update: bool = False,
+        with_relations: bool = None,
+        ignore_errors: Union[bool, Type[Exception], List[Type[Exception]]] = False,
+        ignore_relation_errors: Union[
+            bool, Type[Exception], List[Type[Exception]]
+        ] = False,
+        transaction: Union[bool, str] = False,
+    ) -> List[T]:
         # the queryset is contained in the data,
         # data with id will be updated (try, and create after not exists)
         # data without id will be created
         compiler = cls._get_compiler(None)
         if not isinstance(data, list):
-            raise TypeError(f'Invalid data: {data}, must be list')
+            raise TypeError(f"Invalid data: {data}, must be list")
         # 1. transform data list to schema instance list
         values = [val if isinstance(val, cls) else cls.__from__(val) for val in data]
         for pk, val in zip(
@@ -349,9 +375,9 @@ class Schema(utype.Schema):
                 with_relations=with_relations,
                 ignore_bulk_errors=ignore_errors,
                 ignore_relation_errors=ignore_relation_errors,
-                transaction=transaction
+                transaction=transaction,
             ),
-            values
+            values,
         ):
             if pk:
                 val.pk = pk
@@ -372,6 +398,7 @@ class Query(utype.Schema):
     def __class_getitem__(cls, item):
         class _class(cls):
             __model__ = item
+
         return _class
 
     def get_generator(self):

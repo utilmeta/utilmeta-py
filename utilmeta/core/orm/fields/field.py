@@ -15,11 +15,7 @@ if TYPE_CHECKING:
 
 
 class ParserQueryField(ParserField):
-    def __init__(
-        self,
-        model: 'ModelAdaptor' = None,
-        **kwargs
-    ):
+    def __init__(self, model: "ModelAdaptor" = None, **kwargs):
         super().__init__(**kwargs)
         self._kwargs = kwargs
         from ..backends.base import ModelAdaptor, ModelFieldAdaptor
@@ -27,14 +23,20 @@ class ParserQueryField(ParserField):
         self.model = model
         self.model_field: Optional[ModelFieldAdaptor] = None
         self.related_model: Optional[ModelAdaptor] = None
-        self.related_schema: Optional[Type['Schema']] = None
+        self.related_schema: Optional[Type["Schema"]] = None
         self.related_single = None
         self.relation_update_enabled = False
-        self.isolated = self.field.isolated if isinstance(self.field, QueryField) else False
-        self.fail_silently = self.field.fail_silently if isinstance(self.field, QueryField) else False
+        self.isolated = (
+            self.field.isolated if isinstance(self.field, QueryField) else False
+        )
+        self.fail_silently = (
+            self.field.fail_silently if isinstance(self.field, QueryField) else False
+        )
         self.many_included = False
         self.subquery = None
-        self.queryset = self.field.queryset if isinstance(self.field, QueryField) else None
+        self.queryset = (
+            self.field.queryset if isinstance(self.field, QueryField) else None
+        )
         self.reverse_lookup = None
         self.primary_key = False
         self.func = None
@@ -42,7 +44,7 @@ class ParserQueryField(ParserField):
         self.type_override = False
         self.original_type = None
 
-    def reconstruct(self, model: 'ModelAdaptor'):
+    def reconstruct(self, model: "ModelAdaptor"):
         return self.__class__(model, **self._kwargs)
 
     def get_query_schema(self):
@@ -54,7 +56,10 @@ class ParserQueryField(ParserField):
 
         if isinstance(self.type, type) and issubclass(self.type, Rule):
             # try to find List[schema]
-            if isinstance(self.type.__origin__, LogicalType) and self.type.__origin__.combinator:
+            if (
+                isinstance(self.type.__origin__, LogicalType)
+                and self.type.__origin__.combinator
+            ):
                 self.related_single = True
 
                 for arg in self.type.__origin__.args:
@@ -65,7 +70,11 @@ class ParserQueryField(ParserField):
                         schema = arg
                         break
             else:
-                if self.type.__origin__ and issubclass(self.type.__origin__, list) and self.type.__args__:
+                if (
+                    self.type.__origin__
+                    and issubclass(self.type.__origin__, list)
+                    and self.type.__args__
+                ):
                     self.related_single = False
                     # also for List[str] / List[int]
                     # we only accept list, not tuple/set
@@ -91,13 +100,16 @@ class ParserQueryField(ParserField):
                     if self.model_field and self.related_model:
                         # if parser.model and self.model_field:
                         # check model if not queryset
-                        if self.related_model.is_sub_model(parser.model) \
-                                or parser.model.is_sub_model(self.related_model):
+                        if self.related_model.is_sub_model(
+                            parser.model
+                        ) or parser.model.is_sub_model(self.related_model):
                             schema = schema or parser.obj
                         else:
-                            raise TypeError(f'orm.Field({repr(self.name)}): '
-                                            f'Invalid related model: {parser.model.model},'
-                                            f' sub model of {self.related_model.model} expected')
+                            raise TypeError(
+                                f"orm.Field({repr(self.name)}): "
+                                f"Invalid related model: {parser.model.model},"
+                                f" sub model of {self.related_model.model} expected"
+                            )
                     else:
                         schema = schema or parser.obj
                         # 1. func field
@@ -116,7 +128,9 @@ class ParserQueryField(ParserField):
                     # raise TypeError(f'orm.Field({repr(self.name)})) no model '
                     #                 f'specified for related schema: {parser.obj}')
 
-                class schema(parser.obj, Schema[self.related_model]): pass
+                class schema(parser.obj, Schema[self.related_model]):
+                    pass
+
             else:
                 if not issubclass(schema, Schema):
                     # common schema, not related schema
@@ -126,8 +140,9 @@ class ParserQueryField(ParserField):
             self.isolated = True
 
     @classmethod
-    def process_annotate_meta(cls, m, model: 'ModelAdaptor' = None, **kwargs):
+    def process_annotate_meta(cls, m, model: "ModelAdaptor" = None, **kwargs):
         from ..backends.base import ModelAdaptor
+
         if isinstance(model, ModelAdaptor):
             if model.field_adaptor_cls.qualify(m):
                 return QueryField(m)
@@ -136,8 +151,11 @@ class ParserQueryField(ParserField):
         return super().process_annotate_meta(m, **kwargs)
 
     @classmethod
-    def get_field(cls, annotation: Any, default, model: 'ModelAdaptor' = None, **kwargs):
+    def get_field(
+        cls, annotation: Any, default, model: "ModelAdaptor" = None, **kwargs
+    ):
         from ..backends.base import ModelAdaptor
+
         if isinstance(model, ModelAdaptor):
             if model.field_adaptor_cls.qualify(default):
                 return QueryField(default)
@@ -150,41 +168,38 @@ class ParserQueryField(ParserField):
         self.original_type = self.type
 
         from ..backends.base import ModelAdaptor
+
         if not isinstance(self.model, ModelAdaptor):
             return
 
         if class_func(self.field_name):
             from utype.parser.func import FunctionParser
+
             func = FunctionParser.apply_for(self.field_name)
             # fixme: ugly approach, getting the awaitable async function
-            async_func = getattr(func.obj, '_asyncfunc', None)
-            sync_func = getattr(func.obj, '_syncfunc', None)
+            async_func = getattr(func.obj, "_asyncfunc", None)
+            sync_func = getattr(func.obj, "_syncfunc", None)
             if async_func and sync_func:
                 from utilmeta.utils import awaitable
+
                 if isinstance(self.field_name, classmethod):
                     sync_func = classmethod(sync_func)
                     async_func = classmethod(async_func)
                 sync_wrapper = FunctionParser.apply_for(sync_func).wrap(
-                    ignore_methods=True,
-                    parse_params=True,
-                    parse_result=True
+                    ignore_methods=True, parse_params=True, parse_result=True
                 )
                 async_wrapper = FunctionParser.apply_for(async_func).wrap(
-                    ignore_methods=True,
-                    parse_params=True,
-                    parse_result=True
+                    ignore_methods=True, parse_params=True, parse_result=True
                 )
                 self.func = awaitable(sync_wrapper)(async_wrapper)
             else:
                 self.func = func.wrap(
-                    ignore_methods=True,
-                    parse_params=True,
-                    parse_result=True
+                    ignore_methods=True, parse_params=True, parse_result=True
                 )
             self.func_multi = bool(func.pos_var)
 
             if not self.mode:
-                self.mode = 'r'
+                self.mode = "r"
 
             self.get_query_schema()
             return
@@ -192,39 +207,50 @@ class ParserQueryField(ParserField):
         if self.model.check_subquery(self.field_name):
             self.subquery = self.field_name
             if not self.mode:
-                self.mode = 'r'
+                self.mode = "r"
             self.related_model = self.model.get_model(self.subquery)
             if not self.related_model:
-                raise ValueError(f'No model detected in queryset: {self.subquery}')
+                raise ValueError(f"No model detected in queryset: {self.subquery}")
             if self.queryset is not None:
-                raise ValueError(f'specify subquery field and queryset at the same time is not supported')
+                raise ValueError(
+                    f"specify subquery field and queryset at the same time is not supported"
+                )
 
             self.get_query_schema()
 
             if self.related_single is False:
-                warnings.warn(f'{self.model} schema field: {repr(self.name)} is a multi-relation with a subquery, '
-                              f'you need to make sure that only 1 row of the query is returned, '
-                              f'otherwise use query function instead')
+                warnings.warn(
+                    f"{self.model} schema field: {repr(self.name)} is a multi-relation with a subquery, "
+                    f"you need to make sure that only 1 row of the query is returned, "
+                    f"otherwise use query function instead"
+                )
 
             self.isolated = True
             # force isolated for queryset query (even without schema)
             return
 
-        self.model_field = self.model.get_field(self.field_name, allow_addon=True, silently=True)
-        self.related_model = self.model_field.related_model if self.model_field else None
+        self.model_field = self.model.get_field(
+            self.field_name, allow_addon=True, silently=True
+        )
+        self.related_model = (
+            self.model_field.related_model if self.model_field else None
+        )
 
         # fix: get related model before get query schema
         self.get_query_schema()
 
         if self.model_field:
-            self.primary_key = self.model_field and self.model_field.is_pk and \
-                               self.model.is_sub_model(self.model_field.field_model)
+            self.primary_key = (
+                self.model_field
+                and self.model_field.is_pk
+                and self.model.is_sub_model(self.model_field.field_model)
+            )
             # use is sub model, because pk might be its base model
 
             if self.model_field.is_auto:
                 if self.model_field.is_auto_now:
                     if not self.no_input:
-                        self.no_input = 'aw'
+                        self.no_input = "aw"
                     if self.default_factory is None:
                         self.default_factory = time_now
                     # handle auto_now differently
@@ -232,25 +258,27 @@ class ParserQueryField(ParserField):
                     if not self.mode:
                         # accept 'w' to identify object
                         if self.primary_key or self.model_field.is_writable:
-                            mode = {'r', 'w'}
+                            mode = {"r", "w"}
                             if isinstance(self.no_input, str):
                                 mode.update(self.no_input)
                             if isinstance(self.no_output, str):
                                 mode.update(self.no_output)
                             # eg. id: int = orm.Field(no_input='a')
                             # should have mode: 'raw' instead of 'rw
-                            self.mode = ''.join(sorted(list(mode)))
+                            self.mode = "".join(sorted(list(mode)))
 
                             if self.required is True:
-                                self.required = 'r'
+                                self.required = "r"
 
                         if not self.no_input:
-                            self.no_input = 'a'
+                            self.no_input = "a"
 
-            if not self.model_field.is_writable or self.model.cross_models(self.field_name):
+            if not self.model_field.is_writable or self.model.cross_models(
+                self.field_name
+            ):
                 # read only
                 if not self.mode and not self.primary_key:
-                    self.mode = 'r'
+                    self.mode = "r"
                     # do not set primary key field to mode='r'
                     # otherwise pk will not be settable in other mode
 
@@ -275,24 +303,32 @@ class ParserQueryField(ParserField):
 
             if self.queryset is not None:
                 if not self.related_model:
-                    raise ValueError(f'Invalid queryset for field: {repr(self.model_field.name)}, '
-                                     f'no related model')
-                if not self.related_model.check_queryset(self.queryset, check_model=True):
-                    raise ValueError(f'Invalid queryset for field: {repr(self.model_field.name)}, '
-                                     f'must be a queryset of model {self.related_model.model}')
+                    raise ValueError(
+                        f"Invalid queryset for field: {repr(self.model_field.name)}, "
+                        f"no related model"
+                    )
+                if not self.related_model.check_queryset(
+                    self.queryset, check_model=True
+                ):
+                    raise ValueError(
+                        f"Invalid queryset for field: {repr(self.model_field.name)}, "
+                        f"must be a queryset of model {self.related_model.model}"
+                    )
                 self.reverse_lookup, c = self.model.get_reverse_lookup(self.field_name)
                 if c or not self.reverse_lookup:
-                    raise ValueError(f'Invalid queryset for field: {repr(self.model_field.name)}, '
-                                     f'invalid reverse lookup: {self.reverse_lookup}, {c}')
+                    raise ValueError(
+                        f"Invalid queryset for field: {repr(self.model_field.name)}, "
+                        f"invalid reverse lookup: {self.reverse_lookup}, {c}"
+                    )
 
             if self.related_schema:
                 # even for fk schema
                 # is not writable by default
                 # if self.related_model or self.many_included:
                 if not self.mode:
-                    self.mode = 'r'
+                    self.mode = "r"
 
-                elif 'a' in self.mode or 'w' in self.mode:
+                elif "a" in self.mode or "w" in self.mode:
                     # UPDATE ON RELATIONAL
                     if options.mode and set(options.mode).issubset(self.mode):
                         self.setup_relational_update(options)
@@ -302,11 +338,16 @@ class ParserQueryField(ParserField):
                 # 1. for a common field (say, JSONField) with related schema, we does not say mode to 'r'
                 # 2. for serializing array field (pk_values) using related schema, isolated should be True
             else:
-                if self.mode and ('a' in self.mode or 'w' in self.mode):
+                if self.mode and ("a" in self.mode or "w" in self.mode):
                     # update many fields
                     # tags: [1, 4, 5]
-                    if not self.model.cross_models(self.field_name) and not self.model_field.is_concrete:
-                        if self.model_field.is_m2m or (self.model_field.is_o2 and self.model_field.is_2o):
+                    if (
+                        not self.model.cross_models(self.field_name)
+                        and not self.model_field.is_concrete
+                    ):
+                        if self.model_field.is_m2m or (
+                            self.model_field.is_o2 and self.model_field.is_2o
+                        ):
                             # 1. OneToOneRel
                             # 2. ManyToManyField / ManyToManyRel
                             self.relation_update_enabled = True
@@ -318,26 +359,34 @@ class ParserQueryField(ParserField):
                     self.type = rule.merge_type(self.type)
                     # merge declared type and model field type
                 except utype.exc.ConfigError as e:
-                    warnings.warn(f'orm.Schema[{self.model.model}] got model field: [{repr(self.name)}] '
-                                  f'with rule: {rule} '
-                                  f'conflicted to the declared type: {self.type}, using the declared type,'
-                                  f'error: {e}')
+                    warnings.warn(
+                        f"orm.Schema[{self.model.model}] got model field: [{repr(self.name)}] "
+                        f"with rule: {rule} "
+                        f"conflicted to the declared type: {self.type}, using the declared type,"
+                        f"error: {e}"
+                    )
                 # fixme: do not merge for ForwardRef
 
         else:
             if isinstance(self.field, QueryField) and self.field.field:
-                raise ValueError(f'orm.Field({repr(self.field.field)}) not exists in model: {self.model}')
+                raise ValueError(
+                    f"orm.Field({repr(self.field.field)}) not exists in model: {self.model}"
+                )
             # will not be queried (input of 'r' mode)
             if not self.no_input:
-                self.no_input = 'r'
+                self.no_input = "r"
             if not self.no_output:
                 # no output for write / create
-                self.no_output = 'aw'
+                self.no_output = "aw"
 
     def override_required(self, options: utype.Options):
         if not self.type_override:
-            if self.model_field and self.related_schema and not self.model.cross_models(self.field_name):
-                if 'a' in self.mode or 'w' in self.mode:
+            if (
+                self.model_field
+                and self.related_schema
+                and not self.model.cross_models(self.field_name)
+            ):
+                if "a" in self.mode or "w" in self.mode:
                     # UPDATE ON RELATIONAL
                     if options.mode and set(options.mode).issubset(self.mode):
                         return True
@@ -350,12 +399,11 @@ class ParserQueryField(ParserField):
             # CROSS MODEL FIELDS CANNOT USED IN UPDATE
             self.no_output = self.no_output or options.mode
             return
-        remote_field_name = self.model_field.remote_field.column_name   # +_id
+        remote_field_name = self.model_field.remote_field.column_name  # +_id
         from utilmeta.core.orm import Schema
 
         self.related_schema = self.related_schema._get_relational_update_cls(
-            field=remote_field_name,
-            mode=options.mode
+            field=remote_field_name, mode=options.mode
         )
         # can be cached
 
@@ -364,26 +412,35 @@ class ParserQueryField(ParserField):
             origin = None
             rule_args = []
             rule_constraints = {}
-            if isinstance(self.type.__origin__, LogicalType) and self.type.__origin__.combinator:
+            if (
+                isinstance(self.type.__origin__, LogicalType)
+                and self.type.__origin__.combinator
+            ):
                 args = []
                 for arg in self.type.__origin__.args:
                     if isinstance(arg, type) and issubclass(arg, Schema):
-                        args.append(arg._get_relational_update_cls(
-                            field=remote_field_name,
-                            mode=options.mode
-                        ))
+                        args.append(
+                            arg._get_relational_update_cls(
+                                field=remote_field_name, mode=options.mode
+                            )
+                        )
                     else:
                         args.append(arg)
                 origin = LogicalType.combine(self.type.__origin__.combinator, *args)
                 rule_args = self.type.__args__ or []
             else:
-                if self.type.__origin__ and issubclass(self.type.__origin__, list) and self.type.__args__:
+                if (
+                    self.type.__origin__
+                    and issubclass(self.type.__origin__, list)
+                    and self.type.__args__
+                ):
                     arg = self.type.__args__[0]
                     if isinstance(arg, type) and issubclass(arg, Schema):
-                        rule_args.append(arg._get_relational_update_cls(
-                            field=remote_field_name,
-                            mode=options.mode
-                        ))
+                        rule_args.append(
+                            arg._get_relational_update_cls(
+                                field=remote_field_name, mode=options.mode
+                            )
+                        )
                     else:
                         rule_args.append(arg)
                     origin = self.type.__origin__
@@ -398,18 +455,18 @@ class ParserQueryField(ParserField):
         else:
             if isinstance(self.type, type) and issubclass(self.type, Schema):
                 self.type = self.type._get_relational_update_cls(
-                    field=remote_field_name,
-                    mode=options.mode
+                    field=remote_field_name, mode=options.mode
                 )
             else:
                 if isinstance(self.type, LogicalType) and self.type.combinator:
                     args = []
                     for arg in self.type.args:
                         if isinstance(arg, type) and issubclass(arg, Schema):
-                            args.append(arg._get_relational_update_cls(
-                                field=remote_field_name,
-                                mode=options.mode
-                            ))
+                            args.append(
+                                arg._get_relational_update_cls(
+                                    field=remote_field_name, mode=options.mode
+                                )
+                            )
                         else:
                             args.append(arg)
                     self.type = LogicalType.combine(self.type.combinator, *args)
@@ -426,7 +483,7 @@ class ParserQueryField(ParserField):
             return True
         if not self.model_field:
             return False
-        return not self.always_no_input(utype.Options(mode='r'))
+        return not self.always_no_input(utype.Options(mode="r"))
 
     @property
     def writable(self):
@@ -473,9 +530,11 @@ class ParserQueryField(ParserField):
         # content.article is a sub relation
         if self.related_model:
             if issubclass(self.related_model.model, self.model.model):
-                if not self.model_field.multi_relations and \
-                        self.model_field.remote_field and \
-                        self.model_field.remote_field.is_pk:
+                if (
+                    not self.model_field.multi_relations
+                    and self.model_field.remote_field
+                    and self.model_field.remote_field.is_pk
+                ):
                     return True
         return False
 
@@ -492,19 +551,22 @@ class ParserQueryField(ParserField):
 class QueryField(Field):
     parser_field_cls = ParserQueryField
 
-    def __init__(self, field=None, *,
-                 queryset=None,
-                 fail_silently: bool = None,
-                 auth: dict = None,
-                 # filter=None,
-                 # order_by: Union[str, List[str], Callable] = None,
-                 # limit: Union[int, Callable] = None,
-                 # distinct: bool = None,
-                 isolated: bool = None,
-                 **kwargs
-                 # if module enabled result control (page / rows / limit / offset) and such params is provided
-                 # this config is automatically turn to True to prevent result control the entire queryset
-                 ):
+    def __init__(
+        self,
+        field=None,
+        *,
+        queryset=None,
+        fail_silently: bool = None,
+        auth: dict = None,
+        # filter=None,
+        # order_by: Union[str, List[str], Callable] = None,
+        # limit: Union[int, Callable] = None,
+        # distinct: bool = None,
+        isolated: bool = None,
+        **kwargs
+        # if module enabled result control (page / rows / limit / offset) and such params is provided
+        # this config is automatically turn to True to prevent result control the entire queryset
+    ):
         super().__init__(**kwargs)
         self.field = field
 

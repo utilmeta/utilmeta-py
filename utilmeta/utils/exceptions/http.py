@@ -9,19 +9,22 @@ class HttpError(Exception):
     record_disabled = False
 
     def __str__(self):
-        msg = str(self.message or '')
+        msg = str(self.message or "")
         head = self.__class__.__name__
         if msg.startswith(head):
             return msg
-        return f'{head}: {self.message}'
+        return f"{head}: {self.message}"
 
-    def __init__(self, message: str = None, *,
-                 state: Union[str, int] = None,
-                 status: int = None,
-                 result=None,
-                 extra: dict = None,
-                 detail: Union[dict, list] = (),
-                 ):
+    def __init__(
+        self,
+        message: str = None,
+        *,
+        state: Union[str, int] = None,
+        status: int = None,
+        result=None,
+        extra: dict = None,
+        detail: Union[dict, list] = (),
+    ):
         self.message = str(message)
         self.state = state
         self.result = result
@@ -82,8 +85,14 @@ class BadRequest(RequestError):
 class Unauthorized(RequestError):
     status = 401
 
-    def __init__(self, message: str = None, *, state: Union[str, int] = None,
-                 auth_scheme: str = None, auth_params: dict = None):
+    def __init__(
+        self,
+        message: str = None,
+        *,
+        state: Union[str, int] = None,
+        auth_scheme: str = None,
+        auth_params: dict = None,
+    ):
         self.message = str(message)
         self.state = state
         super().__init__(message=message, state=state)
@@ -91,7 +100,7 @@ class Unauthorized(RequestError):
             return
         value = auth_scheme.capitalize()
         if isinstance(auth_params, dict):
-            value += ' ' + ','.join([f'{k}={v}' for k, v in auth_params.items()])
+            value += " " + ",".join([f"{k}={v}" for k, v in auth_params.items()])
         self.append_headers = {Header.WWW_AUTH: value}
 
 
@@ -102,7 +111,15 @@ class PaymentRequired(RequestError):
 class PermissionDenied(RequestError):
     status = 403
 
-    def __init__(self, msg: str = None, *, scope=None, required_scope=None, name: str = None, **kwargs):
+    def __init__(
+        self,
+        msg: str = None,
+        *,
+        scope=None,
+        required_scope=None,
+        name: str = None,
+        **kwargs,
+    ):
         super().__init__(msg, **kwargs)
         self.scope = scope
         self.required_scope = required_scope
@@ -112,27 +129,34 @@ class PermissionDenied(RequestError):
 class NotFound(RequestError):
     status = 404
 
-    def __init__(self, message: str = None, *, path: str = None, query: dict = None, **kwargs):
+    def __init__(
+        self, message: str = None, *, path: str = None, query: dict = None, **kwargs
+    ):
         from urllib.parse import urlencode
+
         msg = [message] if message else []
         if path:
-            msg.append(f'path: <{path}> not found')
+            msg.append(f"path: <{path}> not found")
         if query:
-            msg.append('query: <%s> not found' % urlencode(query))
+            msg.append("query: <%s> not found" % urlencode(query))
         if not msg:
-            msg = ['not found']
+            msg = ["not found"]
         self.path = path
         self.query = query
-        super().__init__(message=';'.join(msg), **kwargs)
+        super().__init__(message=";".join(msg), **kwargs)
 
 
 class MethodNotAllowed(RequestError):
     status = 405
 
-    def __init__(self, message: str = None, method: str = None, allows: List[str] = None):
-        self.message = message or f'Method: {method} is not allowed (use methods in {allows})'
+    def __init__(
+        self, message: str = None, method: str = None, allows: List[str] = None
+    ):
+        self.message = (
+            message or f"Method: {method} is not allowed (use methods in {allows})"
+        )
         self.forbid = method
-        self.allows = ', '.join([str(a) for a in allows]) if allows else ''
+        self.allows = ", ".join([str(a) for a in allows]) if allows else ""
         self.append_headers = {Header.ALLOW: self.allows}
         super().__init__(self.message)
 
@@ -214,17 +238,18 @@ class UpgradeRequired(RequestError):
 
     def __init__(self, message: str = None, scheme: str = None):
         from utilmeta.utils.constant import Header, Scheme
+
         self.message = message
         self.scheme = scheme
         if scheme == Scheme.WS:
-            scheme = 'websocket'
+            scheme = "websocket"
         elif isinstance(scheme, str):
             scheme = scheme.upper()
         else:
             scheme = Scheme.HTTPS.upper()
         self.append_headers = {
             Header.UPGRADE: scheme,
-            Header.CONNECTION: Header.UPGRADE
+            Header.CONNECTION: Header.UPGRADE,
         }
         super().__init__(message)
 
@@ -256,13 +281,13 @@ class ServerError(HttpError):
 
 class MaxRetriesExceed(ServerError, RuntimeError):
     def __init__(self, msg: str = None, max_retries: int = None):
-        super().__init__(msg or f'Max retries exceeded: {max_retries}')
+        super().__init__(msg or f"Max retries exceeded: {max_retries}")
         self.max_retries = max_retries
 
 
 class MaxRetriesTimeoutExceed(ServerError, TimeoutError):
     def __init__(self, msg: str = None, max_retries_timeout: float = None):
-        super().__init__(msg or f'Max retries timeout exceeded: {max_retries_timeout}')
+        super().__init__(msg or f"Max retries timeout exceeded: {max_retries_timeout}")
         self.max_retries_timeout = max_retries_timeout
 
 
@@ -325,10 +350,12 @@ class NetworkAuthenticationRequired(ServerError):
 
 def http_error(status: int = 400, message: str = None):
     if status < 400 or status > 600:
-        raise ValueError(f'Invalid HTTP error status: {status} must in 400~600')
+        raise ValueError(f"Invalid HTTP error status: {status} must in 400~600")
     error = HttpError.STATUS_EXCEPTIONS.get(status)
     if not error:
+
         class error(HttpError):
             pass
+
         error.status = status
     return error(message=message)

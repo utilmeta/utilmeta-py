@@ -6,27 +6,28 @@ from utilmeta.utils import requires
 
 
 class DjangoDatabaseAdaptor(BaseDatabaseAdaptor):
-    SQLITE = 'django.db.backends.sqlite3'
-    ORACLE = 'django.db.backends.oracle'
-    MYSQL = 'django.db.backends.mysql'
-    POSTGRESQL = 'django.db.backends.postgresql'
+    SQLITE = "django.db.backends.sqlite3"
+    ORACLE = "django.db.backends.oracle"
+    MYSQL = "django.db.backends.mysql"
+    POSTGRESQL = "django.db.backends.postgresql"
     # -- pooled backends
-    POOLED_POSTGRESQL = 'utilmeta.util.query.pooled_backends.postgresql'
-    POOLED_GEVENT_POSTGRESQL = 'utilmeta.util.query.pooled_backends.postgresql_gevent'
+    POOLED_POSTGRESQL = "utilmeta.util.query.pooled_backends.postgresql"
+    POOLED_GEVENT_POSTGRESQL = "utilmeta.util.query.pooled_backends.postgresql_gevent"
     # POOLED_MYSQL = 'utilmeta.util.query.pooled_backends.mysql'
     # POOLED_ORACLE = 'utilmeta.util.query.pooled_backends.oracle'
 
     DEFAULT_ENGINES = {
-        'sqlite': SQLITE,
-        'sqlite3': SQLITE,
-        'oracle': ORACLE,
-        'mysql': MYSQL,
-        'postgresql': POSTGRESQL,
-        'postgres': POSTGRESQL
+        "sqlite": SQLITE,
+        "sqlite3": SQLITE,
+        "oracle": ORACLE,
+        "mysql": MYSQL,
+        "postgresql": POSTGRESQL,
+        "postgres": POSTGRESQL,
     }
 
     def get_integrity_errors(self):
         from django.db.utils import IntegrityError
+
         return (IntegrityError,)
 
     @classmethod
@@ -67,10 +68,12 @@ class DjangoDatabaseAdaptor(BaseDatabaseAdaptor):
 
     def connect(self):
         from django.db import connections
+
         return connections[self.alias]
 
     def disconnect(self):
         from django.db import connections
+
         connections.close_all()
 
     def execute(self, sql, params=None):
@@ -92,6 +95,7 @@ class DjangoDatabaseAdaptor(BaseDatabaseAdaptor):
 
     def fetchall(self, sql, params=None):
         from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE
+
         db = self.connect()
         with db.cursor() as cursor:
             cursor.execute(sql, params)
@@ -99,6 +103,7 @@ class DjangoDatabaseAdaptor(BaseDatabaseAdaptor):
 
     def transaction(self, savepoint=None, isolation=None, force_rollback: bool = False):
         from django.db import transaction
+
         return transaction.atomic(self.alias, savepoint=savepoint)
 
     def check(self):
@@ -107,14 +112,9 @@ class DjangoDatabaseAdaptor(BaseDatabaseAdaptor):
         # except (ModuleNotFoundError, ImportError) as e:
         #     raise e.__class__(f'{self.__class__} as database adaptor requires to install django') from e
         if self.config.is_mysql:
-            requires(
-                MySQLdb='mysqlclient'
-            )
+            requires(MySQLdb="mysqlclient")
         elif self.config.is_postgresql:
-            requires(
-                psycopg='"psycopg[binary,pool]"',
-                psycopg2='psycopg2'
-            )
+            requires(psycopg='"psycopg[binary,pool]"', psycopg2="psycopg2")
 
 
 class DjangoDatabase(Database):

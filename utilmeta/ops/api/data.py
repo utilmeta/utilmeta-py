@@ -11,7 +11,7 @@ import utype
 class QuerySchema(utype.Schema):
     # id_list: list = None
     query: dict = {}
-    orders: List[str] = ['pk']
+    orders: List[str] = ["pk"]
     rows: int = utype.Field(default=10, le=100, ge=1)
     page: int = utype.Field(default=1, ge=1)
     fields: list = []
@@ -40,15 +40,15 @@ class DataAPI(api.API):
     # using: str = request.QueryParam(default=None)
 
     def get_model(self):
-        if '.' not in self.model:
+        if "." not in self.model:
             return None
         # security check
         tables = self.get_tables()
         for table in tables:
-            if table.get('ref') == self.model:
+            if table.get("ref") == self.model:
                 if table.model:
                     return table.model
-        raise exceptions.BadRequest(f'Invalid model: {self.model}')
+        raise exceptions.BadRequest(f"Invalid model: {self.model}")
         # deprecate the import usage as it maybe dangerous
 
     def __init__(self, *args, **kwargs):
@@ -65,7 +65,7 @@ class DataAPI(api.API):
         try:
             self._adaptor = ModelAdaptor.dispatch(self.model_class)
         except NotImplementedError:
-            raise exceptions.BadRequest(f'Invalid model: {self.model}')
+            raise exceptions.BadRequest(f"Invalid model: {self.model}")
         return self._adaptor
 
     def parse_result(self, data, max_length: Optional[int] = None):
@@ -75,7 +75,7 @@ class DataAPI(api.API):
             return data
         elif isinstance(data, dict):
             for k in list(data.keys()):
-                if k == 'pk':
+                if k == "pk":
                     continue
                 field = self.adaptor.get_field(k)
                 if config.is_secret(k) and not field.related_model:
@@ -87,40 +87,45 @@ class DataAPI(api.API):
             return data
         return reduce_value(data, max_length=max_length)
 
-    @api.get('tables')
-    @opsRequire('data.view')
+    @api.get("tables")
+    @opsRequire("data.view")
     def get_tables(self) -> List[TableSchema]:
         global _tables
         if _tables is not None:
             return _tables
         from ..resources import ResourcesManager
+
         _tables = ResourcesManager().get_tables(with_model=True)
         return _tables
 
     # scope: data.view:[TABLE_IDENT]
-    @api.post('query')
-    @opsRequire('data.query')
+    @api.post("query")
+    @opsRequire("data.query")
     @adapt_async(close_conn=True)
     # close all connections
     def query_data(self, query: QuerySchema = request.Body):
         try:
             unsliced_qs = self.adaptor.get_queryset(**query.query)
             count = unsliced_qs.count()
-            qs = unsliced_qs.order_by(*query.orders)[(query.page - 1) * query.rows: query.page * query.rows]
+            qs = unsliced_qs.order_by(*query.orders)[
+                (query.page - 1) * query.rows : query.page * query.rows
+            ]
             fields = query.fields
             if not fields:
-                fields = ['pk'] + [f.column_name for f in self.adaptor.get_fields(
-                    many=False, no_inherit=True) if f.column_name]
+                fields = ["pk"] + [
+                    f.column_name
+                    for f in self.adaptor.get_fields(many=False, no_inherit=True)
+                    if f.column_name
+                ]
             values = self.adaptor.values(qs, *fields)
         except self.adaptor.field_errors as e:
             raise exceptions.BadRequest(str(e)) from e
         return self.response(
-            self.parse_result(values, max_length=query.max_length),
-            count=count
+            self.parse_result(values, max_length=query.max_length), count=count
         )
 
-    @api.post('create')
-    @opsRequire('data.create')
+    @api.post("create")
+    @opsRequire("data.create")
     @adapt_async(close_conn=True)
     # close all connections
     def create_data(self, data: CreateDataSchema = request.Body):
@@ -133,31 +138,30 @@ class DataAPI(api.API):
         values = self.adaptor.values(qs, *data.return_fields)
         return self.parse_result(values, max_length=data.return_max_length)
 
-    @api.post('update')
-    @opsRequire('data.update')
+    @api.post("update")
+    @opsRequire("data.update")
     @adapt_async(close_conn=True)
     # close all connections
     def update_data(self, data: UpdateDataSchema = request.Body):
         for val in data.data:
-            pk = pop(val, 'pk')
+            pk = pop(val, "pk")
             if pk:
                 self.adaptor.update(val, pk=pk)
 
-    def delete_data(self,
-                    id: str = request.BodyParam
-                    # query: dict = request.BodyParam,
-                    # limit: Optional[int] = request.BodyParam(None)
-                    ):
+    def delete_data(
+        self,
+        id: str = request.BodyParam
+        # query: dict = request.BodyParam,
+        # limit: Optional[int] = request.BodyParam(None)
+    ):
         # qs = self.adaptor.get_queryset(**query)
         # if limit is not None:
         #     qs = qs.order_by('pk')[:limit]
         return self.adaptor.delete(pk=id)
 
-    @api.post('delete')
-    @opsRequire('data.delete')
+    @api.post("delete")
+    @opsRequire("data.delete")
     @awaitable(delete_data)
-    async def delete_data(self,
-                          id: str = request.BodyParam
-                          ):
+    async def delete_data(self, id: str = request.BodyParam):
         # apply for async CASCADE
         return await self.adaptor.adelete(pk=id)

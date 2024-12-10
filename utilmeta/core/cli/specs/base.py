@@ -25,7 +25,7 @@ class BaseClientGenerator:
             file_path = file
             if not os.path.isabs(file):
                 file_path = os.path.join(os.getcwd(), file)
-            with open(file, 'w', encoding='utf-8') as f:
+            with open(file, "w", encoding="utf-8") as f:
                 f.write(content)
             return file_path
         elif console:

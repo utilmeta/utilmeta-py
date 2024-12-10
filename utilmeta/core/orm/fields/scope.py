@@ -11,14 +11,15 @@ class Scope(Field):
     # TEMPLATE_ALIASES = ['template', 'includes', 'scope', 'fields']
     # EXCLUDES_ALIASES = ['excludes', 'skip']
 
-    def __init__(self,
-                 excluded: bool = False,
-                 max_depth: int = None,
-                 ignore_invalids: bool = True,
-                 allow_recursive: bool = True,
-                 required: bool = False,
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        excluded: bool = False,
+        max_depth: int = None,
+        ignore_invalids: bool = True,
+        allow_recursive: bool = True,
+        required: bool = False,
+        **kwargs
+    ):
         super().__init__(**kwargs, required=required)
         self.max_depth = max_depth
         self.ignore_invalids = ignore_invalids
@@ -37,10 +38,7 @@ class Scope(Field):
 
     @property
     def schema_annotations(self):
-        return {
-            'class': 'scope',
-            'excluded':  self.excluded
-        }
+        return {"class": "scope", "excluded": self.excluded}
 
     @property
     def default_type(self):

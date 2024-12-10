@@ -3,9 +3,9 @@ from utilmeta.core.request import Request
 from utilmeta.core.response import Response
 
 
-process_response = PluginEvent('process_response', streamline_result=True)
-process_request = PluginEvent('process_request', streamline_result=True)
-handle_error = PluginEvent('handle_error')
+process_response = PluginEvent("process_response", streamline_result=True)
+process_request = PluginEvent("process_request", streamline_result=True)
+handle_error = PluginEvent("handle_error")
 
 
 class APIPlugin(PluginBase):
@@ -26,6 +26,7 @@ class APIPlugin(PluginBase):
     def inject(self, target_class):
         # inject to the endpoints
         from ..base import API
+
         if isinstance(target_class, type) and issubclass(target_class, API):
             for route in target_class._routes:
                 self.inject(route.handler)

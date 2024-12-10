@@ -13,7 +13,7 @@ from utilmeta.conf import Preference
 if TYPE_CHECKING:
     from utilmeta.core.request import Request
 
-T = TypeVar('T')
+T = TypeVar("T")
 EPOCH = datetime(1970, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
 
@@ -26,6 +26,7 @@ class SessionCreateError(SessionError):
     Used internally as a consistent exception type to catch from save (see the
     docstring for SessionBase.save() for details).
     """
+
     pass
 
 
@@ -33,6 +34,7 @@ class SessionUpdateError(SessionError):
     """
     Occurs if Django tries to update a session that was deleted.
     """
+
     pass
 
 
@@ -42,27 +44,27 @@ class BaseSessionSchema(Schema):
     1. support both sync and async session
     2. use schema to define session fields
     """
+
     __options__ = Options(addition=True, ignore_required=True)
 
     _serializer_cls: ClassVar = JSONSerializer
-    _config: 'SchemaSession'
+    _config: "SchemaSession"
     _session_key = None
-    _request: 'Request' = None
+    _request: "Request" = None
     _modified = False
 
     # inner fields
     expiry: Optional[datetime] = Field(
-        required=False, default=None,
-        defer_default=True, alias='_session_expiry'
+        required=False, default=None, defer_default=True, alias="_session_expiry"
     )
-    key_salt: ClassVar[str] = 'utilmeta.core.auth.session.schema'
+    key_salt: ClassVar[str] = "utilmeta.core.auth.session.schema"
     # not based __class__, because it may change for different APIs
 
     @classmethod
-    def init_from(cls: Type[T], session_key: str, config: 'SchemaSession') -> T:
+    def init_from(cls: Type[T], session_key: str, config: "SchemaSession") -> T:
         self = cls.__new__(cls)
         if not isinstance(config, SchemaSession):
-            raise TypeError(f'Invalid session config: {config}')
+            raise TypeError(f"Invalid session config: {config}")
         self._config = config
         if session_key:
             if not isinstance(session_key, str):
@@ -77,10 +79,10 @@ class BaseSessionSchema(Schema):
         return self
 
     @classmethod
-    async def ainit_from(cls: Type[T], session_key: str, config: 'SchemaSession') -> T:
+    async def ainit_from(cls: Type[T], session_key: str, config: "SchemaSession") -> T:
         self = cls.__new__(cls)
         if not isinstance(config, SchemaSession):
-            raise TypeError(f'Invalid session config: {config}')
+            raise TypeError(f"Invalid session config: {config}")
         self._config = config
         if session_key:
             if not isinstance(session_key, str):
@@ -95,10 +97,10 @@ class BaseSessionSchema(Schema):
         return self
 
     @classmethod
-    def init(cls: Type[T], request: Request, config: 'SchemaSession') -> T:
+    def init(cls: Type[T], request: Request, config: "SchemaSession") -> T:
         # for developer to directly call
         if not isinstance(config, SchemaSession):
-            raise TypeError(f'Invalid session config: {config}')
+            raise TypeError(f"Invalid session config: {config}")
         cvar = config.context_var.setup(request)
         if cvar.contains():
             data: BaseSessionSchema = cvar.get()
@@ -121,9 +123,9 @@ class BaseSessionSchema(Schema):
         return session
 
     @classmethod
-    async def ainit(cls: Type[T], request: Request, config: 'SchemaSession') -> T:
+    async def ainit(cls: Type[T], request: Request, config: "SchemaSession") -> T:
         if not isinstance(config, SchemaSession):
-            raise TypeError(f'Invalid session config: {config}')
+            raise TypeError(f"Invalid session config: {config}")
         cvar = config.context_var.setup(request)
         if cvar.contains():
             data: BaseSessionSchema = await cvar.get()
@@ -192,7 +194,7 @@ class BaseSessionSchema(Schema):
         args = () if unprovided(default) else (default,)
         return super().pop(key, *args)
 
-    def setdefault(self, key, default):     # noqa
+    def setdefault(self, key, default):  # noqa
         if key in self:
             return self[key]
         else:
@@ -202,19 +204,25 @@ class BaseSessionSchema(Schema):
 
     def encode(self, session_dict):
         from django.core import signing
+
         return signing.dumps(
-            session_dict, salt=self.key_salt, serializer=self._serializer_cls,
+            session_dict,
+            salt=self.key_salt,
+            serializer=self._serializer_cls,
             compress=True,
         )
 
     def decode(self, session_data):
         from django.core import signing
+
         try:
-            return signing.loads(session_data, salt=self.key_salt, serializer=self._serializer_cls)
+            return signing.loads(
+                session_data, salt=self.key_salt, serializer=self._serializer_cls
+            )
         except Exception as e:
             # ValueError, unpickling exceptions. If any of these happen, just
             # return an empty dictionary (an empty session).
-            warnings.warn(f'Session data corrupted: {str(e)}')
+            warnings.warn(f"Session data corrupted: {str(e)}")
         return {}
 
     def update(self, __m=None, **kwargs):
@@ -289,7 +297,7 @@ class BaseSessionSchema(Schema):
         arguments specifying the modification and expiry of the session.
         """
         expiry = self.expiry
-        if not expiry:   # Checks both None and 0 cases
+        if not expiry:  # Checks both None and 0 cases
             return self._config.cookie.age
         return max(0, int((expiry - time_now(expiry)).total_seconds()))
 
@@ -299,14 +307,18 @@ class BaseSessionSchema(Schema):
         """
         Return True if the given session_key already exists.
         """
-        raise NotImplementedError('subclasses of SessionBase must provide an exists() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide an exists() method"
+        )
 
     # @awaitable(exists)
     async def aexists(self, session_key):
         """
         Return True if the given session_key already exists.
         """
-        raise NotImplementedError('subclasses of SessionBase must provide an aexists() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide an aexists() method"
+        )
 
     def create(self):
         """
@@ -314,7 +326,9 @@ class BaseSessionSchema(Schema):
         a unique key and will have saved the result once (with empty data)
         before the method returns.
         """
-        raise NotImplementedError('subclasses of SessionBase must provide a create() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide a create() method"
+        )
 
     def acreate(self):
         """
@@ -322,7 +336,9 @@ class BaseSessionSchema(Schema):
         a unique key and will have saved the result once (with empty data)
         before the method returns.
         """
-        raise NotImplementedError('subclasses of SessionBase must provide a acreate() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide a acreate() method"
+        )
 
     def save(self, must_create=False):
         """
@@ -330,32 +346,44 @@ class BaseSessionSchema(Schema):
         object (or raise CreateError). Otherwise, only update an existing
         object and don't create one (raise UpdateError if needed).
         """
-        raise NotImplementedError('subclasses of SessionBase must provide a save() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide a save() method"
+        )
 
     # @awaitable(save)
     async def asave(self, must_create=False):
-        raise NotImplementedError('subclasses of SessionBase must provide a asave() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide a asave() method"
+        )
 
     def delete(self, session_key=None):
         """
         Delete the session data under this key. If the key is None, use the
         current session key value.
         """
-        raise NotImplementedError('subclasses of SessionBase must provide a delete() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide a delete() method"
+        )
 
     # @awaitable(delete)
     async def adelete(self, session_key=None):
-        raise NotImplementedError('subclasses of SessionBase must provide a adelete() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide a adelete() method"
+        )
 
     def load(self):
         """
         Load the session data and return a dictionary.
         """
-        raise NotImplementedError('subclasses of SessionBase must provide a load() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide a load() method"
+        )
 
     # @awaitable(load)
     async def aload(self):
-        raise NotImplementedError('subclasses of SessionBase must provide a aload() method')
+        raise NotImplementedError(
+            "subclasses of SessionBase must provide a aload() method"
+        )
 
 
 class SchemaSession(BaseSession):
@@ -367,7 +395,9 @@ class SchemaSession(BaseSession):
         super().__init__(engine=engine, **kwargs)
 
         @self
-        class schema(self.engine or self.DEFAULT_ENGINE): pass
+        class schema(self.engine or self.DEFAULT_ENGINE):
+            pass
+
         schema._config = self
         self.schema = schema
 
@@ -380,7 +410,7 @@ class SchemaSession(BaseSession):
         if isinstance(None, engine):
             engine = self.engine
         if not issubclass(engine, self.DEFAULT_ENGINE):
-            raise TypeError(f'Invalid SchemaSession engine: {engine}')
+            raise TypeError(f"Invalid SchemaSession engine: {engine}")
         return engine
 
     def get_session(self, request: Request, engine=None):
@@ -469,7 +499,9 @@ class SchemaSession(BaseSession):
                 session.expiry = time_now() + timedelta(seconds=expiry_age)
 
     @awaitable(login)
-    async def login(self, request, key: str, expiry_age: int = None, user_id_var=var.user_id):
+    async def login(
+        self, request, key: str, expiry_age: int = None, user_id_var=var.user_id
+    ):
         new_user_id = await user_id_var.getter(request)
         if new_user_id is None:
             return
@@ -500,8 +532,11 @@ class SchemaSession(BaseSession):
         if (session.modified or self.save_every_request) and not session.is_empty:
             if response.status != 500:
                 expiry = session.expiry
-                expire_at_browser_close = self.expire_at_browser_close if expiry is None \
+                expire_at_browser_close = (
+                    self.expire_at_browser_close
+                    if expiry is None
                     else expiry.timestamp() == 0
+                )
                 if expire_at_browser_close:
                     max_age = None
                     expires = None
@@ -524,8 +559,11 @@ class SchemaSession(BaseSession):
         if (session.modified or self.save_every_request) and not session.is_empty:
             if response.status != 500:
                 expiry = session.expiry
-                expire_at_browser_close = self.expire_at_browser_close if expiry is None \
-                    else str(expiry).startswith('1970-01-01 00:00:00')
+                expire_at_browser_close = (
+                    self.expire_at_browser_close
+                    if expiry is None
+                    else str(expiry).startswith("1970-01-01 00:00:00")
+                )
                 if expire_at_browser_close:
                     max_age = None
                     expires = None

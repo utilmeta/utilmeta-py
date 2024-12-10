@@ -9,9 +9,9 @@ class PasswordField(CharField):
     def guess_encoded(cls, pwd: str):
         if len(pwd) < 60:
             return False
-        if pwd.count('$') < 3:
+        if pwd.count("$") < 3:
             return False
-        if not pwd.endswith('='):
+        if not pwd.endswith("="):
             return False
         return True
 
@@ -20,16 +20,27 @@ class PasswordField(CharField):
             return None
         from django.contrib.auth.hashers import make_password
         from utilmeta.utils.functional import gen_key
+
         if self.guess_encoded(value):
             # already encoded, maybe error update using save() but did not specify update_fields
             return value
         return make_password(value, gen_key(self.salt_length))
 
-    def __init__(self, max_length: int, min_length: int = 1, salt_length=32,
-                 regex: str = None, *args, **kwargs):
-        kwargs['max_length'] = 80 + salt_length
-        assert isinstance(max_length, int) and isinstance(min_length, int) and max_length >= min_length > 0, \
-            f'Password field length config must satisfy max_length >= min_length > 0'
+    def __init__(
+        self,
+        max_length: int,
+        min_length: int = 1,
+        salt_length=32,
+        regex: str = None,
+        *args,
+        **kwargs,
+    ):
+        kwargs["max_length"] = 80 + salt_length
+        assert (
+            isinstance(max_length, int)
+            and isinstance(min_length, int)
+            and max_length >= min_length > 0
+        ), f"Password field length config must satisfy max_length >= min_length > 0"
         self.salt_length = salt_length
         self.regex = regex
         self._max_length = max_length
@@ -61,14 +72,18 @@ class ChoiceField(CharField):
             if v in self.values:
                 return v
             if self.none_default:
-                raise ValueError(f"ChoiceField contains value: {value} out of choices scope {self.values}, "
-                                 f"if you don't wan't exception here, set a default value")
+                raise ValueError(
+                    f"ChoiceField contains value: {value} out of choices scope {self.values}, "
+                    f"if you don't wan't exception here, set a default value"
+                )
         val = self.reverse_choices_map.get(v)
         if val:
             return val
         if self.none_default:
-            raise ValueError(f"ChoiceField contains value: {value} out of choices scope {self.keys + self.values}, "
-                                 f"if you don't wan't exception here, set a default value")
+            raise ValueError(
+                f"ChoiceField contains value: {value} out of choices scope {self.keys + self.values}, "
+                f"if you don't wan't exception here, set a default value"
+            )
         return self.default
 
     def from_db_value(self, value, expression=None, connection=None):
@@ -85,7 +100,7 @@ class ChoiceField(CharField):
             return self.reverse_choices_map.get(value, self.default)
         if value in self.values:
             return value
-        return self.choices_map.get(value, '')
+        return self.choices_map.get(value, "")
 
     def get_value(self, value):
         if value is None:
@@ -94,9 +109,16 @@ class ChoiceField(CharField):
             return value
         return self.choices_map.get(value, value)
 
-    def __init__(self, choices: Union[Type[Static], Type[Enum], dict, tuple, List[str]],
-                 retrieve_key: bool = False, store_key: bool = True, max_length: int = None,
-                 default: Optional[str] = NOT_PROVIDED, *args, **kwargs):
+    def __init__(
+        self,
+        choices: Union[Type[Static], Type[Enum], dict, tuple, List[str]],
+        retrieve_key: bool = False,
+        store_key: bool = True,
+        max_length: int = None,
+        default: Optional[str] = NOT_PROVIDED,
+        *args,
+        **kwargs,
+    ):
         from utilmeta.utils.functional import repeat, multi
         import inspect
         import collections
@@ -107,13 +129,17 @@ class ChoiceField(CharField):
         keys = []
         values = []
         _choices = []
-        if inspect.isclass(choices) and issubclass(choices, Static) or isinstance(choices, Static):
+        if (
+            inspect.isclass(choices)
+            and issubclass(choices, Static)
+            or isinstance(choices, Static)
+        ):
             choices = choices.dict(reverse=True)
         if inspect.isclass(choices) and issubclass(choices, Enum):
             choices = dict(choices.__members__)
 
         if not choices:
-            raise ValueError(f'ChoiceField must specify choices, got {choices}')
+            raise ValueError(f"ChoiceField must specify choices, got {choices}")
         if isinstance(choices, collections.Iterator):
             choices = list(choices)
 
@@ -133,8 +159,9 @@ class ChoiceField(CharField):
         if isinstance(choices, list):
             for i, t in enumerate(choices):
                 if isinstance(t, tuple):
-                    assert len(t) == 2, \
-                        ValueError('Choice field for list choices must be a 2-item tuple')
+                    assert len(t) == 2, ValueError(
+                        "Choice field for list choices must be a 2-item tuple"
+                    )
 
                 _k = t[0] if isinstance(t, tuple) else str(i)
                 _v = t[1] if isinstance(t, tuple) else str(t)
@@ -162,12 +189,16 @@ class ChoiceField(CharField):
                 _choices.append(items)
 
         if not _choices:
-            raise ValueError(f'ChoiceField choices must be list/tuple/dict got {choices}')
+            raise ValueError(
+                f"ChoiceField choices must be list/tuple/dict got {choices}"
+            )
 
         if not store_key:
             retrieve_key = False
         elif repeat(keys + values):
-            raise ValueError(f"ChoiceField choices's keys {keys} and values {values} should't repeat")
+            raise ValueError(
+                f"ChoiceField choices's keys {keys} and values {values} should't repeat"
+            )
 
         self.keys = tuple(keys)
         self.values = tuple(values)
@@ -183,22 +214,26 @@ class ChoiceField(CharField):
 
         self.default = default
         if default is None:
-            kwargs['null'] = True
+            kwargs["null"] = True
         elif not self.none_default:
             if self.store_key:
                 if str(default) not in self.keys:
                     try:
                         self.default = self.reverse_choices_map[str(default)]
                     except KeyError:
-                        raise ValueError(f'ChoiceField default value: {default} '
-                                         f'out of scope: {self.keys} and {self.values}')
+                        raise ValueError(
+                            f"ChoiceField default value: {default} "
+                            f"out of scope: {self.keys} and {self.values}"
+                        )
             else:
                 if str(default) not in self.values:
                     try:
                         self.default = self.choices_map[str(default)]
                     except KeyError:
-                        raise ValueError(f'ChoiceField default value: {default} '
-                                         f'out of scope: {self.keys} and {self.values}')
+                        raise ValueError(
+                            f"ChoiceField default value: {default} "
+                            f"out of scope: {self.keys} and {self.values}"
+                        )
 
             # self.default = str(default) \
             #     if str(default) in self.keys else self.reverse_choices_map[default]
@@ -209,13 +244,15 @@ class ChoiceField(CharField):
             _max_length = max([len(c) for c in self.choices_map.values()])
 
         if max_length and max_length < _max_length:
-            raise ValueError(f'ChoiceField max_length: {max_length} '
-                             f'if less than the longest choice length: {_max_length}')
+            raise ValueError(
+                f"ChoiceField max_length: {max_length} "
+                f"if less than the longest choice length: {_max_length}"
+            )
 
-        kwargs['max_length'] = max_length or _max_length
-        kwargs['default'] = self.default
-        kwargs['choices'] = tuple(_choices)
-        self._choices = _choices    # be list type
+        kwargs["max_length"] = max_length or _max_length
+        kwargs["default"] = self.default
+        kwargs["choices"] = tuple(_choices)
+        self._choices = _choices  # be list type
         super().__init__(*args, **kwargs)
 
     @property
@@ -224,9 +261,9 @@ class ChoiceField(CharField):
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        kwargs['retrieve_key'] = self.retrieve_key
-        kwargs['store_key'] = self.store_key
-        kwargs['choices'] = self._choices
+        kwargs["retrieve_key"] = self.retrieve_key
+        kwargs["store_key"] = self.store_key
+        kwargs["choices"] = self._choices
         return name, path, args, kwargs
 
 
@@ -236,7 +273,9 @@ class AwaitableModel(models.Model):
     class Meta:
         abstract = True
 
-    async def asave(self, force_insert=False, force_update=False, using=None, update_fields=None):
+    async def asave(
+        self, force_insert=False, force_update=False, using=None, update_fields=None
+    ):
         qs = AwaitableQuerySet(model=self.__class__).using(using)
         if force_insert:
             await qs._insert_obj(self)
@@ -248,7 +287,7 @@ class AwaitableModel(models.Model):
                 for field in fields:
                     name = field
                     if not isinstance(field, str):
-                        if hasattr(field, 'attname'):
+                        if hasattr(field, "attname"):
                             name = field.attname
                     if not isinstance(name, str):
                         continue
@@ -261,7 +300,9 @@ class AwaitableModel(models.Model):
     async def adelete(self):
         if not self.pk:
             return
-        return await AwaitableQuerySet(model=self.__class__).filter(pk=self.pk).adelete()
+        return (
+            await AwaitableQuerySet(model=self.__class__).filter(pk=self.pk).adelete()
+        )
 
 
 async def ACASCADE(collector, field, sub_objs, using):
@@ -273,6 +314,7 @@ async def ACASCADE(collector, field, sub_objs, using):
         fail_on_restricted=False,
     )
     from django.db import connections
+
     if field.null and not connections[using].features.can_defer_constraint_checks:
         collector.add_field_update(field, None, sub_objs)
 
@@ -289,7 +331,7 @@ class AbstractSession(AwaitableModel):
     created_time = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(default=None, null=True)
     expiry_time = models.DateTimeField(default=None, null=True)
-    deleted_time = models.DateTimeField(default=None, null=True)    # already expired
+    deleted_time = models.DateTimeField(default=None, null=True)  # already expired
 
     class Meta:
         abstract = True

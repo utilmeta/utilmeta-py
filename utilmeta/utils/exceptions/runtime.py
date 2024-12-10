@@ -1,5 +1,3 @@
-
-
 class NoAvailableInstances(RuntimeError):
     pass
 
@@ -16,6 +14,7 @@ class CombinedError(Exception):
     Error util will recognize this class and derive it's children errors (along with there traceback)
     so developer can do a much better logging and self-defined handling in error hooks
     """
+
     def __init__(self, *errors: Exception):
         self.errors = []
         messages = []
@@ -28,9 +27,8 @@ class CombinedError(Exception):
             if str(err) not in messages:
                 messages.append(str(err))
                 self.errors.append(err)
-        self.message = ';'.join(messages)
+        self.message = ";".join(messages)
         super().__init__(self.message)
 
     def __str__(self):
         return self.message
-

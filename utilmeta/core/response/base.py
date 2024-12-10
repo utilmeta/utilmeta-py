@@ -7,9 +7,18 @@ from pprint import pprint
 
 from utilmeta.core.request import Request
 from utype.types import *
-from utilmeta.utils import Header, \
-    get_generator_result, get_doc, is_hop_by_hop, http_time, file_like, \
-    STATUS_WITHOUT_BODY, time_now, multi, guess_mime_type
+from utilmeta.utils import (
+    Header,
+    get_generator_result,
+    get_doc,
+    is_hop_by_hop,
+    http_time,
+    file_like,
+    STATUS_WITHOUT_BODY,
+    time_now,
+    multi,
+    guess_mime_type,
+)
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import Headers
 from utilmeta.conf import Preference
@@ -22,21 +31,22 @@ import utype
 import re
 from ..file.base import File
 from ..file.backends.base import FileAdaptor
+
 # from utype.parser.rule import LogicalType
 
 
 class ResponseClassParser(ClassParser):
-    NAMES = ('result', 'headers')
+    NAMES = ("result", "headers")
 
     @classmethod
     def validate_field_name(cls, name: str):
         return name in cls.NAMES
 
 
-PLAIN = 'text/plain'
-JSON = 'application/json'
-XML = 'text/xml'
-OCTET_STREAM = 'application/octet-stream'
+PLAIN = "text/plain"
+JSON = "application/json"
+XML = "text/xml"
+OCTET_STREAM = "application/octet-stream"
 
 
 class Response:
@@ -67,7 +77,7 @@ class Response:
     reason: str = None
     charset: str = None
     content_type: Optional[str] = None
-    headers: Headers        # can be any inherited map, or assign to a HeadersSchema
+    headers: Headers  # can be any inherited map, or assign to a HeadersSchema
     cookies: SimpleCookie
     name: str = None
     description: str = None
@@ -106,7 +116,7 @@ class Response:
                 name = item
             else:
                 name = get_obj_name(item)
-            response_name = f'{cls.__name__}_{name}'
+            response_name = f"{cls.__name__}_{name}"
 
         class _response(cls):
             if isinstance(item, int):
@@ -115,14 +125,18 @@ class Response:
                 result: item
 
         _response.__name__ = response_name
-        _response.__qualname__ = '.'.join(cls.__qualname__.split('.')[:-1] + [response_name])
+        _response.__qualname__ = ".".join(
+            cls.__qualname__.split(".")[:-1] + [response_name]
+        )
 
         return _response
 
     def __init_subclass__(cls, **kwargs):
         cls.__parser__ = cls.__parser_cls__.apply_for(cls)
         cls.description = cls.description or get_doc(cls)
-        cls.wrapped = bool(cls.result_key or cls.count_key or cls.message_key or cls.state_key)
+        cls.wrapped = bool(
+            cls.result_key or cls.count_key or cls.message_key or cls.state_key
+        )
 
         if not cls.content_type and cls.wrapped:
             cls.content_type = JSON
@@ -130,39 +144,38 @@ class Response:
         keys = [cls.result_key, cls.message_key, cls.count_key, cls.state_key]
         wrap_keys = [k for k in keys if k is not None]
         if len(set(wrap_keys)) < len(wrap_keys):
-            raise ValueError(f'{cls.__name__}: conflict response keys: {wrap_keys}')
+            raise ValueError(f"{cls.__name__}: conflict response keys: {wrap_keys}")
 
-    def __init__(self,
-                 result=None,
-                 *,
-                 state=None,
-                 message=None,      # can be str or error or dict/list of messages
-                 count: int = None,
-                 reason: str = None,
-                 status: int = None,
-                 extra: dict = None,
-
-                 content: Union[bytes, dict, list, str] = None,
-                 content_type: str = None,
-                 charset: str = None,
-                 headers=None,
-                 cookies=None,
-
-                 # store the original context
-                 request: Request = None,
-                 response=None,
-                 error: Union[Error, Exception] = None,
-                 file=None,
-                 attachment=None,
-                 # metadata
-                 mocked: bool = False,
-                 cached: bool = False,
-                 timeout: bool = False,
-                 aborted: bool = False,
-                 # when timeout set to True, raw_response is None
-                 stack: list = None,
-                 strict: bool = None
-                 ):
+    def __init__(
+        self,
+        result=None,
+        *,
+        state=None,
+        message=None,  # can be str or error or dict/list of messages
+        count: int = None,
+        reason: str = None,
+        status: int = None,
+        extra: dict = None,
+        content: Union[bytes, dict, list, str] = None,
+        content_type: str = None,
+        charset: str = None,
+        headers=None,
+        cookies=None,
+        # store the original context
+        request: Request = None,
+        response=None,
+        error: Union[Error, Exception] = None,
+        file=None,
+        attachment=None,
+        # metadata
+        mocked: bool = False,
+        cached: bool = False,
+        timeout: bool = False,
+        aborted: bool = False,
+        # when timeout set to True, raw_response is None
+        stack: list = None,
+        strict: bool = None,
+    ):
 
         self.adaptor = None
 
@@ -285,16 +298,14 @@ class Response:
         except Exception as e:
             if not fail_silently:
                 raise
-            warnings.warn(f'close response: {Self} failed with error: {e}')
+            warnings.warn(f"close response: {Self} failed with error: {e}")
 
     def parse_content(self):
         if self.result is not None:
             return
         if isinstance(self._content, dict) and self.wrapped:
             if self.result_key:
-                self.init_result(
-                    self._content.get(self.result_key, self._content)
-                )
+                self.init_result(self._content.get(self.result_key, self._content))
             if self.message_key:
                 self.message = self._content.get(self.message_key)
             if self.state_key:
@@ -311,7 +322,10 @@ class Response:
             return False
         if self.__class__.state and self.__class__.state != self.state:
             return False
-        if self.__class__.content_type and self.__class__.content_type != self.content_type:
+        if (
+            self.__class__.content_type
+            and self.__class__.content_type != self.content_type
+        ):
             return False
         return True
 
@@ -321,26 +335,28 @@ class Response:
 
     @classmethod
     def response_like(cls, resp):
-        status = getattr(resp, 'status', getattr(resp, 'status_code', None))
+        status = getattr(resp, "status", getattr(resp, "status_code", None))
         if status and isinstance(status, int):
             return True
         return False
 
     @property
     def schema_parser(self) -> Optional[ClassParser]:
-        return getattr(self, '__parser__', None)
+        return getattr(self, "__parser__", None)
 
     def init_headers(self, headers):
         if self.strict and self.schema_parser:
-            field = self.schema_parser.fields.get('headers')
+            field = self.schema_parser.fields.get("headers")
             if field:
                 # resolve before parse
                 self.schema_parser.resolve_forward_refs()
-                headers = field.parse_value(headers or {}, context=self.schema_parser.options.make_context())
+                headers = field.parse_value(
+                    headers or {}, context=self.schema_parser.options.make_context()
+                )
         self.headers = Headers(headers or {})
 
     def init_result(self, result):
-        if hasattr(result, '__next__'):
+        if hasattr(result, "__next__"):
             # convert generator yield result into list
             # result = list(result)
             result = get_generator_result(result)
@@ -350,11 +366,13 @@ class Response:
             result = self.result
 
         if self.strict and self.schema_parser:
-            field = self.schema_parser.fields.get('result')
+            field = self.schema_parser.fields.get("result")
             if field:
                 # resolve before parse
                 self.schema_parser.resolve_forward_refs()
-                result = field.parse_value(result, context=self.schema_parser.options.make_context())
+                result = field.parse_value(
+                    result, context=self.schema_parser.options.make_context()
+                )
 
         if not self.adaptor and self.response_like(result):
             try:
@@ -381,10 +399,11 @@ class Response:
             return
         from utilmeta.core.file.backends.base import FileAdaptor
         from pathlib import Path
+
         if isinstance(file, (str, Path)):
             self._filepath = str(file)
             self._filename = os.path.basename(str(file))
-            self._file = FileAdaptor.dispatch(open(self._filepath, 'rb'))
+            self._file = FileAdaptor.dispatch(open(self._filepath, "rb"))
             return
         if file_like(file):
             self._file = FileAdaptor.dispatch(file)
@@ -408,7 +427,7 @@ class Response:
             self.result = error.result
         if self.headers is None:
             self.headers = error.headers
-        if not self.message:        # empty string ''
+        if not self.message:  # empty string ''
             self.message = str(error.exception)
         if not self.is_aborted:
             error.log(console=True)
@@ -421,7 +440,7 @@ class Response:
             if self.result_key:
                 data[self.result_key] = self.result
             if self.message_key:
-                data[self.message_key] = self.message or ''
+                data[self.message_key] = self.message or ""
             if self.state_key:
                 data[self.state_key] = self.state
             if self.count_key:
@@ -449,7 +468,7 @@ class Response:
             return value
         if isinstance(value, (memoryview, bytearray)):
             return bytes(value)
-        charset = self.charset or 'utf-8'
+        charset = self.charset or "utf-8"
         if isinstance(value, str):
             return value.encode(charset)
         # Handle non-string types.
@@ -470,40 +489,45 @@ class Response:
             if self._filename:
                 # if there is file path and no content-disposition is set
                 # we set it
-                content_disposition = self.headers.get('content-disposition')
+                content_disposition = self.headers.get("content-disposition")
                 if not content_disposition:
                     # set
                     from urllib.parse import quote
                     from pathlib import Path
-                    disp = 'attachment' if self._as_attachment else 'inline'
-                    self.set_header('content-disposition',
-                                    f'{disp}; filename="{quote(self._filename)}"')
+
+                    disp = "attachment" if self._as_attachment else "inline"
+                    self.set_header(
+                        "content-disposition",
+                        f'{disp}; filename="{quote(self._filename)}"',
+                    )
         else:
             data = self.build_data()
-            if hasattr(data, '__iter__'):
+            if hasattr(data, "__iter__"):
                 if multi(data) and not isinstance(data, list):
                     data = list(data)
-                elif not isinstance(data, (bytes, memoryview, str, list, dict, set, tuple)):
+                elif not isinstance(
+                    data, (bytes, memoryview, str, list, dict, set, tuple)
+                ):
                     # must convert to list iterable
                     # this data is guarantee that not file_like
                     data = b"".join(self._make_bytes(chunk) for chunk in data)
                     if hasattr(data, "close"):
                         try:
                             data.close()
-                        except Exception:   # noqa
+                        except Exception:  # noqa
                             pass
             # self._data = data
-            if data is None or data == '':
-                data = b''
+            if data is None or data == "":
+                data = b""
             self._content = data
         self.build_content_type()
 
     def build_content_type(self):
-        content_type = self.headers.get('content-type')
+        content_type = self.headers.get("content-type")
         if content_type:
             self.content_type = content_type
             return
-        if hasattr(self._content, 'content_type'):
+        if hasattr(self._content, "content_type"):
             # like File
             self.content_type = self._content.content_type
             return
@@ -532,14 +556,16 @@ class Response:
     def filename(self):
         if self._filename:
             return self._filename
-        content_disposition = self.headers.get('content-disposition')
+        content_disposition = self.headers.get("content-disposition")
         if not content_disposition:
             return
         from urllib.parse import unquote
+
         for part in unquote(content_disposition).split('filename="')[1:]:
             return part.strip('"')
         if self._filepath:
             from pathlib import Path
+
             return Path(self._filepath).name
         return None
 
@@ -576,24 +602,28 @@ class Response:
     #     return body
 
     def __str__(self):
-        reason = f' {self.reason}' if self.reason else ''
-        return f'{self.__class__.__name__} [{self.status}{reason}] ' \
-               f'"{self.request.method.upper()} /%s"' % self.request.encoded_path.strip('/') \
-            if self.request else f'{self.__class__.__name__} [{self.status}{reason}]'
+        reason = f" {self.reason}" if self.reason else ""
+        return (
+            f"{self.__class__.__name__} [{self.status}{reason}] "
+            f'"{self.request.method.upper()} /%s"'
+            % self.request.encoded_path.strip("/")
+            if self.request
+            else f"{self.__class__.__name__} [{self.status}{reason}]"
+        )
 
     def __repr__(self):
         return self.__str__()
 
     def _print(self, print_f):
         print(str(self))
-        content_type = self.content_type or self.headers.get('content-type')
+        content_type = self.content_type or self.headers.get("content-type")
         if content_type:
             data = self.data
             content_length = self.content_length or len(str(data))
-            print(f'{content_type} ({content_length or 0})')
+            print(f"{content_type} ({content_length or 0})")
             if data:
                 print_f(data)
-        print('')
+        print("")
 
     def print(self):
         self._print(print)
@@ -604,6 +634,7 @@ class Response:
     @classmethod
     def dump_json(cls, content, encoder=None, ensure_ascii: bool = False, **kwargs):
         import json
+
         kwargs.update(ensure_ascii=ensure_ascii)
         return json.dumps(content, cls=encoder or cls.__json_encoder_cls__, **kwargs)
 
@@ -660,16 +691,16 @@ class Response:
         self.adaptor = ResponseAdaptor.dispatch(resp)
 
     @property
-    def original_response(self) -> Optional['Response']:
+    def original_response(self) -> Optional["Response"]:
         # from 3xx redirect response, original_response is that 3xx response
         # including cached 304 responses
         if self._stack:
             return self._stack[0]
         return None
 
-    def push_response_stack(self, resp: 'Response'):
+    def push_response_stack(self, resp: "Response"):
         if not isinstance(resp, Response):
-            raise TypeError(f'Invalid response: {resp}')
+            raise TypeError(f"Invalid response: {resp}")
         self._stack.append(resp)
 
     @property
@@ -763,7 +794,7 @@ class Response:
             return self.adaptor.get_text()
         if isinstance(self._content, str):
             return self._content
-        return ''
+        return ""
 
     def set_header(self, name: str, value):
         self.headers[name] = value
@@ -781,7 +812,7 @@ class Response:
         domain: str = None,
         secure: bool = False,
         httponly: bool = False,
-        samesite: str = None
+        samesite: str = None,
     ):
         self.cookies[key] = value
         if expires is not None:
@@ -790,28 +821,30 @@ class Response:
                 expires = http_time(expires)
             elif isinstance(expires, (int, float)):
                 expires = http_time(datetime.utcfromtimestamp(expires), to_utc=False)
-            self.cookies[key]['expires'] = expires
+            self.cookies[key]["expires"] = expires
         else:
-            self.cookies[key]['expires'] = ''
+            self.cookies[key]["expires"] = ""
 
         if max_age is not None:
-            self.cookies[key]['max-age'] = int(max_age)
+            self.cookies[key]["max-age"] = int(max_age)
             if not expires:
                 # IE requires expires, so set it if hasn't been already.
-                self.cookies[key]['expires'] = http_time(datetime.now() + timedelta(seconds=max_age))
+                self.cookies[key]["expires"] = http_time(
+                    datetime.now() + timedelta(seconds=max_age)
+                )
 
         if path is not None:
-            self.cookies[key]['path'] = path
+            self.cookies[key]["path"] = path
         if domain is not None:
-            self.cookies[key]['domain'] = domain
+            self.cookies[key]["domain"] = domain
         if secure:
-            self.cookies[key]['secure'] = True
+            self.cookies[key]["secure"] = True
         if httponly:
-            self.cookies[key]['httponly'] = True
+            self.cookies[key]["httponly"] = True
         if samesite:
-            if samesite.lower() not in ('lax', 'none', 'strict'):
+            if samesite.lower() not in ("lax", "none", "strict"):
                 raise ValueError('samesite must be "lax", "none", or "strict".')
-            self.cookies[key]['samesite'] = samesite.lower()
+            self.cookies[key]["samesite"] = samesite.lower()
 
     def delete_cookie(self, key: str, path: str = "/", domain: str = None) -> None:
         self.set_cookie(key, expires=0, max_age=0, path=path, domain=domain)
@@ -821,16 +854,16 @@ class Response:
         for key, val in self.headers.items():
             if self.adaptor and is_hop_by_hop(key):
                 continue
-            if str(key).lower() == 'content-type':
+            if str(key).lower() == "content-type":
                 with_content_type = False
             header_values.append((str(key), str(val)))
-        if with_content_type and self.content_type and self._content:       # non empty
+        if with_content_type and self.content_type and self._content:  # non empty
             content_type = self.content_type
             if content_type and self.charset:
-                content_type = f'{content_type}; charset={self.charset}'
-            header_values.append(('Content-Type', content_type))
+                content_type = f"{content_type}; charset={self.charset}"
+            header_values.append(("Content-Type", content_type))
         for cookie in self.cookies.values():
-            header_values.append(('Set-Cookie', cookie.OutputString()))
+            header_values.append(("Set-Cookie", cookie.OutputString()))
         return header_values
 
     def prepare_body(self):
@@ -852,7 +885,7 @@ class Response:
 
         body = self._content
         if not body:
-            return b''
+            return b""
         if self.is_json and not isinstance(body, (str, bytes)):
             try:
                 return self.dump_json(body)
@@ -874,7 +907,7 @@ class Response:
             return body
         if not isinstance(body, str):
             body = str(body)
-        return body.encode(self.charset or 'utf-8', errors='replace')
+        return body.encode(self.charset or "utf-8", errors="replace")
 
     @property
     def error(self) -> Optional[Error]:
@@ -889,15 +922,17 @@ class Response:
             return self._error
         if self.success:
             return None
-        e = exc.HttpError.STATUS_EXCEPTIONS.get(self.status, exc.ServerError)(self.message)
+        e = exc.HttpError.STATUS_EXCEPTIONS.get(self.status, exc.ServerError)(
+            self.message
+        )
         return Error(e, request=self.request)
 
     @property
     def traffic(self):
         if self._traffic:
             return self._traffic
-        value = 12      # HTTP/1.1 200 OK
-        value += len(str(self.status)) + len(str(self.reason or 'ok'))
+        value = 12  # HTTP/1.1 200 OK
+        value += len(str(self.status)) + len(str(self.reason or "ok"))
         value += self.content_length or 0
         for key, val in self.headers.items():
             value += len(str(key)) + len(str(val)) + 4
@@ -917,8 +952,10 @@ class Response:
         try:
             from utype.utils.example import get_example_from_parser
         except ImportError:
-            raise NotImplementedError(f'Response.mock() not implemented, please upgrade utype')
-        parser = getattr(cls, '__parser__', None)
+            raise NotImplementedError(
+                f"Response.mock() not implemented, please upgrade utype"
+            )
+        parser = getattr(cls, "__parser__", None)
         kwargs = {}
         if parser:
             kwargs = get_example_from_parser(parser)
@@ -938,11 +975,11 @@ class Response:
         return self.success
 
     @classmethod
-    def server_error(cls, message=''):
+    def server_error(cls, message=""):
         return cls(message=message, status=500)
 
     @classmethod
-    def permission_denied(cls, message=''):
+    def permission_denied(cls, message=""):
         return cls(message=message, status=500)
 
     @classmethod
@@ -962,11 +999,11 @@ class Response:
         return cls(status=202)
 
     @classmethod
-    def bad_request(cls, message=''):
+    def bad_request(cls, message=""):
         return cls(message=message, status=400)
 
     @classmethod
-    def not_found(cls, message=''):
+    def not_found(cls, message=""):
         return cls(message=message, status=404)
 
     @classmethod

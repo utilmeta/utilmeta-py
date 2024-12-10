@@ -38,7 +38,7 @@ class ResponseAdaptor(BaseAdaptor):
 
     @property
     def cookies(self):
-        return SimpleCookie(self.headers.get('set-cookie'))
+        return SimpleCookie(self.headers.get("set-cookie"))
 
     @property
     def body(self) -> bytes:
@@ -50,9 +50,9 @@ class ResponseAdaptor(BaseAdaptor):
         if not ct:
             return None
         ct = str(ct)
-        for value in ct.split(';'):
-            if value.strip().startswith('charset='):
-                return value.split('=')[1].strip()
+        for value in ct.split(";"):
+            if value.strip().startswith("charset="):
+                return value.split("=")[1].strip()
         return None
 
     @utils.cached_property
@@ -61,8 +61,8 @@ class ResponseAdaptor(BaseAdaptor):
         if not ct:
             return
         ct = str(ct)
-        if ';' in ct:
-            return ct.split(';')[0].strip()
+        if ";" in ct:
+            return ct.split(";")[0].strip()
         return ct
 
     @property
@@ -96,7 +96,7 @@ class ResponseAdaptor(BaseAdaptor):
         content_type = self.content_type
         if not content_type:
             return False
-        return content_type.startswith('text')
+        return content_type.startswith("text")
 
     # @property
     # def file_type(self):
@@ -135,16 +135,18 @@ class ResponseAdaptor(BaseAdaptor):
     def get_file(self):
         from io import BytesIO
         from utilmeta.core.file import File
+
         return File(BytesIO(self.body))
         # from utilmeta.utils.media import File
         # return File(file=BytesIO(self.body))
 
     def get_text(self) -> str:
-        return self.body.decode(encoding=self.charset or 'utf-8', errors='replace')
+        return self.body.decode(encoding=self.charset or "utf-8", errors="replace")
 
     def get_json(self) -> Union[dict, list, None]:
         text = self.get_text()
         import json
+
         try:
             return json.loads(text, cls=self.json_decoder_cls)
         except json.decoder.JSONDecodeError:
@@ -152,12 +154,13 @@ class ResponseAdaptor(BaseAdaptor):
 
     def get_xml(self):
         from xml.etree.ElementTree import XMLParser
+
         parser = XMLParser()
         parser.feed(self.body)
         return parser.close()
 
     async def async_load(self):
-        self.__dict__['body'] = await self.async_read()
+        self.__dict__["body"] = await self.async_read()
         return self.get_content()
 
     async def async_read(self):

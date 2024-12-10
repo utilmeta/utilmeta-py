@@ -1,6 +1,16 @@
 from utype.types import *
-from .models import ServiceLog, AccessToken, Worker, WorkerMonitor, \
-    ServerMonitor, InstanceMonitor, DatabaseConnection, Supervisor, DatabaseMonitor, CacheMonitor
+from .models import (
+    ServiceLog,
+    AccessToken,
+    Worker,
+    WorkerMonitor,
+    ServerMonitor,
+    InstanceMonitor,
+    DatabaseConnection,
+    Supervisor,
+    DatabaseMonitor,
+    CacheMonitor,
+)
 from utilmeta.core import orm
 
 
@@ -44,10 +54,12 @@ class DatabaseConnectionSchema(orm.Schema[DatabaseConnection]):
 
 # ---------------------------------------------------
 
-class WebMixinSchema(orm.Schema):       # not be utype.Schema
+
+class WebMixinSchema(orm.Schema):  # not be utype.Schema
     """
-        Log data using http/https schemes
+    Log data using http/https schemes
     """
+
     scheme: Optional[str]
     method: Optional[str]
     # replace the unit property
@@ -97,12 +109,12 @@ class ServiceLogSchema(WebMixinSchema, orm.Schema[ServiceLog]):
 
     instance_id: Optional[int]
     endpoint_id: Optional[int]
-    endpoint_remote_id: Optional[str] = orm.Field('endpoint.remote_id')
+    endpoint_remote_id: Optional[str] = orm.Field("endpoint.remote_id")
     endpoint_ident: Optional[str]
     endpoint_ref: Optional[str]
 
     worker_id: Optional[int]
-    worker_pid: Optional[int] = orm.Field('worker.pid')
+    worker_pid: Optional[int] = orm.Field("worker.pid")
     # -----
 
     level: str
@@ -125,10 +137,11 @@ class ServiceLogSchema(WebMixinSchema, orm.Schema[ServiceLog]):
 
     def __validate__(self):
         from .api.utils import config
+
         if config.log.hide_ip_address:
-            self.ip = '*.*.*.*' if self.ip else ''
+            self.ip = "*.*.*.*" if self.ip else ""
         if config.log.hide_user_id:
-            self.user_id = '***' if self.user_id else None
+            self.user_id = "***" if self.user_id else None
 
 
 class AccessTokenSchema(orm.Schema[AccessToken]):
@@ -173,6 +186,7 @@ class ServiceMetricsMixin(orm.Schema):
     """
     request metrics that can simply be calculated in form of incr and divide
     """
+
     in_traffic: Optional[int]
     out_traffic: Optional[int]
 
@@ -206,7 +220,7 @@ class WorkerSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Worker]):
     start_time: int
 
     master_id: Optional[int]
-    master_pid: Optional[int] = orm.Field('master__pid')
+    master_pid: Optional[int] = orm.Field("master__pid")
     connected: bool
 
     time: int
@@ -214,7 +228,9 @@ class WorkerSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Worker]):
     status: Optional[str]
 
 
-class WorkerMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[WorkerMonitor]):
+class WorkerMonitorSchema(
+    SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[WorkerMonitor]
+):
     id: int
 
     time: float
@@ -238,7 +254,9 @@ class ServerMonitorSchema(SystemMetricsMixin, orm.Schema[ServerMonitor]):
     metrics: dict
 
 
-class InstanceMonitorSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[InstanceMonitor]):
+class InstanceMonitorSchema(
+    SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[InstanceMonitor]
+):
     id: int
 
     time: float

@@ -21,22 +21,24 @@ class SupervisorObject(orm.Schema[Supervisor]):
 
 # excludes = var.RequestContextVar('_excludes', cached=True)
 # params = var.RequestContextVar('_params', cached=True)
-supervisor_var = var.RequestContextVar('_ops.supervisor', cached=True)
-access_token_var = var.RequestContextVar('_ops.access_token', cached=True)
-resources_var = var.RequestContextVar('_scopes.resource', cached=True, default=list)
+supervisor_var = var.RequestContextVar("_ops.supervisor", cached=True)
+access_token_var = var.RequestContextVar("_ops.access_token", cached=True)
+resources_var = var.RequestContextVar("_scopes.resource", cached=True, default=list)
 
 config = Operations.config()
 
 
 class WrappedResponse(response.Response):
-    result_key = 'result'
-    message_key = 'msg'
-    state_key = 'state'
-    count_key = 'count'
+    result_key = "result"
+    message_key = "msg"
+    state_key = "state"
+    count_key = "count"
 
 
 class opsRequire(auth.Require):
     def validate_scopes(self, req: request.Request):
         if config.disabled_scope and config.disabled_scope.intersection(self.scopes):
-            raise exceptions.PermissionDenied(f'Operation: {self.scopes} denied by config')
+            raise exceptions.PermissionDenied(
+                f"Operation: {self.scopes} denied by config"
+            )
         return super().validate_scopes(req)

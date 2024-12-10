@@ -1,7 +1,15 @@
 from urllib.parse import urlsplit, urlunsplit
 from typing import Optional
-from utilmeta.utils import MetaMethod, CommonMethod, Header, get_request_ip, \
-    RequestType, cached_property, time_now, parse_query_string
+from utilmeta.utils import (
+    MetaMethod,
+    CommonMethod,
+    Header,
+    get_request_ip,
+    RequestType,
+    cached_property,
+    time_now,
+    parse_query_string,
+)
 from utilmeta.utils import exceptions as exc
 from utilmeta.utils import LOCAL_IP
 from utilmeta.core.file import File
@@ -44,7 +52,7 @@ class RequestAdaptor(BaseAdaptor):
 
     @route.setter
     def route(self, route):
-        self._route = str(route or '').strip('/')
+        self._route = str(route or "").strip("/")
 
     def __contains__(self, item):
         return item in self._context
@@ -72,7 +80,7 @@ class RequestAdaptor(BaseAdaptor):
         self._context.clear()
 
     @classmethod
-    def reconstruct(cls, adaptor: 'RequestAdaptor'):
+    def reconstruct(cls, adaptor: "RequestAdaptor"):
         if isinstance(adaptor, cls):
             return adaptor.request
         raise NotImplementedError
@@ -117,7 +125,7 @@ class RequestAdaptor(BaseAdaptor):
     def encoded_path(self):
         parsed = urlsplit(self.url)
         if parsed.query:
-            return parsed.path + '?' + parsed.query
+            return parsed.path + "?" + parsed.query
         return parsed.path
 
     @property
@@ -130,11 +138,11 @@ class RequestAdaptor(BaseAdaptor):
 
     @property
     def origin(self):
-        origin_header = self.headers.get('origin')
+        origin_header = self.headers.get("origin")
         if origin_header:
             return origin_header
         s = urlsplit(self.url)
-        return urlunsplit((s.scheme, s.netloc, '', '', ''))
+        return urlunsplit((s.scheme, s.netloc, "", "", ""))
 
     @property
     def scheme(self):
@@ -162,8 +170,8 @@ class RequestAdaptor(BaseAdaptor):
         if not ct:
             return
         ct = str(ct)
-        if ';' in ct:
-            return ct.split(';')[0].strip()
+        if ";" in ct:
+            return ct.split(";")[0].strip()
         return ct
 
     @property
@@ -203,17 +211,19 @@ class RequestAdaptor(BaseAdaptor):
     @property
     def text_type(self):
         content_type = self.content_type
-        return content_type.startswith('text')
+        return content_type.startswith("text")
 
     def get_json(self):
         if not self.content_length:
             # Empty content
             return None
         import json
+
         return json.loads(self.body, cls=self.json_decoder_cls)
 
     def get_xml(self):
         from xml.etree.ElementTree import XMLParser
+
         parser = XMLParser()
         parser.feed(self.body)
         return parser.close()
@@ -260,7 +270,9 @@ class RequestAdaptor(BaseAdaptor):
         except NotImplementedError:
             raise
         except Exception as e:
-            raise exc.UnprocessableEntity(f'process request body failed with error: {e}')
+            raise exc.UnprocessableEntity(
+                f"process request body failed with error: {e}"
+            )
 
     @property
     def body(self) -> Optional[bytes]:
@@ -284,7 +296,9 @@ class RequestAdaptor(BaseAdaptor):
         except NotImplementedError:
             raise
         except Exception as e:
-            raise exc.UnprocessableEntity(f'process request body failed with error: {e}') from e
+            raise exc.UnprocessableEntity(
+                f"process request body failed with error: {e}"
+            ) from e
 
     async def async_read(self):
         raise NotImplementedError

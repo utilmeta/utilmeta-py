@@ -11,7 +11,12 @@ if TYPE_CHECKING:
 
 
 class TransactionWrapper:
-    def __init__(self, model: 'ModelAdaptor', transaction: Union[str, bool] = False, errors_map: dict = None):
+    def __init__(
+        self,
+        model: "ModelAdaptor",
+        transaction: Union[str, bool] = False,
+        errors_map: dict = None,
+    ):
         # self.enabled = bool(transaction)
         db_alias = None
         if isinstance(transaction, str):
@@ -24,6 +29,7 @@ class TransactionWrapper:
         self.db_alias = db_alias
 
         from .plugins.atomic import AtomicPlugin
+
         self.atomic = AtomicPlugin(db_alias) if db_alias else None
         self.errors_map = errors_map or {}
 
@@ -82,12 +88,16 @@ class TransactionWrapper:
 
 
 class BaseQueryCompiler:
-    def __init__(self, parser: SchemaClassParser, queryset, context: QueryContext = None):
+    def __init__(
+        self, parser: SchemaClassParser, queryset, context: QueryContext = None
+    ):
         self.parser = parser
         self.model = parser.model
         self.queryset = queryset
         self.context = context or QueryContext()
-        self.recursive_map: Dict[Any, Dict[Any, dict]] = self.context.recursion_map or {}
+        self.recursive_map: Dict[Any, Dict[Any, dict]] = (
+            self.context.recursion_map or {}
+        )
         self.pk_list = []
         self.pk_map = {}
         # self.recursive_pk_list = []
@@ -104,9 +114,12 @@ class BaseQueryCompiler:
             return self.context.integrity_error_cls(e)
         return e
 
-    def get_related_context(self, field: ParserQueryField,
-                            force_expressions: dict = None,
-                            force_raise_error: bool = False):
+    def get_related_context(
+        self,
+        field: ParserQueryField,
+        force_expressions: dict = None,
+        force_raise_error: bool = False,
+    ):
         includes = excludes = None
         if self.context.includes:
             inter = set(self.context.includes).intersection(field.all_aliases)
@@ -117,7 +130,7 @@ class BaseQueryCompiler:
         return QueryContext(
             using=self.context.using,
             # single=field.related_single,
-            single=False,       # not make it single, related context is always about multiple
+            single=False,  # not make it single, related context is always about multiple
             includes=includes,
             excludes=excludes,
             recursive_map=self.recursive_map,
@@ -160,7 +173,9 @@ class BaseQueryCompiler:
                 continue
             if not field.readable:
                 continue
-            if not self.context.in_scope(field.all_aliases, dependants=field.dependants):
+            if not self.context.in_scope(
+                field.all_aliases, dependants=field.dependants
+            ):
                 continue
             self.process_query_field(field)
 
@@ -171,7 +186,9 @@ class BaseQueryCompiler:
     async def get_values(self) -> List[dict]:
         raise NotImplementedError
 
-    def process_data(self, data: dict, with_relations: bool = None) -> Tuple[dict, dict, dict]:
+    def process_data(
+        self, data: dict, with_relations: bool = None
+    ) -> Tuple[dict, dict, dict]:
         if not isinstance(data, dict):
             return {}, {}, {}
         if not isinstance(data, self.parser.obj):
@@ -226,28 +243,32 @@ class BaseQueryCompiler:
     async def commit_data(self, data):
         raise NotImplementedError
 
-    def save_data(self,
-                  data,
-                  must_create: bool = False,
-                  must_update: bool = False,
-                  ignore_bulk_errors: bool = False,
-                  ignore_relation_errors: bool = False,
-                  with_relations: bool = None,
-                  transaction: bool = False,
-                  ):
+    def save_data(
+        self,
+        data,
+        must_create: bool = False,
+        must_update: bool = False,
+        ignore_bulk_errors: bool = False,
+        ignore_relation_errors: bool = False,
+        with_relations: bool = None,
+        transaction: bool = False,
+    ):
         raise NotImplementedError
 
     @awaitable(save_data)
-    async def save_data(self,
-                        data,
-                        must_create: bool = False,
-                        must_update: bool = False,
-                        ignore_bulk_errors: bool = False,
-                        ignore_relation_errors: bool = False,
-                        with_relations: bool = None,
-                        transaction: bool = False,
-                        ):
+    async def save_data(
+        self,
+        data,
+        must_create: bool = False,
+        must_update: bool = False,
+        ignore_bulk_errors: bool = False,
+        ignore_relation_errors: bool = False,
+        with_relations: bool = None,
+        transaction: bool = False,
+    ):
         raise NotImplementedError
 
-    def get_integrity_errors(self, asynchronous: bool = False) -> Tuple[Type[Exception], ...]:
+    def get_integrity_errors(
+        self, asynchronous: bool = False
+    ) -> Tuple[Type[Exception], ...]:
         return ()

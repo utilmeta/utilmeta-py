@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, List
+
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
     from utilmeta.core.api import API
@@ -14,6 +15,7 @@ class ServiceMiddleware:
         self.args = args
         self.kwargs = kwargs
         from utilmeta import service
+
         self.service = service
 
     def process_request(self, request: Request):
@@ -27,24 +29,27 @@ class ServerAdaptor(BaseAdaptor):
     # __backends_route__ = 'backends'
 
     @classmethod
-    def reconstruct(cls, adaptor: 'BaseAdaptor'):
+    def reconstruct(cls, adaptor: "BaseAdaptor"):
         pass
 
-    def adapt(self, api: 'API', route: str, asynchronous: bool = None):
+    def adapt(self, api: "API", route: str, asynchronous: bool = None):
         raise NotImplementedError
 
     @classmethod
-    def get_module_name(cls, obj: 'UtilMeta'):
+    def get_module_name(cls, obj: "UtilMeta"):
         if inspect.ismodule(obj):
             # maybe the backend
             return obj.__name__
         return super().get_module_name(obj.backend)
 
     @classmethod
-    def qualify(cls, obj: 'UtilMeta'):
+    def qualify(cls, obj: "UtilMeta"):
         if not cls.backend or not obj.backend:
             return False
-        return cls.get_module_name(obj.backend).lower() == cls.get_module_name(cls.backend).lower()
+        return (
+            cls.get_module_name(obj.backend).lower()
+            == cls.get_module_name(cls.backend).lower()
+        )
 
     backend = None
     default_asynchronous = False
@@ -57,7 +62,7 @@ class ServerAdaptor(BaseAdaptor):
     async_cache_adaptor_cls = None
     DEFAULT_PORT = 8000
 
-    def __init__(self, config: 'UtilMeta'):
+    def __init__(self, config: "UtilMeta"):
         self.root = None
         self.config = config
         self.background = config.background
@@ -74,29 +79,29 @@ class ServerAdaptor(BaseAdaptor):
     def root_pattern(self):
         if not self.config.root_url:
             return None
-        return re.compile('%s/(.*)' % self.config.root_url.strip('/'))
+        return re.compile("%s/(.*)" % self.config.root_url.strip("/"))
 
     @property
     def root_path(self) -> str:
-        return ''
+        return ""
 
     @property
     def version(self) -> str:
-        return ''
+        return ""
 
     @property
     def production(self) -> bool:
         return False
 
     def load_route(self, path: str):
-        path = (path or '').strip('/')
+        path = (path or "").strip("/")
         if not self.config.root_url:
             return path
         match = self.root_pattern.match(path)
         if match:
             return match.groups()[0]
         if path == self.config.root_url:
-            return ''
+            return ""
         if self.config.preference.strict_root_route:
             raise exceptions.NotFound
         return path
@@ -113,6 +118,7 @@ class ServerAdaptor(BaseAdaptor):
     def apply_fork(self):
         try:
             import uwsgidecorators  # noqa
+
             uwsgidecorators.postfork(self.worker_post_fork)
         except ModuleNotFoundError:
             pass
@@ -133,7 +139,7 @@ class ServerAdaptor(BaseAdaptor):
     def application(self):
         pass
 
-    def generate(self, spec: str = 'openapi'):
+    def generate(self, spec: str = "openapi"):
         raise NotImplementedError
 
     @property
@@ -147,7 +153,7 @@ class ServerAdaptor(BaseAdaptor):
     @classmethod
     def is_asgi(cls, app):
         if not inspect.isfunction(app):
-            app = getattr(app, '__call__', None)
+            app = getattr(app, "__call__", None)
         if not app:
             return False
         return inspect.iscoroutinefunction(app)
@@ -163,4 +169,4 @@ class ServerAdaptor(BaseAdaptor):
         if isinstance(middleware, ServiceMiddleware):
             self.middlewares.append(middleware)
         else:
-            raise NotImplementedError(f'middleware of {middleware} no implemented')
+            raise NotImplementedError(f"middleware of {middleware} no implemented")

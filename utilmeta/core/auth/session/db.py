@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class DBSessionSchema(BaseSessionSchema):
-    _config: 'DBSession'
+    _config: "DBSession"
     # SESSION_ID_KEY: ClassVar = '$session_id'
     # CLIENT_IP_KEY: ClassVar = '$client_ip'
     # CLIENT_UA_KEY: ClassVar = '$client_ua'
@@ -70,7 +70,7 @@ class DBSessionSchema(BaseSessionSchema):
             encoded_data=self.encode(dict(self)),
             expiry_time=time_now() + timedelta(seconds=self.timeout),
             last_activity=time_now(),
-            created_time=self._request.time if self._request else time_now()
+            created_time=self._request.time if self._request else time_now(),
         )
 
     def load_object(self, must_create: bool = False):
@@ -83,10 +83,7 @@ class DBSessionSchema(BaseSessionSchema):
         elif not must_create:
             obj = self._model_cls.get_instance(session_key=self.session_key)
             session_id = obj.pk if obj else None
-        return self._model_cls.init_instance(
-            id=session_id,
-            **self.get_session_data()
-        )
+        return self._model_cls.init_instance(id=session_id, **self.get_session_data())
 
     async def aload_object(self, must_create: bool = False):
         """
@@ -101,10 +98,7 @@ class DBSessionSchema(BaseSessionSchema):
         data = self.get_session_data()
         if inspect.isawaitable(data):
             data = await data
-        return self._model_cls.init_instance(
-            id=session_id,
-            **data
-        )
+        return self._model_cls.init_instance(id=session_id, **data)
 
     def db_save(self, must_create=False, force: bool = True):
         if self.session_key is None:
@@ -121,7 +115,9 @@ class DBSessionSchema(BaseSessionSchema):
         obj = await self.aload_object(must_create)
         if not obj.pk:
             must_create = True
-        await obj.asave(force_insert=must_create, force_update=not must_create and force)
+        await obj.asave(
+            force_insert=must_create, force_update=not must_create and force
+        )
 
     def save(self, must_create: bool = False):
         return self.db_save(must_create)
@@ -135,10 +131,9 @@ class DBSessionSchema(BaseSessionSchema):
             if self.session_key is None:
                 return
             session_key = self.session_key
-        self._model_cls.get_queryset(
-            session_key=session_key,
-            deleted_time=None
-        ).update(deleted_time=time_now())
+        self._model_cls.get_queryset(session_key=session_key, deleted_time=None).update(
+            deleted_time=time_now()
+        )
 
     # @awaitable(db_delete)
     async def adb_delete(self, session_key=None):
@@ -147,8 +142,7 @@ class DBSessionSchema(BaseSessionSchema):
                 return
             session_key = self.session_key
         await self._model_cls.get_queryset(
-            session_key=session_key,
-            deleted_time=None
+            session_key=session_key, deleted_time=None
         ).aupdate(deleted_time=time_now())
 
     def delete(self, session_key: str = None):
@@ -175,8 +169,7 @@ class DBSessionSchema(BaseSessionSchema):
             return None
         # to be inherited
         session = await self._model_cls.aget_instance(
-            session_key=self._session_key,
-            deleted_time=None
+            session_key=self._session_key, deleted_time=None
         )
         if session:
             return self.decode(session.encoded_data)
@@ -187,6 +180,6 @@ class DBSession(SchemaSession):
     DEFAULT_ENGINE = DBSessionSchema
     schema = DBSessionSchema
 
-    def __init__(self, session_model: Type['AbstractSession'], **kwargs):
+    def __init__(self, session_model: Type["AbstractSession"], **kwargs):
         super().__init__(**kwargs)
         self.session_model = ModelAdaptor.dispatch(session_model)

@@ -8,11 +8,13 @@ import time
 if TYPE_CHECKING:
     from utilmeta.core.request.base import Request
 
-CAUSE_DIVIDER = '\n# The above exception was the direct cause of the following exception:\n'
+CAUSE_DIVIDER = (
+    "\n# The above exception was the direct cause of the following exception:\n"
+)
 
 
 class Error:
-    def __init__(self, e: Exception = None, request: 'Request' = None):
+    def __init__(self, e: Exception = None, request: "Request" = None):
         if isinstance(e, Exception):
             self.exc = e
             self.type = e.__class__
@@ -28,10 +30,10 @@ class Error:
             self.exc_traceback = exc_traceback
 
         self.locals = {}
-        self.current_traceback = ''
-        self.traceback = ''
-        self.variable_info = ''
-        self.full_info = ''
+        self.current_traceback = ""
+        self.traceback = ""
+        self.variable_info = ""
+        self.full_info = ""
         self.ts = time.time()
 
         # request context
@@ -41,7 +43,7 @@ class Error:
         if self.current_traceback:
             return
         # FIXME: lots of performance cost in this function
-        self.current_traceback = ''.join(traceback.format_tb(self.exc_traceback))
+        self.current_traceback = "".join(traceback.format_tb(self.exc_traceback))
         self.traceback = self.current_traceback
         if not from_errors:
             try:
@@ -63,20 +65,20 @@ class Error:
 
         variables = []
         if self.locals:
-            variables.append('Exception Local Variables:')
+            variables.append("Exception Local Variables:")
         for key, val in self.locals.items():
             if key.startswith(SEG) and key.endswith(SEG):
                 continue
             try:
-                variables.append(f'{key} = {readable(val, max_length=100)}')
+                variables.append(f"{key} = {readable(val, max_length=100)}")
             except Exception as e:
-                print(f'Variable <{key}> serialize error: {e}')
-        self.variable_info = '\n'.join(variables)
-        self.full_info = '\n'.join([self.message, *variables])
+                print(f"Variable <{key}> serialize error: {e}")
+        self.variable_info = "\n".join(variables)
+        self.full_info = "\n".join([self.message, *variables])
         # self.record_disabled = getattr(self.exc, 'record_disabled', False)
 
     def __str__(self):
-        return f'<{self.type.__name__}: {str(self.exc)}>'
+        return f"<{self.type.__name__}: {str(self.exc)}>"
 
     @property
     def exception(self):
@@ -84,11 +86,7 @@ class Error:
 
     @property
     def message(self) -> str:
-        return '{0}{1}: {2}'.format(
-            self.traceback,
-            self.type.__name__,
-            self.exc
-        )
+        return "{0}{1}: {2}".format(self.traceback, self.type.__name__, self.exc)
 
     # @property
     # def root_cause(self) -> Exception:
@@ -128,22 +126,22 @@ class Error:
         return self.get_status(default=500)
 
     def get_status(self, default=None):
-        status = getattr(self.exc, 'status', None)
+        status = getattr(self.exc, "status", None)
         if isinstance(status, int) and 100 <= status <= 600:
             return status
         return default
 
     @property
     def result(self):
-        return getattr(self.exc, 'result', None)
+        return getattr(self.exc, "result", None)
 
     @property
     def state(self):
-        return getattr(self.exc, 'state', None)
+        return getattr(self.exc, "state", None)
 
     @property
     def headers(self):
-        return getattr(self.exc, 'headers', None)
+        return getattr(self.exc, "headers", None)
 
     def log(self, console: bool = False) -> int:
         if not self.full_info:
@@ -160,12 +158,12 @@ class Error:
         stk = traceback.extract_tb(self.exc_traceback, 1)
         return stk[0][2]
 
-    def throw(self, type=None, prepend: str = '', **kwargs):
+    def throw(self, type=None, prepend: str = "", **kwargs):
         if not (inspect.isclass(type) and issubclass(type, Exception)):
             type = None
         type = type or self.type
         if prepend or not isinstance(self.exc, type):
-            e = type(f'{prepend}{self.exc}', **kwargs)  # noqa
+            e = type(f"{prepend}{self.exc}", **kwargs)  # noqa
             e.__cause__ = self.exc
             # setattr(e, Attr.CAUSES, self.get_causes())
         else:
@@ -174,7 +172,9 @@ class Error:
         # cause in that way can track the original variables
         return e
 
-    def get_hook(self, hooks: Dict[Type[Exception], Callable], exact: bool = False) -> Optional[Callable]:
+    def get_hook(
+        self, hooks: Dict[Type[Exception], Callable], exact: bool = False
+    ) -> Optional[Callable]:
         if not hooks:
             return None
 

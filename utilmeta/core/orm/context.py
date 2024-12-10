@@ -21,7 +21,9 @@ class QueryContext(DataClass):
         if not aliases:
             return False
         if self.includes:
-            return bool(set(aliases).union(dependants or []).intersection(self.includes))
+            return bool(
+                set(aliases).union(dependants or []).intersection(self.includes)
+            )
         if self.excludes:
             return not set(aliases).intersection(self.excludes)
         return True

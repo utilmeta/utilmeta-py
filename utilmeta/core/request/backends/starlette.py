@@ -14,12 +14,13 @@ class StarletteRequestAdaptor(RequestAdaptor):
     This adaptor can adapt starlette project and all frameworks based on it
     such as [FastAPI]
     """
+
     request: Request
     file_adaptor_cls = StarletteFileAdaptor
     backend = starlette
 
     @classmethod
-    def reconstruct(cls, adaptor: 'RequestAdaptor'):
+    def reconstruct(cls, adaptor: "RequestAdaptor"):
         pass
 
     def gen_csrf_token(self):
@@ -41,7 +42,9 @@ class StarletteRequestAdaptor(RequestAdaptor):
 
     @property
     def url(self) -> str:
-        return str(self.request.url)        # request.url is a URL structure, str will get the inner _url
+        return str(
+            self.request.url
+        )  # request.url is a URL structure, str will get the inner _url
 
     @property
     def cookies(self):
@@ -51,7 +54,7 @@ class StarletteRequestAdaptor(RequestAdaptor):
     def query_params(self):
         query = {}
         for key, value in self.request.query_params.multi_items():
-            query.setdefault(key.rstrip('[]'), []).append(value)
+            query.setdefault(key.rstrip("[]"), []).append(value)
         return {k: val[0] if len(val) == 1 else val for k, val in query.items()}
 
     @property
@@ -70,7 +73,7 @@ class StarletteRequestAdaptor(RequestAdaptor):
     def encoded_path(self):
         path, query = self.path, self.query_string
         if query:
-            return path + '?' + query
+            return path + "?" + query
         return path
 
     @property
@@ -124,9 +127,7 @@ class StarletteRequestAdaptor(RequestAdaptor):
                         yield b""
                         return
 
-                    form = await MultiPartParser(
-                        self.headers, steam()
-                    ).parse()
+                    form = await MultiPartParser(self.headers, steam()).parse()
                 else:
                     form = await self.request.form()
                 return self.process_form(form)

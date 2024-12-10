@@ -34,8 +34,9 @@ class UrllibResponseAdaptor(ResponseAdaptor):
     @property
     def cookies(self):
         from http.cookies import SimpleCookie
+
         cookies = SimpleCookie()
-        for cookie in self.response.headers.get_all('Set-Cookie') or []:
+        for cookie in self.response.headers.get_all("Set-Cookie") or []:
             # use get_all, cause Set-Cookie can be multiple
             cookies.load(cookie)
         return cookies

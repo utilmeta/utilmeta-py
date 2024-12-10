@@ -11,21 +11,21 @@ import base64
 # 1. meta connect --token=<ACCESS_TOKEN>
 # 2,
 
-TRUSTED_HOST = 'utilmeta.com'
-DEFAULT_SUPERVISOR = 'https://api.utilmeta.com/spv'
-CLIENT_NAME = f'utilmeta-py-{__version__}'
+TRUSTED_HOST = "utilmeta.com"
+DEFAULT_SUPERVISOR = "https://api.utilmeta.com/spv"
+CLIENT_NAME = f"utilmeta-py-{__version__}"
 
 default_supervisor = SupervisorClient(
     base_url=DEFAULT_SUPERVISOR,
-    base_headers={
-        'User-Agent': CLIENT_NAME
-    },
-    fail_silently=True
+    base_headers={"User-Agent": CLIENT_NAME},
+    fail_silently=True,
 )
 # can only get the basic info
 
 
-def auto_select_supervisor(*supervisors: SupervisorBasic, timeout: int = 5, times: int = 2) -> Optional[str]:
+def auto_select_supervisor(
+    *supervisors: SupervisorBasic, timeout: int = 5, times: int = 2
+) -> Optional[str]:
     if not supervisors:
         return None
     if len(supervisors) == 1:
@@ -49,7 +49,9 @@ def auto_select_supervisor(*supervisors: SupervisorBasic, timeout: int = 5, time
     if not url_map:
         return None
 
-    ts_pairs = [(url, sum(durations) / len(durations)) for url, durations in url_map.items()]
+    ts_pairs = [
+        (url, sum(durations) / len(durations)) for url, durations in url_map.items()
+    ]
     ts_pairs.sort(key=lambda v: v[1])
     return ts_pairs[0][0]
 
@@ -62,17 +64,18 @@ def save_supervisor(data: SupervisorData) -> Supervisor:
             # ops_api=data.ops_api
         ).first()
         if not obj or obj.disabled:
-            raise exceptions.NotFound('Supervisor not found or disabled')
+            raise exceptions.NotFound("Supervisor not found or disabled")
         if obj.node_id:
             # already created
             return obj
         if obj.base_url != data.base_url:
-            raise exceptions.Conflict('Supervisor base_url conflicted')
+            raise exceptions.Conflict("Supervisor base_url conflicted")
         if Supervisor.objects.filter(
-            base_url=data.base_url,
-            node_id=data.node_id
+            base_url=data.base_url, node_id=data.node_id
         ).exists():
-            raise exceptions.Conflict(f'Supervisor[{data.node_id}] at {data.base_url} already exists')
+            raise exceptions.Conflict(
+                f"Supervisor[{data.node_id}] at {data.base_url} already exists"
+            )
         Supervisor.objects.filter(id=obj.pk).update(
             ident=data.ident,
             node_id=data.node_id,
@@ -84,12 +87,12 @@ def save_supervisor(data: SupervisorData) -> Supervisor:
             connected=True,
             url=data.url,
             local=data.local,
-            init_key=None,      # empty init_key, as it is no longer useful and maybe a potential leak source
+            init_key=None,  # empty init_key, as it is no longer useful and maybe a potential leak source
         )
-        return Supervisor.objects.filter(id=obj.pk).first()     # refresh
+        return Supervisor.objects.filter(id=obj.pk).first()  # refresh
     else:
         # from api calling
-        raise exceptions.BadRequest('Missing init_key for supervisor to be saved')
+        raise exceptions.BadRequest("Missing init_key for supervisor to be saved")
 
 
 def update_service_supervisor(service: str, node_id: str):
@@ -97,38 +100,34 @@ def update_service_supervisor(service: str, node_id: str):
         return
     from utilmeta.ops import models
     from django.core.exceptions import EmptyResultSet
+
     for model in models.supervisor_related_models:
         try:
-            model.objects.filter(
-                service=service,
-                node_id=None
-            ).update(node_id=node_id)
+            model.objects.filter(service=service, node_id=None).update(node_id=node_id)
         except EmptyResultSet:
             continue
 
 
 def connect_supervisor(
-    key: str,
-    base_url: str = None,
-    service_id: str = None,
-    cluster_id: str = None
+    key: str, base_url: str = None, service_id: str = None, cluster_id: str = None
 ):
     from utilmeta import service
+
     ops_config = Operations.config()
     if not ops_config:
-        raise TypeError('Operations not configured')
+        raise TypeError("Operations not configured")
 
     if not key:
-        raise ValueError('Access key required to connect to supervisor')
+        raise ValueError("Access key required to connect to supervisor")
 
-    if not key.startswith('{') or not key.endswith('}'):
+    if not key.startswith("{") or not key.endswith("}"):
         # BASE64
         key = base64.decodebytes(key.encode()).decode()
 
     if not base_url:
         # get action url based on the latency
         # fire 2 request for each supervisor at the same time, choose the more reliable one
-        print('connecting: auto-selecting supervisor...')
+        print("connecting: auto-selecting supervisor...")
         list_resp = default_supervisor.get_supervisors()
         if list_resp.success:
             base_url = auto_select_supervisor(*list_resp.result)
@@ -136,15 +135,17 @@ def connect_supervisor(
         ops_config.check_supervisor(base_url)
 
     if not base_url:
-        raise ValueError('No supervisor selected, operation failed')
+        raise ValueError("No supervisor selected, operation failed")
 
     if service.production:
         if ops_config.is_local:
-            raise ValueError(f'Invalid production service operations location: {ops_config.ops_api}, '
-                             f'please use UtilMeta(origin="https://YOUR-PUBLIC-HOST") '
-                             f'to specify your public accessible service origin')
+            raise ValueError(
+                f"Invalid production service operations location: {ops_config.ops_api}, "
+                f'please use UtilMeta(origin="https://YOUR-PUBLIC-HOST") '
+                f"to specify your public accessible service origin"
+            )
 
-    print(f'connect supervisor at: {base_url}')
+    print(f"connect supervisor at: {base_url}")
 
     # with orm.Atomic(ops_config.db_alias):
     # --- PLACEHOLDER
@@ -163,17 +164,23 @@ def connect_supervisor(
 
     if supervisor_obj:
         if supervisor_obj.local:
-            print(f'local supervisor already exists as [{supervisor_obj.node_id}], visit it in {supervisor_obj.url}')
+            print(
+                f"local supervisor already exists as [{supervisor_obj.node_id}], visit it in {supervisor_obj.url}"
+            )
             return
 
         if supervisor_obj.public_key:
-            print(f'supervisor already exists as [{supervisor_obj.node_id}],'
-                  f' visit it in {supervisor_obj.url}')
+            print(
+                f"supervisor already exists as [{supervisor_obj.node_id}],"
+                f" visit it in {supervisor_obj.url}"
+            )
             if supervisor_obj.node_id and not ops_config.node_id:
                 # lost sync, resync here
                 from utilmeta.bin.utils import update_meta_ini_file
+
                 update_meta_ini_file(node=supervisor_obj.node_id)
             from .resources import ResourcesManager
+
             ResourcesManager(service).sync_resources(supervisor_obj)
             # sync resources if supervisor already exists
             # maybe last connect failed to sync
@@ -183,14 +190,14 @@ def connect_supervisor(
 
         if supervisor_obj.init_key != key:
             supervisor_obj.init_key = key
-            supervisor_obj.save(update_fields=['init_key'])
+            supervisor_obj.save(update_fields=["init_key"])
 
     if not supervisor_obj:
         supervisor_obj = Supervisor.objects.create(
             service=service.name,
             base_url=base_url,
-            init_key=key,       # for double-check
-            ops_api=ops_api
+            init_key=key,  # for double-check
+            ops_api=ops_api,
         )
         # without node_id
 
@@ -204,42 +211,51 @@ def connect_supervisor(
             cluster_key=key if cluster_id else None,
             fail_silently=True,
             service_id=service_id,
-            cluster_id=cluster_id
+            cluster_id=cluster_id,
         ) as cli:
-            resp = cli.add_node(
-                data=resources.get_metadata()
-            )
+            resp = cli.add_node(data=resources.get_metadata())
             if not resp.success:
-                raise ValueError(f'connect to supervisor failed with error: {resp.message}')
+                raise ValueError(
+                    f"connect to supervisor failed with error: {resp.message}"
+                )
 
             if resp.result:
                 # supervisor is returned (cannot access)
                 supervisor_obj = save_supervisor(resp.result)
-                if not supervisor_obj.node_id or supervisor_obj.node_id != resp.result.node_id:
-                    raise ValueError(f'supervisor failed to create: inconsistent node id: '
-                                     f'{supervisor_obj.node_id}, {resp.result.node_id}')
+                if (
+                    not supervisor_obj.node_id
+                    or supervisor_obj.node_id != resp.result.node_id
+                ):
+                    raise ValueError(
+                        f"supervisor failed to create: inconsistent node id: "
+                        f"{supervisor_obj.node_id}, {resp.result.node_id}"
+                    )
             else:
                 # supervisor already updated in POST OperationsAPI/
-                supervisor_obj: Supervisor = Supervisor.objects.get(pk=supervisor_obj.pk)
+                supervisor_obj: Supervisor = Supervisor.objects.get(
+                    pk=supervisor_obj.pk
+                )
 
                 # update after
                 if not supervisor_obj.node_id:
-                    raise ValueError('supervisor failed to create')
+                    raise ValueError("supervisor failed to create")
 
             update_service_supervisor(
-                service=supervisor_obj.service,
-                node_id=supervisor_obj.node_id
+                service=supervisor_obj.service, node_id=supervisor_obj.node_id
             )
             if not supervisor_obj.local:
                 if not supervisor_obj.public_key:
-                    raise ValueError('supervisor failed to create: no public key')
+                    raise ValueError("supervisor failed to create: no public key")
             else:
                 if not localhost(ops_api):
-                    raise ValueError(f'supervisor failed to create: invalid local supervisor for {ops_api}')
+                    raise ValueError(
+                        f"supervisor failed to create: invalid local supervisor for {ops_api}"
+                    )
 
             url = supervisor_obj.url
-            print(f'supervisor[{supervisor_obj.node_id}] created')
+            print(f"supervisor[{supervisor_obj.node_id}] created")
             from utilmeta.bin.utils import update_meta_ini_file
+
             update_meta_ini_file(node=supervisor_obj.node_id)
             # update meta.ini
     except Exception as e:
@@ -249,9 +265,9 @@ def connect_supervisor(
     if not supervisor_obj.local:
         resources.sync_resources(supervisor_obj)
 
-    print('supervisor connected successfully!')
+    print("supervisor connected successfully!")
     if url:
-        print(f'please visit {url} to view and manage your APIs')
+        print(f"please visit {url} to view and manage your APIs")
 
     return url
 
@@ -262,42 +278,47 @@ def delete_supervisor(
 ):
     ops_config = Operations.config()
     if not ops_config:
-        raise TypeError('Operations not configured')
+        raise TypeError("Operations not configured")
     if ops_config.node_id and node_id != node_id:
-        raise ValueError(f'You are trying to delete supervisor: {repr(node_id)} under a different service')
+        raise ValueError(
+            f"You are trying to delete supervisor: {repr(node_id)} under a different service"
+        )
     supervisor: Supervisor = Supervisor.objects.filter(node_id=node_id).first()
     if not supervisor:
-        raise ValueError(f'Supervisor: {repr(node_id)} not exists')
-    print(f'deleting supervisor [{node_id}]...')
+        raise ValueError(f"Supervisor: {repr(node_id)} not exists")
+    print(f"deleting supervisor [{node_id}]...")
     init_key = supervisor.init_key
     try:
         if init_key:
             supervisor.init_key = None
             # delete as a marker for deletion
-            supervisor.save(update_fields=['init_key'])
+            supervisor.save(update_fields=["init_key"])
         with SupervisorClient(
             base_url=supervisor.base_url,
             access_key=key,
             node_key=supervisor.public_key,
             node_id=node_id,
-            fail_silently=True
+            fail_silently=True,
         ) as cli:
             resp = cli.delete_node()
             if not resp.success:
-                if resp.state == 'node_not_exists':
-                    print(f'supervisor not exists in remote, delete local supervisor')
+                if resp.state == "node_not_exists":
+                    print(f"supervisor not exists in remote, delete local supervisor")
                 else:
-                    raise ValueError(f'connect to supervisor failed with error: {resp.message}')
+                    raise ValueError(
+                        f"connect to supervisor failed with error: {resp.message}"
+                    )
             else:
                 if resp.result != supervisor.node_id:
-                    raise ValueError(f'delete supervisor failed: node id mismatch')
+                    raise ValueError(f"delete supervisor failed: node id mismatch")
 
             from utilmeta.bin.utils import update_meta_ini_file
+
             update_meta_ini_file(node=None)
-            supervisor.delete()     # this is mostly an empty delete, just incase
+            supervisor.delete()  # this is mostly an empty delete, just incase
     except Exception as e:
         if init_key:
             supervisor.init_key = init_key
-            supervisor.save(update_fields=['init_key'])
+            supervisor.save(update_fields=["init_key"])
         raise e
-    print(f'supervisor[{supervisor.node_id}] deleted successfully!')
+    print(f"supervisor[{supervisor.node_id}] deleted successfully!")

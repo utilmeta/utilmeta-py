@@ -1,5 +1,3 @@
-
-
 class NotConfigured(NotImplementedError):
     def __init__(self, config_cls):
         self.config_cls = config_cls
@@ -7,7 +5,7 @@ class NotConfigured(NotImplementedError):
 
     @property
     def msg(self):
-        return f'Config: {self.config_cls} not configured'
+        return f"Config: {self.config_cls} not configured"
 
 
 class SettingNotConfigured(NotConfigured):
@@ -17,7 +15,7 @@ class SettingNotConfigured(NotConfigured):
 
     @property
     def msg(self):
-        return f'Config: {self.config_cls}.{self.item} not configured'
+        return f"Config: {self.config_cls}.{self.item} not configured"
 
 
 class ConfigError(Exception):

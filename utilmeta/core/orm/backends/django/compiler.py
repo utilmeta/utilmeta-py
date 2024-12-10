@@ -15,7 +15,9 @@ from utilmeta.core.orm import exceptions
 from enum import Enum
 
 
-def get_ignored_errors(errors: Union[bool, Type[Exception], List[Exception]]) -> Tuple[Type[Exception], ...]:
+def get_ignored_errors(
+    errors: Union[bool, Type[Exception], List[Exception]]
+) -> Tuple[Type[Exception], ...]:
     if not errors:
         return ()
     if errors is True:
@@ -43,11 +45,12 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     def _get_pk(self, value, robust: bool = False):
         if robust:
             if isinstance(value, models.Model):
-                return getattr(value, 'pk', None)
+                return getattr(value, "pk", None)
         else:
             if isinstance(value, self.model.model):
-                return getattr(value, 'pk', None)
+                return getattr(value, "pk", None)
         from utilmeta.core.orm.schema import Schema
+
         if isinstance(value, Schema):
             return value.pk
         if isinstance(value, dict):
@@ -179,17 +182,23 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         return self.values
 
     def handle_isolated_field(self, field: ParserQueryField, e: Exception):
-        prepend = f'{self.parser.name}[{self.parser.model.model}] ' \
-                  f'serialize isolated field: [{repr(field.name)}] failed with error: '
+        prepend = (
+            f"{self.parser.name}[{self.parser.model.model}] "
+            f"serialize isolated field: [{repr(field.name)}] failed with error: "
+        )
         if not field.fail_silently or self.context.force_raise_error:
             raise Error(e).throw(prepend=prepend)
-        warnings.warn(f'{prepend}{e}')
+        warnings.warn(f"{prepend}{e}")
 
     def process_expression(self, expression):
         if isinstance(expression, exp.Sum) and self.queryset.query.is_sliced:
             # use subquery to avoid wrong value when sum multiple aggregates
-            expression = exp.Subquery(self.base_queryset().filter(
-                pk=exp.OuterRef('pk')).annotate(v=expression).values('v'))
+            expression = exp.Subquery(
+                self.base_queryset()
+                .filter(pk=exp.OuterRef("pk"))
+                .annotate(v=expression)
+                .values("v")
+            )
             # once a queryset is sliced, query it's many-related data may return wrong values
             # for example, qs[:2] should return [{"id": 1, "many": [1, 2, 3]}, {...}], but the slice of main queryset
             # is affected on the join queries, so it only return [{"id": 1, "many": [1, 2]}, {...}]
@@ -205,7 +214,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         name = field.field_name
         if not isinstance(name, str):
             return None
-        return name.replace('.', '__')
+        return name.replace(".", "__")
 
     def process_query_field(self, field: ParserQueryField):
         if field.primary_key:
@@ -220,7 +229,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             if field.related_schema:
                 self.recursively = True
         elif field.expression:
-            self.expressions.setdefault(field.name, self.process_expression(field.expression))
+            self.expressions.setdefault(
+                field.name, self.process_expression(field.expression)
+            )
             return
 
         if field.included:
@@ -251,7 +262,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         pk_map = {}
 
         key = field.name
-        query_key = '__' + key
+        query_key = "__" + key
         # avoid "conflicts with a field on the model."
 
         current_qs: models.QuerySet = self.model.get_queryset(pk__in=pk_list)
@@ -262,13 +273,16 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         #   - related_schema.serialize(related_qs)   [related_schema provided]
 
         if field.expression:
-            pk_map = {val[PK]: val[query_key] for val in current_qs.values(PK, **{query_key: field.expression})}
+            pk_map = {
+                val[PK]: val[query_key]
+                for val in current_qs.values(PK, **{query_key: field.expression})
+            }
 
         elif isinstance(related_queryset, models.QuerySet):
             # add reverse lookup
             if field.reverse_lookup:
                 related_queryset = related_queryset.filter(
-                    **{field.reverse_lookup + '__in': pk_list}
+                    **{field.reverse_lookup + "__in": pk_list}
                 )
                 for val in related_queryset.values(PK, field.reverse_lookup):
                     rel = val[PK]
@@ -285,7 +299,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # so the final values might not be the exact 'pk'
                 # we do not override if user has already selected
 
-            for val in current_qs.values(PK, **{query_key: exp.Subquery(related_subquery)}):
+            for val in current_qs.values(
+                PK, **{query_key: exp.Subquery(related_subquery)}
+            ):
                 rel = val[query_key]
                 if rel is not None:
                     pk_map.setdefault(val[PK], []).append(rel)
@@ -325,9 +341,10 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # also prevent redundant "None" over the non-exist fk
 
                 if m and f:
-                    for val in m.get_queryset(
-                            **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
-                        rel = val['__target']
+                    for val in m.get_queryset(**{f + "__in": pk_list}).values(
+                        c or PK, __target=exp.F(f)
+                    ):
+                        rel = val["__target"]
                         if rel is not None:
                             pk_map.setdefault(rel, []).append(val[c or PK])
             else:
@@ -369,8 +386,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     # if field.related_model else
                     list(related_pks),  # for func without related model
                     context=self.get_related_context(
-                        field, force_expressions={SEG + PK: exp.F('pk')}
-                    )
+                        field, force_expressions={SEG + PK: exp.F("pk")}
+                    ),
                 ):
                     pk = pop(inst, SEG + PK) or inst.get(PK) or inst.get(ID)
                     # try to get pk value
@@ -416,7 +433,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
 
     def normalize_pk_list(self, value):
         if isinstance(value, models.QuerySet):
-            value = list(value.values_list('pk', flat=True))
+            value = list(value.values_list("pk", flat=True))
         if not multi(value):
             value = [value]
         lst = []
@@ -430,7 +447,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     @awaitable(normalize_pk_list)
     async def normalize_pk_list(self, value):
         if isinstance(value, models.QuerySet):
-            value = [pk async for pk in value.values_list('pk', flat=True)]
+            value = [pk async for pk in value.values_list("pk", flat=True)]
         if not multi(value):
             value = [value]
         lst = []
@@ -443,7 +460,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
 
     def normalize_pk_map(self, pk_map: dict):
         if not isinstance(pk_map, dict):
-            raise TypeError(f'Invalid pk map: {pk_map}, must be a dict')
+            raise TypeError(f"Invalid pk map: {pk_map}, must be a dict")
         result = {}
         for k, value in pk_map.items():
             lst = self.normalize_pk_list(value)
@@ -454,7 +471,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     @awaitable(normalize_pk_map)
     async def normalize_pk_map(self, pk_map: dict):
         if not isinstance(pk_map, dict):
-            raise TypeError(f'Invalid pk map: {pk_map}, must be a dict')
+            raise TypeError(f"Invalid pk map: {pk_map}, must be a dict")
         result = {}
         for k, value in pk_map.items():
             lst = await self.normalize_pk_list(value)
@@ -481,7 +498,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             return
         pk_map = {}
         key = field.name
-        query_key = '__' + key
+        query_key = "__" + key
         # avoid "conflicts with a field on the model."
 
         current_qs: models.QuerySet = self.model.get_queryset(pk__in=pk_list)
@@ -489,13 +506,16 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         related_queryset: models.QuerySet = field.queryset
 
         if field.expression:
-            pk_map = {val[PK]: val[query_key] async for val in current_qs.values(PK, **{query_key: field.expression})}
+            pk_map = {
+                val[PK]: val[query_key]
+                async for val in current_qs.values(PK, **{query_key: field.expression})
+            }
 
         elif isinstance(related_queryset, models.QuerySet):
             # add reverse lookup
             if field.reverse_lookup:
                 related_queryset = related_queryset.filter(
-                    **{field.reverse_lookup + '__in': pk_list}
+                    **{field.reverse_lookup + "__in": pk_list}
                 )
                 async for val in related_queryset.values(PK, field.reverse_lookup):
                     rel = val[PK]
@@ -509,7 +529,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # 2. this is a related schema query, we should override the values to PK
                 related_subquery = related_subquery.values(PK)
 
-            async for val in current_qs.values(PK, **{query_key: exp.Subquery(related_subquery)}):
+            async for val in current_qs.values(
+                PK, **{query_key: exp.Subquery(related_subquery)}
+            ):
                 rel = val[query_key]
                 if rel is not None:
                     pk_map.setdefault(val[PK], []).append(rel)
@@ -547,9 +569,10 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # use reverse query due to the unfixed issue on the async backend
                 # also prevent redundant "None" over the non-exist fk
                 if m and f:
-                    async for val in m.get_queryset(
-                            **{f + '__in': pk_list}).values(c or PK, __target=exp.F(f)):
-                        rel = val['__target']
+                    async for val in m.get_queryset(**{f + "__in": pk_list}).values(
+                        c or PK, __target=exp.F(f)
+                    ):
+                        rel = val["__target"]
                         if rel is not None:
                             pk_map.setdefault(rel, []).append(val[c or PK])
             else:
@@ -591,8 +614,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     # for func without related model,
                     # or the related schema model is not exactly the related model (maybe sub model)
                     context=self.get_related_context(
-                        field, force_expressions={SEG + PK: exp.F('pk')}
-                    )
+                        field, force_expressions={SEG + PK: exp.F("pk")}
+                    ),
                 ):
                     pk = pop(inst, SEG + PK) or inst.get(PK) or inst.get(ID)
                     # try to get pk value
@@ -637,7 +660,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     def process_value(self, field: ParserQueryField, value):
         if not field.model_field:
             return value
-        if isinstance(field.model_field, models.DurationField) and isinstance(value, (int, float)):
+        if isinstance(field.model_field, models.DurationField) and isinstance(
+            value, (int, float)
+        ):
             return timedelta(seconds=value)
         elif multi(value):
             # convert tuple/set to list
@@ -676,18 +701,21 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     # def get_instance(self, pk):
     #     self.model.get_instance_recursively(pk=pk)
 
-    def save_data(self,
-                  data,
-                  must_create: bool = False,
-                  must_update: bool = False,
-                  ignore_bulk_errors: bool = False,
-                  ignore_relation_errors: bool = False,
-                  with_relations: bool = None,
-                  transaction: bool = False,
-                  ):
+    def save_data(
+        self,
+        data,
+        must_create: bool = False,
+        must_update: bool = False,
+        ignore_bulk_errors: bool = False,
+        ignore_relation_errors: bool = False,
+        with_relations: bool = None,
+        transaction: bool = False,
+    ):
         if with_relations is None:
             with_relations = self.pref.orm_default_save_with_relations
-        with TransactionWrapper(self.model, transaction, errors_map=self.get_errors_map(False)):
+        with TransactionWrapper(
+            self.model, transaction, errors_map=self.get_errors_map(False)
+        ):
             if multi(data):
                 # TODO: implement bulk create/update
                 error_classes = get_ignored_errors(ignore_bulk_errors)
@@ -704,11 +732,14 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     except error_classes as e:
                         pk = None
                         # leave it to None to keep the result pk_list the same length as values
-                        warnings.warn(f'orm.Schema[{self.model.model}]: ignoring bulk_save errors: {e}')
+                        warnings.warn(
+                            f"orm.Schema[{self.model.model}]: ignoring bulk_save errors: {e}"
+                        )
                     pk_list.append(pk)
                 return pk_list
             else:
                 from utilmeta.core.orm.schema import Schema
+
                 pk = None
                 if isinstance(data, Schema):
                     pk = data.pk
@@ -717,7 +748,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                         pk = data.get(p)
                         if pk is not None:
                             break
-                data, rel_keys, rel_objs = self.process_data(data, with_relations=with_relations)
+                data, rel_keys, rel_objs = self.process_data(
+                    data, with_relations=with_relations
+                )
                 if pk is None:
                     # create
                     if must_update:
@@ -762,18 +795,21 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 return pk
 
     @awaitable(save_data, bind_service=True, close_conn=True)
-    async def save_data(self,
-                        data,
-                        must_create: bool = False,
-                        must_update: bool = False,
-                        ignore_bulk_errors: bool = False,
-                        ignore_relation_errors: bool = False,
-                        with_relations: bool = None,
-                        transaction: bool = False,
-                        ):
+    async def save_data(
+        self,
+        data,
+        must_create: bool = False,
+        must_update: bool = False,
+        ignore_bulk_errors: bool = False,
+        ignore_relation_errors: bool = False,
+        with_relations: bool = None,
+        transaction: bool = False,
+    ):
         if with_relations is None:
             with_relations = self.pref.orm_default_save_with_relations
-        async with TransactionWrapper(self.model, transaction, errors_map=self.get_errors_map(True)):
+        async with TransactionWrapper(
+            self.model, transaction, errors_map=self.get_errors_map(True)
+        ):
             if multi(data):
                 # TODO: implement bulk create/update
                 error_classes = get_ignored_errors(ignore_bulk_errors)
@@ -785,15 +821,18 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                             must_create=must_create,
                             must_update=must_update,
                             ignore_relation_errors=ignore_relation_errors,
-                            with_relations=with_relations
+                            with_relations=with_relations,
                         )
                     except error_classes as e:
                         pk = None
-                        warnings.warn(f'orm.Schema[{self.model.model}]: ignoring bulk_save errors: {e}')
+                        warnings.warn(
+                            f"orm.Schema[{self.model.model}]: ignoring bulk_save errors: {e}"
+                        )
                     pk_list.append(pk)
                 return pk_list
             else:
                 from utilmeta.core.orm.schema import Schema
+
                 pk = None
                 if isinstance(data, Schema):
                     pk = data.pk
@@ -803,7 +842,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                         if pk is not None:
                             break
 
-                data, rel_keys, rel_objs = self.process_data(data, with_relations=with_relations)
+                data, rel_keys, rel_objs = self.process_data(
+                    data, with_relations=with_relations
+                )
 
                 if pk is None:
                     if must_update:
@@ -850,14 +891,16 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     )
                 return pk
 
-    def save_relations(self,
-                       pk,
-                       relation_keys: dict,
-                       relation_objects: dict,
-                       must_create: bool = False,
-                       ignore_errors: bool = False,
-                       ):
+    def save_relations(
+        self,
+        pk,
+        relation_keys: dict,
+        relation_objects: dict,
+        must_create: bool = False,
+        ignore_errors: bool = False,
+    ):
         from utilmeta.core.orm.schema import Schema
+
         error_classes = get_ignored_errors(ignore_errors)
 
         # todo: update single object (fk + unique=True)
@@ -880,7 +923,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     try:
                         related_inst.save(update_fields=[relation_field])
                     except error_classes as e:
-                        warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
+                        warnings.warn(
+                            f"orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}"
+                        )
             else:
                 rel_field = getattr(inst, name, None)
                 if not rel_field:
@@ -892,7 +937,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     else:
                         rel_field.set(keys)
                 except error_classes as e:
-                    warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
+                    warnings.warn(
+                        f"orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}"
+                    )
 
         for key, (field, objects) in relation_objects.items():
             field: ParserQueryField
@@ -900,7 +947,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             if not related_schema or not issubclass(related_schema, Schema):
                 continue
             # SET PK
-            relation_fields = getattr(related_schema, '__relational_fields__', []) or []
+            relation_fields = getattr(related_schema, "__relational_fields__", []) or []
             if isinstance(objects, Schema):
                 objects = [objects]
             elif not multi(objects):
@@ -912,7 +959,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 objects,
                 must_create=must_create and not field.model_field.remote_field.is_pk,
                 ignore_errors=ignore_errors,
-                with_relations=True
+                with_relations=True,
             )
             if not must_create:
                 # delete the unrelated-relation
@@ -920,19 +967,18 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     field_name = field.model_field.remote_field.name
                     if not field_name:
                         continue
-                    field.related_model.get_queryset(
-                        **{field_name: pk}
-                    ).exclude(pk__in=[val.pk for val in result if val.pk]).delete()
+                    field.related_model.get_queryset(**{field_name: pk}).exclude(
+                        pk__in=[val.pk for val in result if val.pk]
+                    ).delete()
                 except error_classes as e:
-                    warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational '
-                                  f'deletion errors for {repr(key)}: {e}')
+                    warnings.warn(
+                        f"orm.Schema(pk={repr(pk)}): ignoring relational "
+                        f"deletion errors for {repr(key)}: {e}"
+                    )
 
-    async def asave_relation_keys(self,
-                                  obj,
-                                  keys: list,
-                                  field: ParserQueryField,
-                                  add_only: bool = False
-                                 ):
+    async def asave_relation_keys(
+        self, obj, keys: list, field: ParserQueryField, add_only: bool = False
+    ):
         if not isinstance(obj, self.model.model):
             obj = self.model.init_instance(pk=obj)
 
@@ -940,8 +986,10 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         related_model = field.model_field.related_model
         from_field, to_field = field.model_field.through_fields
         if not through_model or not related_model or not from_field or not to_field:
-            raise exceptions.InvalidRelationalUpdate(f'Invalid relational keys update field: '
-                                                     f'{repr(field.model_field.name)}, must be a many-to-may field/rel')
+            raise exceptions.InvalidRelationalUpdate(
+                f"Invalid relational keys update field: "
+                f"{repr(field.model_field.name)}, must be a many-to-may field/rel"
+            )
         create_objs = []
         all_keys = []
         for key in keys:
@@ -949,10 +997,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 rel_obj = key
             else:
                 rel_obj = related_model.init_instance(pk=key)
-            thr_data = {
-                from_field.name: obj,
-                to_field.name: rel_obj
-            }
+            thr_data = {from_field.name: obj, to_field.name: rel_obj}
             if not add_only:
                 thr_obj = await through_model.aget_instance(**thr_data)
                 if thr_obj:
@@ -960,7 +1005,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     continue
             create_objs.append(thr_data)
 
-        through_qs = AwaitableQuerySet(model=through_model.model).filter(**{from_field.name: obj})
+        through_qs = AwaitableQuerySet(model=through_model.model).filter(
+            **{from_field.name: obj}
+        )
         db = through_qs.connections_cls.get(through_qs.db)
 
         async with db.async_transaction(savepoint=False):
@@ -968,18 +1015,18 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 obj = await AwaitableQuerySet(model=through_model.model).acreate(**val)
                 all_keys.append(obj.pk)
             if not add_only:
-                await through_qs.exclude(
-                    pk__in=all_keys
-                ).adelete()
+                await through_qs.exclude(pk__in=all_keys).adelete()
 
-    async def asave_relations(self,
-                              pk,
-                              relation_keys: dict,
-                              relation_objects: dict,
-                              must_create: bool = False,
-                              ignore_errors: bool = False,
-                              ):
+    async def asave_relations(
+        self,
+        pk,
+        relation_keys: dict,
+        relation_objects: dict,
+        must_create: bool = False,
+        ignore_errors: bool = False,
+    ):
         from utilmeta.core.orm.schema import Schema
+
         error_classes = get_ignored_errors(ignore_errors)
 
         for name, (field, keys) in relation_keys.items():
@@ -998,17 +1045,18 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     try:
                         await related_inst.asave(update_fields=[relation_field])
                     except error_classes as e:
-                        warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
+                        warnings.warn(
+                            f"orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}"
+                        )
             else:
                 try:
                     await self.asave_relation_keys(
-                        inst,
-                        keys=keys,
-                        field=field,
-                        add_only=must_create
+                        inst, keys=keys, field=field, add_only=must_create
                     )
                 except error_classes as e:
-                    warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}')
+                    warnings.warn(
+                        f"orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}"
+                    )
 
         # async tasks may cause update problem? don't know, to be tested
         for key, (field, objects) in relation_objects.items():
@@ -1017,7 +1065,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             if not related_schema or not issubclass(related_schema, Schema):
                 continue
             # SET PK
-            relation_fields = getattr(related_schema, '__relational_fields__', []) or []
+            relation_fields = getattr(related_schema, "__relational_fields__", []) or []
             if isinstance(objects, Schema):
                 objects = [objects]
             elif not multi(objects):
@@ -1031,7 +1079,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 objects,
                 must_create=must_create and not field.model_field.remote_field.is_pk,
                 ignore_errors=ignore_errors,
-                with_relations=True
+                with_relations=True,
             )
             if not must_create:
                 # delete the unrelated-relation
@@ -1039,12 +1087,14 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     field_name = field.model_field.remote_field.name
                     if not field_name:
                         continue
-                    await field.related_model.get_queryset(
-                        **{field_name: pk}
-                    ).exclude(pk__in=[val.pk for val in result if val.pk]).adelete()
+                    await field.related_model.get_queryset(**{field_name: pk}).exclude(
+                        pk__in=[val.pk for val in result if val.pk]
+                    ).adelete()
                 except error_classes as e:
-                    warnings.warn(f'orm.Schema(pk={repr(pk)}): ignoring relational '
-                                  f'deletion errors for {repr(key)}: {e}')
+                    warnings.warn(
+                        f"orm.Schema(pk={repr(pk)}): ignoring relational "
+                        f"deletion errors for {repr(key)}: {e}"
+                    )
 
     def get_errors_map(self, asynchronous: bool = False) -> dict:
         if self.context.integrity_error_cls:
@@ -1059,12 +1109,17 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             # we should not return any
             return ()
         from .queryset import AwaitableQuerySet
+
         qs = self.model.get_queryset()
         from django.db.utils import IntegrityError
+
         if isinstance(qs, AwaitableQuerySet) or asynchronous:
             from utilmeta.core.orm import DatabaseConnections
+
             db = DatabaseConnections.get(qs.db)
-            errors = list(db.get_adaptor(asynchronous=asynchronous).get_integrity_errors())
+            errors = list(
+                db.get_adaptor(asynchronous=asynchronous).get_integrity_errors()
+            )
         else:
             errors = []
         if IntegrityError not in errors:

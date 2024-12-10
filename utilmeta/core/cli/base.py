@@ -1,9 +1,18 @@
 import inspect
 
-from utilmeta.utils import PluginEvent, PluginTarget, \
-    Error, url_join, classonlymethod, json_dumps, \
-    COMMON_METHODS, EndpointAttr, valid_url, \
-    parse_query_string, parse_query_dict
+from utilmeta.utils import (
+    PluginEvent,
+    PluginTarget,
+    Error,
+    url_join,
+    classonlymethod,
+    json_dumps,
+    COMMON_METHODS,
+    EndpointAttr,
+    valid_url,
+    parse_query_string,
+    parse_query_dict,
+)
 
 from utype.types import *
 from http.cookies import SimpleCookie
@@ -25,25 +34,28 @@ from functools import partial
 from typing import TypeVar
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
-setup_class = PluginEvent('setup_class', synchronous_only=True)
-process_request = PluginEvent('process_request', streamline_result=True)
-handle_error = PluginEvent('handle_error')
-process_response = PluginEvent('process_response', streamline_result=True)
+setup_class = PluginEvent("setup_class", synchronous_only=True)
+process_request = PluginEvent("process_request", streamline_result=True)
+handle_error = PluginEvent("handle_error")
+process_response = PluginEvent("process_response", streamline_result=True)
 
 
-def parse_proxies(proxies: Union[str, List[str], Dict[str, str]], scheme=None) -> Dict[str, List[str]]:
+def parse_proxies(
+    proxies: Union[str, List[str], Dict[str, str]], scheme=None
+) -> Dict[str, List[str]]:
     if isinstance(proxies, str):
         from urllib.parse import urlparse
+
         parsed = urlparse(proxies)
         if parsed.scheme:
             return {parsed.scheme: [proxies]}
         if scheme:
-            return {scheme: scheme + '://' + proxies}
+            return {scheme: scheme + "://" + proxies}
         return {
-            'http': ['http://' + proxies],
-            'https': ['https://' + proxies],
+            "http": ["http://" + proxies],
+            "https": ["https://" + proxies],
         }
     elif isinstance(proxies, list):
         values = {}
@@ -93,9 +105,13 @@ class Client(PluginTarget):
 
     def __init_subclass__(cls, **kwargs):
         if not issubclass(cls._request_cls, Request):
-            raise TypeError(f'Invalid request class: {cls._request_cls}, must be subclass of Request')
+            raise TypeError(
+                f"Invalid request class: {cls._request_cls}, must be subclass of Request"
+            )
         if not issubclass(cls._endpoint_cls, ClientEndpoint):
-            raise TypeError(f'Invalid request class: {cls._endpoint_cls}, must be subclass of ClientEndpoint')
+            raise TypeError(
+                f"Invalid request class: {cls._endpoint_cls}, must be subclass of ClientEndpoint"
+            )
 
         cls._generate_endpoints()
         setup_class(cls, **kwargs)
@@ -108,22 +124,24 @@ class Client(PluginTarget):
         clients = {}
 
         for key, api in cls.__annotations__.items():
-            if key.startswith('_'):
+            if key.startswith("_"):
                 continue
             val = cls.__dict__.get(key)
 
             if is_annotated(api):
                 # param: Annotated[str, request.QueryParam()]
-                api = getattr(api, '__origin__', None)
+                api = getattr(api, "__origin__", None)
 
             if inspect.isclass(api) and issubclass(api, Client):
                 kwargs = dict(route=key, name=key, parent=cls)
                 if not val:
-                    val = getattr(api, '_generator', None)
+                    val = getattr(api, "_generator", None)
                 if isinstance(val, decorator.APIGenerator):
                     kwargs.update(val.kwargs)
                 elif inspect.isfunction(val):
-                    raise TypeError(f'{cls.__name__}: generate route [{repr(key)}] failed: conflict api and endpoint')
+                    raise TypeError(
+                        f"{cls.__name__}: generate route [{repr(key)}] failed: conflict api and endpoint"
+                    )
                 route = cls._route_cls(api, **kwargs)
                 clients[key] = route
 
@@ -138,11 +156,15 @@ class Client(PluginTarget):
                 if method:
                     if hasattr(Client, key):
                         if key.lower() in COMMON_METHODS:
-                            raise TypeError(f'{cls.__name__}: generate route for {repr(key)} failed: HTTP method '
-                                            f'name is reserved for Client class, please use @api.{key.lower()}("/")')
+                            raise TypeError(
+                                f"{cls.__name__}: generate route for {repr(key)} failed: HTTP method "
+                                f'name is reserved for Client class, please use @api.{key.lower()}("/")'
+                            )
                         else:
-                            raise TypeError(f'{cls.__name__}: generate route for {repr(key)} failed: '
-                                            f'name conflicted with Client method')
+                            raise TypeError(
+                                f"{cls.__name__}: generate route for {repr(key)} failed: "
+                                f"name conflicted with Client method"
+                            )
 
                     # a sign to wrap it in Unit
                     # 1. @api.get                (method='get')
@@ -151,7 +173,9 @@ class Client(PluginTarget):
                     # 4. @api(method='CUSTOM')   (method='custom')
                     val = cls._endpoint_cls.apply_for(val, cls)
                 elif hook_type:
-                    val = cls._hook_cls.dispatch_for(val, hook_type, target_type='client')
+                    val = cls._hook_cls.dispatch_for(
+                        val, hook_type, target_type="client"
+                    )
                 else:
                     continue
                 setattr(cls, key, val)  # reset value
@@ -169,27 +193,26 @@ class Client(PluginTarget):
 
         cls._clients = clients
 
-    def __init__(self,
-                 base_url: Union[str, List[str]] = None,
-                 backend=None,      # urllib / requests / aiohttp / httpx
-                 service: Optional[UtilMeta] = None,
-                 mock: bool = False,
-                 internal: bool = False,
-                 plugins: list = (),
-
-                 # session=None,      # used to pass along the sdk classes
-                 # prepend_route: str = None,
-                 append_slash: bool = None,
-
-                 default_timeout: Union[float, int, timedelta] = None,
-                 base_headers: Dict[str, str] = None,
-                 base_cookies: Union[str, Dict[str, str], SimpleCookie] = None,
-                 base_query: Dict[str, Any] = None,
-                 proxies: dict = None,
-                 allow_redirects: bool = None,
-                 charset: str = 'utf-8',
-                 fail_silently: bool = False,
-                 ):
+    def __init__(
+        self,
+        base_url: Union[str, List[str]] = None,
+        backend=None,  # urllib / requests / aiohttp / httpx
+        service: Optional[UtilMeta] = None,
+        mock: bool = False,
+        internal: bool = False,
+        plugins: list = (),
+        # session=None,      # used to pass along the sdk classes
+        # prepend_route: str = None,
+        append_slash: bool = None,
+        default_timeout: Union[float, int, timedelta] = None,
+        base_headers: Dict[str, str] = None,
+        base_cookies: Union[str, Dict[str, str], SimpleCookie] = None,
+        base_query: Dict[str, Any] = None,
+        proxies: dict = None,
+        allow_redirects: bool = None,
+        charset: str = "utf-8",
+        fail_silently: bool = False,
+    ):
 
         super().__init__(plugins=plugins)
 
@@ -206,7 +229,9 @@ class Client(PluginTarget):
         elif inspect.ismodule(backend):
             backend_name = backend.__name__
         else:
-            raise TypeError(f'Invalid backend: {repr(backend)}, must be a module or str')
+            raise TypeError(
+                f"Invalid backend: {repr(backend)}, must be a module or str"
+            )
 
         self._backend_name = backend_name
         self._backend = backend
@@ -221,17 +246,15 @@ class Client(PluginTarget):
             res = urlsplit(base_url)
             if not res.scheme:
                 # allow ws / wss in the future
-                raise ValueError(f'utilmeta.core.cli.Client: Invalid base_url: {repr(base_url)}, '
-                                 f'must be a valid url')
+                raise ValueError(
+                    f"utilmeta.core.cli.Client: Invalid base_url: {repr(base_url)}, "
+                    f"must be a valid url"
+                )
             if res.query:
                 self._base_query.update(parse_query_string(res.query))
-            base_url = urlunsplit((
-                res.scheme,
-                res.netloc,
-                res.path,
-                '',  # query
-                ''   # fragment
-            ))
+            base_url = urlunsplit(
+                (res.scheme, res.netloc, res.path, "", "")  # query  # fragment
+            )
 
         self._base_url = base_url
         self._proxies = proxies
@@ -249,12 +272,12 @@ class Client(PluginTarget):
             # includes BaseCookie cookies
             cookies = SimpleCookie(cookies)
         elif cookies:
-            raise TypeError(f'Invalid cookies: {cookies}, must be str or dict')
+            raise TypeError(f"Invalid cookies: {cookies}, must be str or dict")
         else:
             cookies = SimpleCookie()
 
         for _key, _val in self._base_headers.items():
-            if _key.lower() == 'cookie':
+            if _key.lower() == "cookie":
                 cookies.update(SimpleCookie(_val))
                 break
 
@@ -266,7 +289,7 @@ class Client(PluginTarget):
         self._original_headers = dict(self._base_headers)
         self._original_query = dict(self._base_query)
 
-        self._client_route: Optional['ClientRoute'] = None
+        self._client_route: Optional["ClientRoute"] = None
 
         for key, val in self.__class__.__dict__.items():
             if isinstance(val, ClientEndpoint):
@@ -279,8 +302,7 @@ class Client(PluginTarget):
                 client_cls = client_route.handler
                 params = dict(params)
                 params.update(
-                    base_url=client_base_url,
-                    plugins=self._plugins       # inject plugins
+                    base_url=client_base_url, plugins=self._plugins  # inject plugins
                 )
                 client = client_cls(**params)
                 client._client_route = client_route.merge_hooks(self._client_route)
@@ -309,12 +331,12 @@ class Client(PluginTarget):
         return self._request_cls
 
     @property
-    def client_route(self) -> 'ClientRoute':
+    def client_route(self) -> "ClientRoute":
         return self._client_route
 
     @classonlymethod
     def __reproduce_with__(cls, generator: decorator.APIGenerator):
-        plugins = generator.kwargs.get('plugins')
+        plugins = generator.kwargs.get("plugins")
         if plugins:
             cls._add_plugins(*plugins)
         cls._generator = generator
@@ -327,7 +349,7 @@ class Client(PluginTarget):
             service=self._service,
             base_headers=self._base_headers,
             base_query=self._base_query,
-            base_cookies=self._cookies,     # use cookies as base_cookies to pass session to sub client
+            base_cookies=self._cookies,  # use cookies as base_cookies to pass session to sub client
             append_slash=self._append_slash,
             allow_redirects=self._allow_redirects,
             proxies=self._proxies,
@@ -368,24 +390,20 @@ class Client(PluginTarget):
         # base_url: null
         # path: https://origin.com/path?key=value
 
-        base_url = self._base_url or (self._service.base_url if self._service else '')
+        base_url = self._base_url or (self._service.base_url if self._service else "")
 
         if parsed.scheme:
             # ignore base url
-            url = urlunsplit((
-                parsed.scheme,
-                parsed.netloc,
-                parsed.path,
-                '',     # query
-                ''      # fragment
-            ))
+            url = urlunsplit(
+                (parsed.scheme, parsed.netloc, parsed.path, "", "")  # query  # fragment
+            )
         else:
             url = url_join(base_url, parsed.path)
 
         if self._append_slash:
-            url = url.rstrip('/') + '/'
+            url = url.rstrip("/") + "/"
 
-        return url + (('?' + urlencode(query_params)) if query_params else '')
+        return url + (("?" + urlencode(query_params)) if query_params else "")
 
     def _build_headers(self, headers, cookies=None):
         if cookies:
@@ -406,34 +424,28 @@ class Client(PluginTarget):
                 _headers[key] = value
 
         if isinstance(_cookies, SimpleCookie) and _cookies:
-            _headers['cookie'] = ';'.join([f'{key}={val.value}' for key, val in _cookies.items() if val.value])
+            _headers["cookie"] = ";".join(
+                [f"{key}={val.value}" for key, val in _cookies.items() if val.value]
+            )
 
         return _headers
 
-    def _build_request(self,
-                       method: str,
-                       path: str = None,
-                       query: dict = None,
-                       data=None,
-                       # form: dict = None,
-                       headers: dict = None,
-                       cookies=None):
-        url = self._build_url(
-            path=path,
-            query=query
-        )
-        headers = self._build_headers(
-            headers=headers,
-            cookies=cookies
-        )
+    def _build_request(
+        self,
+        method: str,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        # form: dict = None,
+        headers: dict = None,
+        cookies=None,
+    ):
+        url = self._build_url(path=path, query=query)
+        headers = self._build_headers(headers=headers, cookies=cookies)
         # if content_type:
         #     headers.setdefault('content-type', content_type)
         return self._request_cls(
-            method=method,
-            url=url,
-            data=data,
-            headers=headers,
-            backend=self._backend
+            method=method, url=url, data=data, headers=headers, backend=self._backend
         )
 
     def __request__(self, endpoint: ClientEndpoint, request: Request):
@@ -445,11 +457,12 @@ class Client(PluginTarget):
 
         def make_request(req: Request = request):
             return endpoint.parse_response(
-                self._make_request(req),
-                fail_silently=self._fail_silently
+                self._make_request(req), fail_silently=self._fail_silently
             )
 
-        handler = self._chain_cls(self, endpoint).build_client_handler(make_request, asynchronous=False)
+        handler = self._chain_cls(self, endpoint).build_client_handler(
+            make_request, asynchronous=False
+        )
         return handler(request)
 
     async def __async_request__(self, endpoint: ClientEndpoint, request: Request):
@@ -461,11 +474,12 @@ class Client(PluginTarget):
 
         async def make_request(req: Request = request):
             return endpoint.parse_response(
-                await self._make_async_request(req),
-                fail_silently=self._fail_silently
+                await self._make_async_request(req), fail_silently=self._fail_silently
             )
 
-        handler = self._chain_cls(self, endpoint).build_client_handler(make_request, asynchronous=True)
+        handler = self._chain_cls(self, endpoint).build_client_handler(
+            make_request, asynchronous=True
+        )
         return await handler(request)
 
     def _make_request(self, request: Request, timeout: int = None) -> Response:
@@ -475,35 +489,31 @@ class Client(PluginTarget):
                 from utilmeta import service
 
             root_api = service.resolve()
-            request.adaptor.route = request.path.strip('/')
+            request.adaptor.route = request.path.strip("/")
 
             try:
                 response = root_api(request)()
             except Exception as e:
-                response = getattr(root_api, 'response', Response)(error=e, request=request)
+                response = getattr(root_api, "response", Response)(
+                    error=e, request=request
+                )
 
         else:
             adaptor: ClientRequestAdaptor = ClientRequestAdaptor.dispatch(request)
             if timeout is None:
-                timeout = request.adaptor.get_context('timeout')        # slot
+                timeout = request.adaptor.get_context("timeout")  # slot
                 if timeout is None:
                     timeout = self._default_timeout
             if timeout is not None:
                 timeout = float(timeout)
             try:
-                resp = adaptor(
-                    timeout=timeout,
-                    allow_redirects=self._allow_redirects
-                )
+                resp = adaptor(timeout=timeout, allow_redirects=self._allow_redirects)
             except Exception as e:
                 if not self._fail_silently:
                     raise e from e
-                timeout = 'timeout' in str(e).lower()
+                timeout = "timeout" in str(e).lower()
                 response = Response(
-                    timeout=timeout,
-                    error=e,
-                    request=request,
-                    aborted=True
+                    timeout=timeout, error=e, request=request, aborted=True
                 )
             else:
                 response = Response(response=resp, request=request)
@@ -514,50 +524,58 @@ class Client(PluginTarget):
 
         return response
 
-    async def _make_async_request(self, request: Request, timeout: int = None) -> Response:
+    async def _make_async_request(
+        self, request: Request, timeout: int = None
+    ) -> Response:
         if self._internal:
             service = self._service
             if not service:
                 from utilmeta import service
 
             root_api = service.resolve()
-            request.adaptor.route = request.path.strip('/')
+            request.adaptor.route = request.path.strip("/")
 
             try:
                 response = root_api(request)()
                 if inspect.isawaitable(response):
                     response = await response
             except Exception as e:
-                response = getattr(root_api, 'response', Response)(error=e, request=request)
+                response = getattr(root_api, "response", Response)(
+                    error=e, request=request
+                )
 
         else:
             adaptor: ClientRequestAdaptor = ClientRequestAdaptor.dispatch(request)
             if timeout is None:
-                timeout = request.adaptor.get_context('timeout')        # slot
+                timeout = request.adaptor.get_context("timeout")  # slot
             try:
                 resp = adaptor(
                     timeout=timeout or self._default_timeout,
-                    allow_redirects=self._allow_redirects
+                    allow_redirects=self._allow_redirects,
                 )
                 if inspect.isawaitable(resp):
                     resp = await resp
             except Exception as e:
                 if not self._fail_silently:
                     raise e from e
-                timeout = 'timeout' in str(e).lower()
+                timeout = "timeout" in str(e).lower()
                 response = Response(
-                    error=e,
-                    request=request,
-                    timeout=timeout,
-                    aborted=True
+                    error=e, request=request, timeout=timeout, aborted=True
                 )
             else:
                 response = Response(response=resp, request=request)
         return response
 
-    def request(self, method: str, path: str = None, query: dict = None,
-                data=None,
-                headers: dict = None, cookies=None, timeout: int = None) -> Response:
+    def request(
+        self,
+        method: str,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ) -> Response:
 
         request = self._build_request(
             method=method,
@@ -566,250 +584,284 @@ class Client(PluginTarget):
             data=data,
             # form=form,
             headers=headers,
-            cookies=cookies
+            cookies=cookies,
         )
         return self._make_request(request, timeout=timeout)
 
-    async def async_request(self, method: str, path: str = None, query: dict = None,
-                            data=None,
-                            headers: dict = None, cookies=None,
-                            timeout: int = None) -> Response:
+    async def async_request(
+        self,
+        method: str,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ) -> Response:
         request = self._build_request(
             method=method,
             path=path,
             query=query,
             data=data,
             headers=headers,
-            cookies=cookies
+            cookies=cookies,
         )
         return await self._make_async_request(request, timeout=timeout)
 
-    def get(self,
-            path: str = None,
-            query: dict = None,
-            headers: dict = None,
-            cookies=None,
-            timeout: int = None):
+    def get(
+        self,
+        path: str = None,
+        query: dict = None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return self.request(
-            method='GET',
+            method="GET",
             path=path,
             query=query,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    async def async_get(self,
-                        path: str = None,
-                        query: dict = None,
-                        headers: dict = None,
-                        cookies=None,
-                        timeout: int = None):
+    async def async_get(
+        self,
+        path: str = None,
+        query: dict = None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return await self.async_request(
-            method='GET',
+            method="GET",
             path=path,
             query=query,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    def post(self,
-             path: str = None,
-             query: dict = None,
-             data=None,
-             headers: dict = None,
-             cookies=None,
-             timeout: int = None):
+    def post(
+        self,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return self.request(
-            method='POST',
+            method="POST",
             path=path,
             query=query,
             data=data,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    async def async_post(self,
-                         path: str = None,
-                         query: dict = None,
-                         data=None,
-                         headers: dict = None,
-                         cookies=None,
-                         timeout: int = None):
+    async def async_post(
+        self,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return await self.async_request(
-            method='POST',
+            method="POST",
             path=path,
             query=query,
             data=data,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    def put(self,
-            path: str = None,
-            query: dict = None,
-            data=None,
-            headers: dict = None,
-            cookies=None,
-            timeout: int = None):
+    def put(
+        self,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return self.request(
-            method='PUT',
+            method="PUT",
             path=path,
             query=query,
             data=data,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    async def async_put(self,
-                        path: str = None,
-                        query: dict = None,
-                        data=None,
-                        headers: dict = None,
-                        cookies=None,
-                        timeout: int = None):
+    async def async_put(
+        self,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return await self.async_request(
-            method='PUT',
+            method="PUT",
             path=path,
             query=query,
             data=data,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    def patch(self,
-              path: str = None,
-              query: dict = None,
-              data=None,
-              headers: dict = None,
-              cookies=None,
-              timeout: int = None):
+    def patch(
+        self,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return self.request(
-            method='PATCH',
+            method="PATCH",
             path=path,
             query=query,
             data=data,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    async def async_patch(self,
-                          path: str = None,
-                          query: dict = None,
-                          data=None,
-                          headers: dict = None,
-                          cookies=None,
-                          timeout: int = None):
+    async def async_patch(
+        self,
+        path: str = None,
+        query: dict = None,
+        data=None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return await self.async_request(
-            method='PATCH',
+            method="PATCH",
             path=path,
             query=query,
             data=data,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    def delete(self,
-               path: str = None,
-               query: dict = None,
-               headers: dict = None,
-               cookies=None,
-               timeout: int = None):
+    def delete(
+        self,
+        path: str = None,
+        query: dict = None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return self.request(
-            method='DELETE',
+            method="DELETE",
             path=path,
             query=query,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    async def async_delete(self,
-                           path: str = None,
-                           query: dict = None,
-                           headers: dict = None,
-                           cookies=None,
-                           timeout: int = None):
+    async def async_delete(
+        self,
+        path: str = None,
+        query: dict = None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return await self.async_request(
-            method='DELETE',
+            method="DELETE",
             path=path,
             query=query,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    def options(self,
-                path: str = None,
-                query: dict = None,
-                headers: dict = None,
-                cookies=None,
-                timeout: int = None):
+    def options(
+        self,
+        path: str = None,
+        query: dict = None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return self.request(
-            method='OPTIONS',
+            method="OPTIONS",
             path=path,
             query=query,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    async def async_options(self,
-                            path: str = None,
-                            query: dict = None,
-                            headers: dict = None,
-                            cookies=None,
-                            timeout: int = None):
+    async def async_options(
+        self,
+        path: str = None,
+        query: dict = None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return await self.async_request(
-            method='OPTIONS',
+            method="OPTIONS",
             path=path,
             query=query,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    def head(self,
-             path: str = None,
-             query: dict = None,
-             headers: dict = None,
-             cookies=None,
-             timeout: int = None):
+    def head(
+        self,
+        path: str = None,
+        query: dict = None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return self.request(
-            method='HEAD',
+            method="HEAD",
             path=path,
             query=query,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
-    async def async_head(self,
-                         path: str = None,
-                         query: dict = None,
-                         headers: dict = None,
-                         cookies=None,
-                         timeout: int = None):
+    async def async_head(
+        self,
+        path: str = None,
+        query: dict = None,
+        headers: dict = None,
+        cookies=None,
+        timeout: int = None,
+    ):
         return self.request(
-            method='HEAD',
+            method="HEAD",
             path=path,
             query=query,
             headers=headers,
             cookies=cookies,
-            timeout=timeout
+            timeout=timeout,
         )
 
     def process_request(self, request: Request):
         pass
 
-    def process_response(self, response: Response):     # noqa : meant to be inherited
+    def process_response(self, response: Response):  # noqa : meant to be inherited
         """
         Process response can also be treated as a hook (callback)
         to handle non-blocking requests

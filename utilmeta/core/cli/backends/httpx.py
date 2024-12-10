@@ -24,13 +24,19 @@ class HttpxClientRequestAdaptor(ClientRequestAdaptor):
 
     def __call__(self, timeout: float = None, **kwargs):
         from utilmeta.core.response.backends.httpx import HttpxClientResponseAdaptor
-        with httpx.Client(timeout=float(timeout) if timeout is not None else None) as client:
+
+        with httpx.Client(
+            timeout=float(timeout) if timeout is not None else None
+        ) as client:
             resp = client.request(**self.request_kwargs)
             return HttpxClientResponseAdaptor(resp)
 
     @awaitable(__call__)
     async def __call__(self, timeout: float = None, **kwargs):
         from utilmeta.core.response.backends.httpx import HttpxClientResponseAdaptor
-        async with httpx.AsyncClient(timeout=float(timeout) if timeout is not None else None) as client:
+
+        async with httpx.AsyncClient(
+            timeout=float(timeout) if timeout is not None else None
+        ) as client:
             resp = await client.request(**self.request_kwargs)
             return HttpxClientResponseAdaptor(resp)

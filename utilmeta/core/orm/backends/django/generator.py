@@ -24,17 +24,20 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
         else:
             if isinstance(base, models.QuerySet):
                 if not issubclass(base.model, self.model.model):
-                    raise TypeError(f'Invalid queryset: {base}')
+                    raise TypeError(f"Invalid queryset: {base}")
                 qs = base
             else:
-                raise TypeError(f'Invalid queryset: {base}')
+                raise TypeError(f"Invalid queryset: {base}")
         if self.annotates:
             qs = qs.annotate(**self.annotates)
         if self.q:
             qs = qs.filter(self.q)
-        if self.distinct and not qs.query.distinct and \
-                not qs.query.combinator and \
-                not qs.query.is_sliced:
+        if (
+            self.distinct
+            and not qs.query.distinct
+            and not qs.query.combinator
+            and not qs.query.is_sliced
+        ):
             qs = qs.distinct()
         return qs
 
@@ -65,12 +68,12 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
                 try:
                     q = field.query(value)
                 except Exception as e:
-                    prepend = f'{self.__class__}: apply filter: [{repr(field.name)}].order failed with error: '
+                    prepend = f"{self.__class__}: apply filter: [{repr(field.name)}].order failed with error: "
                     if not field.fail_silently:
                         raise Error(e).throw(prepend=prepend)
-                    warnings.warn(f'{prepend}{e}')
+                    warnings.warn(f"{prepend}{e}")
             if not isinstance(q, exp.Q):
-                raise TypeError(f'Invalid query expression: {q}')
+                raise TypeError(f"Invalid query expression: {q}")
         else:
             q = Q(**{field.query_name: value})
 
@@ -82,15 +85,17 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
                 try:
                     order = field.order(value)
                 except Exception as e:
-                    prepend = f'{self.__class__}: apply filter: [{repr(field.name)}].order failed with error: '
+                    prepend = f"{self.__class__}: apply filter: [{repr(field.name)}].order failed with error: "
                     if not field.fail_silently:
                         raise Error(e).throw(prepend=prepend)
-                    warnings.warn(f'{prepend}{e}')
+                    warnings.warn(f"{prepend}{e}")
             if not multi(order):
                 order = [order]
             self.orders.extend(order)
 
-    def process_order(self, order: Order, field: ModelFieldAdaptor, name: str, flag: int = 1):
+    def process_order(
+        self, order: Order, field: ModelFieldAdaptor, name: str, flag: int = 1
+    ):
         if field.is_exp:
             self._add_annotate(name, field.field)
         name = field.query_name or name
@@ -107,15 +112,21 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
                 f = f(nulls_last=True)
             order_field = f
         else:
-            order_field = ('-' if desc else '') + name
+            order_field = ("-" if desc else "") + name
         self.orders.append(order_field)
 
-    def _add_annotate(self, key, expression: exp.BaseExpression, distinct_count: bool = True):
+    def _add_annotate(
+        self, key, expression: exp.BaseExpression, distinct_count: bool = True
+    ):
         if not isinstance(expression, (exp.BaseExpression, exp.Combinable)):
-            raise TypeError(f'Invalid expression: {expression}')
+            raise TypeError(f"Invalid expression: {expression}")
         if distinct_count and isinstance(expression, exp.Count):
             expression.distinct = True
         if isinstance(expression, exp.Sum):
-            expression = exp.Subquery(models.QuerySet(model=self.model.model).filter(
-                pk=exp.OuterRef('pk')).annotate(v=expression).values('v'))
+            expression = exp.Subquery(
+                models.QuerySet(model=self.model.model)
+                .filter(pk=exp.OuterRef("pk"))
+                .annotate(v=expression)
+                .values("v")
+            )
         self.annotates.setdefault(key, expression)

@@ -9,8 +9,8 @@ from utilmeta.core.api import API
 import sys
 import contextvars
 
-_current_request = contextvars.ContextVar('_flask.request')
-_current_response = contextvars.ContextVar('_flask.response')
+_current_request = contextvars.ContextVar("_flask.request")
+_current_response = contextvars.ContextVar("_flask.response")
 
 
 class FlaskServerAdaptor(ServerAdaptor):
@@ -20,7 +20,7 @@ class FlaskServerAdaptor(ServerAdaptor):
     application_cls = Flask
     default_asynchronous = False
     HANDLED_METHODS = ("DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT")
-    DEFAULT_HOST = '127.0.0.1'
+    DEFAULT_HOST = "127.0.0.1"
     DEFAULT_PORT = 5000
 
     # REQUEST_ATTR = '_utilmeta_request'
@@ -28,15 +28,18 @@ class FlaskServerAdaptor(ServerAdaptor):
 
     def __init__(self, config):
         super().__init__(config)
-        self.app = self.config._application if isinstance(self.config._application, self.application_cls) \
+        self.app = (
+            self.config._application
+            if isinstance(self.config._application, self.application_cls)
             else self.application_cls(self.config.module_name)
+        )
         self._ready = False
 
     # def init_application(self):
     #     return self.config._application if isinstance(self.config._application, self.application_cls) \
     #         else self.application_cls(self.config.module_name)
 
-    def adapt(self, api: 'API', route: str, asynchronous: bool = None):
+    def adapt(self, api: "API", route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
         self.add_api(self.app, api, asynchronous=asynchronous, route=route)
@@ -52,11 +55,7 @@ class FlaskServerAdaptor(ServerAdaptor):
     def setup(self):
         if self._ready:
             return
-        self.add_api(
-            self.app,
-            self.resolve(),
-            asynchronous=self.asynchronous
-        )
+        self.add_api(self.app, self.resolve(), asynchronous=self.asynchronous)
 
         self.setup_middlewares()
         self.apply_fork()
@@ -71,7 +70,7 @@ class FlaskServerAdaptor(ServerAdaptor):
                 host=self.config.host or self.DEFAULT_HOST,
                 port=self.config.port,
                 debug=not self.config.production,
-                **kwargs
+                **kwargs,
             )
         finally:
             self.config.shutdown()
@@ -79,7 +78,7 @@ class FlaskServerAdaptor(ServerAdaptor):
     @property
     def backend_views_empty(self) -> bool:
         for val in self.app.view_functions.values():
-            wrapped = getattr(val, '__wrapped__', None)
+            wrapped = getattr(val, "__wrapped__", None)
             if wrapped and isinstance(wrapped, type) and issubclass(wrapped, API):
                 pass
             else:
@@ -94,26 +93,35 @@ class FlaskServerAdaptor(ServerAdaptor):
     def production(self) -> bool:
         return not self.app.debug
 
-    def add_api(self, app: Flask, utilmeta_api_class, route: str = '', asynchronous: bool = False):
+    def add_api(
+        self,
+        app: Flask,
+        utilmeta_api_class,
+        route: str = "",
+        asynchronous: bool = False,
+    ):
         """
         Mount a API class
         make sure it is called after all your fastapi route is set
         """
         from utilmeta.core.api.base import API
-        if not issubclass(utilmeta_api_class, API):
-            raise TypeError(f'Invalid api class: {utilmeta_api_class}')
 
-        if route and route.strip('/'):
-            route = '/' + route.strip('/')
-            prepend = route + '/'
+        if not issubclass(utilmeta_api_class, API):
+            raise TypeError(f"Invalid api class: {utilmeta_api_class}")
+
+        if route and route.strip("/"):
+            route = "/" + route.strip("/")
+            prepend = route + "/"
         else:
-            prepend = route = '/'
+            prepend = route = "/"
 
         if asynchronous:
-            @app.route(route, defaults={'path': ''}, methods=self.HANDLED_METHODS)
-            @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS)
+
+            @app.route(route, defaults={"path": ""}, methods=self.HANDLED_METHODS)
+            @app.route("%s<path:path>" % prepend, methods=self.HANDLED_METHODS)
             async def f(path: str):
                 from flask import request
+
                 req = None
                 try:
                     req = _current_request.get(None)
@@ -127,14 +135,19 @@ class FlaskServerAdaptor(ServerAdaptor):
 
                     resp = await utilmeta_api_class(req)()
                 except Exception as e:
-                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                    resp = getattr(utilmeta_api_class, "response", Response)(
+                        error=e, request=req
+                    )
                 _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
+
         else:
-            @app.route(route, defaults={'path': ''}, methods=self.HANDLED_METHODS)
-            @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS)
+
+            @app.route(route, defaults={"path": ""}, methods=self.HANDLED_METHODS)
+            @app.route("%s<path:path>" % prepend, methods=self.HANDLED_METHODS)
             def f(path: str):
                 from flask import request
+
                 req = None
                 try:
                     req = _current_request.get(None)
@@ -148,9 +161,12 @@ class FlaskServerAdaptor(ServerAdaptor):
 
                     resp = utilmeta_api_class(req)()
                 except Exception as e:
-                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                    resp = getattr(utilmeta_api_class, "response", Response)(
+                        error=e, request=req
+                    )
                 _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
+
         f.__wrapped__ = utilmeta_api_class
         return f
 
@@ -187,6 +203,7 @@ class FlaskServerAdaptor(ServerAdaptor):
             try:
                 ctx.push()
                 from flask import request as flask_request
+
                 # -----------------------
                 response = None
                 request = Request(self.request_adaptor_cls(flask_request))
@@ -205,26 +222,20 @@ class FlaskServerAdaptor(ServerAdaptor):
                     _current_response.set(None)
                     if not isinstance(response, Response):
                         response = Response(
-                            response=self.response_adaptor_cls(
-                                flask_response
-                            ),
-                            request=request
+                            response=self.response_adaptor_cls(flask_response),
+                            request=request,
                         )
                     else:
                         if not response.adaptor:
-                            response.adaptor = self.response_adaptor_cls(
-                                flask_response
-                            )
+                            response.adaptor = self.response_adaptor_cls(flask_response)
 
             except Exception as e:
                 error = e
                 flask_response = self.app.handle_exception(e)
                 response = Response(
-                    response=self.response_adaptor_cls(
-                        flask_response
-                    ),
+                    response=self.response_adaptor_cls(flask_response),
                     error=e,
-                    request=request
+                    request=request,
                 )
             except:  # noqa: B001
                 error = sys.exc_info()[1]
@@ -244,6 +255,7 @@ class FlaskServerAdaptor(ServerAdaptor):
         finally:
             if "werkzeug.debug.preserve_context" in environ:
                 from flask.app import _cv_app, _cv_request
+
                 environ["werkzeug.debug.preserve_context"](_cv_app.get())
                 environ["werkzeug.debug.preserve_context"](_cv_request.get())
 

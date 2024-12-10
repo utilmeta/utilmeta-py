@@ -14,12 +14,12 @@ class AuthValidatorPlugin(APIPlugin):
     user_var = var.user
     user_id_var = var.user_id
     scopes_var = var.scopes
-    __all = '*'
+    __all = "*"
 
     @staticmethod
     def login(user):
         if not user:
-            raise exceptions.Unauthorized('login required')
+            raise exceptions.Unauthorized("login required")
         return True
 
     def __init__(self, *scope_or_fns, name: str = None):
@@ -28,7 +28,7 @@ class AuthValidatorPlugin(APIPlugin):
         super().__init__(scopes=self.scopes, functions=self.functions, name=name)
         if not scope_or_fns:
             self.functions = [self.login]
-            name = name or 'login'
+            name = name or "login"
         self.name = name
         # self.readonly = readonly
         # self.login = login
@@ -60,10 +60,10 @@ class AuthValidatorPlugin(APIPlugin):
             return
         if not set(scopes or []).issuperset(self.scopes):
             raise exceptions.PermissionDenied(
-                'insufficient scope',
+                "insufficient scope",
                 scope=scopes,
                 required_scope=self.scopes,
-                name=self.name
+                name=self.name,
             )
 
     def validate_functions(self, request: Request):
@@ -75,8 +75,7 @@ class AuthValidatorPlugin(APIPlugin):
             v = func(user)
             if not v:
                 raise exceptions.PermissionDenied(
-                    f'{self.name or "permission"} required',
-                    name=self.name
+                    f'{self.name or "permission"} required', name=self.name
                 )
 
     async def async_validate_functions(self, request: Request):
@@ -90,6 +89,5 @@ class AuthValidatorPlugin(APIPlugin):
                 v = await v
             if not v:
                 raise exceptions.PermissionDenied(
-                    f'{self.name or "permission"} required',
-                    name=self.name
+                    f'{self.name or "permission"} required', name=self.name
                 )

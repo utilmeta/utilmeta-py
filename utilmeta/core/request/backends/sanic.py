@@ -5,7 +5,7 @@ import ipaddress
 from utilmeta.core.file.backends.sanic import SanicFileAdaptor
 from sanic.request.form import File as SanicFile
 from utilmeta.core.file.base import File
-from utilmeta.utils import exceptions, multi, get_request_ip
+from utilmeta.utils import multi, get_request_ip
 from utype import unprovided
 
 
@@ -27,7 +27,7 @@ class SanicRequestAdaptor(RequestAdaptor):
                 return ipaddress.ip_address(ip)
         except (AttributeError, ValueError):
             pass
-        return get_request_ip(dict(self.headers)) or ipaddress.ip_address('127.0.0.1')
+        return get_request_ip(dict(self.headers)) or ipaddress.ip_address("127.0.0.1")
 
     @property
     def cookies(self):

@@ -15,7 +15,7 @@ class BaseCacheAdaptor:
         return
 
     def get_engine(self):
-        if '.' in self.config.engine:
+        if "." in self.config.engine:
             return self.config.engine
         if self.config.engine.lower() in self.DEFAULT_ENGINES:
             return self.DEFAULT_ENGINES[self.config.engine.lower()]
@@ -30,12 +30,21 @@ class BaseCacheAdaptor:
     def get(self, key: str, default=None):
         raise NotImplementedError
 
-    def fetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
+    def fetch(
+        self, args=None, *keys: str, named: bool = False
+    ) -> Union[list, Dict[str, Any]]:
         # get many
         raise NotImplementedError
 
-    def set(self, key: str, value, *, timeout: Union[int, timedelta, datetime] = None,
-            exists_only: bool = False, not_exists_only: bool = False):
+    def set(
+        self,
+        key: str,
+        value,
+        *,
+        timeout: Union[int, timedelta, datetime] = None,
+        exists_only: bool = False,
+        not_exists_only: bool = False
+    ):
         raise NotImplementedError
 
     def update(self, data: Dict[str, Any]):
@@ -54,5 +63,7 @@ class BaseCacheAdaptor:
     def expire(self, *keys: str, timeout: float):
         raise NotImplementedError
 
-    def alter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
+    def alter(
+        self, key: str, amount: Union[int, float], limit: int = None
+    ) -> Optional[Union[int, float]]:
         raise NotImplementedError

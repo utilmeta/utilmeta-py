@@ -17,13 +17,17 @@ class UrllibRequestAdaptor(ClientRequestAdaptor):
 
     def __call__(self, timeout: float = None, **kwargs):
         from utilmeta.core.response.backends.urllib import UrllibResponseAdaptor
+
         try:
-            resp = urlopen(Request(
-                url=self.request.url,
-                method=str(self.request.method).upper(),
-                data=self.request.body,
-                headers=self.request.headers,
-            ), timeout=float(timeout) if timeout is not None else None)
+            resp = urlopen(
+                Request(
+                    url=self.request.url,
+                    method=str(self.request.method).upper(),
+                    data=self.request.body,
+                    headers=self.request.headers,
+                ),
+                timeout=float(timeout) if timeout is not None else None,
+            )
         except HTTPError as e:
             resp = e
         return UrllibResponseAdaptor(resp)

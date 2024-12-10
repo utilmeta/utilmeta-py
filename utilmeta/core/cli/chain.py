@@ -3,7 +3,11 @@ from .endpoint import ClientEndpoint
 from typing import Callable
 from utilmeta.core.request import Request
 from utilmeta.core.response import Response
-from utilmeta.core.api.plugins.base import process_request, process_response, handle_error
+from utilmeta.core.api.plugins.base import (
+    process_request,
+    process_response,
+    handle_error,
+)
 import inspect
 from functools import wraps
 from utilmeta.utils import Error, exceptions
@@ -12,10 +16,11 @@ from utilmeta.utils import Error, exceptions
 class ClientChainBuilder(BaseChainBuilder):
     def __init__(self, client, endpoint: ClientEndpoint):
         from .base import Client
+
         if not isinstance(client, Client):
-            raise TypeError(f'Invalid Client: {client}')
+            raise TypeError(f"Invalid Client: {client}")
         if not isinstance(endpoint, ClientEndpoint):
-            raise TypeError(f'Invalid client endpoint: {endpoint}')
+            raise TypeError(f"Invalid client endpoint: {endpoint}")
 
         super().__init__(endpoint, client)
         self.client = client
@@ -29,8 +34,7 @@ class ClientChainBuilder(BaseChainBuilder):
 
     def parse_response(self, resp):
         resp = self.endpoint.parse_response(
-            resp,
-            fail_silently=self.client.fail_silently
+            resp, fail_silently=self.client.fail_silently
         )
         if resp.cookies:
             # update response cookies
@@ -49,8 +53,7 @@ class ClientChainBuilder(BaseChainBuilder):
         while True:
             try:
                 request.adaptor.update_context(
-                    retry_index=retry_index,
-                    idempotent=self.idempotent
+                    retry_index=retry_index, idempotent=self.idempotent
                 )
                 req = request
                 if request_handler:
@@ -64,10 +67,7 @@ class ClientChainBuilder(BaseChainBuilder):
 
                 res = response
                 if response_handler:
-                    res = await self.async_process(
-                        response,
-                        response_handler
-                    )
+                    res = await self.async_process(response, response_handler)
                     if isinstance(res, Request):
                         request = res
                     else:
@@ -92,7 +92,9 @@ class ClientChainBuilder(BaseChainBuilder):
 
             retry_index += 1
             if retry_index >= self.pref.client_max_retry_loops:
-                raise exceptions.MaxRetriesExceed(max_retries=self.pref.client_max_retry_loops)
+                raise exceptions.MaxRetriesExceed(
+                    max_retries=self.pref.client_max_retry_loops
+                )
         return res
 
     def client_handler(
@@ -107,8 +109,7 @@ class ClientChainBuilder(BaseChainBuilder):
         while True:
             try:
                 request.adaptor.update_context(
-                    retry_index=retry_index,
-                    idempotent=self.idempotent
+                    retry_index=retry_index, idempotent=self.idempotent
                 )
                 req = request
                 if request_handler:
@@ -120,10 +121,7 @@ class ClientChainBuilder(BaseChainBuilder):
 
                 res = response
                 if response_handler:
-                    res = self.process(
-                        response,
-                        response_handler
-                    )
+                    res = self.process(response, response_handler)
                     if isinstance(res, Request):
                         request = res
                     else:
@@ -148,7 +146,9 @@ class ClientChainBuilder(BaseChainBuilder):
 
             retry_index += 1
             if retry_index >= self.pref.client_max_retry_loops:
-                raise exceptions.MaxRetriesExceed(max_retries=self.pref.client_max_retry_loops)
+                raise exceptions.MaxRetriesExceed(
+                    max_retries=self.pref.client_max_retry_loops
+                )
         return res
 
     def chain_client_handler(
@@ -157,37 +157,47 @@ class ClientChainBuilder(BaseChainBuilder):
         request_handler=None,
         response_handler=None,
         error_handler=None,
-        asynchronous: bool = None
+        asynchronous: bool = None,
     ):
         if not any([request_handler, response_handler, error_handler]):
             return handler
 
         if asynchronous:
+
             @wraps(handler)
             async def wrapper(request: Request):
                 return await self.async_client_handler(
-                    request, handler,
+                    request,
+                    handler,
                     request_handler=request_handler,
                     response_handler=response_handler,
-                    error_handler=error_handler
+                    error_handler=error_handler,
                 )
+
         else:
+
             @wraps(handler)
             def wrapper(request: Request):
                 return self.client_handler(
-                    request, handler,
+                    request,
+                    handler,
                     request_handler=request_handler,
                     response_handler=response_handler,
-                    error_handler=error_handler
+                    error_handler=error_handler,
                 )
+
         return wrapper
 
     def build_client_handler(self, handler, asynchronous: bool = None):
         # ---
         if asynchronous is None:
-            asynchronous = inspect.iscoroutinefunction(handler) or inspect.isasyncgenfunction(handler)
+            asynchronous = inspect.iscoroutinefunction(
+                handler
+            ) or inspect.isasyncgenfunction(handler)
         for request_handler, response_handler, error_handler in self.chain_plugins(
-            process_request, process_response, handle_error,
+            process_request,
+            process_response,
+            handle_error,
             required=False,
             asynchronous=asynchronous,
         ):
@@ -196,7 +206,7 @@ class ClientChainBuilder(BaseChainBuilder):
                 request_handler=request_handler,
                 response_handler=response_handler,
                 error_handler=error_handler,
-                asynchronous=asynchronous
+                asynchronous=asynchronous,
             )
         if self.endpoint.client_wrap:
             # most outer
@@ -205,6 +215,6 @@ class ClientChainBuilder(BaseChainBuilder):
                 request_handler=self.client.process_request,
                 response_handler=self.client.process_response,
                 error_handler=self.client.handle_error,
-                asynchronous=asynchronous
+                asynchronous=asynchronous,
             )
         return handler

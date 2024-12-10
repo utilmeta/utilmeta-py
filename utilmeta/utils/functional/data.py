@@ -10,34 +10,53 @@ from typing import List, Dict, Callable, Union, Any
 
 
 __all__ = [
-    'repeat', 'multi', 'duplicate',
-    'pop',
-    'distinct',
-    'gen_key', 'order_dict', 'parse_list',
-    'keys_or_args',
-    'order_list', 'setval', 'dict_list',
-    'regular', 'hide_secret_values',
-    'readable',
-    'readable_size',
-    'make_percent',
-    'restrict_keys',
-    'map_dict',
-    'copy_value', 'iterable', 'is_number',
-    'dict_number_sum',
-    'get_arg',
-    'distinct_add',
-    'merge_list',
-    'dict_number_add',
-    'make_dict_by',
-    'reduce_value',
-    'get_number', 'is_sub_dict',  'convert_data_frame',
-    'based_number', 'get_based_number', 'list_or_args', 'bi_search', 'replace_null',
-    'make_hash', 'avg', 'pop_null', 'dict_list_merge', 'normalize_title'
+    "repeat",
+    "multi",
+    "duplicate",
+    "pop",
+    "distinct",
+    "gen_key",
+    "order_dict",
+    "parse_list",
+    "keys_or_args",
+    "order_list",
+    "setval",
+    "dict_list",
+    "regular",
+    "hide_secret_values",
+    "readable",
+    "readable_size",
+    "make_percent",
+    "restrict_keys",
+    "map_dict",
+    "copy_value",
+    "iterable",
+    "is_number",
+    "dict_number_sum",
+    "get_arg",
+    "distinct_add",
+    "merge_list",
+    "dict_number_add",
+    "make_dict_by",
+    "reduce_value",
+    "get_number",
+    "is_sub_dict",
+    "convert_data_frame",
+    "based_number",
+    "get_based_number",
+    "list_or_args",
+    "bi_search",
+    "replace_null",
+    "make_hash",
+    "avg",
+    "pop_null",
+    "dict_list_merge",
+    "normalize_title",
 ]
 
 
 def normalize_title(title: str):
-    return ' '.join(re.sub(r'\s', ' ', title).split())
+    return " ".join(re.sub(r"\s", " ", title).split())
 
 
 def _list_dict(val):
@@ -99,7 +118,14 @@ def duplicate(lst):
     return set(_list)
 
 
-def bi_search(targets: list, val, key=lambda x: x, sort: bool = False, start: int = 0, end: int = None):
+def bi_search(
+    targets: list,
+    val,
+    key=lambda x: x,
+    sort: bool = False,
+    start: int = 0,
+    end: int = None,
+):
     """
     as small as possible
     """
@@ -128,10 +154,10 @@ def bi_search(targets: list, val, key=lambda x: x, sort: bool = False, start: in
 
 
 def regular(s: str) -> str:
-    rs = ''
+    rs = ""
     for char in s:
         if char in constant.Reg.META:
-            rs += f'\\{char}'
+            rs += f"\\{char}"
         else:
             rs += char
     return rs
@@ -150,18 +176,22 @@ def make_percent(val, tot, fix=1, _100=True):
 
 
 def multi(f):
-    return isinstance(f, (list, set, frozenset, tuple, type({}.values()), type({}.keys())))
+    return isinstance(
+        f, (list, set, frozenset, tuple, type({}.values()), type({}.keys()))
+    )
 
 
 def pop(data, key, default=None):
     if isinstance(data, (dict, Mapping)):
-        return data.pop(key) if key in data and hasattr(data, 'pop') else default
+        return data.pop(key) if key in data and hasattr(data, "pop") else default
     elif isinstance(data, list):
         return data.pop(key) if key < len(data) else default
     return default
 
 
-def make_dict_by(values: List[dict], key: str, formatter: Callable = lambda x: x) -> Dict[Any, List[dict]]:
+def make_dict_by(
+    values: List[dict], key: str, formatter: Callable = lambda x: x
+) -> Dict[Any, List[dict]]:
     """
     make a dict that keys is the key value of every items in values
     make_dict_by([{'k': 1, 'v': 2}, {'k': 1, 'v': 3}, {'k': 2, 'v': 2}], key='k')
@@ -220,11 +250,11 @@ def dict_number_add(base: dict, data: dict, nested: bool = False, flag: int = 1)
     result = {}
     for key, val in base.items():
         if key in data:
-            result[key] = dict_number_add(
-                val, data[key],
-                nested=nested,
-                flag=flag
-            ) if nested else (data[key] + val * flag)
+            result[key] = (
+                dict_number_add(val, data[key], nested=nested, flag=flag)
+                if nested
+                else (data[key] + val * flag)
+            )
         else:
             result[key] = val
     for key, val in data.items():
@@ -286,7 +316,12 @@ def order_list(data: list, orders: list, by: str, join_rest: bool = False) -> li
 
 def order_dict(data: dict, orders: tuple) -> OrderedDict:
     # consider the origin data is already ordered (odict_items)
-    return OrderedDict(sorted(list(data.items()), key=lambda item: orders.index(item[0]) if item[0] in orders else 0))
+    return OrderedDict(
+        sorted(
+            list(data.items()),
+            key=lambda item: orders.index(item[0]) if item[0] in orders else 0,
+        )
+    )
 
 
 def distinct(data: list, key: str = None, val_type: type = None) -> list:
@@ -326,7 +361,7 @@ def get_number(num_str: str, ignore: bool = True) -> Union[int, float, None]:
     except (ValueError, TypeError):
         if ignore:
             return None
-        raise TypeError(f'Invalid number: {num_str}')
+        raise TypeError(f"Invalid number: {num_str}")
     else:
         if value.is_integer():
             return int(value)
@@ -335,14 +370,14 @@ def get_number(num_str: str, ignore: bool = True) -> Union[int, float, None]:
 
 def reduce_value(data, max_length: int) -> dict:
     result = {}
-    t = 'string'
+    t = "string"
     items = None
     if multi(data):
-        t = 'array'
+        t = "array"
         length = len(str(data))
         items = len(data)
     elif isinstance(data, (dict, Mapping)):
-        t = 'object'
+        t = "object"
         length = len(str(data))
         items = len(data)
     elif isinstance(data, (str, bytes)):
@@ -352,13 +387,10 @@ def reduce_value(data, max_length: int) -> dict:
     if length <= max_length:
         return data
     if isinstance(data, bytes):
-        data = data.decode('utf-8', 'ignore')
-    result['$reduced'] = True
+        data = data.decode("utf-8", "ignore")
+    result["$reduced"] = True
     result.update(
-        type=t,
-        length=length,
-        content=str(data)[:max_length],
-        content_length=max_length
+        type=t, length=length, content=str(data)[:max_length], content_length=max_length
     )
     if items is not None:
         result.update(items=items)
@@ -371,25 +403,25 @@ def readable(data, max_length: int = 20, more: bool = True) -> str:
     _bytes = False
     if isinstance(data, bytes):
         _bytes = True
-        data = data.decode('utf-8', 'ignore')
+        data = data.decode("utf-8", "ignore")
     if multi(data):
         # if not rep:
         #     if len(str(data)) <= max_length:
         #         return str(data)
         #     return str(data)[:max_length] + ('...' if more else '')
-        form = {list: '[%s]', tuple: '(%s)', set: '{%s}'}
+        form = {list: "[%s]", tuple: "(%s)", set: "{%s}"}
         items = []
         total = 0
         for d in data:
             total += len(repr(d))
             if total > max_length:
-                items.append(f'...({len(data)} items)' if more else '')
+                items.append(f"...({len(data)} items)" if more else "")
                 break
             items.append(repr(d))
         for t, fmt in form.items():
             if isinstance(data, t):
-                return fmt % ', '.join(items)
-        return '[%s]' % ', '.join(items)
+                return fmt % ", ".join(items)
+        return "[%s]" % ", ".join(items)
     elif isinstance(data, dict):
         # if not rep:
         #     if len(str(data)) <= max_length:
@@ -400,34 +432,37 @@ def readable(data, max_length: int = 20, more: bool = True) -> str:
         for k, v in data.items():
             total += len(str(k)) + len(str(v)) + 2
             if total > max_length:
-                items.append(f'...({len(data)} items)' if more else '')
+                items.append(f"...({len(data)} items)" if more else "")
                 break
-            items.append(repr(k) + ': ' + repr(v))
-        return '{%s}' % ', '.join(items)
+            items.append(repr(k) + ": " + repr(v))
+        return "{%s}" % ", ".join(items)
     elif is_number(data):
         return str(data)
     if not isinstance(data, str):
         from .py import represent
+
         return represent(data)
     excess = len(data) - max_length
     if excess >= 0:
-        data = data[:max_length] + (f'...({excess} more chars)' if more else '')
+        data = data[:max_length] + (f"...({excess} more chars)" if more else "")
     result = repr(data)
     if _bytes:
-        result = 'b' + result
+        result = "b" + result
     return result
 
 
 def readable_size(size, depth=0):
-    unit = ['B', 'KB', 'MB', 'GB', 'TB']
+    unit = ["B", "KB", "MB", "GB", "TB"]
     if size < 1 or not size:
         return f"0 {unit[depth]}"
     if 1 <= size < 1000:
-        return f'{str(size)} {unit[depth]}'
-    return readable_size(int(size/1024), depth+1)
+        return f"{str(size)} {unit[depth]}"
+    return readable_size(int(size / 1024), depth + 1)
 
 
-def parse_list(data, merge=False, distinct_merge=None, merge_type: type = None) -> Union[list, tuple]:
+def parse_list(
+    data, merge=False, distinct_merge=None, merge_type: type = None
+) -> Union[list, tuple]:
     if multi(data):
         if merge:
             result = []
@@ -435,10 +470,16 @@ def parse_list(data, merge=False, distinct_merge=None, merge_type: type = None) 
             for d in data:
                 if multi(d):
                     multi_occur = True
-                    result += parse_list(d, merge_type=merge_type, merge=True, distinct_merge=distinct_merge)
+                    result += parse_list(
+                        d,
+                        merge_type=merge_type,
+                        merge=True,
+                        distinct_merge=distinct_merge,
+                    )
                 else:
                     if merge_type:
                         from utype import type_transform
+
                         d = type_transform(d, merge_type)
                     result.append(d)
             if distinct_merge is None and multi_occur:
@@ -453,18 +494,21 @@ def parse_list(data, merge=False, distinct_merge=None, merge_type: type = None) 
     elif not data:
         return []
     elif type(data) == str:
+
         def start_end(value: str, start, end=None):
             if end is None:
                 end = start
             return value.startswith(start) and value.endswith(end)
 
         data: str
-        maybe_list = start_end(data, '[', ']')
-        maybe_tuple = start_end(data, '(', ')')
-        maybe_json = start_end(data, '{', '}')
-        spliter = ';' if ';' in data else ','
+        maybe_list = start_end(data, "[", "]")
+        maybe_tuple = start_end(data, "(", ")")
+        maybe_json = start_end(data, "{", "}")
+        spliter = ";" if ";" in data else ","
         if maybe_tuple:
-            return tuple([v.strip() for v in data.lstrip('(').rstrip(')').split(spliter)])
+            return tuple(
+                [v.strip() for v in data.lstrip("(").rstrip(")").split(spliter)]
+            )
         if maybe_list or maybe_json:
             try:
                 return parse_list(json.loads(data, strict=False), merge=merge)
@@ -473,7 +517,12 @@ def parse_list(data, merge=False, distinct_merge=None, merge_type: type = None) 
         elif spliter in data:
             return [v.strip() for v in data.strip().split(spliter)]
     elif not isinstance(data, constant.COMMON_TYPES) and iterable(data):
-        return parse_list(list(data), merge=merge, distinct_merge=distinct_merge, merge_type=merge_type)
+        return parse_list(
+            list(data),
+            merge=merge,
+            distinct_merge=distinct_merge,
+            merge_type=merge_type,
+        )
     return [data]
 
 
@@ -481,11 +530,11 @@ def based_number(num: int, base: int = 10) -> str:
     num, base = int(num), int(base)
     n = abs(num)
     if base <= 1 or base > len(constant.ELEMENTS):
-        raise ValueError(f'number base should > 1 and <= {len(constant.ELEMENTS)}')
+        raise ValueError(f"number base should > 1 and <= {len(constant.ELEMENTS)}")
     if base == 10:
         return str(n)
     # values = []
-    output = ''
+    output = ""
     elements = constant.ELEMENTS[0:base]
     while n:
         i = n % base
@@ -501,8 +550,8 @@ def get_based_number(num: Union[str, int], from_base: int, to_base: int = 10) ->
     if from_base <= 36:
         return based_number(int(num, base=from_base), base=to_base)
     if from_base > len(constant.ELEMENTS):
-        raise ValueError(f'number base should > 1 and < {len(constant.ELEMENTS)}')
-    num = str(num).lstrip('-')
+        raise ValueError(f"number base should > 1 and < {len(constant.ELEMENTS)}")
+    num = str(num).lstrip("-")
     value = 0
     for i, n in enumerate(num):
         value += constant.ELEMENTS.index(n) * from_base ** (len(num) - i - 1)
@@ -570,7 +619,9 @@ def distinct_add(target: list, data):
     if not data:
         return target
     if not isinstance(target, list):
-        raise TypeError(f'Invalid distinct_add target type: {type(target)}, must be lsit')
+        raise TypeError(
+            f"Invalid distinct_add target type: {type(target)}, must be lsit"
+        )
     # target = list(target)
     if not multi(data):
         if data not in target:
@@ -586,8 +637,10 @@ def replace_null(data: dict, default=0):
     return {key: val or default for key, val in data.items()}
 
 
-def make_hash(value: str, seed: str = '', mod: int = 2 ** 32):
-    return int(hashlib.md5((str(value) + str(seed or '')).encode()).hexdigest(), 16) % mod
+def make_hash(value: str, seed: str = "", mod: int = 2**32):
+    return (
+        int(hashlib.md5((str(value) + str(seed or "")).encode()).hexdigest(), 16) % mod
+    )
 
 
 def restrict_keys(keys: Union[list, tuple, set], data: dict, default=None) -> dict:
@@ -608,9 +661,11 @@ def merge_list(*lst, keys=None) -> List[dict]:
     return result
 
 
-def convert_data_frame(data: List[dict], align: bool = False, depth: int = 1, keys: List[str] = ()) -> Dict[str, list]:
+def convert_data_frame(
+    data: List[dict], align: bool = False, depth: int = 1, keys: List[str] = ()
+) -> Dict[str, list]:
     if not depth:
-        return data     # noqa
+        return data  # noqa
     if not iterable(data) or not data:
         return {key: [] for key in keys}
     result = {}
@@ -632,35 +687,48 @@ def convert_data_frame(data: List[dict], align: bool = False, depth: int = 1, ke
     return result
 
 
-def gen_key(digit=64, alnum=False, lower=False, excludes: List[str] = ('$', '\\')) -> str:
+def gen_key(
+    digit=64, alnum=False, lower=False, excludes: List[str] = ("$", "\\")
+) -> str:
     import secrets
+
     sample = string.digits
     if alnum:
         sample += string.ascii_lowercase if lower else string.ascii_letters
     else:
         sample = string.printable[:94]
     for ex in excludes:
-        sample = sample.replace(ex, '')
+        sample = sample.replace(ex, "")
     while len(sample) < digit:
         sample += sample
-    return ''.join(secrets.choice(sample) for i in range(digit))    # noqa
+    return "".join(secrets.choice(sample) for i in range(digit))  # noqa
     # return ''.join(random.sample(sample, digit))
 
 
-def hide_secret_values(data, secret_names, secret_value=constant.SECRET, file_repr: Union[Callable, str] = '<file>'):
+def hide_secret_values(
+    data,
+    secret_names,
+    secret_value=constant.SECRET,
+    file_repr: Union[Callable, str] = "<file>",
+):
     if not secret_names:
         return data
     if data is None:
         return data
     from .py import file_like
+
     if isinstance(data, dict):
         result = {}
         for k, v in data.items():
             k: str
             if isinstance(v, list):
-                result[k] = hide_secret_values(v, secret_names, secret_value=secret_value, file_repr=file_repr)
+                result[k] = hide_secret_values(
+                    v, secret_names, secret_value=secret_value, file_repr=file_repr
+                )
             elif isinstance(v, dict):
-                result[k] = hide_secret_values(v, secret_names, secret_value=secret_value, file_repr=file_repr)
+                result[k] = hide_secret_values(
+                    v, secret_names, secret_value=secret_value, file_repr=file_repr
+                )
             elif file_like(v):
                 result[k] = file_repr(v) if callable(file_repr) else file_repr
             else:
@@ -676,7 +744,11 @@ def hide_secret_values(data, secret_names, secret_value=constant.SECRET, file_re
     if isinstance(data, list):
         result = []
         for d in data:
-            result.append(hide_secret_values(d, secret_names, secret_value=secret_value, file_repr=file_repr))
+            result.append(
+                hide_secret_values(
+                    d, secret_names, secret_value=secret_value, file_repr=file_repr
+                )
+            )
         return result
     if file_like(data):
         return file_repr(data) if callable(file_repr) else file_repr

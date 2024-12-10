@@ -17,33 +17,41 @@ if TYPE_CHECKING:
 
 
 def one_to(field):
-    return isinstance(field, (models.OneToOneField, models.ForeignKey, models.OneToOneRel))
+    return isinstance(
+        field, (models.OneToOneField, models.ForeignKey, models.OneToOneRel)
+    )
 
 
 def many_to(field):
     if isinstance(field, models.OneToOneRel):
         # OneToOneRel is subclass of ManyToOneRel
         return False
-    return isinstance(field, (models.ManyToManyField, models.ManyToManyRel, models.ManyToOneRel))
+    return isinstance(
+        field, (models.ManyToManyField, models.ManyToManyRel, models.ManyToOneRel)
+    )
 
 
 def to_many(field):
-    return isinstance(field, (models.ManyToManyField, models.ManyToManyRel, models.ForeignKey))
+    return isinstance(
+        field, (models.ManyToManyField, models.ManyToManyRel, models.ForeignKey)
+    )
 
 
 def to_one(field):
-    return isinstance(field, (models.OneToOneField, models.OneToOneRel, models.ManyToOneRel))
+    return isinstance(
+        field, (models.OneToOneField, models.OneToOneRel, models.ManyToOneRel)
+    )
 
 
 class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     field: Union[models.Field, ForeignObjectRel, exp.BaseExpression, exp.Combinable]
-    model: 'DjangoModelAdaptor'
+    model: "DjangoModelAdaptor"
 
     def __init__(self, field, addon: str = None, model=None, lookup_name: str = None):
         if isinstance(field, DeferredAttribute):
             field = field.field
             if not lookup_name:
-                lookup_name = getattr(field, 'field_name', getattr(field, 'name', None))
+                lookup_name = getattr(field, "field_name", getattr(field, "name", None))
 
         # if isinstance(field, str):
         #     from .model import DjangoModelAdaptor
@@ -51,30 +59,35 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         #         field = model.get_field(field)
 
         if not self.qualify(field):
-            raise TypeError(f'Invalid field: {field}')
+            raise TypeError(f"Invalid field: {field}")
 
         super().__init__(field, addon, model, lookup_name)
         self.validate_addon()
 
     @property
     def multi_relations(self):
-        return self.lookup_name and '__' in self.lookup_name
+        return self.lookup_name and "__" in self.lookup_name
 
     def validate_addon(self):
         if not self.addon:
             return
         if not isinstance(self.addon, str):
-            raise TypeError(f'Invalid addon: {repr(self.addon)}, must be str')
+            raise TypeError(f"Invalid addon: {repr(self.addon)}, must be str")
         if self.is_concrete:
             _t = self.field.get_internal_type()
             addons = constant.ADDON_FIELD_LOOKUPS.get(_t, [])
             if self.addon not in addons:
                 from django.db.models import JSONField
+
                 if not isinstance(self.field, JSONField):
-                    warnings.warn(f'Invalid addon: {repr(self.addon)} for field: {self.field},'
-                                  f' only {addons} are supported')
+                    warnings.warn(
+                        f"Invalid addon: {repr(self.addon)} for field: {self.field},"
+                        f" only {addons} are supported"
+                    )
         else:
-            raise TypeError(f'Not concrete field: {self.field} cannot have addon: {repr(self.addon)}')
+            raise TypeError(
+                f"Not concrete field: {self.field} cannot have addon: {repr(self.addon)}"
+            )
 
     @property
     def title(self) -> Optional[str]:
@@ -85,28 +98,30 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
 
     @property
     def description(self) -> Optional[str]:
-        return str(self.field.help_text or '') or None
+        return str(self.field.help_text or "") or None
 
     @classmethod
     def qualify(cls, obj):
-        return isinstance(obj, (models.Field, ForeignObjectRel, exp.BaseExpression, exp.Combinable))
+        return isinstance(
+            obj, (models.Field, ForeignObjectRel, exp.BaseExpression, exp.Combinable)
+        )
 
     @property
     def field_model(self):
         if self.is_exp:
             return None
-        return getattr(self.field, 'model', None)
+        return getattr(self.field, "model", None)
 
     @property
-    def target_field(self) -> Optional['ModelFieldAdaptor']:
-        target_field = getattr(self.field, 'target_field', None)
+    def target_field(self) -> Optional["ModelFieldAdaptor"]:
+        target_field = getattr(self.field, "target_field", None)
         if target_field:
             return self.__class__(target_field, model=self.model)
         return None
 
     @property
-    def remote_field(self) -> Optional['ModelFieldAdaptor']:
-        remote_field = getattr(self.field, 'remote_field', None)
+    def remote_field(self) -> Optional["ModelFieldAdaptor"]:
+        remote_field = getattr(self.field, "remote_field", None)
         if remote_field and self.field.related_model:
             return self.__class__(remote_field, model=self.field.related_model)
         return None
@@ -115,11 +130,12 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     def related_model(self):
         if self.is_exp:
             return None
-        rel = getattr(self.field, 'related_model')
+        rel = getattr(self.field, "related_model")
         if rel:
-            if rel == 'self':
+            if rel == "self":
                 return self
             from .model import DjangoModelAdaptor
+
             return DjangoModelAdaptor(rel)
         return None
 
@@ -133,11 +149,14 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             rel = self.field
         if rel.through:
             from .model import DjangoModelAdaptor
+
             return DjangoModelAdaptor(rel.through)
         return None
 
     @property
-    def through_fields(self) -> Tuple[Optional['ModelFieldAdaptor'], Optional['ModelFieldAdaptor']]:
+    def through_fields(
+        self,
+    ) -> Tuple[Optional["ModelFieldAdaptor"], Optional["ModelFieldAdaptor"]]:
         if not self.is_m2m:
             return None, None
         is_rel = False
@@ -168,7 +187,7 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     def is_nullable(self):
         if not self.is_concrete:
             return True
-        return getattr(self.field, 'null', False)
+        return getattr(self.field, "null", False)
 
     @property
     def is_optional(self):
@@ -183,8 +202,8 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         if self.field == self.model.meta.auto_field:
             return False
         param = self.params
-        auto_now_add = param.get('auto_now_add')
-        auto_created = param.get('auto_created')
+        auto_now_add = param.get("auto_now_add")
+        auto_created = param.get("auto_created")
         if auto_now_add or auto_created:
             return False
         return True
@@ -206,9 +225,9 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         if not self.is_concrete:
             return False
         param = self.params
-        auto_now_add = param.get('auto_now_add')
-        auto_now = param.get('auto_now')
-        auto_created = param.get('auto_created')
+        auto_now_add = param.get("auto_now_add")
+        auto_now = param.get("auto_now")
+        auto_created = param.get("auto_created")
         if auto_now_add or auto_now or auto_created:
             return True
         return self.field == self.model.meta.auto_field
@@ -218,7 +237,7 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         if not self.is_concrete:
             return False
         param = self.params
-        auto_now = param.get('auto_now')
+        auto_now = param.get("auto_now")
         return auto_now
 
     @classmethod
@@ -261,6 +280,7 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
 
                 if _type and self.is_nullable:
                     from utype.parser.rule import LogicalType
+
                     _type = LogicalType.any_of(_type, type(None))
 
                 # return _type
@@ -272,6 +292,7 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             if _type != Any:
                 if _type and self.is_nullable:
                     from utype.parser.rule import LogicalType
+
                     _type = LogicalType.any_of(_type, type(None))
 
         elif self.is_exp:
@@ -302,45 +323,45 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         params = self._get_params(field)
         kwargs = {}
 
-        if params.get('max_length'):
-            kwargs['max_length'] = params['max_length']
-        if params.get('min_length'):
-            kwargs['min_length'] = params['min_length']
-        if 'max_value' in params:
-            kwargs['le'] = params['max_value']
-        if 'min_value' in params:
-            kwargs['ge'] = params['min_value']
+        if params.get("max_length"):
+            kwargs["max_length"] = params["max_length"]
+        if params.get("min_length"):
+            kwargs["min_length"] = params["min_length"]
+        if "max_value" in params:
+            kwargs["le"] = params["max_value"]
+        if "min_value" in params:
+            kwargs["ge"] = params["min_value"]
 
         if isinstance(field, models.DecimalField):
-            kwargs['max_length'] = field.max_digits
-            kwargs['decimal_places'] = Lax(field.decimal_places)
+            kwargs["max_length"] = field.max_digits
+            kwargs["decimal_places"] = Lax(field.decimal_places)
         # for the reason that IntegerField is the base class of All integer fields
         # so the isinstance determine will be the last to include
         elif isinstance(field, models.IntegerField):
             if isinstance(field, models.PositiveSmallIntegerField):
-                kwargs['ge'] = 0
-                kwargs['le'] = constant.SM
+                kwargs["ge"] = 0
+                kwargs["le"] = constant.SM
             elif isinstance(field, models.AutoField):
-                kwargs['ge'] = 1
-                kwargs['le'] = constant.MD
+                kwargs["ge"] = 1
+                kwargs["le"] = constant.MD
             elif isinstance(field, models.BigAutoField):
-                kwargs['ge'] = 1
-                kwargs['le'] = constant.LG
+                kwargs["ge"] = 1
+                kwargs["le"] = constant.LG
             elif isinstance(field, models.BigIntegerField):
-                kwargs['ge'] = -constant.LG
-                kwargs['le'] = constant.LG
+                kwargs["ge"] = -constant.LG
+                kwargs["le"] = constant.LG
             elif isinstance(field, models.PositiveBigIntegerField):
-                kwargs['ge'] = 0
-                kwargs['le'] = constant.LG
+                kwargs["ge"] = 0
+                kwargs["le"] = constant.LG
             elif isinstance(field, models.PositiveIntegerField):
-                kwargs['ge'] = 0
-                kwargs['le'] = constant.MD
+                kwargs["ge"] = 0
+                kwargs["le"] = constant.MD
             elif isinstance(field, models.SmallIntegerField):
-                kwargs['ge'] = -constant.SM
-                kwargs['le'] = constant.SM
+                kwargs["ge"] = -constant.SM
+                kwargs["le"] = constant.SM
             else:
-                kwargs['ge'] = -constant.MD
-                kwargs['le'] = constant.MD
+                kwargs["ge"] = -constant.MD
+                kwargs["le"] = constant.MD
 
         if _type is None:
             # fallback to string field
@@ -352,9 +373,9 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     def name(self) -> Optional[str]:
         if self.is_exp:
             return None
-        if hasattr(self.field, 'name'):
+        if hasattr(self.field, "name"):
             return self.field.name
-        if hasattr(self.field, 'field_name'):
+        if hasattr(self.field, "field_name"):
             # toOneRel
             return self.field.field_name
         return None
@@ -376,17 +397,19 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         if not qn:
             return
         try:
-            if '__' not in qn:
-                self.model.get_queryset(**{qn + '__isnull': False})
+            if "__" not in qn:
+                self.model.get_queryset(**{qn + "__isnull": False})
             else:
                 try:
                     self.model.get_queryset(**{qn: None})
                 except ValueError:
-                    self.model.get_queryset(**{qn: ''})
+                    self.model.get_queryset(**{qn: ""})
         except exceptions.FieldError as e:
-            raise exceptions.FieldError(f'Invalid query name: {repr(qn)} for {self.model.model}: {e}')
+            raise exceptions.FieldError(
+                f"Invalid query name: {repr(qn)} for {self.model.model}: {e}"
+            )
         except ValueError as e:
-            print(f'failed to check query field: {repr(qn)} for {self.model.model}', e)
+            print(f"failed to check query field: {repr(qn)} for {self.model.model}", e)
             pass
 
     @property
@@ -407,11 +430,14 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     @property
     def relate_name(self) -> Optional[str]:
         if self.is_fk:
-            related_name = getattr(self.field, '_related_name', None)
+            related_name = getattr(self.field, "_related_name", None)
             if related_name:
                 return related_name
             try:
-                return self.field.remote_field.name or self.field.remote_field.get_cache_name()
+                return (
+                    self.field.remote_field.name
+                    or self.field.remote_field.get_cache_name()
+                )
             except (AttributeError, NotImplementedError):
                 return None
         return None
@@ -446,7 +472,7 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         if self.is_m2m:
             # somehow ManyToManyField is considered "concrete" in django
             return False
-        return getattr(self.field, 'concrete', False)
+        return getattr(self.field, "concrete", False)
 
     @property
     def is_m2m(self):

@@ -35,12 +35,12 @@ class HttpxClientResponseAdaptor(ResponseAdaptor):
             return self.response.text
         elif self.json_type:
             return self.response.json()
-        self.__dict__['body'] = self.response.content
+        self.__dict__["body"] = self.response.content
         return self.get_content()
 
     @property
     def cookies(self):
-        set_cookie = self.headers.get_list('set-cookie')
+        set_cookie = self.headers.get_list("set-cookie")
         cookies = SimpleCookie()
         if set_cookie:
             for cookie in set_cookie:

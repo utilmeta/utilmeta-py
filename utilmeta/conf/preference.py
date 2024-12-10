@@ -56,5 +56,5 @@ class Preference(Config):
         super().__init__(locals())
 
     @classmethod
-    def get(cls) -> 'Preference':
+    def get(cls) -> "Preference":
         return cls.config() or cls()

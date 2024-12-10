@@ -1,8 +1,12 @@
 import inspect
 from django.db.models import QuerySet, Manager, Model, sql, AutoField
 from django.db.models.options import Options
-from django.db.models.query import ValuesListIterable, NamedValuesListIterable, \
-    FlatValuesListIterable, ModelIterable
+from django.db.models.query import (
+    ValuesListIterable,
+    NamedValuesListIterable,
+    FlatValuesListIterable,
+    ModelIterable,
+)
 from django.core import exceptions
 from django.utils.functional import partition
 from utilmeta.utils import awaitable
@@ -17,6 +21,7 @@ from .query import AwaitableQuery, AwaitableSQLUpdateCompiler, clear_query_order
 try:
     from django.db.models.utils import resolve_callables
 except ImportError:
+
     def resolve_callables(mapping):
         for k, v in mapping.items():
             yield k, v() if callable(v) else v
@@ -43,7 +48,9 @@ class AwaitableQuerySet(QuerySet):
     collector_cls = AwaitableCollector
 
     def __init__(self, model, query=None, using=None, hints=None):
-        super().__init__(model, query=query or self.query_cls(model), using=using, hints=hints)
+        super().__init__(
+            model, query=query or self.query_cls(model), using=using, hints=hints
+        )
 
     def __aiter__(self):
         async def generator():
@@ -61,6 +68,7 @@ class AwaitableQuerySet(QuerySet):
                 #     yield namedtuple(self.model.__name__, field_names=list(item))(*item.values())
                 else:
                     yield item
+
         return generator()
 
     def as_sql(self) -> Tuple[str, tuple]:
@@ -98,11 +106,14 @@ class AwaitableQuerySet(QuerySet):
                     res[name] = value
             result.append(res)
 
-        if issubclass(self._iterable_class, (ValuesListIterable, FlatValuesListIterable)):
+        if issubclass(
+            self._iterable_class, (ValuesListIterable, FlatValuesListIterable)
+        ):
             list_result = []
             if self._iterable_class == NamedValuesListIterable:
                 from collections import namedtuple
-                t = namedtuple('Row', names)
+
+                t = namedtuple("Row", names)
                 for item in result:
                     list_result.append(t(**item))
             else:
@@ -131,12 +142,12 @@ class AwaitableQuerySet(QuerySet):
             if val is Ellipsis:
                 continue
             obj_values[field.column] = val
-        pk = values.get('id', values.get('pk'))
+        pk = values.get("id", values.get("pk"))
         if pk is not None:
-            obj_values.setdefault('pk', pk)
+            obj_values.setdefault("pk", pk)
         obj = self.model(**obj_values)
-        if getattr(obj, 'id', None) is None:
-            setattr(obj, 'id', obj.pk)
+        if getattr(obj, "id", None) is None:
+            setattr(obj, "id", obj.pk)
         return obj
 
     def instance(self, *args, **kwargs) -> Optional[Model]:
@@ -153,10 +164,12 @@ class AwaitableQuerySet(QuerySet):
         return self.fill_model_instance(values)
 
     async def afirst(self):
-        return await (self if self.ordered else self.order_by('pk'))[:1].instance()
+        return await (self if self.ordered else self.order_by("pk"))[:1].instance()
 
     async def alast(self):
-        return await (self.reverse() if self.ordered else self.order_by('pk'))[:1].instance()
+        return await (self.reverse() if self.ordered else self.order_by("pk"))[
+            :1
+        ].instance()
 
     def result(self, one: bool = False):
         result = list(self)
@@ -196,7 +209,7 @@ class AwaitableQuerySet(QuerySet):
 
     @property
     def meta(self) -> Options:
-        return getattr(self.model, '_meta')
+        return getattr(self.model, "_meta")
 
     async def acreate(self, **kwargs):
         obj: Model = self.model(**kwargs)
@@ -211,13 +224,13 @@ class AwaitableQuerySet(QuerySet):
     async def _insert_obj_parents(self, obj: Model, cls=None):
         """Save all the parents of cls using values from self."""
         cls = cls or obj.__class__
-        if getattr(cls, '_meta').proxy:
-            cls = getattr(cls, '_meta').concrete_model
+        if getattr(cls, "_meta").proxy:
+            cls = getattr(cls, "_meta").concrete_model
         meta = cls._meta
 
         for parent, field in meta.parents.items():
             # Make sure the link fields are synced between parent and self.
-            parent_meta: Options = getattr(parent, '_meta')
+            parent_meta: Options = getattr(parent, "_meta")
             if (
                 field
                 and getattr(obj, parent_meta.pk.attname) is None
@@ -243,8 +256,8 @@ class AwaitableQuerySet(QuerySet):
 
     async def _insert_obj(self, obj: Model, cls=None, raw: bool = False):
         cls = cls or obj.__class__
-        if getattr(cls, '_meta').proxy:
-            cls = getattr(cls, '_meta').concrete_model
+        if getattr(cls, "_meta").proxy:
+            cls = getattr(cls, "_meta").concrete_model
         meta: Options = cls._meta
 
         pk_val = getattr(obj, meta.pk.attname)
@@ -263,10 +276,7 @@ class AwaitableQuerySet(QuerySet):
             fields = [f for f in fields if f is not meta.auto_field]
 
         results = await self._async_insert(
-            [obj],
-            fields=fields, cls=cls,
-            returning_fields=returning_fields,
-            raw=raw
+            [obj], fields=fields, cls=cls, returning_fields=returning_fields, raw=raw
         )
         if results:
             obj_value = results[0]
@@ -325,15 +335,15 @@ class AwaitableQuerySet(QuerySet):
         on_conflict=None,
         update_fields=None,
         unique_fields=None,
-        ignore_conflicts=False  # compat django 3
+        ignore_conflicts=False,  # compat django 3
     ):
         self._for_write = True
         if using is None:
             using = self.db
 
         cls = cls or self.model
-        if getattr(cls, '_meta').proxy:
-            cls = getattr(cls, '_meta').concrete_model
+        if getattr(cls, "_meta").proxy:
+            cls = getattr(cls, "_meta").concrete_model
 
         if django.VERSION > (4, 1):
             query = sql.InsertQuery(
@@ -365,9 +375,7 @@ class AwaitableQuerySet(QuerySet):
             if can_return:
                 rows = await db.fetchall(q, params)
             else:
-                rows = [
-                    {self.meta.pk.column: await db.execute(q, params)}
-                ]
+                rows = [{self.meta.pk.column: await db.execute(q, params)}]
             for val in rows:
                 val: dict
                 tuple_values = []
@@ -394,7 +402,7 @@ class AwaitableQuerySet(QuerySet):
         update_conflicts=False,
         update_fields=None,
         unique_fields=None,
-        no_transaction: bool = False
+        no_transaction: bool = False,
     ):
         """
         Internal django implementation of bulk_create is too complicate to split into async code
@@ -410,6 +418,7 @@ class AwaitableQuerySet(QuerySet):
         if has_parent:
             tasks = []
             import asyncio
+
             for obj in objs:
                 tasks.append(asyncio.create_task(self._insert_obj(obj)))
             try:
@@ -444,7 +453,9 @@ class AwaitableQuerySet(QuerySet):
         self._prepare_for_bulk_create(objs)
         db = self.connections_cls.get(self.db)
 
-        async with (DummyContent() if no_transaction else db.async_transaction(savepoint=False)):
+        async with (
+            DummyContent() if no_transaction else db.async_transaction(savepoint=False)
+        ):
             objs_with_pk, objs_without_pk = partition(lambda o: o.pk is None, objs)
             if objs_with_pk:
                 returned_columns = await self._async_batched_insert(
@@ -496,11 +507,11 @@ class AwaitableQuerySet(QuerySet):
         # query.clear_select_fields()
         # query.clear_ordering()
         if django.VERSION < (4, 2):
-            query.add_annotation(Count('*'), alias='__count', is_summary=True)
-            r = await query.aget_aggregation(self.db, ['__count']) or {}
+            query.add_annotation(Count("*"), alias="__count", is_summary=True)
+            r = await query.aget_aggregation(self.db, ["__count"]) or {}
         else:
             r = await query.aget_aggregation(self.db, {"__count": Count("*")}) or {}
-        number = r.get('__count') or r.get('count') or r.get('COUNT(*)')
+        number = r.get("__count") or r.get("count") or r.get("COUNT(*)")
         if number is None and r:
             number = list(r.values())[0]
         # weird, don't know why now
@@ -620,6 +631,7 @@ class AwaitableQuerySet(QuerySet):
     @property
     def conn(self):
         from django.db import connections
+
         return connections[self.db]
 
     async def aget(self, *args, **kwargs):
@@ -676,7 +688,9 @@ class AwaitableQuerySet(QuerySet):
                 await self.__class__(self.model).filter(pk=obj.pk).aupdate(**params)
         return obj, False
 
-    async def abulk_update(self, objs, fields, batch_size=None, no_transaction: bool = False):
+    async def abulk_update(
+        self, objs, fields, batch_size=None, no_transaction: bool = False
+    ):
         if batch_size is not None and batch_size < 0:
             raise ValueError("Batch size must be a positive integer.")
         if not fields:
@@ -702,7 +716,7 @@ class AwaitableQuerySet(QuerySet):
         max_batch_size = connection.ops.bulk_batch_size(["pk", "pk"] + fields, objs)
         batch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size
         requires_casting = connection.features.requires_casted_case_in_updates
-        batches = (objs[i: i + batch_size] for i in range(0, len(objs), batch_size))
+        batches = (objs[i : i + batch_size] for i in range(0, len(objs), batch_size))
         updates = []
         for batch_objs in batches:
             update_kwargs = {}
@@ -721,7 +735,9 @@ class AwaitableQuerySet(QuerySet):
         # rows_updated = 0
         queryset = self.using(self.db)
         db = self.connections_cls.get(self.db)
-        async with (DummyContent() if no_transaction else db.async_transaction(savepoint=False)):
+        async with (
+            DummyContent() if no_transaction else db.async_transaction(savepoint=False)
+        ):
             for pks, update_kwargs in updates:
                 await queryset.filter(pk__in=pks).aupdate(**update_kwargs)
         # return rows_updated
@@ -759,7 +775,7 @@ class AwaitableQuerySet(QuerySet):
         if collector.can_fast_delete(del_query):
             await collector.acollect(del_query)
         else:
-            pks = await self.values_list('pk', flat=True).result()
+            pks = await self.values_list("pk", flat=True).result()
             if not pks:
                 return True, 0
             await collector.acollect([self.model(pk=pk) for pk in pks])
@@ -770,4 +786,5 @@ class AwaitableQuerySet(QuerySet):
         return deleted, _rows_count
 
 
-class AwaitableManager(Manager.from_queryset(AwaitableQuerySet)): pass
+class AwaitableManager(Manager.from_queryset(AwaitableQuerySet)):
+    pass

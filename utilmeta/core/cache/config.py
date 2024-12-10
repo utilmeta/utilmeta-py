@@ -14,12 +14,9 @@ class Cache(Config):
     This is just a declaration interface for database
     the real implementation is database adaptor
     """
-    DEFAULT_HOST: ClassVar = '127.0.0.1'
-    DEFAULT_PORTS: ClassVar = {
-        'redis': 6379,
-        'mcache': 11211,
-        'memcache': 11211
-    }
+
+    DEFAULT_HOST: ClassVar = "127.0.0.1"
+    DEFAULT_PORTS: ClassVar = {"redis": 6379, "mcache": 11211, "memcache": 11211}
 
     sync_adaptor_cls = None
     async_adaptor_cls = None
@@ -29,24 +26,26 @@ class Cache(Config):
     host: Optional[str] = None
     port: int = 0
     timeout: int = 300
-    location: Union[str, List[str]] = ''
+    location: Union[str, List[str]] = ""
     prefix: Optional[str] = None
     max_entries: Optional[int] = None
     key_function: Optional[Callable] = None
     options: Optional[dict] = None
 
-    def __init__(self, *,
-                 engine: str,      # 'redis' / 'memcached' / 'locmem'
-                 host: Optional[str] = None,
-                 port: int = 0,
-                 timeout: int = 300,
-                 location: Union[str, List[str]] = '',
-                 prefix: Optional[str] = None,
-                 max_entries: Optional[int] = None,
-                 key_function: Optional[Callable] = None,
-                 options: Optional[dict] = None,
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        *,
+        engine: str,  # 'redis' / 'memcached' / 'locmem'
+        host: Optional[str] = None,
+        port: int = 0,
+        timeout: int = 300,
+        location: Union[str, List[str]] = "",
+        prefix: Optional[str] = None,
+        max_entries: Optional[int] = None,
+        key_function: Optional[Callable] = None,
+        options: Optional[dict] = None,
+        **kwargs,
+    ):
         kwargs.update(locals())
         super().__init__(kwargs)
         self.host = self.host or self.DEFAULT_HOST
@@ -61,21 +60,21 @@ class Cache(Config):
 
     @property
     def type(self) -> str:
-        if 'redis' in self.engine.lower():
-            return 'redis'
-        elif 'memcached' in self.engine.lower():
-            return 'memcached'
-        elif 'locmem' in self.engine.lower():
-            return 'locmem'
-        elif 'file' in self.engine.lower():
-            return 'file'
-        elif 'database' in self.engine.lower() or 'db' in self.engine.lower():
-            return 'db'
-        return 'memory'
+        if "redis" in self.engine.lower():
+            return "redis"
+        elif "memcached" in self.engine.lower():
+            return "memcached"
+        elif "locmem" in self.engine.lower():
+            return "locmem"
+        elif "file" in self.engine.lower():
+            return "file"
+        elif "database" in self.engine.lower() or "db" in self.engine.lower():
+            return "db"
+        return "memory"
 
     @property
     def is_memory(self) -> bool:
-        return self.type in ['locmem', 'memory']
+        return self.type in ["locmem", "memory"]
 
     @property
     def local(self):
@@ -93,34 +92,40 @@ class Cache(Config):
                 self.adaptor = self.async_adaptor_cls(self, alias)
             else:
                 from .backends.django import DjangoCacheAdaptor
+
                 self.adaptor = DjangoCacheAdaptor(self, alias)
         else:
             if self.sync_adaptor_cls:
                 self.adaptor = self.sync_adaptor_cls(self, alias)
             else:
                 from .backends.django import DjangoCacheAdaptor
+
                 self.adaptor = DjangoCacheAdaptor(self, alias)
         self.asynchronous = asynchronous
         self.adaptor.check()
         self._applied = True
 
-    def get_adaptor(self, asynchronous: bool = False) -> 'BaseCacheAdaptor':
+    def get_adaptor(self, asynchronous: bool = False) -> "BaseCacheAdaptor":
         if not self._applied:
-            self.apply('default', asynchronous)
+            self.apply("default", asynchronous)
         if self.adaptor and self.adaptor.asynchronous == asynchronous:
             return self.adaptor
         if asynchronous:
             if not self.async_adaptor_cls:
-                raise exceptions.SettingNotConfigured(self.__class__, item='async_adaptor_cls')
+                raise exceptions.SettingNotConfigured(
+                    self.__class__, item="async_adaptor_cls"
+                )
             return self.async_adaptor_cls(self, self.adaptor.alias)
         if not self.sync_adaptor_cls:
-            raise exceptions.SettingNotConfigured(self.__class__, item='sync_adaptor_cls')
+            raise exceptions.SettingNotConfigured(
+                self.__class__, item="sync_adaptor_cls"
+            )
         return self.sync_adaptor_cls(self, self.adaptor.alias)
 
     def get_location(self):
         if self.location:
             return self.location
-        return f'{self.host}:{self.port}'
+        return f"{self.host}:{self.port}"
 
     def get(self, key: str, default=None):
         return self.get_adaptor(False).get(key, default)
@@ -128,30 +133,50 @@ class Cache(Config):
     async def aget(self, key: str, default=None):
         return await self.get_adaptor(True).get(key, default)
 
-    def fetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
+    def fetch(
+        self, args=None, *keys: str, named: bool = False
+    ) -> Union[list, Dict[str, Any]]:
         # get many
         return self.get_adaptor(False).fetch(args, *keys, named=named)
 
-    async def afetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
+    async def afetch(
+        self, args=None, *keys: str, named: bool = False
+    ) -> Union[list, Dict[str, Any]]:
         # get many
         return await self.get_adaptor(True).fetch(args, *keys, named=named)
 
-    def set(self, key: str, value, *, timeout: Union[int, timedelta, datetime] = None,
-            exists_only: bool = False, not_exists_only: bool = False):
+    def set(
+        self,
+        key: str,
+        value,
+        *,
+        timeout: Union[int, timedelta, datetime] = None,
+        exists_only: bool = False,
+        not_exists_only: bool = False,
+    ):
         return self.get_adaptor(False).set(
-            key, value,
+            key,
+            value,
             timeout=timeout,
             exists_only=exists_only,
-            not_exists_only=not_exists_only
+            not_exists_only=not_exists_only,
         )
 
-    async def aset(self, key: str, value, *, timeout: Union[int, timedelta, datetime] = None,
-                   exists_only: bool = False, not_exists_only: bool = False):
+    async def aset(
+        self,
+        key: str,
+        value,
+        *,
+        timeout: Union[int, timedelta, datetime] = None,
+        exists_only: bool = False,
+        not_exists_only: bool = False,
+    ):
         return await self.get_adaptor(True).set(
-            key, value,
+            key,
+            value,
             timeout=timeout,
             exists_only=exists_only,
-            not_exists_only=not_exists_only
+            not_exists_only=not_exists_only,
         )
 
     def update(self, data: Dict[str, Any]):
@@ -187,65 +212,81 @@ class Cache(Config):
     async def aexpire(self, *keys: str, timeout: float):
         return await self.get_adaptor(True).expire(*keys, timeout=timeout)
 
-    def alter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
+    def alter(
+        self, key: str, amount: Union[int, float], limit: int = None
+    ) -> Optional[Union[int, float]]:
         return self.get_adaptor(False).alter(key, amount, limit=limit)
 
-    async def aalter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
+    async def aalter(
+        self, key: str, amount: Union[int, float], limit: int = None
+    ) -> Optional[Union[int, float]]:
         return await self.get_adaptor(True).alter(key, amount, limit=limit)
 
     # deprecate in the future
     @awaitable(get)
     async def get(self, key: str, default=None):
-        warnings.warn(f'Deprecated in future, please use aget()', DeprecationWarning)
+        warnings.warn(f"Deprecated in future, please use aget()", DeprecationWarning)
         return await self.aget(key, default)
 
     @awaitable(fetch)
-    async def fetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
+    async def fetch(
+        self, args=None, *keys: str, named: bool = False
+    ) -> Union[list, Dict[str, Any]]:
         # get many
-        warnings.warn(f'Deprecated in future, please use afetch()', DeprecationWarning)
+        warnings.warn(f"Deprecated in future, please use afetch()", DeprecationWarning)
         return await self.afetch(args, *keys, named=named)
 
     @awaitable(set)
-    async def set(self, key: str, value, *, timeout: Union[int, timedelta, datetime] = None,
-                   exists_only: bool = False, not_exists_only: bool = False):
-        warnings.warn(f'Deprecated in future, please use aset()', DeprecationWarning)
+    async def set(
+        self,
+        key: str,
+        value,
+        *,
+        timeout: Union[int, timedelta, datetime] = None,
+        exists_only: bool = False,
+        not_exists_only: bool = False,
+    ):
+        warnings.warn(f"Deprecated in future, please use aset()", DeprecationWarning)
         return await self.aset(
-            key, value,
+            key,
+            value,
             timeout=timeout,
             exists_only=exists_only,
-            not_exists_only=not_exists_only
+            not_exists_only=not_exists_only,
         )
 
     @awaitable(update)
     async def update(self, data: Dict[str, Any]):
-        warnings.warn(f'Deprecated in future, please use aupdate()', DeprecationWarning)
+        warnings.warn(f"Deprecated in future, please use aupdate()", DeprecationWarning)
         # set many
         return await self.aupdate(data)
 
     @awaitable(pop)
     async def pop(self, key: str):
-        warnings.warn(f'Deprecated in future, please use apop()', DeprecationWarning)
+        warnings.warn(f"Deprecated in future, please use apop()", DeprecationWarning)
         # set many
         return await self.apop(key)
 
     @awaitable(delete)
     async def delete(self, args=None, *keys):
-        warnings.warn(f'Deprecated in future, please use adelete()', DeprecationWarning)
+        warnings.warn(f"Deprecated in future, please use adelete()", DeprecationWarning)
         return await self.get_adaptor(True).delete(args, *keys)
 
     @awaitable(exists)
     async def exists(self, args=None, *keys) -> int:
-        warnings.warn(f'Deprecated in future, please use aexists()', DeprecationWarning)
+        warnings.warn(f"Deprecated in future, please use aexists()", DeprecationWarning)
         return await self.aexists(args, *keys)
 
     @awaitable(expire)
     async def expire(self, *keys: str, timeout: float):
-        warnings.warn(f'Deprecated in future, please use aexpire()', DeprecationWarning)
+        warnings.warn(f"Deprecated in future, please use aexpire()", DeprecationWarning)
         return await self.aexpire(*keys, timeout=timeout)
 
     @awaitable(alter)
-    async def alter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
-        warnings.warn(f'Deprecated in future, please use aalter()', DeprecationWarning)
+    async def alter(
+        self, key: str, amount: Union[int, float], limit: int = None
+    ) -> Optional[Union[int, float]]:
+        warnings.warn(f"Deprecated in future, please use aalter()", DeprecationWarning)
         return await self.aalter(key, amount, limit=limit)
 
 
@@ -270,7 +311,7 @@ class CacheConnections(Config):
             self.caches.setdefault(alias, cache)
 
     @classmethod
-    def get(cls, alias: str = 'default', default=unprovided) -> Cache:
+    def get(cls, alias: str = "default", default=unprovided) -> Cache:
         config = cls.config()
         if not config:
             if unprovided(default):
@@ -298,5 +339,3 @@ class CacheConnections(Config):
     # async def on_shutdown(self, service):
     #     for key, value in self.caches.items():
     #         await value.disconnect()
-
-

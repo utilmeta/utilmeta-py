@@ -10,47 +10,49 @@ NUM_TYPES = (int, float)
 NUM = Union[int, float]
 VAL = Union[str, bytes, list, tuple, dict]
 
-__all__ = ['CacheEntity']
+__all__ = ["CacheEntity"]
 
 
 class CacheEntity:
     backend_name = None
 
     @property
-    def requests_key(self):    # total request keys
-        return self.src.encode('requests', '@', self._assigned_variant)
+    def requests_key(self):  # total request keys
+        return self.src.encode("requests", "@", self._assigned_variant)
         # cannot perform atomic update sync in common cache backend
 
     # hit ratio = sum(hits) / total
     @property
     def hits_key(self):
-        return self.src.encode('hits', '@', self._assigned_variant)
+        return self.src.encode("hits", "@", self._assigned_variant)
         # cannot perform atomic update sync in common cache backend
 
     @property
     def update_key(self):
         # this store every keys (update in set)
-        return self.src.encode('update', '@', self._assigned_variant)
+        return self.src.encode("update", "@", self._assigned_variant)
 
     @property
     def vary_hits_key(self):
-        return f'{self.src.base_key_prefix}@vary_hits'
+        return f"{self.src.base_key_prefix}@vary_hits"
 
     @property
     def vary_update_key(self):
-        return f'{self.src.base_key_prefix}@vary_updates'
+        return f"{self.src.base_key_prefix}@vary_updates"
 
-    def __init__(self, src: 'BaseCacheInterface', variant=None, readonly: bool = False):
+    def __init__(self, src: "BaseCacheInterface", variant=None, readonly: bool = False):
         assert isinstance(src, BaseCacheInterface)
         self.src = src
         self.readonly = readonly
         self._assigned_variant = variant
 
     def reset_stats(self):
-        self.cache.fetch({
-            self.requests_key: 0,
-            self.hits_key: {},
-        })
+        self.cache.fetch(
+            {
+                self.requests_key: 0,
+                self.hits_key: {},
+            }
+        )
 
     @property
     def variant(self):
@@ -83,7 +85,11 @@ class CacheEntity:
         return max(updates.values()) if updates else None
 
     def _get_key_data(self, vary: bool = False) -> Tuple[dict, dict]:
-        tk, uk = (self.vary_hits_key, self.vary_update_key) if vary else (self.hits_key, self.update_key)
+        tk, uk = (
+            (self.vary_hits_key, self.vary_update_key)
+            if vary
+            else (self.hits_key, self.update_key)
+        )
         _data = self.cache.fetch(tk, uk)
         _counts = _data.get(tk)
         _updates = _data.get(uk)
@@ -98,11 +104,12 @@ class CacheEntity:
             counts = {}
         if not isinstance(updates, dict):
             updates = {}
-        tk, uk = (self.vary_hits_key, self.vary_update_key) if vary else (self.hits_key, self.update_key)
-        self.cache.update({
-            tk: counts,
-            uk: updates
-        })
+        tk, uk = (
+            (self.vary_hits_key, self.vary_update_key)
+            if vary
+            else (self.hits_key, self.update_key)
+        )
+        self.cache.update({tk: counts, uk: updates})
 
     @classmethod
     def pop_min(cls, data: dict, count: int):
@@ -141,7 +148,9 @@ class CacheEntity:
             # counts already set keys
             excess: int = self.exists(*updates) - self.src.max_entries
 
-            if excess > self.src.max_entries_tolerance:     # default to 0, but can set a throttle value
+            if (
+                excess > self.src.max_entries_tolerance
+            ):  # default to 0, but can set a throttle value
                 # total_key >= max_entries
                 # delete the least frequently hit key
                 del_keys = []
@@ -174,7 +183,9 @@ class CacheEntity:
             if self.src.max_variants:
                 excess = len(vary_updates) - self.src.max_variants
 
-                if excess > self.src.max_variants_tolerance:  # default to 0, but can set a throttle value
+                if (
+                    excess > self.src.max_variants_tolerance
+                ):  # default to 0, but can set a throttle value
                     # total_key >= max_entries
                     # delete the least frequently hit key
                     del_keys = []
@@ -191,7 +202,7 @@ class CacheEntity:
         if not data:
             return
         if self.readonly:
-            warnings.warn(f'Attempt to set val ({data}) to a readonly cache')
+            warnings.warn(f"Attempt to set val ({data}) to a readonly cache")
             return
         if timeout == 0:
             # will expire ASAP
@@ -201,11 +212,20 @@ class CacheEntity:
         if not unprovided(timeout):
             self.cache.expire(*data, timeout=timeout)
 
-    def set(self, key: str, val, *, timeout: float = None,
-            exists_only: bool = False, not_exists_only: bool = False):
+    def set(
+        self,
+        key: str,
+        val,
+        *,
+        timeout: float = None,
+        exists_only: bool = False,
+        not_exists_only: bool = False,
+    ):
         if self.readonly:
-            warnings.warn(f'Attempt to set val ({key} -> {repr(val)}) to a readonly cache, '
-                          f'(maybe from other scope), ignoring...')
+            warnings.warn(
+                f"Attempt to set val ({key} -> {repr(val)}) to a readonly cache, "
+                f"(maybe from other scope), ignoring..."
+            )
             return
         if timeout == 0:
             # will expire ASAP
@@ -267,8 +287,10 @@ class CacheEntity:
 
     def last_modified(self, *keys: str) -> Optional[datetime]:
         if not self.src.trace_keys:
-            raise NotImplementedError(f'Cache.last_modified not implemented, '
-                                      f'please set trace_keys=True to enable this method')
+            raise NotImplementedError(
+                f"Cache.last_modified not implemented, "
+                f"please set trace_keys=True to enable this method"
+            )
         updates = self.cache.get(self.update_key)
         if isinstance(updates, dict):
             times = []
@@ -283,8 +305,10 @@ class CacheEntity:
 
     def keys(self):
         if not self.src.trace_keys:
-            raise NotImplementedError(f'Cache.keys not implemented, '
-                                      f'please set trace_keys=True to enable this method')
+            raise NotImplementedError(
+                f"Cache.keys not implemented, "
+                f"please set trace_keys=True to enable this method"
+            )
         keys = self.cache.get(self.update_key)
         if isinstance(keys, dict):
             misses = []
@@ -306,8 +330,10 @@ class CacheEntity:
 
     def clear(self):
         if not self.src.trace_keys:
-            raise NotImplementedError(f'Cache.clear not implemented, '
-                                      f'please set trace_keys=True to enable this method')
+            raise NotImplementedError(
+                f"Cache.clear not implemented, "
+                f"please set trace_keys=True to enable this method"
+            )
         keys = self.cache.get(self.update_key) or {}
         self.delete(*keys, self.requests_key, self.hits_key, self.update_key)
         if self.variant:
@@ -321,7 +347,7 @@ class CacheEntity:
         if not keys:
             return
         if self.readonly:
-            raise RuntimeError(f'Attempt to delete key ({keys}) at a readonly cache')
+            raise RuntimeError(f"Attempt to delete key ({keys}) at a readonly cache")
         self.cache.delete(*keys)
         # update key metrics
         if self.src.trace_keys:
@@ -337,8 +363,10 @@ class CacheEntity:
 
     def count(self) -> int:
         if not self.src.trace_keys:
-            raise NotImplementedError(f'Cache.count not implemented, '
-                                      f'please set trace_keys=True to enable this method')
+            raise NotImplementedError(
+                f"Cache.count not implemented, "
+                f"please set trace_keys=True to enable this method"
+            )
         keys = self.cache.get(self.update_key)
         if isinstance(keys, dict):
             # consider timeout
@@ -356,7 +384,7 @@ class CacheEntity:
         counts = self.cache.get(self.vary_update_key)
         if not counts:
             return []
-        return list(counts)     # noqa
+        return list(counts)  # noqa
 
     def alter(self, key: str, amount: Union[int, float], limit: int = None):
         # cannot perform atomic limitation, only lua script in redis can do that
@@ -364,7 +392,9 @@ class CacheEntity:
             return None
         if not amount:
             return self.get(key, single=True)
-        self.prepare(key)   # still need to prepare, since the command can generate new keys
+        self.prepare(
+            key
+        )  # still need to prepare, since the command can generate new keys
 
         if limit is not None:
             value = self.get(key, single=True)
@@ -407,16 +437,16 @@ class CacheEntity:
         return res
 
     def lock(self, *keys: str, block: bool = False):
-        raise NotImplementedError(f'{self.__class__} not support lock acquire')
+        raise NotImplementedError(f"{self.__class__} not support lock acquire")
 
     def lpush(self, key: str, *values):
-        raise NotImplementedError(f'{self.__class__} not support lpush')
+        raise NotImplementedError(f"{self.__class__} not support lpush")
 
     def rpush(self, key: str, *values):
-        raise NotImplementedError(f'{self.__class__} not support rpush')
+        raise NotImplementedError(f"{self.__class__} not support rpush")
 
     def lpop(self, key: str):
-        raise NotImplementedError(f'{self.__class__} not support lpop')
+        raise NotImplementedError(f"{self.__class__} not support lpop")
 
     def rpop(self, key: str):
-        raise NotImplementedError(f'{self.__class__} not support rpop')
+        raise NotImplementedError(f"{self.__class__} not support rpop")

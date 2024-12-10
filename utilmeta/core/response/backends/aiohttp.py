@@ -1,5 +1,6 @@
 from aiohttp.client_reqrep import ClientResponse
 from aiohttp.web_response import Response as ServerResponse
+
 # from utilmeta.utils import async_to_sync
 from .base import ResponseAdaptor
 
@@ -25,7 +26,7 @@ class AiohttpClientResponseAdaptor(ResponseAdaptor):
 
     @property
     def body(self) -> bytes:
-        return getattr(self.response, '_body', None)
+        return getattr(self.response, "_body", None)
 
     async def async_read(self) -> bytes:
         return await self.response.read()
@@ -35,7 +36,7 @@ class AiohttpClientResponseAdaptor(ResponseAdaptor):
             return await self.response.text()
         elif self.json_type:
             return await self.response.json()
-        self.__dict__['body'] = await self.async_read()
+        self.__dict__["body"] = await self.async_read()
         return self.get_content()
 
     @property

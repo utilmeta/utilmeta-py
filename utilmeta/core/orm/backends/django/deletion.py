@@ -4,8 +4,11 @@ import django
 from django.db.models.deletion import Collector, Counter
 from collections import defaultdict
 from itertools import chain
-from django.db.models.deletion import get_candidate_relations_to_delete, \
-    DO_NOTHING, ProtectedError
+from django.db.models.deletion import (
+    get_candidate_relations_to_delete,
+    DO_NOTHING,
+    ProtectedError,
+)
 from django.db.models import QuerySet, sql, signals
 from django.db import models
 from django.core.exceptions import EmptyResultSet
@@ -17,6 +20,7 @@ from operator import attrgetter, or_
 try:
     from django.db.models.deletion import RestrictedError
 except ImportError:
+
     class RestrictedError(Exception):
         pass
 
@@ -43,7 +47,9 @@ class AwaitableCollector(Collector):
         return 0
 
     @classmethod
-    async def update_batch(cls, model, pk_list, values, db: DatabaseConnections.database_cls):
+    async def update_batch(
+        cls, model, pk_list, values, db: DatabaseConnections.database_cls
+    ):
         query = sql.UpdateQuery(model)
         query.add_update_values(values)
         for offset in range(0, len(pk_list), GET_ITERATOR_CHUNK_SIZE):
@@ -51,9 +57,10 @@ class AwaitableCollector(Collector):
                 query.clear_where()
             else:
                 from django.db.models.sql.where import WhereNode
+
                 query.where = WhereNode()
             query.add_filter(
-                "pk__in", pk_list[offset: offset + GET_ITERATOR_CHUNK_SIZE]
+                "pk__in", pk_list[offset : offset + GET_ITERATOR_CHUNK_SIZE]
             )
             q, params = query.get_compiler(db.alias).as_sql()
             await db.execute(q, params)
@@ -75,10 +82,11 @@ class AwaitableCollector(Collector):
                 query.clear_where()
             else:
                 from django.db.models.sql.where import WhereNode
+
                 query.where = WhereNode()
             query.add_filter(
                 f"{field.attname}__in",
-                pk_list[offset: offset + GET_ITERATOR_CHUNK_SIZE],
+                pk_list[offset : offset + GET_ITERATOR_CHUNK_SIZE],
             )
             where = query.where
             table = query.get_meta().db_table
@@ -115,7 +123,9 @@ class AwaitableCollector(Collector):
                 if self.can_fast_delete(instance):
                     async with db.async_transaction():
                         # with transaction.mark_for_rollback_on_error(self.using):
-                        count = await self.delete_batch(model, pk_list=[instance.pk], db=db)
+                        count = await self.delete_batch(
+                            model, pk_list=[instance.pk], db=db
+                        )
                         setattr(instance, model._meta.pk.attname, None)
                         return count, {model._meta.label: count}
 
@@ -152,11 +162,12 @@ class AwaitableCollector(Collector):
                     if updates:
                         combined_updates = reduce(or_, updates)
                         from .queryset import AwaitableQuerySet
+
                         if not isinstance(combined_updates, AwaitableQuerySet):
                             combined_updates = AwaitableQuerySet(
                                 model=combined_updates.model,
                                 query=combined_updates.query,
-                                using=combined_updates.db
+                                using=combined_updates.db,
                             )
                         try:
                             await combined_updates.aupdate(**{field.name: value})
@@ -166,15 +177,19 @@ class AwaitableCollector(Collector):
                         model = objs[0].__class__
                         # query = sql.UpdateQuery(model)
                         await self.update_batch(
-                            model, pk_list=[obj.pk for obj in objs],
-                            values={field.name: value}, db=db
+                            model,
+                            pk_list=[obj.pk for obj in objs],
+                            values={field.name: value},
+                            db=db,
                         )
             else:
                 for model, instances_for_fieldvalues in self.field_updates.items():
                     for (field, value), instances in instances_for_fieldvalues.items():
                         await self.update_batch(
-                            model, pk_list=[obj.pk for obj in instances],
-                            values={field.name: value}, db=db
+                            model,
+                            pk_list=[obj.pk for obj in instances],
+                            values={field.name: value},
+                            db=db,
                         )
 
             # reverse instance collections
@@ -214,12 +229,16 @@ class AwaitableCollector(Collector):
         Get a QuerySet of the related model to objs via related fields.
         """
         from django.db.models import query_utils
+
         predicate = query_utils.Q.create(
             [(f"{related_field.name}__in", objs) for related_field in related_fields],
             connector=query_utils.Q.OR,
         )
         from .queryset import AwaitableQuerySet
-        return AwaitableQuerySet(model=related_model).using(self.using).filter(predicate)
+
+        return (
+            AwaitableQuerySet(model=related_model).using(self.using).filter(predicate)
+        )
 
     async def aadd(self, objs, source=None, nullable=False, reverse_dependency=False):
         """
@@ -230,6 +249,7 @@ class AwaitableCollector(Collector):
         Return a list of all objects that were not already collected.
         """
         from .queryset import AwaitableQuerySet
+
         new_objs = []
         if isinstance(objs, AwaitableQuerySet):
             if not await objs.aexists():
@@ -297,6 +317,7 @@ class AwaitableCollector(Collector):
             return
 
         from .queryset import AwaitableQuerySet
+
         if isinstance(objs, QuerySet):
             model = objs.model
             if not isinstance(objs, AwaitableQuerySet):
@@ -373,7 +394,10 @@ class AwaitableCollector(Collector):
                         )
                     )
                     sub_objs = sub_objs.only(*tuple(referenced_fields))
-                if getattr(on_delete, "lazy_sub_objs", False) or await sub_objs.aexists():
+                if (
+                    getattr(on_delete, "lazy_sub_objs", False)
+                    or await sub_objs.aexists()
+                ):
                     try:
                         r = on_delete(self, field, sub_objs, self.using)
                         if inspect.isawaitable(r):

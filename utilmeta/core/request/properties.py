@@ -12,30 +12,30 @@ from ipaddress import IPv6Address, IPv4Network, IPv6Network, IPv4Address
 
 
 __all__ = [
-    'URL',
-    'Host',
-    'PathParam',
-    'FilePathParam',
-    'SlugPathParam',
-    'BodyParam',
-    'Body',
-    'Form',
-    'Json',
-    'EncodingField',
-    'Query',
-    'QueryParam',
-    'Headers',
-    'HeaderParam',
-    'Cookies',
-    'CookieParam',
-    'UserAgent',
-    'Address',
-    'Time'
+    "URL",
+    "Host",
+    "PathParam",
+    "FilePathParam",
+    "SlugPathParam",
+    "BodyParam",
+    "Body",
+    "Form",
+    "Json",
+    "EncodingField",
+    "Query",
+    "QueryParam",
+    "Headers",
+    "HeaderParam",
+    "Cookies",
+    "CookieParam",
+    "UserAgent",
+    "Address",
+    "Time",
 ]
 
 
 class Path(Property):
-    __ident__ = 'path'
+    __ident__ = "path"
 
     @classmethod
     def getter(cls, request: Request, *keys: str):
@@ -43,7 +43,7 @@ class Path(Property):
 
 
 class URL(Property):
-    __ident__ = 'url'
+    __ident__ = "url"
 
     @classmethod
     def getter(cls, request: Request, field: ParserField = None):
@@ -55,13 +55,14 @@ class Host(Property):
     def getter(cls, request: Request, field: ParserField = None):
         return request.host
 
-    def __init__(self,
-                 allow_list: list = None,
-                 block_list: list = None,
-                 local_only: bool = False,
-                 private_only: bool = False,
-                 public_only: bool = False,
-                 ):
+    def __init__(
+        self,
+        allow_list: list = None,
+        block_list: list = None,
+        local_only: bool = False,
+        private_only: bool = False,
+        public_only: bool = False,
+    ):
         super().__init__()
         self.allow_list = allow_list
         self.block_list = block_list
@@ -71,15 +72,15 @@ class Host(Property):
 
 
 class Body(Property):
-    PLAIN = 'text/plain'
-    JSON = 'application/json'
-    FORM_URLENCODED = 'application/x-www-form-urlencoded'
-    FORM_DATA = 'multipart/form-data'
-    XML = 'application/xml'
-    OCTET_STREAM = 'application/octet-stream'
+    PLAIN = "text/plain"
+    JSON = "application/json"
+    FORM_URLENCODED = "application/x-www-form-urlencoded"
+    FORM_DATA = "multipart/form-data"
+    XML = "application/xml"
+    OCTET_STREAM = "application/octet-stream"
 
-    __ident__ = 'body'
-    __name_prefix__ = 'request'
+    __ident__ = "body"
+    __name_prefix__ = "request"
     __no_default__ = True
 
     content_type = None
@@ -106,24 +107,35 @@ class Body(Property):
 
     def validate_content_type(self, request: Request):
         if self.content_type and request.content_type != self.content_type:
-            raise exc.UnprocessableEntity(f'invalid content type: {request.content_type}')
+            raise exc.UnprocessableEntity(
+                f"invalid content type: {request.content_type}"
+            )
 
     def validate_max_length(self, request: Request):
-        if self.max_length and request.content_length and request.content_length > self.max_length:
+        if (
+            self.max_length
+            and request.content_length
+            and request.content_length > self.max_length
+        ):
             raise exc.RequestEntityTooLarge
 
-    def __init__(self, content_type: str = None, *,
-                 description: str = None,
-                 example: Any = None,
-                 # options=None,
-                 # default=unprovided,
-                 max_length: int = None, **kwargs):
+    def __init__(
+        self,
+        content_type: str = None,
+        *,
+        description: str = None,
+        example: Any = None,
+        # options=None,
+        # default=unprovided,
+        max_length: int = None,
+        **kwargs,
+    ):
         init_kwargs = dict(
             max_length=max_length,
             # options=options,
             description=description,
             example=example,
-            **kwargs
+            **kwargs,
         )
         super().__init__(**init_kwargs)
         # if content_type:
@@ -139,16 +151,11 @@ class Body(Property):
 
 
 class Json(Body):
-    content_type = 'application/json'
+    content_type = "application/json"
 
-    def __init__(self, *,
-                 description: str = None,
-                 example: Any = None, **kwargs):
+    def __init__(self, *, description: str = None, example: Any = None, **kwargs):
         super().__init__(
-            self.content_type,
-            description=description,
-            example=example,
-            **kwargs
+            self.content_type, description=description, example=example, **kwargs
         )
 
     # def getter(self, request: Request, field: ParserField = None):
@@ -164,21 +171,19 @@ class Json(Body):
 
 
 class Form(Body):
-    content_type = 'multipart/form-data'
+    content_type = "multipart/form-data"
 
-    def __init__(self, *,
-                 description: str = None,
-                 example: Any = None, **kwargs):
+    def __init__(self, *, description: str = None, example: Any = None, **kwargs):
         super().__init__(
-            self.content_type,
-            description=description,
-            example=example,
-            **kwargs
+            self.content_type, description=description, example=example, **kwargs
         )
 
     def validate_content_type(self, request: Request):
-        if self.content_type and request.content_type not in (Body.FORM_URLENCODED, Body.FORM_DATA):
-            raise exc.UnprocessableEntity('invalid content type')
+        if self.content_type and request.content_type not in (
+            Body.FORM_URLENCODED,
+            Body.FORM_DATA,
+        ):
+            raise exc.UnprocessableEntity("invalid content type")
 
     # def getter(self, request: Request, field: ParserField = None):
     #     if not request.adaptor.form_type:
@@ -196,18 +201,23 @@ class ObjectProperty(Property):
     def init(self, field: ParserField):
         t = field.type
         if not t or not isinstance(t, type) or isinstance(None, t):
-            raise TypeError(f'{self.__class__}: {repr(field.name)} should specify a valid object type')
+            raise TypeError(
+                f"{self.__class__}: {repr(field.name)} should specify a valid object type"
+            )
         if not issubclass(t, Mapping):
             from utype.parser.cls import ClassParser
-            parser = getattr(t, '__parser__', None)
+
+            parser = getattr(t, "__parser__", None)
             if not isinstance(parser, ClassParser):
-                raise TypeError(f'{self.__class__}: {repr(field.name)} should specify a valid object type, got {t}')
+                raise TypeError(
+                    f"{self.__class__}: {repr(field.name)} should specify a valid object type, got {t}"
+                )
         return super().init(field)
 
 
 class Query(ObjectProperty):
-    __ident__ = 'query'
-    __name_prefix__ = 'request'
+    __ident__ = "query"
+    __name_prefix__ = "request"
     __type__ = dict
     __no_default__ = True
 
@@ -253,8 +263,8 @@ class Query(ObjectProperty):
 
 
 class Headers(ObjectProperty):
-    __ident__ = 'header'  # according to OpenAPI, not "headers"
-    __name_prefix__ = 'request'
+    __ident__ = "header"  # according to OpenAPI, not "headers"
+    __name_prefix__ = "request"
     __type__ = dict
     __no_default__ = True
 
@@ -282,8 +292,8 @@ class Headers(ObjectProperty):
 
 
 class Cookies(ObjectProperty):
-    __ident__ = 'cookie'  # according to OpenAPI, not "cookies"
-    __name_prefix__ = 'request'
+    __ident__ = "cookie"  # according to OpenAPI, not "cookies"
+    __name_prefix__ = "request"
 
     @classmethod
     def getter(cls, request: Request, field: ParserField = None):
@@ -291,7 +301,7 @@ class Cookies(ObjectProperty):
 
 
 class RequestParam(Property):
-    __name_prefix__ = 'request'
+    __name_prefix__ = "request"
 
     def get_value(self, data: Mapping, field: ParserField):
         if isinstance(data, Mapping):
@@ -304,14 +314,14 @@ class RequestParam(Property):
 
     def getter(self, request: Request, field: ParserField = None):
         if not field:
-            raise ValueError(f'field required')
+            raise ValueError(f"field required")
         data = self.get_mapping(request)
         return self.get_value(data, field)
 
     @awaitable(getter)
     async def getter(self, request: Request, field: ParserField = None):
         if not field:
-            raise ValueError(f'field required')
+            raise ValueError(f"field required")
         data = self.get_mapping(request)
         if inspect.isawaitable(data):
             data = await data
@@ -326,26 +336,26 @@ class RequestParam(Property):
     async def get_mapping(cls, request: Request) -> Optional[Mapping]:
         raise NotImplementedError
 
-    def __init__(self,
-                 alias: str = None,
-                 default=unprovided,
-                 required: bool = None,
-                 style: str = None,
-                 **kwargs):
+    def __init__(
+        self,
+        alias: str = None,
+        default=unprovided,
+        required: bool = None,
+        style: str = None,
+        **kwargs,
+    ):
         if required:
             default = unprovided
         super().__init__(
             alias=alias or self.alias_generator,
             default=default,
             required=required,
-            **kwargs
+            **kwargs,
         )
         self.style = style
         # refer to https://swagger.io/specification/
         try:
-            self._update_spec(
-                style=style
-            )
+            self._update_spec(style=style)
         except AttributeError:
             pass
 
@@ -383,20 +393,28 @@ class PathParam(RequestParam):
     __in__ = Path
     __no_default__ = True
 
-    regex = '[^/]+'  # default regex, can be override
+    regex = "[^/]+"  # default regex, can be override
 
-    def __init__(self, regex: str = None, *, min_length: str = None, max_length: str = None,
-                 required: bool = True, default=unprovided, **kwargs):
+    def __init__(
+        self,
+        regex: str = None,
+        *,
+        min_length: str = None,
+        max_length: str = None,
+        required: bool = True,
+        default=unprovided,
+        **kwargs,
+    ):
         if not regex:
             if min_length:
                 if max_length:
-                    regex = '(.{%s,%s})' % (min_length, max_length)
+                    regex = "(.{%s,%s})" % (min_length, max_length)
                 elif min_length == 1:
-                    regex = '(.+)'
+                    regex = "(.+)"
                 else:
-                    regex = '(.{%s,})' % min_length
+                    regex = "(.{%s,})" % min_length
             elif max_length:
-                regex = '(.{0,%s})' % max_length
+                regex = "(.{0,%s})" % max_length
         if regex:
             self.regex = regex
         self.min_length = min_length
@@ -407,12 +425,7 @@ class PathParam(RequestParam):
 
         self.required = required
 
-        super().__init__(
-            regex=self.regex,
-            required=required,
-            default=default,
-            **kwargs
-        )
+        super().__init__(regex=self.regex, required=required, default=default, **kwargs)
 
 
 class SlugPathParam(PathParam):
@@ -420,7 +433,7 @@ class SlugPathParam(PathParam):
 
 
 class FilePathParam(PathParam):
-    regex = r'(.*)'
+    regex = r"(.*)"
 
 
 class QueryParam(RequestParam):
@@ -444,7 +457,7 @@ class BodyParam(RequestParam):
         elif request.adaptor.form_type:
             mp = request.adaptor.get_form()
         else:
-            raise exc.UnprocessableEntity(f'invalid content type, must be json or form')
+            raise exc.UnprocessableEntity(f"invalid content type, must be json or form")
         data.set(mp)
         return mp
 
@@ -457,39 +470,38 @@ class BodyParam(RequestParam):
         if request.adaptor.json_type or request.adaptor.form_type:
             mp = await request.adaptor.async_load()
         else:
-            raise exc.UnprocessableEntity(f'invalid content type, must be json or form')
+            raise exc.UnprocessableEntity(f"invalid content type, must be json or form")
         data.set(mp)
         return mp
 
 
 class EncodingField(Field):
-    def __init__(self,
-                 content_type: str = None,
-                 # support for mixed encoding body (multipart/mixed)
-                 # will integrate into encoding in requestBody
-                 *,
-                 description: str = None,
-                 example: Any = None,
-                 # options=None,
-                 max_length: int = None,
-                 headers: dict = None,
-                 **kwargs):
+    def __init__(
+        self,
+        content_type: str = None,
+        # support for mixed encoding body (multipart/mixed)
+        # will integrate into encoding in requestBody
+        *,
+        description: str = None,
+        example: Any = None,
+        # options=None,
+        max_length: int = None,
+        headers: dict = None,
+        **kwargs,
+    ):
         super().__init__(
             max_length=max_length,
             # options=options,
             description=description,
             example=example,
-            **kwargs
+            **kwargs,
         )
         self.content_type = content_type
         # self.options = options
         self.max_length = max_length  # Body Too Long
         self.headers = headers
         try:
-            self._update_spec(
-                content_type=content_type,
-                headers=headers
-            )
+            self._update_spec(content_type=content_type, headers=headers)
         except AttributeError:
             pass
 
@@ -503,7 +515,8 @@ class HeaderParam(RequestParam):
 
     @classmethod
     def alias_generator(cls, key: str):
-        return key.replace('_', '-')
+        return key.replace("_", "-")
+
 
 #
 # class Authorization(HeaderParam):
@@ -550,30 +563,37 @@ class CookieParam(RequestParam):
 
 class UserAgent(Property):
     __in__ = Headers
-    __key__ = 'user-agent'
+    __key__ = "user-agent"
 
     @classmethod
     def getter(cls, request: Request, field: ParserField = None):
-        return request.headers.get('User-Agent', unprovided)
+        return request.headers.get("User-Agent", unprovided)
 
-    def __init__(self,
-                 regex: str = None,
-                 os_regex: str = None,
-                 device_regex: str = None,
-                 browser_regex: str = None,
-                 bot: bool = None,
-                 pc: bool = None,
-                 mobile: bool = None,
-                 tablet: bool = None):
+    def __init__(
+        self,
+        regex: str = None,
+        os_regex: str = None,
+        device_regex: str = None,
+        browser_regex: str = None,
+        bot: bool = None,
+        pc: bool = None,
+        mobile: bool = None,
+        tablet: bool = None,
+    ):
         super().__init__(regex=regex)
         # None: no restriction whether or not agent is match
         # True: request agent must be ...
         # False: request agent must not be ...
         if bot is False:
             assert not pc and not mobile and not tablet
-        assert [pc, mobile, tablet].count(True) <= 1, f'Request Agent cannot specify multiple platform'
-        assert {bot, pc, mobile, tablet} != {None}, f'Request Agent must specify some rules'
+        assert [pc, mobile, tablet].count(
+            True
+        ) <= 1, f"Request Agent cannot specify multiple platform"
+        assert {bot, pc, mobile, tablet} != {
+            None
+        }, f"Request Agent must specify some rules"
         import re
+
         self.regex = re.compile(regex) if regex else None
         self.os_regex = re.compile(os_regex) if os_regex else None
         self.device_regex = re.compile(device_regex) if device_regex else None
@@ -585,43 +605,45 @@ class UserAgent(Property):
 
     def runtime_validate(self, user_agent):
         try:
-            from user_agents.parsers import UserAgent   # noqa
+            from user_agents.parsers import UserAgent  # noqa
         except ModuleNotFoundError:
-            raise ModuleNotFoundError('UserAgent validation requires to install [user_agents] package')
+            raise ModuleNotFoundError(
+                "UserAgent validation requires to install [user_agents] package"
+            )
 
         user_agent: UserAgent
 
         if self.regex:
             if not self.regex.search(user_agent.ua_string):
-                raise exc.PermissionDenied('Request Agent is denied')
+                raise exc.PermissionDenied("Request Agent is denied")
 
         if self.os_regex:
             if not self.os_regex.search(user_agent.os):
-                raise exc.PermissionDenied('Request Agent is denied')
+                raise exc.PermissionDenied("Request Agent is denied")
 
         if self.device_regex:
             if not self.device_regex.search(user_agent.device):
-                raise exc.PermissionDenied('Request Agent is denied')
+                raise exc.PermissionDenied("Request Agent is denied")
 
         if self.browser_regex:
             if not self.browser_regex.search(user_agent.browser):
-                raise exc.PermissionDenied('Request Agent is denied')
+                raise exc.PermissionDenied("Request Agent is denied")
 
         if self.bot is not None:
             if self.bot ^ user_agent.is_bot:
-                raise exc.PermissionDenied('Request Agent is denied')
+                raise exc.PermissionDenied("Request Agent is denied")
 
         if self.pc is not None:
             if self.pc ^ user_agent.is_pc:
-                raise exc.PermissionDenied('Request Agent is denied')
+                raise exc.PermissionDenied("Request Agent is denied")
 
         if self.mobile is not None:
             if self.mobile ^ user_agent.is_mobile:
-                raise exc.PermissionDenied('Request Agent is denied')
+                raise exc.PermissionDenied("Request Agent is denied")
 
         if self.tablet is not None:
             if self.tablet ^ user_agent.is_tablet:
-                raise exc.PermissionDenied('Request Agent is denied')
+                raise exc.PermissionDenied("Request Agent is denied")
 
 
 class Address(Property):
@@ -631,14 +653,16 @@ class Address(Property):
     def getter(cls, request: Request, field: ParserField = None):
         return request.ip_address
 
-    def __init__(self,
-                 block_list: List[Union[IPv4Network, IPv6Network, str]] = None,
-                 allow_list: List[Union[IPv4Network, IPv6Network, str]] = None,
-                 ipv4_only: bool = None,
-                 ipv6_only: bool = None,
-                 local_only: bool = None,  # for micro-service integration
-                 private_only: bool = None,
-                 public_only: bool = None):
+    def __init__(
+        self,
+        block_list: List[Union[IPv4Network, IPv6Network, str]] = None,
+        allow_list: List[Union[IPv4Network, IPv6Network, str]] = None,
+        ipv4_only: bool = None,
+        ipv6_only: bool = None,
+        local_only: bool = None,  # for micro-service integration
+        private_only: bool = None,
+        public_only: bool = None,
+    ):
         super().__init__()
         self.block_list = block_list
         self.allow_list = allow_list
@@ -656,11 +680,12 @@ class Time(Property):
     def getter(cls, request: Request, field: ParserField = None):
         return request.time
 
-    def __init__(self,
-                 not_before: datetime = None,  # open time
-                 not_after: datetime = None,  # close time
-                 time_zone: str = None,
-                 ):
+    def __init__(
+        self,
+        not_before: datetime = None,  # open time
+        not_after: datetime = None,  # close time
+        time_zone: str = None,
+    ):
         super().__init__(required=False)
         self.not_before = not_before
         self.not_after = not_after

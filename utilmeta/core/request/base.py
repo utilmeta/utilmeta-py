@@ -9,7 +9,7 @@ from . import var
 
 
 __all__ = [
-    'Request',
+    "Request",
 ]
 
 
@@ -29,23 +29,22 @@ class Request:
             return req
         return cls(req)
 
-    def __init__(self,
-                 request=None, *,
-                 method: str = None,
-                 url: str = None,
-                 query: dict = None,
-                 data=None,
-                 headers: Union[Mapping, Dict[str, str]] = None,
-                 backend=None,
-                 ):
+    def __init__(
+        self,
+        request=None,
+        *,
+        method: str = None,
+        url: str = None,
+        query: dict = None,
+        data=None,
+        headers: Union[Mapping, Dict[str, str]] = None,
+        backend=None,
+    ):
         if not request:
             from .client import ClientRequest
+
             request = ClientRequest(
-                method=method,
-                url=url,
-                query=query,
-                data=data,
-                headers=headers
+                method=method, url=url, query=query, data=data, headers=headers
             )
 
         self.adaptor = RequestAdaptor.dispatch(request)
@@ -75,7 +74,7 @@ class Request:
 
     @property
     def traffic(self):
-        traffic = self.adaptor.get_context('traffic')
+        traffic = self.adaptor.get_context("traffic")
         if traffic:
             return traffic
         value = 12  # HTTP/1.1 200 OK \r\n
@@ -117,12 +116,12 @@ class Request:
 
     @property
     def authorization(self) -> Tuple[Optional[str], Optional[str]]:
-        auth: str = self.headers.get('authorization')
+        auth: str = self.headers.get("authorization")
         if not auth:
             return None, None
-        if ' ' in auth:
+        if " " in auth:
             lst = auth.split()
-            return lst[0], ' '.join(lst[1:])
+            return lst[0], " ".join(lst[1:])
         return None, auth
 
     @property

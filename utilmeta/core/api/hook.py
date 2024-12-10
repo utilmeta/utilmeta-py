@@ -22,7 +22,9 @@ class Hook:
     parse_result = False
 
     @classmethod
-    def dispatch_for(cls, func: Callable, hook_type: str, target_type: str = 'api') -> 'Hook':
+    def dispatch_for(
+        cls, func: Callable, hook_type: str, target_type: str = "api"
+    ) -> "Hook":
         for hook in cls.__subclasses__():
             hook: Type[Hook]
             try:
@@ -31,29 +33,33 @@ class Hook:
                 continue
         if cls.hook_type == hook_type and cls.target_type == target_type:
             return cls.apply_for(func)
-        raise NotImplementedError(f'{cls}: cannot dispatch for hook: {hook_type} in target: {repr(target_type)}')
+        raise NotImplementedError(
+            f"{cls}: cannot dispatch for hook: {hook_type} in target: {repr(target_type)}"
+        )
 
     @classmethod
-    def apply_for(cls, func: Callable) -> 'Hook':
+    def apply_for(cls, func: Callable) -> "Hook":
         if not hasattr(func, utils.EndpointAttr.hook):
-            raise ValueError(f'Hook type for function: {func} is not specified')
+            raise ValueError(f"Hook type for function: {func} is not specified")
         return cls(
             func,
             hook_type=getattr(func, utils.EndpointAttr.hook),
             hook_targets=getattr(func, cls.hook_type, None),
             hook_excludes=getattr(func, utils.EndpointAttr.excludes, None),
-            priority=getattr(func, 'priority', None)
+            priority=getattr(func, "priority", None),
         )
 
-    def __init__(self, f: Callable,
-                 hook_type: str,
-                 hook_targets: list = None,
-                 hook_excludes: list = None,
-                 priority: int = None,
-                 ):
+    def __init__(
+        self,
+        f: Callable,
+        hook_type: str,
+        hook_targets: list = None,
+        hook_excludes: list = None,
+        priority: int = None,
+    ):
 
         if not inspect.isfunction(f):
-            raise TypeError(f'Invalid endpoint function: {f}')
+            raise TypeError(f"Invalid endpoint function: {f}")
 
         self.f = f
         self.hook_type = hook_type
@@ -68,7 +74,7 @@ class Hook:
 
     @property
     def hook_all(self):
-        return '*' in self.hook_targets
+        return "*" in self.hook_targets
 
     @property
     def error_hook(self):
@@ -101,24 +107,27 @@ class Hook:
 
 class BeforeHook(Hook):
     hook_type = utils.EndpointAttr.before_hook
-    target_type = 'api'
+    target_type = "api"
     wrapper_cls = RequestContextWrapper
     # parse_params = False
     # already pared for request
 
     @classmethod
-    def apply_for(cls, func: Callable) -> 'BeforeHook':
+    def apply_for(cls, func: Callable) -> "BeforeHook":
         return cls(
             func,
             hook_targets=getattr(func, cls.hook_type),
             hook_excludes=getattr(func, utils.EndpointAttr.excludes, None),
-            priority=getattr(func, 'priority', None)
+            priority=getattr(func, "priority", None),
         )
 
-    def __init__(self, f: Callable,
-                 hook_targets: list = None,
-                 hook_excludes: list = None,
-                 priority: int = None):
+    def __init__(
+        self,
+        f: Callable,
+        hook_targets: list = None,
+        hook_excludes: list = None,
+        priority: int = None,
+    ):
         super().__init__(
             f,
             hook_type=utils.EndpointAttr.before_hook,
@@ -132,7 +141,9 @@ class BeforeHook(Hook):
         try:
             kwargs = dict(var.path_params.getter(request))
             kwargs.update(self.wrapper.parse_context(request))
-            return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
+            return self.parser.parse_params(
+                (), kwargs, context=self.parser.options.make_context()
+            )
         except utype.exc.ParseError as e:
             raise exceptions.BadRequest(str(e), detail=e.get_detail()) from e
 
@@ -140,39 +151,44 @@ class BeforeHook(Hook):
         try:
             kwargs = dict(await var.path_params.getter(request))
             kwargs.update(await self.wrapper.async_parse_context(request))
-            return self.parser.parse_params((), kwargs, context=self.parser.options.make_context())
+            return self.parser.parse_params(
+                (), kwargs, context=self.parser.options.make_context()
+            )
             # in base Endpoint, args is not supported
         except utype.exc.ParseError as e:
             raise exceptions.BadRequest(str(e), detail=e.get_detail()) from e
 
-    def serve(self, api: 'API'):
+    def serve(self, api: "API"):
         args, kwargs = self.parse_request(api.request)
         return self(api, *args, **kwargs)
 
-    async def aserve(self, api: 'API'):
+    async def aserve(self, api: "API"):
         args, kwargs = await self.async_parse_request(api.request)
         return await self(api, *args, **kwargs)
 
 
 class AfterHook(Hook):
     hook_type = utils.EndpointAttr.after_hook
-    target_type = 'api'
+    target_type = "api"
     parse_params = True
     # parse_result = True
 
     @classmethod
-    def apply_for(cls, func: Callable) -> 'AfterHook':
+    def apply_for(cls, func: Callable) -> "AfterHook":
         return cls(
             func,
             hook_targets=getattr(func, cls.hook_type),
             hook_excludes=getattr(func, utils.EndpointAttr.excludes, None),
-            priority=getattr(func, 'priority', None)
+            priority=getattr(func, "priority", None),
         )
 
-    def __init__(self, f: Callable,
-                 hook_targets: list = None,
-                 hook_excludes: list = None,
-                 priority: int = None):
+    def __init__(
+        self,
+        f: Callable,
+        hook_targets: list = None,
+        hook_excludes: list = None,
+        priority: int = None,
+    ):
         super().__init__(
             f,
             hook_type=utils.EndpointAttr.after_hook,
@@ -189,24 +205,27 @@ class AfterHook(Hook):
 
 class ErrorHook(Hook):
     hook_type = utils.EndpointAttr.error_hook
-    target_type = 'api'
+    target_type = "api"
     parse_params = True
 
     @classmethod
-    def apply_for(cls, func: Callable) -> 'ErrorHook':
+    def apply_for(cls, func: Callable) -> "ErrorHook":
         return cls(
             func,
             hook_targets=getattr(func, cls.hook_type),
             hook_excludes=getattr(func, utils.EndpointAttr.excludes, None),
             hook_errors=getattr(func, utils.EndpointAttr.errors, None),
-            priority=getattr(func, 'priority', None)
+            priority=getattr(func, "priority", None),
         )
 
-    def __init__(self, f: Callable,
-                 hook_targets: list = None,
-                 hook_excludes: list = None,
-                 hook_errors: list = None,
-                 priority: int = None):
+    def __init__(
+        self,
+        f: Callable,
+        hook_targets: list = None,
+        hook_excludes: list = None,
+        hook_errors: list = None,
+        priority: int = None,
+    ):
         super().__init__(
             f,
             hook_type=utils.EndpointAttr.error_hook,

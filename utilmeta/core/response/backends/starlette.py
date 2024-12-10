@@ -16,7 +16,7 @@ class StarletteResponseAdaptor(ResponseAdaptor):
         return isinstance(obj, HttpResponse)
 
     @classmethod
-    def reconstruct(cls, resp: Union['ResponseAdaptor', 'Response']):
+    def reconstruct(cls, resp: Union["ResponseAdaptor", "Response"]):
         if isinstance(resp, HttpResponse):
             return resp
 
@@ -27,10 +27,7 @@ class StarletteResponseAdaptor(ResponseAdaptor):
         elif not isinstance(resp, Response):
             resp = Response(resp)
 
-        kwargs = dict(
-            status_code=resp.status,
-            media_type=resp.content_type
-        )
+        kwargs = dict(status_code=resp.status, media_type=resp.content_type)
         # file will not be closed if using this
         # file = resp.file
         # if file:
@@ -60,13 +57,14 @@ class StarletteResponseAdaptor(ResponseAdaptor):
     @property
     def body(self):
         # StreamResponse does not have body attribute
-        return getattr(self.response, 'body', b'')
+        return getattr(self.response, "body", b"")
 
     @property
     def cookies(self):
         from http.cookies import SimpleCookie
+
         cookies = SimpleCookie()
-        for cookie in self.response.headers.getlist('set-cookie'):
+        for cookie in self.response.headers.getlist("set-cookie"):
             cookies.load(cookie)
         return cookies
 

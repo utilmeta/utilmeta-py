@@ -16,12 +16,8 @@ class Auth0JWTBearerTokenValidator(JWTBearerTokenValidator):
     def __init__(self, domain, audience):
         issuer = f"https://{domain}/"
         jsonurl = urlopen(f"{issuer}.well-known/jwks.json")
-        public_key = JsonWebKey.import_key_set(
-            json.loads(jsonurl.read())
-        )
-        super(Auth0JWTBearerTokenValidator, self).__init__(
-            public_key
-        )
+        public_key = JsonWebKey.import_key_set(json.loads(jsonurl.read()))
+        super(Auth0JWTBearerTokenValidator, self).__init__(public_key)
         self.claims_options = {
             "exp": {"essential": True},
             "aud": {"essential": True, "value": audience},
@@ -30,11 +26,9 @@ class Auth0JWTBearerTokenValidator(JWTBearerTokenValidator):
 
 
 class OAuth2(BaseAuthentication):
-    name = 'oauth2'
+    name = "oauth2"
     protector_cls = ResourceProtector
-    headers = [
-        'authorization'
-    ]
+    headers = ["authorization"]
 
     def __init__(self, *validators: BearerTokenValidator, scopes_key=None):
         self.protector = self.protector_cls()
@@ -54,7 +48,7 @@ class OAuth2(BaseAuthentication):
             method=request.method,
             uri=request.url,
             data=request.body,
-            headers=request.headers
+            headers=request.headers,
         )
         req.req = request
         if isinstance(scopes, str):
@@ -98,10 +92,10 @@ class OAuth2(BaseAuthentication):
         #     bearerFormat='JWT',
         # )
         return {
-            'type': 'oauth2',
-            'flows': {
+            "type": "oauth2",
+            "flows": {
                 # todo
                 # https://spec.openapis.org/oas/v3.1.0#oauthFlowObject
             },
-            'description': self.description or '',
+            "description": self.description or "",
         }

@@ -8,7 +8,7 @@ from ...config import Cache
 class AioredisAdaptor(BaseCacheAdaptor):
     asynchronous = True
 
-    def __init__(self, config: 'Cache', alias: str = None):
+    def __init__(self, config: "Cache", alias: str = None):
         super().__init__(config, alias=alias)
         self._cache = None
 
@@ -16,7 +16,10 @@ class AioredisAdaptor(BaseCacheAdaptor):
         if self._cache:
             return self._cache
         import aioredis
-        rd = aioredis.from_url(self.config.get_location(), encoding="utf-8", decode_responses=True)
+
+        rd = aioredis.from_url(
+            self.config.get_location(), encoding="utf-8", decode_responses=True
+        )
         self._cache = rd
         return rd
 
@@ -24,14 +27,18 @@ class AioredisAdaptor(BaseCacheAdaptor):
         try:
             import aioredis
         except (ModuleNotFoundError, ImportError) as e:
-            raise e.__class__(f'{self.__class__} as database adaptor requires to install caches. '
-                              f'use pip install aioredis') from e
+            raise e.__class__(
+                f"{self.__class__} as database adaptor requires to install caches. "
+                f"use pip install aioredis"
+            ) from e
 
     async def get(self, key: str, default=None):
         cache = self.get_cache()
         return await cache.get(key)
 
-    async def fetch(self, args=None, *keys: str, named: bool = False) -> Union[list, Dict[str, Any]]:
+    async def fetch(
+        self, args=None, *keys: str, named: bool = False
+    ) -> Union[list, Dict[str, Any]]:
         # get many
         keys = keys_or_args(args, *keys)
         cache = self.get_cache()
@@ -41,10 +48,19 @@ class AioredisAdaptor(BaseCacheAdaptor):
         else:
             return result
 
-    async def set(self, key: str, value, *, timeout: Union[int, timedelta, datetime] = None,
-                  exists_only: bool = False, not_exists_only: bool = False):
+    async def set(
+        self,
+        key: str,
+        value,
+        *,
+        timeout: Union[int, timedelta, datetime] = None,
+        exists_only: bool = False,
+        not_exists_only: bool = False,
+    ):
         cache = self.get_cache()
-        return await cache.set(key, value, ex=timeout, nx=not_exists_only, xx=exists_only)
+        return await cache.set(
+            key, value, ex=timeout, nx=not_exists_only, xx=exists_only
+        )
 
     async def update(self, data: Dict[str, Any]):
         # set many
@@ -72,7 +88,9 @@ class AioredisAdaptor(BaseCacheAdaptor):
         for key in keys:
             await cache.expire(key, timeout)
 
-    async def alter(self, key: str, amount: Union[int, float], limit: int = None) -> Optional[Union[int, float]]:
+    async def alter(
+        self, key: str, amount: Union[int, float], limit: int = None
+    ) -> Optional[Union[int, float]]:
         if not amount:
             return await self.get(key)
         cache = self.get_cache()

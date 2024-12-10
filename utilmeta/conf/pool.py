@@ -7,7 +7,9 @@ class ThreadPool(Config):
     max_workers: Optional[int]
     timeout: Optional[int]
 
-    def __init__(self, max_workers: Optional[int] = None, timeout: Optional[int] = None):
+    def __init__(
+        self, max_workers: Optional[int] = None, timeout: Optional[int] = None
+    ):
         super().__init__(locals())
 
         self._pool = ThreadPoolExecutor(self.max_workers)
@@ -18,5 +20,6 @@ class ThreadPool(Config):
 
     def submit(self, func, *args, **kwargs):
         self._pool.submit(func, *args, **kwargs)
+
 
 # pool = ThreadPool()

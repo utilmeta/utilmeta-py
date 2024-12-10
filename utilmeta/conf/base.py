@@ -2,7 +2,7 @@ from typing import Type, TypeVar, Optional
 from utype import DataClass
 from utilmeta.utils import pop
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class Config(DataClass):
@@ -10,8 +10,8 @@ class Config(DataClass):
 
     def __init__(self, kwargs=None):
         if kwargs:
-            pop(kwargs, '__class__')
-            pop(kwargs, 'self')
+            pop(kwargs, "__class__")
+            pop(kwargs, "self")
         self._kwargs = kwargs or {}
         super().__init__(**self._kwargs)
 

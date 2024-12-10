@@ -1,6 +1,7 @@
 from utilmeta.utils import SEG, awaitable
 from ..base import ModelFieldAdaptor, ModelAdaptor
 from typing import Tuple, Optional, List, Callable, Type
+
 # from .queryset import AwaitableQuerySet
 from django.db import models
 from django.db.models.base import ModelBase
@@ -30,9 +31,9 @@ class DjangoModelAdaptor(ModelAdaptor):
     def ident(self):
         meta = self.meta
         if not meta:
-            return ''
+            return ""
         app_label = meta.app_label
-        tag = '.'.join((app_label, self.model.__name__))
+        tag = ".".join((app_label, self.model.__name__))
         return tag.lower()
 
     @property
@@ -67,6 +68,7 @@ class DjangoModelAdaptor(ModelAdaptor):
     async def asave_raw(self, pk=None, **data):
         inst = self.init_instance(pk, **data)
         from .queryset import AwaitableQuerySet
+
         return await AwaitableQuerySet(model=self.model)._insert_obj(inst, raw=True)
 
     def create(self, d=None, **data) -> model_cls:
@@ -124,7 +126,7 @@ class DjangoModelAdaptor(ModelAdaptor):
     def get_queryset(self, q=None, **filters) -> queryset_cls:
         # for django it's like model.objects.all()
         if isinstance(q, list):
-            q = models.Q(pk__in=[getattr(obj, 'pk', obj) for obj in q])
+            q = models.Q(pk__in=[getattr(obj, "pk", obj) for obj in q])
 
         args = (q,) if q else ()
         try:
@@ -164,10 +166,10 @@ class DjangoModelAdaptor(ModelAdaptor):
 
     def init_instance(self, pk=None, **data):
         if pk:
-            data.setdefault('pk', pk)
+            data.setdefault("pk", pk)
         obj = self.model(**data)
-        if getattr(obj, 'id', None) is None:
-            setattr(obj, 'id', obj.pk or pk)
+        if getattr(obj, "id", None) is None:
+            setattr(obj, "id", obj.pk or pk)
         return obj
 
     def check_subquery(self, qs):
@@ -175,14 +177,14 @@ class DjangoModelAdaptor(ModelAdaptor):
             return False
         if len(qs.query.select) > 1:
             # django.core.exceptions.FieldError: Cannot resolve expression type, unknown output_field
-            raise ValueError(f'Multiple fields selected in related queryset: {qs}')
+            raise ValueError(f"Multiple fields selected in related queryset: {qs}")
         if qs.query.is_sliced:
             hi = qs.query.high_mark
             lo = qs.query.low_mark
             if hi is not None and lo is not None:
                 if hi - lo == 1:
                     return True
-        raise ValueError('subquery result must be limited to 1 result')
+        raise ValueError("subquery result must be limited to 1 result")
 
     def check_queryset(self, qs, check_model: bool = False):
         if not isinstance(qs, self.queryset_cls):
@@ -195,12 +197,12 @@ class DjangoModelAdaptor(ModelAdaptor):
 
     def get_model(self, qs: models.QuerySet):
         if not isinstance(qs, self.queryset_cls):
-            raise TypeError(f'Invalid queryset: {qs}')
+            raise TypeError(f"Invalid queryset: {qs}")
         return self.__class__(qs.model)
 
     @property
     def meta(self) -> Options:
-        return getattr(self.model, '_meta')
+        return getattr(self.model, "_meta")
 
     @property
     def abstract(self):
@@ -215,7 +217,7 @@ class DjangoModelAdaptor(ModelAdaptor):
 
     @property
     def default_db_alias(self) -> str:
-        return self.get_queryset().db or 'default'
+        return self.get_queryset().db or "default"
 
     def get_parents(self):
         return self.meta.parents
@@ -223,30 +225,34 @@ class DjangoModelAdaptor(ModelAdaptor):
     def cross_models(self, field: str):
         if not isinstance(field, str):
             return False
-        return '.' in field or '__' in field
+        return "." in field or "__" in field
 
-    def get_field(self, name: str, validator: Callable = None,
-                  silently: bool = False,
-                  allow_addon: bool = False) -> Optional[field_adaptor_cls]:
+    def get_field(
+        self,
+        name: str,
+        validator: Callable = None,
+        silently: bool = False,
+        allow_addon: bool = False,
+    ) -> Optional[field_adaptor_cls]:
         """
         Get name from a field references
         """
         if not name:
-            raise ValueError(f'{self.model}: empty field')
+            raise ValueError(f"{self.model}: empty field")
         if not isinstance(name, str):
             # field ref / expression
             return self.field_adaptor_cls(name, model=self)
-        if name == 'pk':
+        if name == "pk":
             return self.field_adaptor_cls(self.meta.pk, model=self, lookup_name=name)
         model = self.model
-        lookups = name.replace('.', SEG).split(SEG)
+        lookups = name.replace(".", SEG).split(SEG)
         f = None
         addon = None
         for i, lk in enumerate(lookups):
             try:
                 if not model:
                     raise exc.FieldDoesNotExist
-                meta: Options = getattr(model, '_meta')
+                meta: Options = getattr(model, "_meta")
                 f = meta.get_field(lk)
                 if callable(validator):
                     validator(f)
@@ -257,20 +263,24 @@ class DjangoModelAdaptor(ModelAdaptor):
                     break
                 if silently:
                     return None
-                raise exc.FieldDoesNotExist(f'Field: {repr(name)} lookup {repr(lk)}'
-                                            f' of model {model} not exists: {e}')
-        return self.field_adaptor_cls(f, addon=addon, model=self, lookup_name=SEG.join(lookups))
+                raise exc.FieldDoesNotExist(
+                    f"Field: {repr(name)} lookup {repr(lk)}"
+                    f" of model {model} not exists: {e}"
+                )
+        return self.field_adaptor_cls(
+            f, addon=addon, model=self, lookup_name=SEG.join(lookups)
+        )
 
     def get_backward(self, field: str) -> str:
         raise NotImplementedError
 
     def get_reverse_lookup(self, lookup: str) -> Tuple[str, Optional[str]]:
         reverse_fields = []
-        lookups = lookup.replace('.', SEG).split(SEG)
+        lookups = lookup.replace(".", SEG).split(SEG)
         _model = self
         # relate1__relate2__common1__common2
         common_index = None
-        common_field = ''
+        common_field = ""
         for i, name in enumerate(lookups):
             field = _model.get_field(name)
             if field.remote_field:
@@ -318,7 +328,9 @@ class DjangoModelAdaptor(ModelAdaptor):
     def get_related_adaptor(self, field):
         return self.__class__(field.related_model) if field.related_model else None
 
-    def gen_lookup_keys(self, field: str, keys, strict: bool = True, excludes: List[str] = None) -> list:
+    def gen_lookup_keys(
+        self, field: str, keys, strict: bool = True, excludes: List[str] = None
+    ) -> list:
         raise NotImplementedError
 
     def gen_lookup_filter(self, field, q, excludes: List[str] = None):
@@ -328,10 +340,12 @@ class DjangoModelAdaptor(ModelAdaptor):
         if not field:
             return False
         if isinstance(field, (exp.BaseExpression, exp.Combinable)):
-            return self.include_many_relates(self.field_adaptor_cls.get_exp_field(field))
+            return self.include_many_relates(
+                self.field_adaptor_cls.get_exp_field(field)
+            )
         if not isinstance(field, str):
             return False
-        lookups = field.replace('.', SEG).split(SEG)
+        lookups = field.replace(".", SEG).split(SEG)
         mod = self.model
         for lkp in lookups:
             try:
@@ -357,16 +371,23 @@ class DjangoModelAdaptor(ModelAdaptor):
                     return r_field
                 if not r_field:
                     return l_field
-                if operator in ('+', '*', '/', '^'):
-                    if isinstance(l_field, PositiveIntegerRelDbTypeMixin) \
-                            and isinstance(r_field, PositiveIntegerRelDbTypeMixin):
+                if operator in ("+", "*", "/", "^"):
+                    if isinstance(
+                        l_field, PositiveIntegerRelDbTypeMixin
+                    ) and isinstance(r_field, PositiveIntegerRelDbTypeMixin):
                         return l_field
-                if operator in ('+', '-', '*', '/', '^'):
-                    if isinstance(l_field, models.FloatField) or isinstance(r_field, models.FloatField):
+                if operator in ("+", "-", "*", "/", "^"):
+                    if isinstance(l_field, models.FloatField) or isinstance(
+                        r_field, models.FloatField
+                    ):
                         return models.FloatField()
-                    if isinstance(l_field, models.DecimalField) or isinstance(r_field, models.DecimalField):
+                    if isinstance(l_field, models.DecimalField) or isinstance(
+                        r_field, models.DecimalField
+                    ):
                         return models.DecimalField()
-                    if isinstance(l_field, models.IntegerField) and isinstance(r_field, models.IntegerField):
+                    if isinstance(l_field, models.IntegerField) and isinstance(
+                        r_field, models.IntegerField
+                    ):
                         return models.IntegerField()
                 return l_field or r_field
         elif isinstance(expr, exp.BaseExpression):
@@ -412,13 +433,13 @@ class DjangoModelAdaptor(ModelAdaptor):
         try:
             self.get_queryset(q)
         except exc.FieldError as e:
-            raise exc.FieldError(f'Invalid query {q}: {e}')
+            raise exc.FieldError(f"Invalid query {q}: {e}")
 
     def check_order(self, f):
         try:
             self.get_queryset().order_by(f)
         except exc.FieldError as e:
-            raise exc.FieldError(f'Invalid order field {repr(f)}: {e}')
+            raise exc.FieldError(f"Invalid order field {repr(f)}: {e}")
 
     def is_sub_model(self, model):
         if isinstance(model, DjangoModelAdaptor):

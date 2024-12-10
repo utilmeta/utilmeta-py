@@ -8,8 +8,8 @@ from .base import ServerAdaptor
 from utilmeta.core.api import API
 import contextvars
 
-_current_request = contextvars.ContextVar('_sanic.request')
-_current_response = contextvars.ContextVar('_sanic.response')
+_current_request = contextvars.ContextVar("_sanic.request")
+_current_response = contextvars.ContextVar("_sanic.response")
 
 
 class SanicServerAdaptor(ServerAdaptor):
@@ -17,23 +17,26 @@ class SanicServerAdaptor(ServerAdaptor):
     request_adaptor_cls = SanicRequestAdaptor
     response_adaptor_cls = SanicResponseAdaptor
     application_cls = Sanic
-    DEFAULT_NAME = 'sanic_application'
+    DEFAULT_NAME = "sanic_application"
     default_asynchronous = True
     HANDLED_METHODS = ("DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT")
 
     def __init__(self, config):
         super().__init__(config)
-        self.app = self.config._application if isinstance(self.config._application, self.application_cls) \
+        self.app = (
+            self.config._application
+            if isinstance(self.config._application, self.application_cls)
             else self.application_cls(self.config.name or self.DEFAULT_NAME)
+        )
         self._ready = False
         self._extenstion = None
 
     @property
     def root_path(self) -> str:
-        server_name = getattr(self.app.config, 'SERVER_NAME', '')
-        if server_name and '/' in server_name:
-            return server_name.split('/')[1]
-        return ''
+        server_name = getattr(self.app.config, "SERVER_NAME", "")
+        if server_name and "/" in server_name:
+            return server_name.split("/")[1]
+        return ""
 
     @property
     def production(self) -> bool:
@@ -43,7 +46,7 @@ class SanicServerAdaptor(ServerAdaptor):
         self.setup()
         return self.app
 
-    def adapt(self, api: 'API', route: str, asynchronous: bool = None):
+    def adapt(self, api: "API", route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
         self.add_api(self.app, api, asynchronous=asynchronous, route=route)
@@ -65,19 +68,16 @@ class SanicServerAdaptor(ServerAdaptor):
 
     def on_response(self, sanic_request, sanic_response):
         response = _current_response.get(None)
-        request = _current_request.get(None) or Request(self.request_adaptor_cls(sanic_request))
+        request = _current_request.get(None) or Request(
+            self.request_adaptor_cls(sanic_request)
+        )
         if not isinstance(response, Response):
             response = Response(
-                response=self.response_adaptor_cls(
-                    sanic_response
-                ),
-                request=request
+                response=self.response_adaptor_cls(sanic_response), request=request
             )
         else:
             if not response.adaptor:
-                response.adaptor = self.response_adaptor_cls(
-                    sanic_response
-                )
+                response.adaptor = self.response_adaptor_cls(sanic_response)
 
         response_updated = False
         for middleware in self.middlewares:
@@ -102,10 +102,10 @@ class SanicServerAdaptor(ServerAdaptor):
     @property
     def backend_views_empty(self) -> bool:
         for val in self.app.router.routes:
-            handler = getattr(val, 'handler', None)
+            handler = getattr(val, "handler", None)
             if not handler:
                 continue
-            wrapped = getattr(handler, '__wrapped__', None)
+            wrapped = getattr(handler, "__wrapped__", None)
             if wrapped and isinstance(wrapped, type) and issubclass(wrapped, API):
                 pass
             else:
@@ -115,11 +115,7 @@ class SanicServerAdaptor(ServerAdaptor):
     def setup(self):
         if self._ready:
             return
-        self.add_api(
-            self.app,
-            self.resolve(),
-            asynchronous=self.asynchronous
-        )
+        self.add_api(self.app, self.resolve(), asynchronous=self.asynchronous)
 
         self.setup_middlewares()
 
@@ -139,27 +135,34 @@ class SanicServerAdaptor(ServerAdaptor):
             host=self.config.host,
             port=self.config.port,
             debug=not self.config.production,
-            **kwargs
+            **kwargs,
         )
 
-    def add_api(self, app: Sanic, utilmeta_api_class, route: str = '', asynchronous: bool = False):
+    def add_api(
+        self,
+        app: Sanic,
+        utilmeta_api_class,
+        route: str = "",
+        asynchronous: bool = False,
+    ):
         """
         Mount a API class
         make sure it is called after all your fastapi route is set
         """
         from utilmeta.core.api.base import API
-        if not issubclass(utilmeta_api_class, API):
-            raise TypeError(f'Invalid api class: {utilmeta_api_class}')
 
-        if route and route.strip('/'):
-            route = '/' + route.strip('/')
-            prepend = route + '/'
+        if not issubclass(utilmeta_api_class, API):
+            raise TypeError(f"Invalid api class: {utilmeta_api_class}")
+
+        if route and route.strip("/"):
+            route = "/" + route.strip("/")
+            prepend = route + "/"
         else:
-            prepend = '/'
+            prepend = "/"
 
         if asynchronous:
             # @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, static=True)
-            async def f(request, path: str = ''):
+            async def f(request, path: str = ""):
                 req = None
                 try:
                     req = _current_request.get(None)
@@ -173,12 +176,15 @@ class SanicServerAdaptor(ServerAdaptor):
 
                     resp = await utilmeta_api_class(req)()
                 except Exception as e:
-                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                    resp = getattr(utilmeta_api_class, "response", Response)(
+                        error=e, request=req
+                    )
                 _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
+
         else:
             # @app.route('%s<path:path>' % prepend, methods=self.HANDLED_METHODS, static=True)
-            def f(request, path: str = ''):
+            def f(request, path: str = ""):
                 req = None
                 try:
                     req = _current_request.get(None)
@@ -192,7 +198,9 @@ class SanicServerAdaptor(ServerAdaptor):
 
                     resp = utilmeta_api_class(req)()
                 except Exception as e:
-                    resp = getattr(utilmeta_api_class, 'response', Response)(error=e, request=req)
+                    resp = getattr(utilmeta_api_class, "response", Response)(
+                        error=e, request=req
+                    )
                 _current_response.set(resp)
                 return self.response_adaptor_cls.reconstruct(resp)
 
@@ -200,19 +208,20 @@ class SanicServerAdaptor(ServerAdaptor):
         # app.route(route, methods=self.HANDLED_METHODS, name='core_methods')(f)
         f.__wrapped__ = utilmeta_api_class
         return app.route(
-            '%s<path:path>' % prepend,
+            "%s<path:path>" % prepend,
             methods=self.HANDLED_METHODS,
-            name=getattr(utilmeta_api_class, '__ref__', utilmeta_api_class.__name__),
+            name=getattr(utilmeta_api_class, "__ref__", utilmeta_api_class.__name__),
             # or there might be "Duplicate route names detected"
-            static=True
+            static=True,
         )(f)
 
-    def generate(self, spec: str = 'openapi'):
-        if spec == 'openapi':
+    def generate(self, spec: str = "openapi"):
+        if spec == "openapi":
             app = self.app
             # from sanic_ext import Extend
             # setup = not hasattr(app, "_ext")
             from sanic_routing.exceptions import FinalizationError
+
             try:
                 _ = app.ext
             except RuntimeError:
@@ -226,15 +235,19 @@ class SanicServerAdaptor(ServerAdaptor):
             try:
                 from sanic_ext.extensions.openapi.builders import SpecificationBuilder
                 from sanic_ext.extensions.openapi.blueprint import blueprint_factory
-                bp = app.blueprints.get('openapi') or blueprint_factory(app.config)
+
+                bp = app.blueprints.get("openapi") or blueprint_factory(app.config)
                 for listener in bp._future_listeners:
-                    if listener.listener.__name__ == 'build_spec':
+                    if listener.listener.__name__ == "build_spec":
                         listener.listener(app, None)
 
                 return SpecificationBuilder().build(app).serialize()
             except (ModuleNotFoundError, ImportError):
                 try:
-                    from sanic_openapi.openapi3.builders import SpecificationBuilder    # noqa
+                    from sanic_openapi.openapi3.builders import (
+                        SpecificationBuilder,
+                    )  # noqa
+
                     return SpecificationBuilder().build(app).serialize()
                 except (ModuleNotFoundError, ImportError):
                     pass

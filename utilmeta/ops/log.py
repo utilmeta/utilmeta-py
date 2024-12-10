@@ -5,9 +5,19 @@ from utilmeta.core.request import var, Request
 from utilmeta.utils.context import ContextProperty, Property
 from typing import List, Optional, Union
 from utilmeta.core.server import ServiceMiddleware
-from utilmeta.utils import (file_like, SECRET, HAS_BODY_METHODS,
-                            hide_secret_values, normalize, time_now, Error, ignore_errors,
-                            replace_null, parse_user_agents, HTTP_METHODS_LOWER)
+from utilmeta.utils import (
+    file_like,
+    SECRET,
+    HAS_BODY_METHODS,
+    hide_secret_values,
+    normalize,
+    time_now,
+    Error,
+    ignore_errors,
+    replace_null,
+    parse_user_agents,
+    HTTP_METHODS_LOWER,
+)
 from .config import Operations
 import threading
 import contextvars
@@ -28,8 +38,8 @@ _instance = None
 _databases: dict = {}
 _caches: dict = {}
 _openapi = None
-_path_prefix = ''
-_logger = contextvars.ContextVar('_logger')
+_path_prefix = ""
+_logger = contextvars.ContextVar("_logger")
 
 
 class WorkerMetricsLogger:
@@ -48,25 +58,26 @@ class WorkerMetricsLogger:
         self._total_time = 0
 
     @ignore_errors
-    def log(self,
-            duration: float,
-            in_traffic: int = 0,
-            out_traffic: int = 0,
-            outbound: bool = False,
-            error: bool = False,
-            timeout: bool = False
-            ):
+    def log(
+        self,
+        duration: float,
+        in_traffic: int = 0,
+        out_traffic: int = 0,
+        outbound: bool = False,
+        error: bool = False,
+        timeout: bool = False,
+    ):
         self._total_in += in_traffic
         self._total_out += out_traffic
 
         if outbound:
             self._total_outbound_requests += 1
-            self._total_outbound_errors += (1 if error else 0)
-            self._total_outbound_timeouts += (1 if timeout else 0)
+            self._total_outbound_errors += 1 if error else 0
+            self._total_outbound_timeouts += 1 if timeout else 0
             self._total_outbound_request_time += duration
         else:
             self._total_requests += 1
-            self._total_errors += (1 if error else 0)
+            self._total_errors += 1 if error else 0
             self._total_time += duration
 
     def reset(self):
@@ -91,14 +102,17 @@ class WorkerMetricsLogger:
             rps=self._total_requests / interval,
             errors=self._total_errors,
             outbound_requests=self._total_outbound_requests,
-            outbound_avg_time=(self._total_outbound_request_time / self._total_outbound_requests) if
-            self._total_outbound_requests else 0,
+            outbound_avg_time=(
+                self._total_outbound_request_time / self._total_outbound_requests
+            )
+            if self._total_outbound_requests
+            else 0,
             outbound_rps=self._total_outbound_requests / interval,
             outbound_errors=self._total_outbound_errors,
             outbound_timeouts=self._total_outbound_timeouts,
         )
 
-    @ignore_errors(default=dict)        # ignore cache errors
+    @ignore_errors(default=dict)  # ignore cache errors
     def retrieve(self, inst) -> dict:
         if not inst:
             return {}
@@ -119,25 +133,37 @@ class WorkerMetricsLogger:
         )
         if requests:
             values.update(
-                requests=models.F('requests') + requests,
+                requests=models.F("requests") + requests,
                 rps=round(requests / (now - inst.time).total_seconds(), 4),
-                avg_time=((models.F('avg_time') * models.F('requests') + total_time) /
-                          (models.F('requests') + requests)) if requests else models.F('avg_time'),
-                errors=models.F('errors') + errors,
+                avg_time=(
+                    (models.F("avg_time") * models.F("requests") + total_time)
+                    / (models.F("requests") + requests)
+                )
+                if requests
+                else models.F("avg_time"),
+                errors=models.F("errors") + errors,
             )
         if in_traffic:
-            values.update(in_traffic=models.F('in_traffic') + in_traffic)
+            values.update(in_traffic=models.F("in_traffic") + in_traffic)
         if out_traffic:
-            values.update(out_traffic=models.F('out_traffic') + out_traffic)
+            values.update(out_traffic=models.F("out_traffic") + out_traffic)
         if outbound_requests:
             values.update(
-                outbound_requests=models.F('outbound_requests') + outbound_requests,
-                outbound_errors=models.F('outbound_errors') + outbound_errors,
-                outbound_timeouts=models.F('outbound_timeouts') + outbound_timeouts,
-                outbound_rps=round(outbound_requests / (now - inst.time).total_seconds(), 4),
-                outbound_avg_time=((models.F('outbound_requests') * models.F('outbound_avg_time') +
-                                    total_outbound_request_time) / (models.F('outbound_requests') + outbound_requests))
-                if outbound_requests else models.F('outbound_avg_time'),
+                outbound_requests=models.F("outbound_requests") + outbound_requests,
+                outbound_errors=models.F("outbound_errors") + outbound_errors,
+                outbound_timeouts=models.F("outbound_timeouts") + outbound_timeouts,
+                outbound_rps=round(
+                    outbound_requests / (now - inst.time).total_seconds(), 4
+                ),
+                outbound_avg_time=(
+                    (
+                        models.F("outbound_requests") * models.F("outbound_avg_time")
+                        + total_outbound_request_time
+                    )
+                    / (models.F("outbound_requests") + outbound_requests)
+                )
+                if outbound_requests
+                else models.F("outbound_avg_time"),
             )
 
         return replace_null(values)
@@ -153,18 +179,17 @@ class WorkerMetricsLogger:
         if not _worker:
             return
         from .models import Worker
-        worker: Worker = _worker        # noqa
+
+        worker: Worker = _worker  # noqa
         now = time_now()
         sys_metrics = worker.get_sys_metrics()
-        req_metrics = self.fetch(interval or max(1.0, (now - worker.time).total_seconds()))
-        self.save(
-            worker,
-            **sys_metrics,
-            connected=True,
-            time=now
+        req_metrics = self.fetch(
+            interval or max(1.0, (now - worker.time).total_seconds())
         )
+        self.save(worker, **sys_metrics, connected=True, time=now)
         if record:
             from .models import WorkerMonitor
+
             WorkerMonitor.objects.create(
                 worker=worker,
                 interval=interval,
@@ -175,7 +200,7 @@ class WorkerMetricsLogger:
 
 
 worker_logger = WorkerMetricsLogger()
-request_logger = var.RequestContextVar('_logger', cached=True, static=True)
+request_logger = var.RequestContextVar("_logger", cached=True, static=True)
 
 
 class LogLevel:
@@ -185,18 +210,19 @@ class LogLevel:
     ERROR = 3
 
 
-LOG_LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR']
+LOG_LEVELS = ["DEBUG", "INFO", "WARN", "ERROR"]
 
 
 def level_log(f):
     lv = f.__name__.upper()
     if lv not in LOG_LEVELS:
-        raise ValueError(f'Invalid log level: {lv}')
+        raise ValueError(f"Invalid log level: {lv}")
     index = LOG_LEVELS.index(lv)
 
     @wraps(f)
-    def emit(self: 'Logger', brief: str, msg: str = None, **kwargs):
+    def emit(self: "Logger", brief: str, msg: str = None, **kwargs):
         return self.emit(brief, level=index, data=kwargs, msg=msg)
+
     return emit
 
 
@@ -218,8 +244,7 @@ def setup_locals(config: Operations, close_conn: bool = False):
     from .models import Resource, Worker, Supervisor
     from utilmeta import service
 
-    global _worker, _version, _supervisor, _instance, _server, \
-        _endpoints_map, _openapi, _endpoints_patterns, _path_prefix, _databases, _caches
+    global _worker, _version, _supervisor, _instance, _server, _endpoints_map, _openapi, _endpoints_patterns, _path_prefix, _databases, _caches
     # node_id = config.node_id
     _supervisor = Supervisor.current().first()
     # reset supervisor
@@ -231,43 +256,46 @@ def setup_locals(config: Operations, close_conn: bool = False):
     if not _server:
         _server = Resource.get_current_server()
         from .monitor import get_current_server
+
         data = get_current_server()
         if not _server:
             from utilmeta.utils import get_mac_address
+
             mac = get_mac_address()
             _server = Resource.objects.create(
-                type='server',
+                type="server",
                 service=None,
                 # server is a service-neutral resource
                 node_id=node_id,
                 ident=mac,
                 data=data,
-                route=f'server/{mac}',
+                route=f"server/{mac}",
             )
         else:
             if _server.data != data:
                 _server.data = data
-                _server.save(update_fields=['data'])
+                _server.save(update_fields=["data"])
 
     if not _instance:
         _instance = Resource.get_current_instance()
         from .schema import get_current_instance_data
+
         data = get_current_instance_data()
         if not _instance:
             ident = config.address
             _instance = Resource.objects.create(
-                type='instance',
+                type="instance",
                 service=service.name,
                 node_id=node_id,
                 ident=ident,
-                route=f'instance/{node_id}/{ident}' if node_id else f'instance/{ident}',
+                route=f"instance/{node_id}/{ident}" if node_id else f"instance/{ident}",
                 server=_server,
-                data=data
+                data=data,
             )
         else:
             if _instance.data != data:
                 _instance.data = data
-                _instance.save(update_fields=['data'])
+                _instance.save(update_fields=["data"])
 
     # if not _version:
     #     if _instance:
@@ -280,14 +308,13 @@ def setup_locals(config: Operations, close_conn: bool = False):
 
     if not _worker:
         import utilmeta
+
         if not utilmeta._cmd_env:
             _worker = Worker.load()
 
     if not _endpoints_map:
         _endpoints = Resource.filter(
-            type='endpoint',
-            service=service.name,
-            deprecated=False
+            type="endpoint", service=service.name, deprecated=False
         )
 
         if node_id:
@@ -300,6 +327,7 @@ def setup_locals(config: Operations, close_conn: bool = False):
         _openapi = config.openapi
         from utilmeta.core.api.specs.openapi import get_operation_id
         from utilmeta.core.api.route import APIRoute
+
         patterns = {}
         operation_ids = []
         for path, path_item in _openapi.paths.items():
@@ -312,42 +340,47 @@ def setup_locals(config: Operations, close_conn: bool = False):
                     operation = path_item.get(method)
                     if not operation:
                         continue
-                    operation_id = operation.get('operationId')
+                    operation_id = operation.get("operationId")
                     if not operation_id:
-                        operation_id = get_operation_id(method, path, excludes=operation_ids, attribute=True)
+                        operation_id = get_operation_id(
+                            method, path, excludes=operation_ids, attribute=True
+                        )
                     operation_ids.append(operation_id)
                     methods[method] = operation_id
                 if methods:
                     patterns[pattern] = methods
             except Exception as e:
-                warnings.warn(f'generate pattern operation Id at path {path} failed: {e}')
+                warnings.warn(
+                    f"generate pattern operation Id at path {path} failed: {e}"
+                )
                 continue
 
         _endpoints_patterns = patterns
         if _openapi.servers:
             url = _openapi.servers[0].url
             from urllib.parse import urlparse
-            _path_prefix = urlparse(url).path.strip('/')
+
+            _path_prefix = urlparse(url).path.strip("/")
 
     if not _databases:
         from utilmeta.core.orm import DatabaseConnections
+
         db_config = DatabaseConnections.config()
         dbs = {}
         if db_config and db_config.databases:
             for alias, db in db_config.databases.items():
                 db_obj = Resource.filter(
-                    type='database',
-                    service=service.name,
-                    ident=alias,
-                    deprecated=False
+                    type="database", service=service.name, ident=alias, deprecated=False
                 ).first()
                 if not db_obj:
                     db_obj = Resource.objects.create(
-                        type='database',
+                        type="database",
                         service=service.name,
                         node_id=node_id,
                         ident=alias,
-                        route=f'database/{node_id}/{alias}' if node_id else f'database/{alias}',
+                        route=f"database/{node_id}/{alias}"
+                        if node_id
+                        else f"database/{alias}",
                         server=_server if db.local else None,
                     )
                 dbs[alias] = db_obj
@@ -355,6 +388,7 @@ def setup_locals(config: Operations, close_conn: bool = False):
 
     if not _caches:
         from utilmeta.core.cache import CacheConnections
+
         cache_config = CacheConnections.config()
         caches = {}
         if cache_config and cache_config.caches:
@@ -363,18 +397,17 @@ def setup_locals(config: Operations, close_conn: bool = False):
                     # do not monitor memory cache for now
                     continue
                 cache_obj = Resource.filter(
-                    type='cache',
-                    service=service.name,
-                    ident=alias,
-                    deprecated=False
+                    type="cache", service=service.name, ident=alias, deprecated=False
                 ).first()
                 if not cache_obj:
                     cache_obj = Resource.objects.create(
-                        type='cache',
+                        type="cache",
                         service=service.name,
                         node_id=node_id,
                         ident=alias,
-                        route=f'cache/{node_id}/{alias}' if node_id else f'cache/{alias}',
+                        route=f"cache/{node_id}/{alias}"
+                        if node_id
+                        else f"cache/{alias}",
                         server=_server if cache.local else None,
                     )
                 caches[alias] = cache_obj
@@ -383,6 +416,7 @@ def setup_locals(config: Operations, close_conn: bool = False):
     if close_conn:
         # close connections
         from django.db import connections
+
         # ops_conn = connections[config.db_alias]
         # if ops_conn:
         #     ops_conn.close()
@@ -406,16 +440,24 @@ class LogMiddleware(ServiceMiddleware):
         request = response.request
         if request:
             if self.config.log.exclude_methods:
-                if request.adaptor.request_method.upper() in self.config.log.exclude_methods:
+                if (
+                    request.adaptor.request_method.upper()
+                    in self.config.log.exclude_methods
+                ):
                     return True
             if self.config.log.exclude_request_headers:
-                if any(h in self.config.log.exclude_request_headers for h in request.headers):
+                if any(
+                    h in self.config.log.exclude_request_headers
+                    for h in request.headers
+                ):
                     return True
         if self.config.log.exclude_status:
             if response.status in self.config.log.exclude_status:
                 return True
         if self.config.log.exclude_response_headers:
-            if any(h in self.config.log.exclude_response_headers for h in response.headers):
+            if any(
+                h in self.config.log.exclude_response_headers for h in response.headers
+            ):
                 return True
         return False
 
@@ -449,12 +491,7 @@ class LogMiddleware(ServiceMiddleware):
         _responses_queue.append(response)
 
         if len(_responses_queue) >= self.config.max_backlog:
-            threading.Thread(
-                target=batch_save_logs,
-                kwargs=dict(
-                    close=True
-                )
-            ).start()
+            threading.Thread(target=batch_save_logs, kwargs=dict(close=True)).start()
 
 
 class Logger(Property):
@@ -472,12 +509,10 @@ class Logger(Property):
     # STORE_RESULT_LEVEL = LogLevel.WARN
     # STORE_HEADERS_LEVEL = LogLevel.WARN
 
-    def __init__(self,
-                 from_logger: 'Logger' = None,
-                 span_data: dict = None
-                 ):
+    def __init__(self, from_logger: "Logger" = None, span_data: dict = None):
         super().__init__()
         from utilmeta import service
+
         self.service = service
         self.config = service.get_config(Operations)
         self.current_thread = threading.current_thread().ident
@@ -509,11 +544,17 @@ class Logger(Property):
         self._persist_level = self.config.log.persist_level
         self._persist_duration_limit = self.config.log.persist_duration_limit
         if self._store_data_level is None:
-            self._store_data_level = LogLevel.WARN if service.production else LogLevel.INFO
+            self._store_data_level = (
+                LogLevel.WARN if service.production else LogLevel.INFO
+            )
         if self._store_headers_level is None:
-            self._store_headers_level = LogLevel.WARN if service.production else LogLevel.INFO
+            self._store_headers_level = (
+                LogLevel.WARN if service.production else LogLevel.INFO
+            )
         if self._store_result_level is None:
-            self._store_result_level = LogLevel.WARN if service.production else LogLevel.INFO
+            self._store_result_level = (
+                LogLevel.WARN if service.production else LogLevel.INFO
+            )
 
     def relative_time(self, to=None):
         return max(int(((to or time.time()) - self.init_time) * 1000), 0)
@@ -532,7 +573,12 @@ class Logger(Property):
 
     @property
     def vacuum(self):
-        return not self._messages and not self._events and not self._exceptions and not self._span_logger
+        return (
+            not self._messages
+            and not self._events
+            and not self._exceptions
+            and not self._span_logger
+        )
 
     @property
     def level(self):
@@ -564,14 +610,11 @@ class Logger(Property):
     def __call__(self, name: str, **kwargs):
         if self._span_logger:
             return self._span_logger(name, **kwargs)
-        assert name, f'Empty scope name'
-        self._span_data = dict(
-            name=name,
-            **kwargs
-        )
+        assert name, f"Empty scope name"
+        self._span_data = dict(name=name, **kwargs)
         return self
 
-    def __enter__(self) -> 'Logger':
+    def __enter__(self) -> "Logger":
         if self._span_logger:
             return self._span_logger.__enter__()
         if not self._span_data:
@@ -622,19 +665,24 @@ class Logger(Property):
     def setup_request(self, request: Request):
         self._request = request
         if _supervisor:
-            supervisor_id = request.headers.get('x-utilmeta-node-id') or request.headers.get('x-node-id')
-            supervisor_hash = request.headers.get('X-utilmeta-supervisor-key-md5')
-            if supervisor_hash and supervisor_id == _supervisor.node_id: # noqa
+            supervisor_id = request.headers.get(
+                "x-utilmeta-node-id"
+            ) or request.headers.get("x-node-id")
+            supervisor_hash = request.headers.get("X-utilmeta-supervisor-key-md5")
+            if supervisor_hash and supervisor_id == _supervisor.node_id:  # noqa
                 import hashlib
-                if hashlib.md5(_supervisor.public_key) == supervisor_hash: # noqa
+
+                if hashlib.md5(_supervisor.public_key) == supervisor_hash:  # noqa
                     self._supervised = True
         if self._supervised:
-            log_options = request.headers.get('x-utilmeta-log-options')
+            log_options = request.headers.get("x-utilmeta-log-options")
             if log_options:
-                options = [option.strip() for option in str(log_options).lower().split(',')]
-                if 'omit' in options:
+                options = [
+                    option.strip() for option in str(log_options).lower().split(",")
+                ]
+                if "omit" in options:
                     self._omitted = True
-                if 'timing' in options or 'server-timing' in options:
+                if "timing" in options or "server-timing" in options:
                     self._server_timing = True
 
     def omit(self, val: bool = True):
@@ -647,11 +695,17 @@ class Logger(Property):
         if self._supervised:
             if self._server_timing:
                 duration = response.duration_ms or self.duration
-                ts = response.request.time.timestamp() if response.request else self.init_time
+                ts = (
+                    response.request.time.timestamp()
+                    if response.request
+                    else self.init_time
+                )
                 if duration:
-                    response.set_header('Server-Timing', f'total;dur={duration};ts={ts}')
+                    response.set_header(
+                        "Server-Timing", f"total;dur={duration};ts={ts}"
+                    )
 
-    def generate_request_logs(self, context_type='service_log', context_id=None):
+    def generate_request_logs(self, context_type="service_log", context_id=None):
         if not self._client_responses:
             return []
 
@@ -659,38 +713,37 @@ class Logger(Property):
 
         for resp in self._client_responses:
             log = self.generate_request_log(
-                resp,
-                context_type=context_type,
-                context_id=context_id
+                resp, context_type=context_type, context_id=context_id
             )
             if log:
                 objects.append(log)
         return objects
 
-    def generate_request_log(self, response: Response,
-                             context_type='service_log',
-                             context_id=None):
+    def generate_request_log(
+        self, response: Response, context_type="service_log", context_id=None
+    ):
         from .models import RequestLog
-        return RequestLog(
 
-        )
+        return RequestLog()
 
     @classmethod
     def get_file_repr(cls, file):
-        return '<file>'
+        return "<file>"
 
     def parse_values(self, data):
-        return hide_secret_values(data, secret_names=self.config.secret_names, file_repr=self.get_file_repr)
+        return hide_secret_values(
+            data, secret_names=self.config.secret_names, file_repr=self.get_file_repr
+        )
 
     @classmethod
     def get_endpoint_ident(cls, request: Request) -> Optional[str]:
         if not _endpoints_patterns:
             return None
-        path = str(request.path or '').strip('/')
+        path = str(request.path or "").strip("/")
         if _path_prefix:
             if not path.startswith(_path_prefix):
                 return None
-            path = path[len(_path_prefix):].strip('/')
+            path = path[len(_path_prefix) :].strip("/")
         for pattern, methods in _endpoints_patterns.items():
             if pattern.fullmatch(path):
                 return methods.get(request.method)
@@ -726,13 +779,13 @@ class Logger(Property):
                 try:
                     data = self.parse_values(request.data)
                 except Exception as e:  # noqa: ignore
-                    warnings.warn(f'load request data failed: {e}')
+                    warnings.warn(f"load request data failed: {e}")
 
         if level >= self._store_result_level:
             try:
                 result = self.parse_values(response.data)
             except Exception as e:  # noqa: ignore
-                warnings.warn(f'load response data failed: {e}')
+                warnings.warn(f"load response data failed: {e}")
 
         try:
             public = request.ip_address.is_global
@@ -750,11 +803,13 @@ class Logger(Property):
         response_headers = {}
         if level >= self._store_headers_level:
             request_headers = self.parse_values(dict(request.headers))
-            response_headers = self.parse_values(dict(response.prepare_headers(with_content_type=True)))
+            response_headers = self.parse_values(
+                dict(response.prepare_headers(with_content_type=True))
+            )
 
         operation_names = var.operation_names.getter(request)
         if operation_names:
-            endpoint_ident = '_'.join(operation_names)
+            endpoint_ident = "_".join(operation_names)
         else:
             # or find it by the generated openapi items (match method and path, find operationId)
             endpoint_ident = self.get_endpoint_ident(request)
@@ -772,9 +827,9 @@ class Logger(Property):
             service=self.service.name,
             instance=_instance,
             version=_version,
-            node_id=getattr(_supervisor, 'node_id', None),
+            node_id=getattr(_supervisor, "node_id", None),
             supervisor=_supervisor,
-            access_token_id=getattr(access_token, 'id', None),
+            access_token_id=getattr(access_token, "id", None),
             level=level_str,
             volatile=volatile,
             time=request.time,
@@ -792,7 +847,7 @@ class Logger(Property):
             result=result,
             user_id=user_id,
             ip=str(request.ip_address),
-            user_agent=parse_user_agents(request.headers.get('user-agent')),
+            user_agent=parse_user_agents(request.headers.get("user-agent")),
             status=status,
             request_type=request.content_type,
             response_type=response.content_type,
@@ -808,7 +863,7 @@ class Logger(Property):
         )
 
     def get_trace(self):
-        self._events.sort(key=lambda v: v.get('init', 0))
+        self._events.sort(key=lambda v: v.get("init", 0))
         return normalize(self._events, _json=True)
 
     def exit(self):
@@ -830,7 +885,9 @@ class Logger(Property):
         else:
             _logger.set(None)
 
-    def emit(self, brief: Union[str, Error], level: int, data: dict = None, msg: str = None):
+    def emit(
+        self, brief: Union[str, Error], level: int, data: dict = None, msg: str = None
+    ):
         if self._span_logger:
             return self._span_logger.emit(brief, level, data, msg=msg)
 
@@ -860,13 +917,15 @@ class Logger(Property):
             self._exceptions.append(exception)
 
         name = LOG_LEVELS[level]
-        self._events.append(dict(
-            name=name,
-            init=self.relative_time(ts),
-            type=f'log.{name.lower()}',
-            msg=self._push_message(brief, msg=msg),
-            data=data,
-        ))
+        self._events.append(
+            dict(
+                name=name,
+                init=self.relative_time(ts),
+                type=f"log.{name.lower()}",
+                msg=self._push_message(brief, msg=msg),
+                data=data,
+            )
+        )
 
     def commit_error(self, e: Error):
         if e.exception in self._exceptions:
@@ -906,11 +965,11 @@ class Logger(Property):
 
     @property
     def message(self) -> str:
-        return '\n'.join(self._messages)
+        return "\n".join(self._messages)
 
     @property
     def brief_message(self) -> str:
-        return '; '.join(self._briefs)
+        return "; ".join(self._briefs)
 
 
 def batch_save_logs(close: bool = False):
@@ -929,12 +988,16 @@ def batch_save_logs(close: bool = False):
         if not _server:
             # not setup yet
             from .config import Operations
+
             setup_locals(Operations.config())
 
         if _supervisor:
             # update supervisor (connect / disconnect)
             from .models import Supervisor
-            supervisor = Supervisor.objects.filter(pk=getattr(_supervisor, 'pk', None)).first()
+
+            supervisor = Supervisor.objects.filter(
+                pk=getattr(_supervisor, "pk", None)
+            ).first()
             if not supervisor:
                 # check _supervisor before save logs
                 _supervisor = None
@@ -948,9 +1011,7 @@ def batch_save_logs(close: bool = False):
                 if not logger:
                     continue
 
-                service_log = logger.generate_log(
-                    response
-                )
+                service_log = logger.generate_log(response)
 
                 if not service_log:
                     continue
@@ -980,6 +1041,7 @@ def batch_save_logs(close: bool = False):
 
     if close:
         from django.db import connections
+
         connections.close_all()
 
     return

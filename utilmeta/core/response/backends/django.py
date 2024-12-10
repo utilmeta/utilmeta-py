@@ -1,4 +1,9 @@
-from django.http.response import StreamingHttpResponse, HttpResponse, HttpResponseBase, FileResponse
+from django.http.response import (
+    StreamingHttpResponse,
+    HttpResponse,
+    HttpResponseBase,
+    FileResponse,
+)
 from typing import Union, TYPE_CHECKING
 from .base import ResponseAdaptor
 import django
@@ -17,11 +22,12 @@ class DjangoResponseAdaptor(ResponseAdaptor):
         return isinstance(obj, HttpResponseBase)
 
     @classmethod
-    def reconstruct(cls, resp: Union['ResponseAdaptor', 'Response']):
+    def reconstruct(cls, resp: Union["ResponseAdaptor", "Response"]):
         if isinstance(resp, (HttpResponse, StreamingHttpResponse)):
             return resp
 
         from utilmeta.core.response import Response
+
         if isinstance(resp, ResponseAdaptor):
             resp = Response(response=resp)
         elif not isinstance(resp, Response):

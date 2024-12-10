@@ -9,15 +9,34 @@ from datetime import timedelta
 from utilmeta.utils.error import Error
 import warnings
 
-__all__ = ['omit', 'error_convert', 'handle_retries', 'cached_property',
-           'awaitable', 'async_to_sync', 'adapt_async',
-           'handle_parse', 'handle_timeout', 'ignore_errors', 'static_require']
+__all__ = [
+    "omit",
+    "error_convert",
+    "handle_retries",
+    "cached_property",
+    "awaitable",
+    "async_to_sync",
+    "adapt_async",
+    "handle_parse",
+    "handle_timeout",
+    "ignore_errors",
+    "static_require",
+]
 
 
-def ignore_errors(_f=None, *, default=None, log: bool = True,
-                  log_detail: bool = True, errors=(Exception,), on_finally=None):
+def ignore_errors(
+    _f=None,
+    *,
+    default=None,
+    log: bool = True,
+    log_detail: bool = True,
+    errors=(Exception,),
+    on_finally=None,
+):
     if on_finally:
-        assert callable(on_finally), f'@ignore_errors on_finally must be a callable, got {on_finally}'
+        assert callable(
+            on_finally
+        ), f"@ignore_errors on_finally must be a callable, got {on_finally}"
 
     def decorator(f):
         @wraps(f)
@@ -26,7 +45,7 @@ def ignore_errors(_f=None, *, default=None, log: bool = True,
                 return f(*args, **kwargs)
             except errors as e:
                 if log:
-                    warnings.warn(f'IGNORED ERROR for {f.__name__}: {e}')
+                    warnings.warn(f"IGNORED ERROR for {f.__name__}: {e}")
                     if log_detail:
                         Error(e).log(console=True)
                 # to avoid a public mutable value (like dict) cause unpredictable result
@@ -35,7 +54,9 @@ def ignore_errors(_f=None, *, default=None, log: bool = True,
             finally:
                 if on_finally:
                     on_finally()
+
         return wrapper
+
     if _f:
         return decorator(_f)
     return decorator
@@ -43,7 +64,7 @@ def ignore_errors(_f=None, *, default=None, log: bool = True,
 
 def static_require(*args_func: Callable, runtime: bool = True):
     def not_implement(*_, **__):
-        raise NotImplementedError('you current settings does not support this method')
+        raise NotImplementedError("you current settings does not support this method")
 
     @ignore_errors(default=False, log=False)
     def satisfied():
@@ -59,12 +80,15 @@ def static_require(*args_func: Callable, runtime: bool = True):
             else:
                 return not_implement
         else:
+
             @wraps(f)
             def wrapper(*args, **kwargs):
                 if satisfied():
                     return f(*args, **kwargs)
                 return not_implement()
+
             return wrapper
+
     return decorator
 
 
@@ -81,7 +105,9 @@ def error_convert(errors: List[Type[Exception]], target: Type[Exception]):
                     if not isinstance(err, tuple(errors)):
                         raise Error().throw()
                 raise Error().throw(target)
+
         return wrapper
+
     return deco
 
 
@@ -98,16 +124,22 @@ def handle_timeout(timeout: timedelta):
                 r = async_result.get(timeout.total_seconds())
             except multiprocessing.context.TimeoutError:
                 # pool.terminate()
-                raise TimeoutError(f"function <{f.__name__}> execute beyond expect"
-                                   f" time limit {timeout.total_seconds()} seconds")
+                raise TimeoutError(
+                    f"function <{f.__name__}> execute beyond expect"
+                    f" time limit {timeout.total_seconds()} seconds"
+                )
             finally:
                 pool.close()
             return r
+
         return wrapper
+
     return decorator
 
 
-def handle_retries(retries: int = 2, on_errors=None, retry_interval: Union[float, Callable] = None):
+def handle_retries(
+    retries: int = 2, on_errors=None, retry_interval: Union[float, Callable] = None
+):
     assert retries > 1
     on_errors = on_errors or Exception
 
@@ -126,11 +158,13 @@ def handle_retries(retries: int = 2, on_errors=None, retry_interval: Union[float
                 except on_errors as e:
                     errors.append(e)
             if not errors:
-                raise RuntimeError('Invalid retry status')
+                raise RuntimeError("Invalid retry status")
             if len(errors) == 1:
                 raise Error(errors[0]).throw()
             raise CombinedError(*errors)
+
         return wrapper
+
     return decorator
 
 
@@ -154,7 +188,10 @@ def omit(f, daemon=False):
     @wraps(f)
     def wrapper(*args, **kwargs):
         args = [f] + [a for a in args]
-        threading.Thread(target=handler, args=args, kwargs=kwargs, daemon=daemon).start()
+        threading.Thread(
+            target=handler, args=args, kwargs=kwargs, daemon=daemon
+        ).start()
+
     return wrapper
 
 
@@ -168,18 +205,19 @@ class cached_property:
     The optional ``name`` argument is obsolete as of Python 3.6 and will be
     deprecated in Django 4.0 (#30127).
     """
+
     name = None
 
     @staticmethod
     def func(instance):
         raise TypeError(
-            'Cannot use cached_property instance without calling '
-            '__set_name__() on it.'
+            "Cannot use cached_property instance without calling "
+            "__set_name__() on it."
         )
 
     def __init__(self, func, name=None):
         self.real_func = func
-        self.__doc__ = getattr(func, '__doc__')
+        self.__doc__ = getattr(func, "__doc__")
 
     def __set_name__(self, owner, name):
         if self.name is None:
@@ -204,12 +242,16 @@ class cached_property:
 
 
 import inspect
+
 _CO_NESTED = inspect.CO_NESTED
-_CO_FROM_COROUTINE = inspect.CO_COROUTINE | inspect.CO_ITERABLE_COROUTINE | inspect.CO_ASYNC_GENERATOR
+_CO_FROM_COROUTINE = (
+    inspect.CO_COROUTINE | inspect.CO_ITERABLE_COROUTINE | inspect.CO_ASYNC_GENERATOR
+)
 
 
 def from_coroutine(level=2, _cache={}):
     from sys import _getframe
+
     f_code = _getframe(level).f_code
     if f_code in _cache:
         return _cache[f_code]
@@ -228,7 +270,7 @@ def from_coroutine(level=2, _cache={}):
         #
         # Where func() is some function that we've wrapped with one of the decorators
         # below.  If so, the code object is nested and has a name such as <listcomp> or <genexpr>
-        if f_code.co_flags & _CO_NESTED and f_code.co_name[0] == '<':
+        if f_code.co_flags & _CO_NESTED and f_code.co_name[0] == "<":
             return from_coroutine(level + 2)
         else:
             _cache[f_code] = False
@@ -236,7 +278,6 @@ def from_coroutine(level=2, _cache={}):
 
 
 def adapt_async(f=None, close_conn=True):
-
     def decorator(func):
         if inspect.iscoroutinefunction(func) or inspect.isasyncgenfunction(func):
             return func
@@ -247,6 +288,7 @@ def adapt_async(f=None, close_conn=True):
             finally:
                 if close_conn:
                     from django.db import connections
+
                     if isinstance(close_conn, str):
                         conn = connections[close_conn]
                         if conn:
@@ -264,18 +306,21 @@ def adapt_async(f=None, close_conn=True):
                 if service.asynchronous:
                     return service.pool.get_result(close_wrapper, *args, **kwargs)
             return func(*args, **kwargs)
+
         return wrapper
+
     if f:
         return decorator(f)
     return decorator
 
 
 from contextvars import ContextVar
-from_thread = ContextVar('from_thread')
+
+from_thread = ContextVar("from_thread")
 
 
 def awaitable(syncfunc, bind_service: bool = False, close_conn: bool = False):
-    '''
+    """
     Decorator that allows an asynchronous function to be paired with a
     synchronous function in a single function call.  The selection of
     which function executes depends on the calling context.  For example:
@@ -294,10 +339,13 @@ def awaitable(syncfunc, bind_service: bool = False, close_conn: bool = False):
             ...
             r = await spam(s, 1024)    # Calls async function (B) above
             ...
-    '''
+    """
+
     def decorate(asyncfunc):
-        if not inspect.iscoroutinefunction(asyncfunc) and not inspect.isasyncgenfunction(asyncfunc):
-            raise TypeError(f'{asyncfunc} must be async def function')
+        if not inspect.iscoroutinefunction(
+            asyncfunc
+        ) and not inspect.isasyncgenfunction(asyncfunc):
+            raise TypeError(f"{asyncfunc} must be async def function")
 
         # origin = None
         if isinstance(syncfunc, (classmethod, staticmethod)):
@@ -307,7 +355,9 @@ def awaitable(syncfunc, bind_service: bool = False, close_conn: bool = False):
             sync_func = syncfunc
 
         if inspect.signature(sync_func) != inspect.signature(asyncfunc):
-            raise TypeError(f'{sync_func.__name__} and async {asyncfunc.__name__} have different signatures')
+            raise TypeError(
+                f"{sync_func.__name__} and async {asyncfunc.__name__} have different signatures"
+            )
 
         @wraps(asyncfunc)
         def wrapper(*args, **kwargs):
@@ -322,7 +372,9 @@ def awaitable(syncfunc, bind_service: bool = False, close_conn: bool = False):
                     else:
                         if service.asynchronous:
                             import utilmeta
-                            if not getattr(utilmeta, '_cmd_env', False):
+
+                            if not getattr(utilmeta, "_cmd_env", False):
+
                                 def sync_func_wrapper(*_, **__):
                                     from_thread.set(True)
                                     try:
@@ -331,22 +383,30 @@ def awaitable(syncfunc, bind_service: bool = False, close_conn: bool = False):
                                         from_thread.set(False)
                                         if close_conn:
                                             from django.db import connections
+
                                             connections.close_all()
-                                return service.pool.get_result(sync_func_wrapper, *args, **kwargs)
+
+                                return service.pool.get_result(
+                                    sync_func_wrapper, *args, **kwargs
+                                )
                 return sync_func(*args, **kwargs)
+
         wrapper._syncfunc = sync_func
         wrapper._asyncfunc = asyncfunc
         wrapper._awaitable = True
         wrapper.__doc__ = sync_func.__doc__ or asyncfunc.__doc__
         return wrapper
+
     return decorate
 
 
 try:
     from asgiref.sync import async_to_sync
 except ImportError:
+
     def async_to_sync(to_await):
         import asyncio
+
         async_response = []
 
         def wrapper(*args, **kwargs):
@@ -369,4 +429,5 @@ except ImportError:
             coroutine = run_and_capture_result()
             loop.run_until_complete(coroutine)
             return async_response[0]
+
         return wrapper

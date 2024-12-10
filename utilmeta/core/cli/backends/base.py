@@ -4,7 +4,7 @@ from utilmeta.core.request.base import Request
 
 class ClientRequestAdaptor(BaseAdaptor):
     @classmethod
-    def get_module_name(cls, obj: 'Request'):
+    def get_module_name(cls, obj: "Request"):
         if isinstance(obj, Request):
             return super().get_module_name(obj.backend)
         return super().get_module_name(obj)
@@ -13,10 +13,15 @@ class ClientRequestAdaptor(BaseAdaptor):
     def qualify(cls, obj: Request):
         if not cls.backend or not obj.backend:
             return False
-        return cls.get_module_name(obj.backend).lower() == cls.get_module_name(cls.backend).lower()
+        return (
+            cls.get_module_name(obj.backend).lower()
+            == cls.get_module_name(cls.backend).lower()
+        )
 
     def __init__(self, request: Request):
         self.request = request
 
     def __call__(self, **kwargs):
-        raise NotImplementedError('This request backend does not support calling outbound requests')
+        raise NotImplementedError(
+            "This request backend does not support calling outbound requests"
+        )

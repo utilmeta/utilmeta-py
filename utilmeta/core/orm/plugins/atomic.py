@@ -6,8 +6,14 @@ import functools
 
 
 class AtomicPlugin(PluginBase):
-    def __init__(self, alias: str = 'default', savepoint: bool = True, durable: bool = False,
-                 isolation=None, force_rollback: bool = False):
+    def __init__(
+        self,
+        alias: str = "default",
+        savepoint: bool = True,
+        durable: bool = False,
+        isolation=None,
+        force_rollback: bool = False,
+    ):
         super().__init__(locals())
         self.alias = alias
         self.savepoint = savepoint
@@ -23,7 +29,7 @@ class AtomicPlugin(PluginBase):
         self.transaction = self.db.transaction(
             savepoint=self.savepoint,
             isolation=self.isolation,
-            force_rollback=self.force_rollback
+            force_rollback=self.force_rollback,
         )
         return self.transaction.__enter__()
 
@@ -48,7 +54,7 @@ class AtomicPlugin(PluginBase):
         self.async_transaction = self.db.async_transaction(
             savepoint=self.savepoint,
             isolation=self.isolation,
-            force_rollback=self.force_rollback
+            force_rollback=self.force_rollback,
         )
         return await self.async_transaction.__aenter__()
 
@@ -62,20 +68,21 @@ class AtomicPlugin(PluginBase):
             transaction = self.db.async_transaction(
                 savepoint=self.savepoint,
                 isolation=self.isolation,
-                force_rollback=self.force_rollback
+                force_rollback=self.force_rollback,
             )
 
             @functools.wraps(f)
             async def wrapper(*args, **kwargs):
                 async with transaction:
                     return await f(*args, **kwargs)
+
             return wrapper
 
         elif inspect.isfunction(f):
             transaction = self.db.transaction(
                 savepoint=self.savepoint,
                 isolation=self.isolation,
-                force_rollback=self.force_rollback
+                force_rollback=self.force_rollback,
             )
 
             @functools.wraps(f)
@@ -89,9 +96,11 @@ class AtomicPlugin(PluginBase):
                 pass
             else:
                 if service.asynchronous:
+
                     @functools.wraps(f)
                     def threaded_wrapper(*args, **kwargs):
                         return service.pool.get_result(wrapper, *args, **kwargs)
+
                     return threaded_wrapper
 
             return wrapper

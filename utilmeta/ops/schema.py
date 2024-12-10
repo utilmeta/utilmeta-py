@@ -6,7 +6,9 @@ import utilmeta
 from utilmeta.core.api.specs.openapi import OpenAPISchema
 import sys
 
-language_version = f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
+language_version = (
+    f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+)
 
 
 def get_current_instance_data() -> dict:
@@ -15,12 +17,13 @@ def get_current_instance_data() -> dict:
     except ImportError:
         return {}
     from .config import Operations
+
     config = service.get_config(Operations)
     return dict(
         version=service.version_str,
         asynchronous=service.asynchronous,
         production=service.production,
-        language='python',
+        language="python",
         language_version=language_version,
         utilmeta_version=utilmeta.__version__,
         spec_version=__spec_version__,
@@ -29,7 +32,7 @@ def get_current_instance_data() -> dict:
         cwd=str(service.project_dir),
         # host=config.host if config.host else service.host,
         port=config.port if config.host else service.host,
-        address=config.address
+        address=config.address,
     )
 
 
@@ -39,14 +42,14 @@ class SupervisorBasic(Schema):
 
 
 class SupervisorInfoSchema(Schema):
-    utilmeta: str       # spec version
-    supervisor: str     # supervisor ident
+    utilmeta: str  # spec version
+    supervisor: str  # supervisor ident
     timestamp: int
 
 
 class ServiceInfoSchema(Schema):
-    utilmeta: str       # spec version
-    service: str     # supervisor ident
+    utilmeta: str  # spec version
+    service: str  # supervisor ident
     timestamp: int
 
 
@@ -59,13 +62,13 @@ class NodeMetadata(Schema):
     name: str
     base_url: str
     title: Optional[str] = None
-    description: str = ''
+    description: str = ""
 
     version: Optional[str] = None
     spec_version: str = __spec_version__
     production: bool = False
 
-    language: str = 'python'
+    language: str = "python"
     language_version: str = language_version
     utilmeta_version: str = utilmeta.__version__
 
@@ -85,7 +88,7 @@ class SupervisorData(Schema):
 class ResourceBase(Schema):
     # __options__ = utype.Options(addition=True)
 
-    description: str = ''
+    description: str = ""
     deprecated: bool = False
     tags: list = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
@@ -95,11 +98,11 @@ class ResourceBase(Schema):
 class TableSchema(ResourceBase):
     model_name: Optional[str] = None
     model_backend: Optional[str] = None
-    name: str       # table name
-    ref: str        # model ref
-    ident: str      # ident (name or app_label.model_name)
+    name: str  # table name
+    ref: str  # model ref
+    ident: str  # ident (name or app_label.model_name)
 
-    base: Optional[str] = None       # base ident
+    base: Optional[str] = None  # base ident
     database: Optional[str] = None
     # select database alias
     fields: dict
@@ -133,7 +136,7 @@ class InstanceSchema(ResourceBase):
     version: str = Field(default=None, defer_default=True)
     asynchronous: bool = Field(default=None, defer_default=True)
     production: bool = Field(default=None, defer_default=True)
-    language: str = 'python'
+    language: str = "python"
     utilmeta_version: str = utilmeta.__version__
     language_version: str = language_version
     backend: str = Field(default=None, defer_default=True)
@@ -149,7 +152,9 @@ class DatabaseSchema(ResourceBase):
     port: int
     name: str
     user: str
-    server: Optional[str] = utype.Field(alias_from=['ip', 'server_ip'], default=None)   # ip
+    server: Optional[str] = utype.Field(
+        alias_from=["ip", "server_ip"], default=None
+    )  # ip
     hostname: Optional[str] = None
     ops: bool = False
     test: bool = False
@@ -161,7 +166,9 @@ class CacheSchema(ResourceBase):
     alias: str
     engine: str
     port: int
-    server: Optional[str] = utype.Field(alias_from=['ip', 'server_ip'], default=None)   # ip
+    server: Optional[str] = utype.Field(
+        alias_from=["ip", "server_ip"], default=None
+    )  # ip
     hostname: Optional[str] = None
 
     max_memory: Optional[int] = None
@@ -195,8 +202,8 @@ class ResourcesData(utype.Schema):
     url: Optional[str] = None
     resources: List[ResourceData]
     resources_etag: str
-    
-    
+
+
 class SupervisorPatchSchema(Schema):
     id: int = Field(no_input=True)
     node_id: str

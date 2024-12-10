@@ -28,6 +28,7 @@ class ResponseFileAdaptor(FileAdaptor):
         if file:
             return file.file
         from io import BytesIO
+
         return BytesIO(self.file.body)
 
     @property

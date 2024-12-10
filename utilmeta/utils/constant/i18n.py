@@ -192,10 +192,10 @@ class Locale(Static):
     UZ = "UZ"
     VN = "VN"
     CN = "CN"
-    HK = "HK"   # HongKong (China)
+    HK = "HK"  # HongKong (China)
     MO = "MO"
     SG = "SG"
-    TW = "TW"   # Taiwan (China)
+    TW = "TW"  # Taiwan (China)
 
     @classmethod
     def language(cls, locale: str, single: bool = True) -> Union[List[str], str]:
@@ -209,129 +209,179 @@ class Locale(Static):
 
 
 class TimeZone(Static, ignore_duplicate=True):
-    UTC = 'UTC'
-    GMT = 'UTC'
-    WET = 'WET'
-    CET = 'CET'
-    MET = 'CET'
-    ECT = 'CET'
-    EET = 'EET'
-    MIT = 'Pacific/Apia'
-    HST = 'Pacific/Honolulu'
-    AST = 'America/Anchorage'
-    PST = 'America/Los_Angeles'
-    LOS_ANGELES = 'America/Los_Angeles'
-    MST = 'America/Denver'
-    PNT = 'America/Phoenix'
-    CST = 'America/Chicago'
-    CHICAGO = 'America/Chicago'
-    EST = 'America/New_York'
-    NEW_YORK = 'America/New_York'
-    IET = 'America/Indiana/Indianapolis'
-    PRT = 'America/Puerto_Rico'
-    CNT = 'America/St_Johns'
-    AGT = 'America/Argentina/Buenos_Aires'
-    BET = 'America/Sao_Paulo'
-    ART = 'Africa/Cairo'
-    CAT = 'Africa/Harare'
-    EAT = 'Africa/Addis_Ababa'
-    NET = 'Asia/Yerevan'
-    PLT = 'Asia/Karachi'
-    IST = 'Asia/Kolkata'
-    BST = 'Asia/Dhaka'
-    VST = 'Asia/Ho_Chi_Minh'
-    CTT = 'Asia/Shanghai'
-    SHANGHAI = 'Asia/Shanghai'
-    JST = 'Asia/Tokyo'
-    TOKYO = 'Asia/Tokyo'
-    ACT = 'Australia/Darwin'
-    DARWIN = 'Australia/Darwin'
-    AET = 'Australia/Sydney'
-    SYDNEY = 'Australia/Sydney'
-    SST = 'Pacific/Guadalcanal'
-    NST = 'Pacific/Auckland'
+    UTC = "UTC"
+    GMT = "UTC"
+    WET = "WET"
+    CET = "CET"
+    MET = "CET"
+    ECT = "CET"
+    EET = "EET"
+    MIT = "Pacific/Apia"
+    HST = "Pacific/Honolulu"
+    AST = "America/Anchorage"
+    PST = "America/Los_Angeles"
+    LOS_ANGELES = "America/Los_Angeles"
+    MST = "America/Denver"
+    PNT = "America/Phoenix"
+    CST = "America/Chicago"
+    CHICAGO = "America/Chicago"
+    EST = "America/New_York"
+    NEW_YORK = "America/New_York"
+    IET = "America/Indiana/Indianapolis"
+    PRT = "America/Puerto_Rico"
+    CNT = "America/St_Johns"
+    AGT = "America/Argentina/Buenos_Aires"
+    BET = "America/Sao_Paulo"
+    ART = "Africa/Cairo"
+    CAT = "Africa/Harare"
+    EAT = "Africa/Addis_Ababa"
+    NET = "Asia/Yerevan"
+    PLT = "Asia/Karachi"
+    IST = "Asia/Kolkata"
+    BST = "Asia/Dhaka"
+    VST = "Asia/Ho_Chi_Minh"
+    CTT = "Asia/Shanghai"
+    SHANGHAI = "Asia/Shanghai"
+    JST = "Asia/Tokyo"
+    TOKYO = "Asia/Tokyo"
+    ACT = "Australia/Darwin"
+    DARWIN = "Australia/Darwin"
+    AET = "Australia/Sydney"
+    SYDNEY = "Australia/Sydney"
+    SST = "Pacific/Guadalcanal"
+    NST = "Pacific/Auckland"
 
 
 LANGUAGE_LOCALE_MAP = {
-    'af': ['ZA'],
-    'ar': ['AE', 'BH', 'DZ', 'EG', 'IQ', 'JO', 'KW', 'LB', 'LY', 'MA', 'OM',
-           'QA', 'SA', 'SY', 'TN', 'YE'],
-    'az': ['AZ', 'AZ'],
-    'be': ['BY'],
-    'bg': ['BG'],
-    'bs': ['BA'],
-    'ca': ['ES'],
-    'cs': ['CZ'],
-    'cy': ['GB'],
-    'da': ['DK'],
-    'de': ['AT', 'CH', 'DE', 'LI', 'LU'],
-    'dv': ['MV'],
-    'el': ['GR'],
-    'en': ['AU', 'BZ', 'CA', 'CB', 'GB', 'IE', 'JM', 'NZ', 'PH', 'TT', 'US', 'ZA', 'ZW'],
-    'es': ['AR', 'BO', 'CL', 'CO', 'CR', 'DO', 'EC', 'ES', 'ES', 'GT', 'HN', 'MX', 'NI',
-           'PA', 'PE', 'PR', 'PY', 'SV', 'UY', 'VE'],
-    'et': ['EE'],
-    'eu': ['ES'],
-    'fa': ['IR'],
-    'fi': ['FI'],
-    'fo': ['FO'],
-    'fr': ['BE', 'CA', 'CH', 'FR', 'LU', 'MC'],
-    'gl': ['ES'],
-    'gu': ['IN'],
-    'he': ['IL'],
-    'hi': ['IN'],
-    'hr': ['BA', 'HR'],
-    'hu': ['HU'],
-    'hy': ['AM'],
-    'id': ['ID'],
-    'is': ['IS'],
-    'it': ['CH', 'IT'],
-    'ja': ['JP'],
-    'ka': ['GE'],
-    'kk': ['KZ'],
-    'kn': ['IN'],
-    'ko': ['KR'],
-    'ky': ['KG'],
-    'lt': ['LT'],
-    'lv': ['LV'],
-    'mi': ['NZ'],
-    'mk': ['MK'],
-    'mn': ['MN'],
-    'mr': ['IN'],
-    'ms': ['BN', 'MY'],
-    'mt': ['MT'],
-    'nb': ['NO'],
-    'nl': ['BE', 'NL'],
-    'nn': ['NO'],
-    'ns': ['ZA'],
-    'pa': ['IN'],
-    'pl': ['PL'],
-    'pt': ['BR', 'PT'],
-    'qu': ['BO', 'EC', 'PE'],
-    'ro': ['RO'],
-    'ru': ['RU'],
-    'sa': ['IN'],
-    'se': ['FI', 'NO', 'SE'],
-    'sk': ['SK'],
-    'sl': ['SI'],
-    'sq': ['AL'],
-    'sr': ['BA', 'SP'],
-    'sv': ['FI', 'SE'],
-    'sw': ['KE'],
-    'ta': ['IN'],
-    'te': ['IN'],
-    'th': ['TH'],
-    'tl': ['PH'],
-    'tn': ['ZA'],
-    'tr': ['TR'],
-    'tt': ['RU'],
-    'uk': ['UA'],
-    'ur': ['PK'],
-    'uz': ['UZ', 'UZ'],
-    'vi': ['VN'],
-    'xh': ['ZA'],
-    'zh': ['CN', 'HK', 'MO', 'SG', 'TW'],
-    'zu': ['ZA'],
+    "af": ["ZA"],
+    "ar": [
+        "AE",
+        "BH",
+        "DZ",
+        "EG",
+        "IQ",
+        "JO",
+        "KW",
+        "LB",
+        "LY",
+        "MA",
+        "OM",
+        "QA",
+        "SA",
+        "SY",
+        "TN",
+        "YE",
+    ],
+    "az": ["AZ", "AZ"],
+    "be": ["BY"],
+    "bg": ["BG"],
+    "bs": ["BA"],
+    "ca": ["ES"],
+    "cs": ["CZ"],
+    "cy": ["GB"],
+    "da": ["DK"],
+    "de": ["AT", "CH", "DE", "LI", "LU"],
+    "dv": ["MV"],
+    "el": ["GR"],
+    "en": [
+        "AU",
+        "BZ",
+        "CA",
+        "CB",
+        "GB",
+        "IE",
+        "JM",
+        "NZ",
+        "PH",
+        "TT",
+        "US",
+        "ZA",
+        "ZW",
+    ],
+    "es": [
+        "AR",
+        "BO",
+        "CL",
+        "CO",
+        "CR",
+        "DO",
+        "EC",
+        "ES",
+        "ES",
+        "GT",
+        "HN",
+        "MX",
+        "NI",
+        "PA",
+        "PE",
+        "PR",
+        "PY",
+        "SV",
+        "UY",
+        "VE",
+    ],
+    "et": ["EE"],
+    "eu": ["ES"],
+    "fa": ["IR"],
+    "fi": ["FI"],
+    "fo": ["FO"],
+    "fr": ["BE", "CA", "CH", "FR", "LU", "MC"],
+    "gl": ["ES"],
+    "gu": ["IN"],
+    "he": ["IL"],
+    "hi": ["IN"],
+    "hr": ["BA", "HR"],
+    "hu": ["HU"],
+    "hy": ["AM"],
+    "id": ["ID"],
+    "is": ["IS"],
+    "it": ["CH", "IT"],
+    "ja": ["JP"],
+    "ka": ["GE"],
+    "kk": ["KZ"],
+    "kn": ["IN"],
+    "ko": ["KR"],
+    "ky": ["KG"],
+    "lt": ["LT"],
+    "lv": ["LV"],
+    "mi": ["NZ"],
+    "mk": ["MK"],
+    "mn": ["MN"],
+    "mr": ["IN"],
+    "ms": ["BN", "MY"],
+    "mt": ["MT"],
+    "nb": ["NO"],
+    "nl": ["BE", "NL"],
+    "nn": ["NO"],
+    "ns": ["ZA"],
+    "pa": ["IN"],
+    "pl": ["PL"],
+    "pt": ["BR", "PT"],
+    "qu": ["BO", "EC", "PE"],
+    "ro": ["RO"],
+    "ru": ["RU"],
+    "sa": ["IN"],
+    "se": ["FI", "NO", "SE"],
+    "sk": ["SK"],
+    "sl": ["SI"],
+    "sq": ["AL"],
+    "sr": ["BA", "SP"],
+    "sv": ["FI", "SE"],
+    "sw": ["KE"],
+    "ta": ["IN"],
+    "te": ["IN"],
+    "th": ["TH"],
+    "tl": ["PH"],
+    "tn": ["ZA"],
+    "tr": ["TR"],
+    "tt": ["RU"],
+    "uk": ["UA"],
+    "ur": ["PK"],
+    "uz": ["UZ", "UZ"],
+    "vi": ["VN"],
+    "xh": ["ZA"],
+    "zh": ["CN", "HK", "MO", "SG", "TW"],
+    "zu": ["ZA"],
 }
 
 LANGUAGES = Language.gen()

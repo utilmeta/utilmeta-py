@@ -8,19 +8,19 @@ class FastAPIServerAdaptor(StarletteServerAdaptor):
     application_cls = FastAPI
     app: FastAPI
 
-    def generate(self, spec: str = 'openapi'):
-        if spec == 'openapi':
+    def generate(self, spec: str = "openapi"):
+        if spec == "openapi":
             app: FastAPI = self.application()
-            app.openapi_schema = None   # clear cache
+            app.openapi_schema = None  # clear cache
             return app.openapi()
 
     @property
     def root_path(self) -> str:
-        return str(getattr(self.app, 'root_path', '') or '').strip('/')
+        return str(getattr(self.app, "root_path", "") or "").strip("/")
 
     @property
     def version(self) -> str:
-        return getattr(self.app, 'version', '')
+        return getattr(self.app, "version", "")
 
     # def load_route(self, request):
     #     path = request.path_params.get('path') or request.url.path

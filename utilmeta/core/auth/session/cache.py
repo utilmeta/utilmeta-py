@@ -1,5 +1,11 @@
-from .schema import BaseSessionSchema, SchemaSession, SessionCreateError, SessionUpdateError
+from .schema import (
+    BaseSessionSchema,
+    SchemaSession,
+    SessionCreateError,
+    SessionUpdateError,
+)
 from utilmeta.core.cache import CacheConnections, Cache
+
 # from utilmeta.utils import awaitable
 from typing import Type
 from utype import Field
@@ -7,7 +13,7 @@ from utype import Field
 
 class CacheSessionSchema(BaseSessionSchema):
     __connections_cls__ = CacheConnections
-    _config: 'CacheSession'
+    _config: "CacheSession"
 
     def get_cache(self) -> Cache:
         return self.__connections_cls__.get(self._config.cache_alias)
@@ -15,10 +21,10 @@ class CacheSessionSchema(BaseSessionSchema):
     @property
     @Field(no_output=True)
     def cache_key_prefix(self):
-        common_prefix = f'{CacheSessionSchema.__module__}'
+        common_prefix = f"{CacheSessionSchema.__module__}"
         # not self.__class__, cause this class may be inherited by different schema classes
-        key_prefix = self._config.key_prefix or ''
-        return f'{common_prefix}{key_prefix}'
+        key_prefix = self._config.key_prefix or ""
+        return f"{common_prefix}{key_prefix}"
 
     @property
     @Field(no_output=True)
@@ -67,10 +73,10 @@ class CacheSessionSchema(BaseSessionSchema):
         cache = self.get_cache()
 
         if not must_create:
-            if self._config.interrupted != 'override':
+            if self._config.interrupted != "override":
                 if cache.get(self.get_key()) is None:
                     # old session data is deleted
-                    if self._config.interrupted == 'cycle':
+                    if self._config.interrupted == "cycle":
                         self._session_key = self._get_new_session_key()
                     else:
                         raise SessionUpdateError
@@ -91,10 +97,10 @@ class CacheSessionSchema(BaseSessionSchema):
         cache = self.get_cache()
 
         if not must_create:
-            if self._config.interrupted != 'override':
+            if self._config.interrupted != "override":
                 if await cache.aget(self.get_key()) is None:
                     # old session data is deleted
-                    if self._config.interrupted == 'cycle':
+                    if self._config.interrupted == "cycle":
                         self._session_key = await self._aget_new_session_key()
                     else:
                         raise SessionUpdateError
@@ -180,7 +186,13 @@ class CacheSession(SchemaSession):
     DEFAULT_ENGINE = CacheSessionSchema
     schema = CacheSessionSchema
 
-    def __init__(self, engine=None, cache_alias: str = 'default', key_prefix: str = None, **kwargs):
+    def __init__(
+        self,
+        engine=None,
+        cache_alias: str = "default",
+        key_prefix: str = None,
+        **kwargs,
+    ):
         super().__init__(engine, **kwargs)
         self.cache_alias = cache_alias
         self.key_prefix = key_prefix
@@ -188,6 +200,8 @@ class CacheSession(SchemaSession):
     def init(self, field):
         # check cache exists
         if not CacheConnections.get(self.cache_alias):
-            raise ValueError(f'{self.__class__.__name__}: cache_alias ({repr(self.cache_alias)}) '
-                             f'not defined in {CacheConnections}')
+            raise ValueError(
+                f"{self.__class__.__name__}: cache_alias ({repr(self.cache_alias)}) "
+                f"not defined in {CacheConnections}"
+            )
         return super().init(field)

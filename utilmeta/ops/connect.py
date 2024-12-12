@@ -265,7 +265,7 @@ def connect_supervisor(
     if not supervisor_obj.local:
         resources.sync_resources(supervisor_obj)
 
-    print("supervisor connected successfully!")
+    print("UtilMeta supervisor connected successfully!")
     if url:
         print(f"please visit {url} to view and manage your APIs")
 

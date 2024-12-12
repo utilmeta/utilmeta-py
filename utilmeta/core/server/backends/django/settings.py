@@ -592,7 +592,7 @@ class DjangoSettings(Config):
                     service,
                     "default",
                     database=Database(
-                        name=os.path.join(service.project_dir, "__default_db"),
+                        name=str(os.path.join(service.project_dir, "__default_db")),
                         engine="sqlite3",
                     ),
                 )

@@ -181,13 +181,19 @@ class DjangoCommand(BaseServiceCommand):
             #     cfg: AppConfig
             #     self.mergemigrations(cfg.label)
             for key, cfg in apps.app_configs.items():
-                if not cfg.path.startswith(self.service.project_dir):
+                if not cfg.path.startswith(str(self.service.project_dir)):
                     # eg. django content types / utilmeta.ops
                     continue
                 cfg: AppConfig
                 # if cfg.label == app_name:
                 migrations_path = os.path.join(cfg.path, "migrations")
-                files = next(os.walk(migrations_path))[2]
+                try:
+                    files = next(os.walk(migrations_path))[2]
+                except (StopIteration, IndexError):
+                    # migrations does not exists
+                    continue
+                if not files:
+                    continue
                 for file in files:
                     if file.startswith(SEG):
                         continue
@@ -206,7 +212,13 @@ class DjangoCommand(BaseServiceCommand):
                 cfg: AppConfig
                 # if cfg.label == app_name:
                 migrations_path = os.path.join(cfg.path, "migrations")
-                files = next(os.walk(migrations_path))[2]
+                try:
+                    files = next(os.walk(migrations_path))[2]
+                except (StopIteration, IndexError):
+                    # migrations does not exists
+                    continue
+                if not files:
+                    continue
                 for file in files:
                     if file.startswith(SEG):
                         continue

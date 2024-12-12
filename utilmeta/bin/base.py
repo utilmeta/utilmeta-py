@@ -151,6 +151,10 @@ class BaseCommand:
         self.cwd = cwd
         if argv:
             self.arg_name, *self.args = argv
+            # like meta --ini ...
+            if self.arg_name.startswith("--"):
+                self.arg_name = ""
+                self.args = argv
         else:
             self.arg_name = ""
             self.args = []

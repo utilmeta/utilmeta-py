@@ -232,11 +232,15 @@ class MetaCommand(BaseServiceCommand):
         print(
             f"UtilMeta service {BLUE % self.service.name} running at {self.main_file}"
         )
+        if os.name == 'nt':
+            env = f'set PYTHONPATH=%PYTHONPATH%;{self.service.project_dir} &&'
+        else:
+            env = f'PYTHONPATH=$PYTHONPATH:{self.service.project_dir}'
         cmd = f"{sys.executable} {self.main_file}"
         if daemon:
             if os.name == "posix":
                 print(f"running service with nohup in background, writing log to {log}")
-                cmd = f"nohup {cmd} > {log} 2>&1 &"
+                cmd = f"{env} nohup {cmd} > {log} 2>&1 &"
             else:
                 print(YELLOW % "ignoring daemon mode since only posix system support")
         if connect:
@@ -244,7 +248,7 @@ class MetaCommand(BaseServiceCommand):
 
             try_to_connect()
 
-        run(cmd)
+        run(f'{env} {cmd}')
 
     @command
     def down(self):
@@ -293,6 +297,7 @@ class MetaCommand(BaseServiceCommand):
             print(RED % f"meta restart: load process: {pid} failed with error: {e}")
             exit(1)
         proc.kill()
+        print(f'current service [{self.service.name}](pid={pid}) stopped')
         return self.run(daemon=True, connect=connect, log=log)
 
 

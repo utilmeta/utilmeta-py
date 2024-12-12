@@ -2,7 +2,7 @@ import os
 import socket
 import re
 from datetime import datetime
-from typing import Optional, List, Union, Tuple, Dict
+from typing import Optional, List, Union, Tuple, Dict, Set
 from .. import constant
 from ipaddress import ip_address, ip_network
 
@@ -36,6 +36,7 @@ __all__ = [
     "read_from",
     "write_to",
     "get_server_ip",
+    "get_server_ips",
     "get_real_ip",
     "remove_file",
     "get_max_socket_conn",
@@ -168,25 +169,12 @@ def get_network_ip(ifname: str):
         return None
 
 
-_SERVER_IP = None
-_SERVER_PRIVATE_IP = None
-
-
-def get_server_ip(private_only: bool = False) -> Optional[str]:
-    global _SERVER_IP, _SERVER_PRIVATE_IP
-
-    if private_only:
-        if _SERVER_PRIVATE_IP is not None:
-            return _SERVER_PRIVATE_IP
-    else:
-        if _SERVER_IP is not None:
-            return _SERVER_IP
-
+def get_server_ips(max_devices: int = 3) -> Set[str]:
     ip = socket.gethostbyname(socket.gethostname())
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     ips = set()
-    for i in range(0, 3):
+    for i in range(0, max_devices):
         if_ip = get_network_ip(f"eth{i}")
         if if_ip:
             if not if_ip.startswith("127."):
@@ -203,6 +191,25 @@ def get_server_ip(private_only: bool = False) -> Optional[str]:
             s.close()
         else:
             ips.add(ip)
+
+    return ips
+
+
+_SERVER_IP = None
+_SERVER_PRIVATE_IP = None
+
+
+def get_server_ip(private_only: bool = False) -> Optional[str]:
+    global _SERVER_IP, _SERVER_PRIVATE_IP
+
+    if private_only:
+        if _SERVER_PRIVATE_IP is not None:
+            return _SERVER_PRIVATE_IP
+    else:
+        if _SERVER_IP is not None:
+            return _SERVER_IP
+
+    ips = get_server_ips()
 
     for ip in ips:
         try:

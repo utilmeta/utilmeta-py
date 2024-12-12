@@ -69,7 +69,7 @@ class UtilMeta:
         # 2. os.path.dirname(self.module.__file__)
         # 3. sys.path[0] / os.getcwd()
         self.meta_path = None
-        self.project_dir = Path(os.getcwd())
+        self.project_dir = Path(os.getenv("UTILMETA_PROJECT_DIR") or os.getcwd())
         self.meta_config = {}
         self.root_url = str(route or "").strip("/")
 
@@ -189,7 +189,11 @@ class UtilMeta:
             )
 
     def load_meta(self):
-        self.meta_path = search_file("utilmeta.ini") or search_file("meta.ini")
+        self.meta_path = search_file(
+            "utilmeta.ini", path=self.project_dir
+        ) or search_file(
+            "meta.ini", path=self.project_dir
+        )
 
         if self.meta_path:
             self.project_dir = Path(os.path.dirname(self.meta_path))
@@ -647,7 +651,7 @@ class UtilMeta:
     def origin(self):
         if self._origin:
             return self._origin
-        return self.get_origin(no_localhost=self.production)
+        return self.get_origin()
 
     # def get_base_url(self, no_localhost: bool = False):
     #     origin = self.get_origin(no_localhost=no_localhost)

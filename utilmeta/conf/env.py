@@ -54,11 +54,21 @@ class Env(Schema):
                 data[key[len(self._sys_env_prefix) :]] = value
         return data
 
+    @classmethod
+    def _get_base_dir(cls):
+        try:
+            from utilmeta import service
+            if service.project_dir:
+                return service.project_dir
+        except ImportError:
+            pass
+        return os.getenv("UTILMETA_PROJECT_DIR") or os.getcwd()
+
     def _load_from_file(self) -> Mapping:
         if not self._file:
             return {}
         if not os.path.exists(self._file):
-            rel_file = os.path.join(os.getcwd(), self._file)
+            rel_file = os.path.join(self._get_base_dir(), self._file)
             if not os.path.exists(rel_file):
                 raise FileNotFoundError(
                     f"{self.__class__}: file: {repr(self._file)} not exists"

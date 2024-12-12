@@ -144,20 +144,35 @@ class OperationsCommand(BaseServiceCommand):
                 exit(0)
 
         if not self.config.is_local:
-            if not self.config.proxy and self.config.proxy_required:
-                print(
-                    YELLOW
-                    % f"meta connect: it seems that you are using a private base_url: {self.config.base_url} "
-                    f"without setting "
-                    "a proxy in Operations, this service will be unable to access in the platform"
-                )
-            if not self.config.is_secure:
-                print(
-                    YELLOW
-                    % f"meta connect: you are trying to connect an insecure node:"
-                    f" {self.config.ops_api} (with HTTP protocol), "
-                    "we strongly recommend using HTTPS protocol instead"
-                )
+            if not self.config.proxy:
+                if self.config.proxy_required:
+                    print(
+                        YELLOW
+                        % f"meta connect: it seems that you are using a private base_url: {self.config.base_url} "
+                        f"without setting "
+                        "a proxy in Operations, this service will be unable to access in the platform"
+                    )
+
+                if not self.config.is_secure:
+                    print(
+                        YELLOW
+                        % f"meta connect: you are trying to connect an insecure node:"
+                        f" {self.config.ops_api} (with HTTP protocol), "
+                        "we strongly recommend using HTTPS protocol instead"
+                    )
+
+        if self.config.proxy:
+            print(f'Connect to supervisor using proxy: {self.config.proxy.base_url}')
+            manager = self.config.resources_manager_cls(service=self.service)
+            node_id = manager.init_service_resources(force=force)
+            if node_id:
+                from .models import Supervisor
+                supervisor: Supervisor = Supervisor.filter(node_id=node_id).first()
+                if supervisor:
+                    print(f'UtilMeta supervisor[{node_id}] connected')
+                    if supervisor.url:
+                        print(f"please visit {supervisor.url} to view and manage your APIs")
+            return
 
         if not key:
             webbrowser.open_new_tab(__website__)
@@ -175,7 +190,6 @@ class OperationsCommand(BaseServiceCommand):
             exit(1)
 
         from .connect import connect_supervisor
-
         connect_supervisor(key=key, base_url=to, service_id=service)
 
     @command

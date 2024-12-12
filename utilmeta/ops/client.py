@@ -5,7 +5,7 @@ from utilmeta.core import response, api
 from utilmeta.core import request
 from utype.types import *
 
-from .key import encrypt_data
+from .key import encrypt_data, decode_key
 from .schema import (
     NodeMetadata,
     SupervisorBasic,
@@ -214,14 +214,15 @@ class SupervisorClient(Client):
 
         headers = {}
         if access_key:
+            access_key = decode_key(access_key)
             # only required in ADD_NODE operation
             headers.update(
                 {
                     "X-Access-Key": access_key,
                 }
             )
-
         if cluster_key:
+            cluster_key = decode_key(cluster_key)
             headers.update({"X-Cluster-Key": cluster_key})
         if cluster_id:
             headers.update({"X-Cluster-Id": cluster_id})
@@ -246,6 +247,7 @@ class SupervisorClient(Client):
                 self._base_url = supervisor.base_url
 
         if node_key:
+            node_key = decode_key(node_key)
             headers.update({"X-Node-Key": node_key})
         if service_id:
             headers.update({"X-Service-ID": service_id})

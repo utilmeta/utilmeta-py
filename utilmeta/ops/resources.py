@@ -511,6 +511,13 @@ class ResourcesManager:
                         f"you can visit {resp.result.url} to view the updated resources"
                     )
 
+    def get_instance(self):
+        from .log import setup_locals
+        from .models import Resource
+        setup_locals(self.ops_config)
+        from .log import _instance
+        return _instance or Resource.get_current_instance()
+
     def init_service_resources(
         self,
         supervisor: Supervisor = None,
@@ -518,9 +525,11 @@ class ResourcesManager:
         force: bool = False,
     ):
         if self.ops_config.proxy:
-            self.register_service(supervisor=supervisor, instance=instance)
+            if not instance:
+                instance = self.get_instance()
+            return self.register_service(supervisor=supervisor, instance=instance)
         else:
-            self.sync_resources(supervisor=supervisor, force=force)
+            return self.sync_resources(supervisor=supervisor, force=force)
 
     def register_service(
         self, supervisor: Supervisor = None, instance: Resource = None
@@ -563,8 +572,8 @@ class ResourcesManager:
             if isinstance(resp, RegistryResponse):
                 if resp.result.node_id:
                     from utilmeta.bin.utils import update_meta_ini_file
-
                     update_meta_ini_file(node=resp.result.node_id)
+                    return resp.result.node_id
             else:
                 warnings.warn(
                     f"register service: [{self.service.name}] to proxy: "

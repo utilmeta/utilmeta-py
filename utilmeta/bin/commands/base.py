@@ -16,16 +16,17 @@ class BaseServiceCommand(BaseCommand):
         self.exe = exe  # absolute path of meta command tool
         self.sys_args = list(args)
         if exe:
-            os.environ.setdefault("META_ABSOLUTE_PATH", exe)
+            os.environ.setdefault("UTILMETA_EXECUTABLE_PATH", exe)
 
         if not os.path.isabs(cwd):
             cwd = path_join(os.getcwd(), cwd)
 
         self.cwd = cwd.replace("\\", "/")
-        self.ini_path = search_file("utilmeta.ini", path=cwd) or search_file(
-            META_INI, path=cwd
-        )
+        self.ini_path = self.get_ini_file(*args)
+
         self.base_path = os.path.dirname(self.ini_path) if self.ini_path else self.cwd
+        os.environ.setdefault("UTILMETA_PROJECT_DIR", self.base_path)
+
         self.service_config = {}
         self._service = None
         self._application = None
@@ -37,6 +38,41 @@ class BaseServiceCommand(BaseCommand):
             sys.path.insert(0, self.base_path)
 
         super().__init__(*self.sys_args, cwd=self.cwd)
+
+    def get_ini_file(self, *args: str):
+        project_dir = str(os.getenv("UTILMETA_PROJECT_DIR") or self.cwd)
+        file = search_file("utilmeta.ini", path=project_dir) or search_file(
+            META_INI, path=project_dir
+        )
+        if file:
+            # if inside a project, use the found ini file
+            return file
+        # check
+        ini_file = None
+        exclude_params = []
+        for i, arg in enumerate(args):
+            if arg.startswith('--ini'):
+                if '=' in arg:
+                    ini_file = arg.split('=')[1]
+                    exclude_params.append(i)
+                else:
+                    try:
+                        ini_file = args[i + 1]
+                        exclude_params.extend([i, i + 1])
+                    except IndexError:
+                        ini_file = None
+                break
+        if exclude_params:
+            sys.argv = [self.exe] + [arg for i, arg in enumerate(sys.argv[1:]) if i not in exclude_params]
+            self.sys_args = [arg for i, arg in enumerate(args) if i not in exclude_params]
+        if ini_file:
+            path = path_join(self.cwd, ini_file)
+            if os.path.isdir(path):
+                return search_file("utilmeta.ini", path=path) or search_file(
+                    META_INI, path=path
+                )
+            return path
+        return None
 
     def command_not_found(self):
         print(RED % f'{self.script_name or "meta"}: command not found: {self.arg_name}')

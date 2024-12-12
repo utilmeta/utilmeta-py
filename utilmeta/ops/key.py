@@ -14,13 +14,18 @@ def generate_key_pair(identifier: str):
     return public_key, private_key
 
 
+def decode_key(key: str):
+    if not key.startswith("{") or not key.endswith("}"):
+        # BASE64
+        key = base64.decodebytes(key.encode()).decode()
+    return key
+
+
 def encrypt_data(payload, public_key: Union[str, dict]) -> str:
     if not isinstance(public_key, dict):
         if isinstance(public_key, str):
-            if not public_key.startswith("{") or not public_key.endswith("}"):
-                # BASE64
-                public_key = base64.decodebytes(public_key.encode()).decode()
-
+            # BASE64
+            public_key = decode_key(public_key)
         public_key = json_decode(public_key)
     pubkey_obj = jwk.JWK(**public_key)
     protected_header = {

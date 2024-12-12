@@ -589,6 +589,8 @@ class Operations(Config):
 
     @property
     def ops_api(self):
+        if self.proxy:
+            return self.proxy_ops_api
         parsed = urlsplit(self.route)
         if parsed.scheme:
             # is url

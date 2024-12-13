@@ -205,14 +205,6 @@ class Operations(Config):
         self.local_scope = list(local_scope or [])
         self.report_disabled = report_disabled
 
-        if base_url:
-            parsed = urlsplit(base_url)
-            if not parsed.scheme:
-                raise ValueError(
-                    f"Operations base_url should be an absolute url, got {base_url}"
-                )
-        self._base_url = self.parse_base_url(base_url)
-
         if self.HOST not in self.trusted_hosts:
             self.trusted_hosts.append(self.HOST)
         if not isinstance(monitor, self.Monitor):
@@ -239,12 +231,22 @@ class Operations(Config):
             )
         self.proxy = proxy
 
-    @classmethod
-    def parse_base_url(cls, url: str):
+        if base_url:
+            parsed = urlsplit(base_url)
+            if not parsed.scheme:
+                raise ValueError(
+                    f"Operations base_url should be an absolute url, got {base_url}"
+                )
+        self._base_url = self.parse_base_url(base_url)
+
+    def parse_base_url(self, url: str):
         if not url:
             return url
         if "$IP" in url:
-            url = url.replace("$IP", get_server_ip())
+            ip = get_server_ip(private_only=bool(self.proxy))
+            if self.proxy:
+                ip = ip or get_server_ip() or '127.0.0.1'
+            url = url.replace("$IP", ip)
         return url
 
     def load_openapi(self, no_store: bool = False):
@@ -688,9 +690,13 @@ class Operations(Config):
         except ImportError:
             return None
         origin = self.proxy_origin
-        if not service.adaptor.backend_views_empty:
-            return origin
-        return url_join(origin, service.root_url)
+        route = service.root_url
+        if self._base_url:
+            parsed = urlsplit(self._base_url)
+            if parsed.scheme:
+                # is url
+                route = parsed.path
+        return url_join(origin, route)
 
     # def check_host(self):
     #     parsed = urlsplit(self.ops_api)

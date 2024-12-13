@@ -9,6 +9,8 @@ class ResponseAdaptor(BaseAdaptor):
     json_decoder_cls = json.JSONDecoder
 
     def __init__(self, response):
+        if not self.qualify(response):
+            raise TypeError(f'Invalid response: {response}')
         self.response = response
         # self.request = request
         self._context = {}

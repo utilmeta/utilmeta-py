@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
     from utilmeta.core.api import API
-from utilmeta.utils import BaseAdaptor, exceptions, import_obj
+from utilmeta.utils import BaseAdaptor, exceptions, import_obj, Error
 import re
 import inspect
 from utilmeta.core.request import Request
@@ -23,6 +23,9 @@ class ServiceMiddleware:
 
     def process_response(self, response: Response):
         pass
+
+    # def handle_error(self, error: Error):
+    #     pass
 
 
 class ServerAdaptor(BaseAdaptor):

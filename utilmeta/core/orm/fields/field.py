@@ -47,6 +47,13 @@ class ParserQueryField(ParserField):
     def reconstruct(self, model: "ModelAdaptor"):
         return self.__class__(model, **self._kwargs)
 
+    def check_schema_cls(self, schema_cls):
+        if isinstance(schema_cls, type):
+            if self.model.qualify(schema_cls):
+                raise TypeError(f'You are using a model class: {schema_cls} to used as schema query class, '
+                                f'which is invalid, you should make a schema class using '
+                                f'orm.Schema[{schema_cls.__name__}]')
+
     def get_query_schema(self):
         parser = None
         schema = None
@@ -69,6 +76,8 @@ class ParserQueryField(ParserField):
                         parser = cls_parser
                         schema = arg
                         break
+                    else:
+                        self.check_schema_cls(arg)
             else:
                 if (
                     self.type.__origin__
@@ -83,6 +92,8 @@ class ParserQueryField(ParserField):
                     if cls_parser:
                         parser = cls_parser
                         schema = arg
+                    else:
+                        self.check_schema_cls(arg)
 
         else:
             self.related_single = True
@@ -93,7 +104,8 @@ class ParserQueryField(ParserField):
                     parser = cls_parser
                     schema = origin
                     break
-
+                else:
+                    self.check_schema_cls(origin)
         if parser:
             if isinstance(parser, SchemaClassParser):
                 if parser.model:

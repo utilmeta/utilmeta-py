@@ -493,6 +493,12 @@ class LogMiddleware(ServiceMiddleware):
         if len(_responses_queue) >= self.config.max_backlog:
             threading.Thread(target=batch_save_logs, kwargs=dict(close=True)).start()
 
+    # def handle_error(self, error: Error, response=None):
+    #     logger: Logger = _logger.get(None)
+    #     if not logger:
+    #         raise error.throw()
+    #     logger.commit_error(error)
+
 
 class Logger(Property):
     __context__ = ContextProperty(_logger)

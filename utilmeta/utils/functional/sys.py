@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from typing import Optional, List, Union, Tuple, Dict, Set
 from .. import constant
+from .data import distinct_add
 from ipaddress import ip_address, ip_network
 
 posix_os = os.name == "posix"
@@ -169,16 +170,16 @@ def get_network_ip(ifname: str):
         return None
 
 
-def get_server_ips(max_devices: int = 3) -> Set[str]:
+def get_server_ips(max_devices: int = 3) -> List[str]:
     ip = socket.gethostbyname(socket.gethostname())
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    ips = set()
+    ips = []
     for i in range(0, max_devices):
         if_ip = get_network_ip(f"eth{i}")
         if if_ip:
             if not if_ip.startswith("127."):
-                ips.add(if_ip)
+                distinct_add(ips, if_ip)
         else:
             break
 
@@ -187,10 +188,10 @@ def get_server_ips(max_devices: int = 3) -> Set[str]:
             s.connect(("8.8.8.8", 53))
             ip = str(s.getsockname()[0])
             if ip:
-                ips.add(ip)
+                distinct_add(ips, ip)
             s.close()
         else:
-            ips.add(ip)
+            distinct_add(ips, ip)
 
     return ips
 
@@ -226,7 +227,7 @@ def get_server_ip(private_only: bool = False) -> Optional[str]:
         except ValueError:
             continue
 
-    _SERVER_IP = ips.pop() if ips else constant.LOCAL_IP
+    _SERVER_IP = ips[0] if ips else constant.LOCAL_IP
     if private_only:
         _SERVER_PRIVATE_IP = constant.LOCAL_IP
         return _SERVER_PRIVATE_IP

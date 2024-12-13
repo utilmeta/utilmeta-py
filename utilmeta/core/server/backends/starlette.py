@@ -4,6 +4,7 @@ import starlette
 from starlette.requests import Request as StarletteRequest
 from starlette.applications import Starlette
 from starlette.concurrency import iterate_in_threadpool
+from starlette.responses import Response as StarletteResponse
 from starlette.middleware.base import _StreamingResponse
 from .base import ServerAdaptor
 from utilmeta.core.response import Response
@@ -11,10 +12,9 @@ from utilmeta.core.request.backends.starlette import StarletteRequestAdaptor
 from utilmeta.core.response.backends.starlette import StarletteResponseAdaptor
 from utilmeta.core.api import API
 from utilmeta.core.request import Request
-from utilmeta.utils import HAS_BODY_METHODS, RequestType, exceptions
+from utilmeta.utils import HAS_BODY_METHODS, RequestType, exceptions, pop, Error
 import contextvars
 from typing import Optional
-from urllib.parse import urlparse
 
 _current_request = contextvars.ContextVar("_starlette.request")
 # _current_response = contextvars.ContextVar('_starlette.response')
@@ -100,6 +100,7 @@ class StarletteServerAdaptor(ServerAdaptor):
             self.app.add_middleware(
                 BaseHTTPMiddleware, dispatch=self.get_middleware_func()  # noqa
             )
+            # self.app.add_exception_handler(Exception, handler=self.get_exception_handler)
 
     @classmethod
     async def get_response_body(cls, starlette_response: _StreamingResponse) -> bytes:
@@ -107,10 +108,63 @@ class StarletteServerAdaptor(ServerAdaptor):
         starlette_response.body_iterator = iterate_in_threadpool(iter(response_body))
         return b"".join(response_body)
 
+    # async def get_exception_handler(self, req, exc):
+    #     # async def http_error_handler(_: Request, exc) -> JSONResponse:
+    #     #     return JSONResponse({"errors": [exc.detail]}, status_code=exc.status_code)
+    #     handlers = dict(self.app.exception_handlers or {})
+    #     pop(handlers, Exception)
+    #     request = _current_request.get(None) or Request(self.request_adaptor_cls(req))
+    #     error = Error(exc, request=request)
+    #     for middleware in self.middlewares:
+    #         middleware.handle_error(error)
+    #     err_handler = None
+    #     for cls in type(exc).__mro__:
+    #         if cls in handlers:
+    #             err_handler = handlers[cls]
+    #             break
+    #     if not err_handler:
+    #         raise exc from exc
+    #     from starlette.concurrency import run_in_threadpool
+    #     try:
+    #         if inspect.iscoroutinefunction(err_handler):
+    #             resp = await err_handler(req, exc)
+    #         else:
+    #             resp = await run_in_threadpool(err_handler, req, exc)
+    #     except Exception as handler_exc:
+    #         handler_error = Error(handler_exc, request=request)
+    #         for middleware in self.middlewares:
+    #             middleware.handle_error(handler_error)
+    #             middleware.process_response(Response(error=handler_error))
+    #             # there is probably not response
+    #         raise
+    #
+    #     adaptor = self.response_adaptor_cls(resp)
+    #     if (
+    #         adaptor.content_length or 0
+    #     ) <= self.RECORD_RESPONSE_BODY_LENGTH_LTE:
+    #         body = await self.get_response_body(resp)
+    #         resp.body = body
+    #         # set body
+    #     response = Response(response=adaptor, request=request)
+    #     response_updated = False
+    #     for middleware in self.middlewares:
+    #         _response = middleware.process_response(response)
+    #         if inspect.isawaitable(_response):
+    #             _response = await _response
+    #         if isinstance(_response, Response):
+    #             response = _response
+    #             response_updated = True
+    #
+    #     if not resp or response_updated:
+    #         resp = self.response_adaptor_cls.reconstruct(response)
+    #
+    #     return resp
+
     def get_middleware_func(self):
         async def utilmeta_middleware(starlette_request: StarletteRequest, call_next):
             response = None
             starlette_response = None
+            exc = None
 
             request = Request(self.request_adaptor_cls(starlette_request))
             for middleware in self.middlewares:
@@ -135,11 +189,38 @@ class StarletteServerAdaptor(ServerAdaptor):
                         # and you cannot read it after response is generated
 
                 _current_request.set(request)
-                starlette_response: Optional[_StreamingResponse] = await call_next(
-                    starlette_request
-                )
+                try:
+                    starlette_response: Optional[_StreamingResponse] = await call_next(
+                        starlette_request
+                    )
+                except Exception as e:
+                    handlers = dict(self.app.exception_handlers or {})      # noqa
+                    err_handler = None
+                    for cls in type(e).__mro__:
+                        if cls in handlers:
+                            err_handler = handlers[cls]
+                            break
+                    error = Error(e, request=request)
+                    if err_handler:
+                        from starlette.concurrency import run_in_threadpool
+                        if inspect.iscoroutinefunction(err_handler):
+                            starlette_response = await err_handler(starlette_request, e)
+                        else:
+                            starlette_response = await run_in_threadpool(err_handler, starlette_request, e)
+                        adaptor = self.response_adaptor_cls(starlette_response)
+                        if (
+                            adaptor.content_length or 0
+                        ) <= self.RECORD_RESPONSE_BODY_LENGTH_LTE:
+                            body = await self.get_response_body(starlette_response)
+                            starlette_response.body = body
+                        response = Response(response=adaptor, error=error)
+                    else:
+                        starlette_response = StarletteResponse(status_code=500)     # noqa: placeholder response
+                        response = Response(response=response, error=error, request=request)
+                        exc = e
+
                 _current_request.set(None)
-                response = request.adaptor.get_context("response")
+                response = response or request.adaptor.get_context("response")
                 # response = _current_response.get(None)
                 # _current_response.set(None)
 
@@ -169,6 +250,9 @@ class StarletteServerAdaptor(ServerAdaptor):
                 if isinstance(_response, Response):
                     response = _response
                     response_updated = True
+
+            if exc:
+                raise exc from exc
 
             if not starlette_response or response_updated:
                 starlette_response = self.response_adaptor_cls.reconstruct(response)

@@ -95,15 +95,18 @@ def save_supervisor(data: SupervisorData) -> Supervisor:
         raise exceptions.BadRequest("Missing init_key for supervisor to be saved")
 
 
-def update_service_supervisor(service: str, node_id: str):
-    if not service or not node_id:
+def update_service_supervisor(supervisor: Supervisor):
+    if not supervisor or not supervisor.node_id or not supervisor.service:
         return
     from utilmeta.ops import models
     from django.core.exceptions import EmptyResultSet
 
     for model in models.supervisor_related_models:
+        data = dict(node_id=supervisor.node_id)
+        if model in models.supervisor_key_models:
+            data.update(**{models.supervisor_key_models[model]: supervisor})
         try:
-            model.objects.filter(service=service, node_id=None).update(node_id=node_id)
+            model.objects.filter(service=supervisor.service, node_id=None).update(**data)
         except EmptyResultSet:
             continue
 
@@ -240,9 +243,7 @@ def connect_supervisor(
                 if not supervisor_obj.node_id:
                     raise ValueError("supervisor failed to create")
 
-            update_service_supervisor(
-                service=supervisor_obj.service, node_id=supervisor_obj.node_id
-            )
+            update_service_supervisor(supervisor_obj)
             if not supervisor_obj.local:
                 if not supervisor_obj.public_key:
                     raise ValueError("supervisor failed to create: no public key")

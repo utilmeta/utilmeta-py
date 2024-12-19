@@ -1,10 +1,10 @@
 # 运维监控与服务管理
 
-UtilMeta 框架内置了一个 API 服务管理系统，可以方便地观测与管理对本地与线上的 API 服务，提供了数据，接口，日志，监控，测试，报警等一系列运维管理功能，本篇文档将详细介绍 UtilMeta 的 Operations 运维管理系统的配置与连接方式
+UtilMeta 框架内置了一个 API 服务管理系统，可以方便地观测与管理对本地与线上的 API 服务，提供了数据，接口，日志，监控，测试，报警等一系列运维管理功能，本篇文档将详细介绍 UtilMeta 的 Operations 运维管理系统的配置与 UtilMeta 平台的连接方式
 
 ## 配置引入
 
-API 服务管理系统使用的配置是 `utilmeta.ops.Operations`，将它导入并使用 `service.use` 配置到服务中，如
+UtilMeta 的 API 服务管理系统使用的配置是 `utilmeta.ops.Operations`，将它导入并使用 `service.use` 配置到服务中，如
 ```python hl_lines="20"
 from utilmeta import UtilMeta
 from utilmeta.core import api
@@ -61,7 +61,7 @@ Operations 配置项的主要参数包括
 	很多情况下你的 API 服务在部署时只是监听本地或内网的地址，由前端的负载均衡对外提供访问，此时自动生成的基准 URL 是你的内网或本地地址，比如 `http://127.0.0.1:8000/api` ，这样的地址无法从其他地方进行访问或调用，所以你需要使用 `base_url` 设置服务的真实地址，比如 `https://mysite.com/api` ，这个地址能够直接在互联网上访问到的，这样生成的 OperationsAPI 地址和生成的 OpenAPI 文档的接口地址就是可以被访问到的了
 
 !!! warning
-	当你指定的 `base_url` 中包含路径时，比如  `http://mysite.com/api` ，那么如果接口的路径定义为 `/api/user`，则生成的 API 文档中的路径将会是 `/path`，但如果接口定义的路径不以 `base_url` 中的路径开头，如定义为 `/settings` ，那么这个接口将不会被 API 文档自动生成并同步
+	当你指定的 `base_url` 中包含路径时，比如  `http://mysite.com/api` ，那么如果接口的路径定义为 `/api/user`，则生成的 API 文档中的路径将会是 `/user`，但如果接口定义的路径不以 `base_url` 中的路径开头，如定义为 `/settings` ，那么这个接口将不会被 API 文档自动生成并同步
 
 !!! warning
 	如果你指定的是 `0.0.0.0` 作为服务的 `host`，请在 `base_url` 中指定有效的可访问的地址，否则无法对服务进行管理
@@ -70,7 +70,7 @@ Operations 配置项的主要参数包括
 
 * `worker_cycle`：Operations 系统在服务启动后会在每个进程（worker）中启动一个运维任务线程，用于收集并存储请求日志，监控服务数据和报警等，你可以使用 `worker_cycle` 参数指定这些任务每次运行的间隔时间（`int` 描述或 `timedelata`），默认为 30 秒，也就是说默认服务每个进程的请求日志会每 30 秒持久化一次，服务器，数据库和服务实例的监控与报警会每 30 秒进行一次
 
-* `max_backlog`：设置请求日志的最大积压量，除了运维任务的每个 `worker_cycle` 会持久化日志外，当你的进程中积压的未存储日志超过了 `max_backlog` 的值也会触发日志存储，默认未 100 
+* `max_backlog`：设置请求日志的最大积压量，除了运维任务的每个 `worker_cycle` 会持久化日志外，当你的进程中积压的未存储日志超过了 `max_backlog` 的值也会触发日志存储，默认是 100 
 * `secret_names`：运维管理系统的日志模块会在请求出错（抛出异常，返回 400 及以上状态码）时存储请求和响应的信息用于调试，为了数据安全，你可以指定一系列可能包含密钥或敏感数据的字段名，在日志进行存储时，检测到字段名包含其中任何一个的请求参数，请求体，请求头，响应体和响应头字段都会使用 `'******'` 来代替，默认的 `secret_names` 为
 ```python
 DEFAULT_SECRET_NAMES = (
@@ -124,25 +124,25 @@ service.use(Operations(
     log=Operations.Log(
 	    default_volatile=False,
 	    exclude_methods=['head'],
-	    exclude_status=[301, 302, 404]
+	    exclude_statuses=[301, 302, 404]
     )
 ))
 ```
 
 Log 的配置参数包括
 
-* `default_volatile`：默认是否标记为 `volatile` (不长期保存的日志)
+* `default_volatile`：默认是否标记为 `volatile` (不长期保存的日志，聚合后就清理)
 * `volatile_maintain`：标记为 `volatile` 的日志的保存时间，传入一个 `timedelta`，默认为 7 天
 
 !!! tip
-	为了避免系统中存储过多的冗余日志，一般请求正常无错误的日志在经过聚合处理（计算出请求数，UV 和各接口请求数等）过的一段时间后就可以删除了，日志在存储时会根据配置计算是否为 `volatile`，标记为 `volatile` 的日志将在 `volatile_maintain` 时间后被清理
+	为了避免系统中存储过多的冗余日志，一般请求正常无错误的日志在经过聚合处理（计算出请求数，UV 和各接口请求数等）过的一段时间后就可以删除了，日志在存储时会根据配置计算是否为 `volatile`，标记为 `volatile=True` 的日志将在 `volatile_maintain` 时间后被清理
 
 **日志存储规则**
 
-* `persist_level`：请求日志达到什么样的级别以上将会持久化存储，默认为 WARN
+* `persist_level`：请求日志达到什么样的级别以上将会持久化存储（`volatile=False`），默认为 WARN
 
 !!! tip
-	UtilMeta 的日志分为 DEBUG, INFO, WARN, ERROR 几个级别，对应着 0，1，2，3，日志如果无报错且状态码在 399 以下则默认归为 INFO 日志，4XX 响应的日志默认归为 WARN 级别，5XX 响应默认归为 ERROR 级别
+	UtilMeta 的日志分为 DEBUG, INFO, WARN, ERROR 几个级别，对应着 0，1，2，3，日志如果无报错且状态码在 399 以下则默认归为 INFO 日志，4XX 响应的日志默认归为 WARN 级别，5XX 响应默认归为 ERROR 级别，你可以使用如 `Operations.Log.INFO` 来引用对应的日志等级
 
 * `persist_duration_limit`：请求生成响应的时间超过多长会持久化存储，传入一个秒数，默认为 5 秒
 * `store_data_level`：请求日志达到什么样的级别以上将会存储请求体数据
@@ -150,21 +150,21 @@ Log 的配置参数包括
 * `store_headers_level`：请求日志达到什么样的级别以上将会存储请求与响应头数据
 
 !!! tip
-	以上三个级别的默认行为是，如果服务是 `production=True`，将会为 WARN，即生产服务只会存储 WARN 级别以上日志的数据，测试服务会存储所有的请求与响应数据 
+	如果服务是生产环境（ `production=True`），以上三个参数将默认为 WARN，即生产服务默认只会存储 WARN 级别日志的请求响应数据（请求体，响应体，请求头与响应头），调试环境的服务则默认会存储所有的请求与响应数据 
 
 * `exclude_methods`：排除一些 HTTP 方法，在无出错情况下不存储日志，默认为 `OPTIONS`, `HEAD`, `TRACE`, `CONNECT`
-* `exclude_status`：可以排除一些响应码，在无出错情况下不存储日志，默认为空
+* `exclude_statuses`：可以排除一些响应码，在无出错情况下不存储日志，默认为空
 * `exclude_request_headers`：可以排除一些请求头，若请求头中包含其中的值，则在无出错情况下不存储日志，默认为空
 * `exclude_response_headers`：可以排除一些响应头，若响应头中包含其中的值，则在无出错情况下不存储日志，默认为空
 
 **日志展示规则**
 
-* `hide_ip_address`：为了数据安全或隐私保护，你可以选择开启这个选项，在 UtilMeta 平台将不会看到日志的 IP 信息
-* `hide_user_id`：为了数据安全或隐私保护，你可以选择开启这个选项，在 UtilMeta 平台将不会看到日志的 用户 ID 信息
+* `hide_ip_address`：为了数据安全或隐私保护，你可以选择开启这个选项，管理员在 UtilMeta 平台将不会看到日志的 IP 信息
+* `hide_user_id`：为了数据安全或隐私保护，你可以选择开启这个选项，管理员在 UtilMeta 平台将不会看到日志的 用户 ID 信息
 
 ### Monitor 监控配置
 
-运维管理系统的日志模块会定期（以 Operations 配置的 `worker_cycle` 为周期）对服务器，服务实例，服务进程，数据库和缓存等服务依赖的资源进行监控，并将数据存储到 Operations 配置的数据库中
+运维管理系统的监控模块会定期（以 Operations 配置的 `worker_cycle` 为周期）对服务器，服务实例，服务进程，数据库和缓存等服务依赖的资源进行监控，并将数据存储到 Operations 配置的数据库中
 
 Operations 配置中的 `monitor` 参数可以传入监控模块的配置组件，如
 
@@ -195,17 +195,18 @@ Monitor 的配置参数包括
 !!! tip "服务实例 | 服务进程"
 	在 UtilMeta 中，**服务实例（Instance）** 指的是一个运行中的可以处理 API 请求的进程组（后续也会支持容器实例），服务实例中可以包括一个或多个**服务进程（Worker）**（取决于你部署配置的 `workers` 数量），服务实例和服务进程会定期记录和监控它们处理的请求数，平均响应时间，传递的数据量，CPU 与内存的消耗等
 
-* `server_retention`：服务器 Server 监控的保存时间，传入 `timedelta`，默认为 7 天
-* `instance_retention`：服务实例 Instance 监控的保存时间，传入 `timedelta`，默认为 7 天
-* `worker_retention`：服务进程 Worker 监控的保存时间，传入 `timedelta`，默认为 24 小时
-* `database_retention`：数据库 Database 监控的保存时间，传入 `timedelta`，默认为 7 天
-* `cache_retention`：缓存 Cache 监控的保存时间，传入 `timedelta`，默认为 7 天
+* `server_retention`：服务器 Server 监控数据的保存时间，传入 `timedelta`，默认为 7 天
+* `instance_retention`：服务实例 Instance 监控数据的保存时间，传入 `timedelta`，默认为 7 天
+* `worker_retention`：服务进程 Worker 监控数据的保存时间，传入 `timedelta`，默认为 24 小时
+* `database_retention`：数据库 Database 监控数据的保存时间，传入 `timedelta`，默认为 7 天
+* `cache_retention`：缓存 Cache 监控数据的保存时间，传入 `timedelta`，默认为 7 天
 
-超期的监控数据会被清理
+!!! tip
+	保存超过对应时间的监控数据会被清理
 
 ### OpenAPI 配置
 
-对于 UtilMeta 框架编写的接口和支持适配的框架接口，UtilMeta 运维管理系统可以自动识别并生成 OpenAPI 文档同步到 UtilMeta 平台，但如果你接入的框架不支持自动生成接口文档，或者需要额外注入接口文档，可以使用 Operations 配置的 `openapi` 参数指定额外的 OpenAPI 文档，可以是以下的格式
+对于 UtilMeta 框架编写的接口和支持适配的框架接口（如 DRF, FastAPI, Sanic, APIFlask），UtilMeta 运维管理系统可以自动识别并生成 OpenAPI 文档同步到 UtilMeta 平台，但如果你使用的框架不支持自动生成接口文档，或者需要额外注入接口文档，可以使用 Operations 配置的 `openapi` 参数指定额外的 OpenAPI 文档，可以是以下的格式
 
 * 一个 URL，指向能访问和下载的 OpenAPI 文档
 * 一个 本地 OpenAPI 文档文件地址
@@ -213,7 +214,35 @@ Monitor 的配置参数包括
 * 一个 OpenAPI 的字典
 * 一个列表，用于整合多份 API 文档，其中的元素可以是上述任何一种
 
+例如
+
+```python hl_lines="10"
+from utilmeta.ops import Operations
+from datetime import timedelta
+
+service.use(Operations(
+    route='ops',
+    database=Operations.Database(
+        name='operations_db',
+        engine='sqlite3'
+    ),
+    openapi='/path/to/openapi.json',
+    # openapi='https://mysite.com/openapi.json',
+    # openapi={...},
+))
+```
+
 额外指定的 OpenAPI 文档会与自动生成的接口文档进行整合后同步到 UtilMeta 平台
+
+### Proxy 集群代理配置
+
+除了在公网部署和提供访问的 API 服务外，我们有时也需要管理内网集群中的 API 服务，比如公司内网的内部服务，这些服务没有公开的 IP 地址或访问 URL，管理这些内网服务需要设置内网集群中的公网代理，部署一个代理服务节点进行内网穿透与服务注册
+
+UtilMeta 已经提供了一个开源的代理服务 utilmeta-proxy：
+开源仓库：[https://github.com/utilmeta/utilmeta-proxy](https://github.com/utilmeta/utilmeta-proxy)
+
+在 Operations 配置中，可以使用 `proxy` 参数配置代理服务节点的地址与设置
+
 
 ## 连接到 UtilMeta 管理平台
 

@@ -1,10 +1,10 @@
 # Connect API & Operations
 
-UtilMeta framework has a built-in API service management system, which can easily observe and manage local and online API services, and provide a series of operation and maintenance management functions such as data, interface, log, monitoring, testing, alarm, etc. This document will introduce the configuration and connection mode of UtilMeta Operations operation and maintenance management system in detail.
+UtilMeta framework has a built-in API service management system, which can easily observe and manage local and online API services, and provide a series of features including Data CRUD, API management, Logs query, Monitoring, Testing, Alerts & Incidents, etc. This document will introduce the configuration of UtilMeta Operations system and how to connect to UtilMeta platform in detail.
 
 ## Configuration
 
-The configuration used by the API service management system is `utilmeta.ops.Operations` to import it and use `service.use` it in the service, as shown in
+UtilMeta's API service management system is using the configuration at `utilmeta.ops.Operations`, you can just import and use `service.use`  to configure to the service, as shown in
 ```python hl_lines="20"
 from utilmeta import UtilMeta
 from utilmeta.core import api
@@ -40,21 +40,36 @@ if __name__ == '__main__':
 ```
 
 !!! note
+	Using Operations config requires UtilMeta version >= 2.6.1
 
-The main parameters of the Operations configuration item include
+The main parameters of the Operations configuration include
 
-*  `route`: Required. Specify the route for mounting the standard interface OperationsAPI of the management system. This route is relative to the root API of your service. For example, your root API is `http://mysite.com/api` mounted to. Setting `route=’ops‘` will mount the Operations API to the
+* `route`: **Required**. Specify the route for mounting the OperationsAPI of the management system. This route is relative to the root API of your service. For example, if your root API is  mounted at `http://mysite.com/api`. Setting `route=’ops‘` will mount the Operations API to the   `http://mysite.com/api/ops`
 
-*  `database`: Required. Set the database for the management system to store logs, monitoring and other operation and maintenance data. You can specify a SQLite database as in the above example. You can also specify a `postgresql` database in the production environment.
+* `database`: **Required**. Set the database for the management system to store logs, monitoring and other operations data. You can simply specify a SQLite database as in the above example, or use a `postgresql` database in the production environment.
 
-* Specify a base API address `base_url` for your API service that can be accessed on the network. This address will be used for the generated OpenAPI documentation `server.url`. Address of Operations API after setting
- 
-**Task and monitoring configuration**
+!!! tip
+	If you are using MySQL or PostgreSQL, don't forget to set connection params like `host`, `port`, `user`, `password`
 
-*  `worker_cycle`: Operations system will start an operation and maintenance task thread in each process (worker) after the service is started, which is used to collect and store request logs, monitor service data and alarms, etc. You can use the `worker_cycle` parameter to specify the interval ( `int` description or `timedelata`) for these tasks to run each time. The default is 30 seconds, which means that the request log of each process will be persisted every 30 seconds by default. Database and service instance monitoring and alerting occurs every 30 second
+* `base_url`: Specify a base API location for your API service that can be accessed on the network. This location will be used for generating  `server.url` in OpenAPI documentation, after settings `base_url`, the location of OperationsAPI will be `base_url` + `route`
 
-*  `max_backlog`: Set the maximum backlog of the request log. In addition to each `worker_cycle` persistent log of the operation and maintenance task, when the backlog of unstored logs in your process exceeds `max_backlog` the value, it will also trigger log storage. The default is not 100.
-*  `secret_names`: The log module of the operation and maintenance management system will store the request and response information for debugging when the request goes wrong (throwing an exception and returning a status code of 400 or above). For data security, you can specify a series of field names that may contain keys or sensitive data. When the log is stored, The request parameter, request body, request header, response body, and response header fields will be used `'******'` instead if the field name is detected to contain any of them. The default `secret_names` is
+!!! note
+	It's a comman practice that your API service is listening to the private or local address, and providing access to the Internet through a reverse proxy or gateway like Nginx. In this case, the auto-generated base URL will be your private location, like `http://127.0.0.1:8000/api`, which cannot be accessed in the network, so you need to specify the **REAL** location of your service using `base_url`, like  `https://mysite.com/api`, so that the generated API document will provide the urls that can be accessed from the Internet
+
+!!! warning
+	When your `base_url` contains path, like `http://mysite.com/api`, any API path in your service with the `/api` prefix will be generated to the document, for example: the path of `/api/user` API in the document will be `/user`, Otherwise your API will not be merged into the document, such as `/settings`
+
+!!! warning
+	If you are using `0.0.0.0` as `host`, please set a accessiable location in `base_url`, or your service will not be able to connect to the UtilMeta platform
+
+
+**Task and Monitoring**
+
+* `worker_cycle`: Operations system will start a task thread in each process (worker) after the service started, which is used to collect and store request logs, monitor service data and sending alarms, etc. You can use the `worker_cycle` parameter to specify the interval ( `int` description or `timedelata`) for these tasks to run each time. The default is 30 seconds, which means that the request log of each process will be persisted every 30 seconds by default. Database and service instance monitoring and alerting triggers every 30 seconds
+
+* `max_backlog`: Set the maximum backlog of the request log. In addition to each `worker_cycle` persistent log of the operations task, when the backlog of unstored logs in your process exceeds `max_backlog`, it will also trigger log storage. The default is 100.
+
+* `secret_names`: The log module of the operations system will store the request and response data for debugging when the request goes wrong (throwing an exception and returning a status code of 400 or above). For data security, you can specify a series of field names that may contain keys or sensitive data. When the log is stored, The request parameter, request body, request header, response body, and response header fields will be used `'******'` instead if the field name is detected to contain any of them. The default `secret_names` is
 ```python
 DEFAULT_SECRET_NAMES = (
     'password',
@@ -70,17 +85,17 @@ DEFAULT_SECRET_NAMES = (
 )
 ```
 
-*  `max_retention_time`: Specify the maximum storage time of all time series data in the operation and maintenance system. Time series data include logs, service monitoring, alarm records and other data. The maximum storage time of all data is specified here. Data exceeding this time will be cleared. For subdivided data categories and status, more specific storage time configuration will be introduced below.
+* `max_retention_time`: Specify the maximum storage time of all time series data in the operations system. Time series data include logs, service monitoring, alarm records, version logs. Data with stored time exceeding this time will be cleared. For subdivided data categories and status, more specific storage time configuration will be introduced below.
 
 **Manage permissions configuration**
 
-*  `disabled_scope`: Disable administrative privileges. If you do not want an administrative privilege to be used by any administrator user, you can use this option to disable it. The default is blank.
-*  `local_scope`: Permission granted by the local management node. Local management refers to observing and managing local services on localhost/127.0.0.1, so the default permission is `('*',)`, that is, All. If you set this value to null or None, Indicates that all local administrative operations will not be allowed
+* `disabled_scope`: Disabled operations scope. If you do not want an operation to be used by any administrator, you can use this option to disable it. The default is blank.
+* `local_scope`: Permission granted by the local node. Local management refers to  managing local services on `localhost` / `127.0.0.1`, so the default permission is `('*',)`, that is allow all permissions. If you set this value to null or None, Indicates that all local administrative operations will not be allowed
 
-The current permission scope list of the UtilMeta server and the corresponding meanings are as follows:
+The current UtilMeta server side permission scope and the corresponding meanings are as follows:
 
-*  `api.view`: View the API documentation for the service
-*  `data.view`: View the data model and table structure (that is, the field names, types, etc. Of the table, excluding the data in the query table)
+*  `api.view`: View the API documentation of the service
+*  `data.view`: View the data model and table structure (field names, types, etc. Of the table, excluding the data in the query table)
 *  `data.query`: Query the data in the table, and support field query
 *  `data.create` Create data, that is, insert data into a table
 *  `data.update`: Update data
@@ -91,9 +106,9 @@ The current permission scope list of the UtilMeta server and the corresponding m
 
 ### Log configuration
 
-The log module of the operation and maintenance management system is responsible for recording and querying the request log. The configuration of the log module allows you to control the storage of the log more carefully.
+The Log module of the operations system is responsible for recording and querying the request logs. The configuration of the log module allows you to control the storage of the log.
 
-Parameters in the `log` Operations configuration can be passed to the configuration component of the logging module, such as
+Parameter `log` in the Operations configuration can be passed to the configure the logging module, such as
 
 ```python  hl_lines="8"
 from utilmeta.ops import Operations
@@ -106,40 +121,49 @@ service.use(Operations(
     log=Operations.Log(
 	    default_volatile=False,
 	    exclude_methods=['head'],
-	    exclude_status=[301, 302, 404]
+	    exclude_statuses=[301, 302, 404]
     )
 ))
 ```
 
 Log configuration parameters include
 
-*  `default_volatile`: Whether the default is marked as `volatile` (log not saved for a long time)
-*  `volatile_maintain`: The save time of the log marked as `volatile`. One `timedelta` is passed in. The default is 7 days.
+* `default_volatile`: Whether the default is marked as `volatile` (not saved for a long time, will be cleared after aggregation)
+* `volatile_maintain`: The storage time of the log marked as `volatile`, specify a `timedelta`. The default is 7 days.
+
+!!! tip
+	To avoid redundant logs in the storage, the regular logs (no error, no event) can be deleted after aggregation (calculate request counts), Every log will calculate `volatile` mark during storage, the logs marked as `volatile=True` will be deleted after `volatile_maintain` period of time
 
 **Log storage rules**
 
 *  `persist_level`: When the request log reaches a certain level, it will be persisted. The default is WARN.
 
-*  `persist_duration_limit`: How long the request takes to generate a response will be persisted. A number of seconds is passed in. The default is 5 seconds.
-* At what level of the `store_data_level` request log will the request body data be stored?
-* At what level of the `store_result_level` request log will the response body data be stored?
-*  `store_headers_level`: Above what level of the request log will request and response header data be stored
+!!! tip
+	UtilMeta logs is categorized into `DEBUG`, `INFO`, `WARN`, `ERROR`, corresponded to 0, 1, 2, 3, an request with no error and a response with status code under 399 will be categorized to `INFO` by default, 4XX will be `WARN` level and 5XX will be `ERROR` level
 
-*  `exclude_methods`: Exclude some HTTP methods and do not store logs if there are no errors. Default is `OPTIONS`? `HEAD`?
-*  `exclude_status`: Some response codes can be excluded. If there is no error, the log will not be stored. The default is null.
-*  `exclude_request_headers`: Some request headers can be excluded. If the request header contains one of these values, the log will not be stored if there is no error. The default is null.
-*  `exclude_response_headers`: Some response headers can be excluded. If the response header contains one of these values, the log will not be stored if there is no error. The default is null.
+* `persist_duration_limit`: Persist a log if the duration of response exceeded this threshold. A number of seconds is passed in. The default is 5 seconds.
+* `store_data_level`: Store a log's request body data if log level exceeded this level
+* `store_result_level` Store a log's response data if log level exceeded this level
+* `store_headers_level`:Store a log's request and response headers data if log level exceeded this level
+
+!!! tip
+	If service is in production mode ( `production=True`), The three above parameters will be WARN, meaning that production service will only store body and headers data at `WARN` or above level by default, a debug service will store all data by default. 
+
+* `exclude_methods`: Exclude the log storage of some HTTP methods if there are no errors. Default is `OPTIONS`,`HEAD`, `TRACE`, `CONNECT`
+* `exclude_statuses`: Exclude the log storage of some response status codes If there is no error, the default is empty.
+* `exclude_request_headers`:  If the request header contains one of these values, the log will not be stored if there is no error. The default is empty.
+* `exclude_response_headers`: If the response header contains one of these values, the log will not be stored if there is no error. The default is empty.
 
 **Log display rules**
 
-*  `hide_ip_address`: For data security or privacy protection, you can choose to turn on this option, and the IP information of the log will not be seen on the UtilMeta platform.
-*  `hide_user_id`: For data security or privacy protection, you can choose to enable this option, and the user ID information of the log will not be seen in the UtilMeta platform.
+* `hide_ip_address`: For data security or privacy protection, you can choose to turn on this option, and the IP address of the log will not be seen on the UtilMeta Platform.
+* `hide_user_id`: For data security or privacy protection, you can choose to enable this option, and the user ID information of the log will not be seen in the UtilMeta Platform.
 
 ### Monitor configuration
 
-The log module of the operation and maintenance management system will monitor the server, service instance, service process, database, cache and other resources on which the service depends regularly (based on the `worker_cycle` cycle configured by Operations), and store the data in the database configured by Operations.
+The Monitor module of the operations system will monitor the server, service instance, service process, database, cache and other resources on which the service depends (On the cycle configured by the `worker_cycle`), and store the data in the database configured by Operations.
 
-Parameters in the `monitor` Operations configuration can be passed into the configuration component of the monitoring module, such as
+Parameters `monitor` in the Operations configuration can be passed to configure the monitoring module, such as
 
 ```python  hl_lines="8"
 from utilmeta.ops import Operations
@@ -159,33 +183,55 @@ service.use(Operations(
 
 Configuration parameters for Monitor include
 
-*  `server_disabled`: Whether to disable the monitoring of server Server. The default is False.
-*  `instance_disabled`: Whether to disable the monitoring of service instance Instance. The default is False.
-*  `worker_disabled` Whether to disable monitoring of the service process Worker. The default is False.
-*  `database_disabled`: Whether to disable the monitoring of Database. The default is False.
-*  `cache_disabled`: Whether to disable the monitoring of Cache. The default is False.
+* `server_disabled`: Whether to disable the monitoring of **server.** The default is False.
+* `instance_disabled`: Whether to disable the monitoring of **service instance**. The default is False.
+* `worker_disabled` Whether to disable monitoring of the **service worker**
+* `database_disabled`: Whether to disable the monitoring of **database**. The default is False.
+* `cache_disabled`: Whether to disable the monitoring of **cache**. The default is False.
 
-!!! Tip “Service Instance | Service Process”
+!!! tip “Service Instance | Service Worker”
+	In UtilMeta, **Service Instance** is a runing process group that can handle API requests, a service instance con contains multiple **Service Worker**s, (depends on the `workers` param of deployment configuration), Service instances and service workers will record Requests, Avg response time, Traffic and CPU/Memory usage in each monitor cycle
 
-*  `server_retention`: Save time of Server monitoring, incoming `timedelta`, 7 days by default
-*  `instance_retention`: Save time of service instance Instance monitoring, passed in `timedelta`, 7 days by default
-*  `worker_retention`: Save time of service process Worker monitoring, which is passed in `timedelta` and defaults to 24 hours.
-*  `database_retention`: Save time of database monitoring, passed in `timedelta`, 7 days by default
-*  `cache_retention`: Save time of Cache monitoring, incoming `timedelta`, 7 days by default
+* `server_retention`: Storage time of Server monitoring metrics, accpet a `timedelta`, 7 days by default
+* `instance_retention`: Storage time of service instance monitoring metrics, accept a `timedelta`, 7 days by default
+* `worker_retention`: Storage time of service worker monitoring metrics, accept a `timedelta` and defaults to 24 hours.
+* `database_retention`: Storage time of database monitoring metrics, accept a `timedelta`, 7 days by default
+* `cache_retention`: Storage time of cache monitoring metrics , accept a `timedelta`, 7 days by default
 
-Overdue monitoring data will be cleaned up
+!!! tip
+	Monitor time series data will be cleaned up after the above corresponding retention time
 
 ### OpenAPI configuration
 
-For the interfaces written by UtilMeta framework and the framework interfaces supporting adaptation, the UtilMeta operation and maintenance management system can automatically identify and generate OpenAPI documents to synchronize to the UtilMeta platform, but if the framework you access does not support the automatic generation of interface documents, or if you need to inject additional interface documents, you can do so. Additional OpenAPI documentation can be specified using the `openapi` Operations configuration parameter, which can be in the following format
+For the API developed with UtilMeta framework and other supported frameworks (like DRF, FastAPI, Sanic, APIFlask) , UtilMeta operations system can automatically identify and generate OpenAPI documents to synchronize to the UtilMeta platform, but if the framework you use does not support the automatic document generation, or if you need to inject additional API documents, you can use the `openapi` param of Operations configuration, which can be in the following format
 
 * A URL to the OpenAPI documentation that can be accessed and downloaded
 * The location of a local OpenAPI documentation file
 * An OpenAPI JSON/yaml string
 * An OpenAPI dictionary
-* A list for integrating multiple API documents, where the element can be any of the above
+* A list of API documents, where the element can be any of the above format
 
-The additional specified OpenAPI documentation will be integrated with the automatically generated interface documentation and synchronized to the UtilMeta platform.
+For example:
+```python hl_lines="10"
+from utilmeta.ops import Operations
+from datetime import timedelta
+
+service.use(Operations(
+    route='ops',
+    database=Operations.Database(
+        name='operations_db',
+        engine='sqlite3'
+    ),
+    openapi='/path/to/openapi.json',
+    # openapi='https://mysite.com/openapi.json',
+    # openapi={...},
+))
+```
+
+The additional specified OpenAPI document will be integrated with the automatically generated API document and synchronized to the UtilMeta platform.
+
+### Cluster Proxy configuration
+
 
 ## Connect to UtilMeta Platform
 

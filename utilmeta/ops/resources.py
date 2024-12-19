@@ -376,9 +376,9 @@ class ResourcesManager:
             # includes remote_id=None
         ).exclude(remote_id__in=remote_pks).update(deleted_time=time_now())
 
-        Resource.objects.exclude(server__in=Resource.filter(type="server")).exclude(
-            server=None
-        ).update(server_id=None)
+        # Resource.objects.exclude(server__in=Resource.filter(type="server")).exclude(
+        #     server=None
+        # ).update(server_id=None)
 
         for remote_id, server_id in remote_servers.items():
             server = Resource.filter(

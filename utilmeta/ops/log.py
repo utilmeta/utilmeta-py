@@ -451,8 +451,10 @@ class LogMiddleware(ServiceMiddleware):
                     for h in request.headers
                 ):
                     return True
-        if self.config.log.exclude_status:
-            if response.status in self.config.log.exclude_status:
+        else:
+            return True
+        if self.config.log.exclude_statuses:
+            if response.status in self.config.log.exclude_statuses:
                 return True
         if self.config.log.exclude_response_headers:
             if any(

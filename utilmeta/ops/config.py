@@ -1,4 +1,7 @@
 import threading
+
+import utype
+
 from utilmeta.conf import Config
 from utilmeta.core.orm.databases.config import Database, DatabaseConnections
 from utype.types import *
@@ -12,6 +15,7 @@ from utilmeta.utils import (
     import_obj,
     get_origin,
     get_server_ip,
+    valid_url
 )
 from typing import Union
 from urllib.parse import urlsplit
@@ -82,7 +86,7 @@ class Operations(Config):
         persist_level: int
         persist_duration_limit: Optional[int]
         exclude_methods: List[str]
-        exclude_status: List[int]
+        exclude_statuses: List[int]
         exclude_request_headers: List[str]
         exclude_response_headers: List[str]
         # if these headers show up, exclude
@@ -105,7 +109,10 @@ class Operations(Config):
                 HTTPMethod.TRACE,
                 HTTPMethod.HEAD,
             ),
-            exclude_status: list = (),
+            exclude_statuses: list = utype.Field(default=(), alias_from=[
+                'exclude_status',
+                'exclude_status_codes',
+            ]),
             exclude_request_headers: List[str] = (),
             exclude_response_headers: List[str] = (),
             # if these headers show up, exclude
@@ -132,6 +139,8 @@ class Operations(Config):
             base_url: str,
             forward: bool = False,
         ):
+            if not valid_url(base_url, raise_err=False):
+                raise ValueError(f'Operations.Proxy: Invalid proxy base_url: {base_url}')
             super().__init__(locals())
 
         @property

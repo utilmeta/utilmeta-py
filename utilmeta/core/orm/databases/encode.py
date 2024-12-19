@@ -266,14 +266,6 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
         )
 
     def check(self):
-        if self.config.is_mysql:
-            requires(MySQLdb="mysqlclient")
-        elif self.config.is_postgresql:
-            requires(psycopg='"psycopg[binary,pool]"', psycopg2="psycopg2")
+        super().check()
         if self.async_engine:
             requires(self.async_engine)
-        # try:
-        #     from databases import Database
-        # except (ModuleNotFoundError, ImportError) as e:
-        #     raise e.__class__(f'{self.__class__} as database adaptor requires to install databases. '
-        #                       f'use pip install databases[{self.async_engine}]') from e

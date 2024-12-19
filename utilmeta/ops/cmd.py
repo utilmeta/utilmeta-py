@@ -115,20 +115,28 @@ class OperationsCommand(BaseServiceCommand):
         live = isinstance(info, ServiceInfoResponse) and info.validate()
         failed = info.is_aborted or info.status >= 500
         if not live:
+            error_message = str(info)
+            if info.is_timeout:
+                error_message = 'connect timeout'
+            elif info.is_aborted:
+                error_message = 'connect failed'
+            elif info.success:
+                error_message = 'response data syntax error'
+
             if failed:
                 print(
-                    RED % "meta connect: service is down, "
+                    RED % f"meta connect: service is down ({error_message}), "
                     f"please check your OperationsAPI: {self.config.ops_api} is accessible before connect"
                 )
             else:
                 print(
                     YELLOW
-                    % "meta connect: OperationsAPI not mounted (or service not restarted), "
+                    % f"meta connect: OperationsAPI not mounted or service not reloaded (got {error_message}), "
                     f"please check your OperationsAPI: {self.config.ops_api} is accessible before connect"
                 )
             print(
                 "If you have integrated Operations config, please restart your service and retry, "
-                f'or add {BLUE % "-f"} to force this connect'
+                f'or add {BLUE % "-f"} argument to force this connect'
             )
             if not force:
                 exit(1)

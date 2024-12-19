@@ -6,6 +6,7 @@ from typing import Optional, List, Union, Tuple, Dict, Set
 from .. import constant
 from .data import distinct_add
 from ipaddress import ip_address, ip_network
+import subprocess
 
 posix_os = os.name == "posix"
 
@@ -48,6 +49,7 @@ __all__ = [
     "get_recursive_dirs",
     "get_sys_net_connections_info",
     "get_mac_address",
+    "detect_package_manager"
 ]
 
 import uuid
@@ -767,3 +769,24 @@ def get_real_ip(ip: str):
     if localhost(ip):
         return get_server_ip()
     return get_ip(ip)
+
+
+def detect_package_manager():
+    """Detects the package management tool (apt or yum) for the system."""
+    if os.name != 'posix':
+        return None
+    try:
+        # Check for apt
+        apt_check = subprocess.run(["which", "apt"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if apt_check.returncode == 0:
+            return "apt"
+
+        # Check for yum
+        yum_check = subprocess.run(["which", "yum"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if yum_check.returncode == 0:
+            return "yum"
+
+        return None
+    except Exception as e:
+        print(f"Error detecting package manager: {e}")
+        return None

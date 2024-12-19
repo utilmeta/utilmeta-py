@@ -1,5 +1,8 @@
 from typing import Type, TYPE_CHECKING, List, Tuple
 
+from utilmeta.utils import cached_property, detect_package_manager, requires
+import os
+
 if TYPE_CHECKING:
     from .config import Database
 
@@ -44,4 +47,41 @@ class BaseDatabaseAdaptor:
         raise NotImplementedError
 
     def check(self):
-        pass
+        if self.config.is_mysql:
+            try:
+                import MySQLdb
+            except ModuleNotFoundError:
+                self.install_mysql()
+                requires(MySQLdb="mysqlclient")
+        elif self.config.is_postgresql:
+            try:
+                import psycopg2
+            except ModuleNotFoundError:
+                try:
+                    import psycopg
+                except ModuleNotFoundError:
+                    self.install_postgresql()
+                    requires(psycopg='"psycopg[binary,pool]"', psycopg2="psycopg2")
+
+    @cached_property
+    def package_manager(self):
+        return detect_package_manager()
+
+    def install_postgresql(self):
+        pkg = self.package_manager
+        if not pkg:
+            return
+        if pkg == 'apt':
+            os.system("sudo apt-get install -y libpq-dev")
+        elif pkg == 'yum':
+            os.system("sudo yum install -y libpq-devel")
+
+    def install_mysql(self):
+        pkg = self.package_manager
+        if not pkg:
+            return
+        if pkg == 'apt':
+            os.system('sudo apt-get install pkg-config python3-dev build-essential'
+                      ' libmysqlclient-dev default-libmysqlclient-dev -y -m')
+        elif pkg == 'yum':
+            os.system('sudo yum install python-devel mysql-devel -y')

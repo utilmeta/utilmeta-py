@@ -10,7 +10,7 @@ class EnvVarUndefined(ValueError):
 
 
 class Env(Schema):
-    __options__ = Options(case_insensitive=True)
+    __options__ = Options(case_insensitive=True, addition=True)
 
     def __init__(
         self,

@@ -507,7 +507,11 @@ class Client(PluginTarget):
             if timeout is not None:
                 timeout = float(timeout)
             try:
-                resp = adaptor(timeout=timeout, allow_redirects=self._allow_redirects)
+                resp = adaptor(
+                    timeout=timeout,
+                    allow_redirects=self._allow_redirects,
+                    proxies=self._proxies
+                )
             except Exception as e:
                 if not self._fail_silently:
                     raise e from e

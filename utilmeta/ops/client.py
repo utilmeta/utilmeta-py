@@ -208,9 +208,13 @@ class SupervisorClient(Client):
         node_id: str = None,
         service_id: str = None,
         node_key: str = None,
+        allow_redirects: bool = True,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(
+            allow_redirects=allow_redirects,
+            **kwargs
+        )
 
         headers = {}
         if access_key:
@@ -291,8 +295,11 @@ class SupervisorClient(Client):
 
 
 class OperationsClient(Client):
-    def __init__(self, token: str = None, node_id: str = None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, token: str = None, node_id: str = None, allow_redirects: bool = True, **kwargs):
+        super().__init__(
+            allow_redirects=allow_redirects,
+            **kwargs
+        )
         self.token = token
         self.node_id = node_id
         if self.token:

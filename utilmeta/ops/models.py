@@ -1052,3 +1052,8 @@ supervisor_related_models = [
     VersionLog,
     AggregationLog,
 ]
+supervisor_key_models = {
+    # AccessToken: 'issuer',
+    ServiceLog: 'supervisor',
+    AggregationLog: 'supervisor',
+}

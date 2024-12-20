@@ -106,7 +106,9 @@ def update_service_supervisor(supervisor: Supervisor):
         if model in models.supervisor_key_models:
             data.update(**{models.supervisor_key_models[model]: supervisor})
         try:
-            model.objects.filter(service=supervisor.service, node_id=None).update(**data)
+            model.objects.filter(service=supervisor.service, node_id=None).update(
+                **data
+            )
         except EmptyResultSet:
             continue
 

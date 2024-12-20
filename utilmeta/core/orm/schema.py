@@ -4,7 +4,6 @@ from utilmeta.core import request as req
 from .parser import SchemaClassParser, QueryClassParser
 from utilmeta.core.orm import exceptions
 from utilmeta.utils.exceptions import BadRequest
-from utilmeta.conf import Preference
 from .context import QueryContext
 from .fields.field import ParserQueryField
 
@@ -81,30 +80,34 @@ class Schema(utype.Schema):
         if not _set:
             self.__dict__["pk"] = val
 
-    def get_instance(self, fresh: bool = True):
+    def get_instance(self, fresh: bool = True, using: str = None):
         if fresh:
             if self.pk is None:
                 raise exceptions.MissingPrimaryKey("pk is missing for query instance")
-            return self.__parser__.model.get_instance(pk=self.pk)
+            return self.__parser__.model.query(using=using, pk=self.pk).get_instance()
         return self.__parser__.get_instance(self)
 
-    async def aget_instance(self, fresh: bool = True):
+    async def aget_instance(self, fresh: bool = True, using: str = None):
         if fresh:
             if self.pk is None:
                 raise exceptions.MissingPrimaryKey("pk is missing for query instance")
-            return await self.__parser__.model.aget_instance(pk=self.pk)
+            return await self.__parser__.model.query(
+                using=using, pk=self.pk
+            ).aget_instance()
         return self.__parser__.get_instance(self)
 
     @classmethod
-    def _get_compiler(cls, queryset, context=None, single: bool = False):
+    def _get_compiler(
+        cls, queryset, context=None, single: bool = False, using: str = None
+    ):
         if isinstance(queryset, Query):
-            generator = queryset.__parser__.get_generator(queryset)
+            generator = queryset.__parser__.get_generator(queryset, using=using)
             qs = generator.get_queryset()
             # get context after queryset generation
-            context = context or generator.get_context(single=single)
+            context = generator.get_context(single=single).merge(context)
         else:
             qs = queryset
-            context = context or QueryContext()
+            context = context or QueryContext(using=using)
         if cls.__integrity_error_cls__:
             context.integrity_error_cls = cls.__integrity_error_cls__
         return cls.__parser__.get_compiler(qs, context=context)
@@ -240,6 +243,7 @@ class Schema(utype.Schema):
             bool, Type[Exception], List[Type[Exception]]
         ] = False,
         transaction: Union[bool, str] = False,
+        using: str = None,
     ) -> T:  # -> queryset
         # no id: create
         # id: create -(integrityError)-> update
@@ -258,7 +262,7 @@ class Schema(utype.Schema):
         #     if self.__options__.mode == 'w':
         #         must_update = True
         self: Schema
-        compiler = self._get_compiler(None)
+        compiler = self._get_compiler(None, using=using)
         self.pk = compiler.save_data(
             self,
             must_create=must_create,
@@ -279,6 +283,7 @@ class Schema(utype.Schema):
             bool, Type[Exception], List[Type[Exception]]
         ] = False,
         transaction: Union[bool, str] = False,
+        using: str = None,
     ) -> T:  # -> queryset
         # no id: create
         # id: create -(integrityError)-> update
@@ -297,7 +302,7 @@ class Schema(utype.Schema):
         #     if self.__options__.mode == 'w':
         #         must_update = True
         self: Schema
-        compiler = self._get_compiler(None)
+        compiler = self._get_compiler(None, using=using)
         self.pk = await compiler.save_data(
             self,
             must_create=must_create,
@@ -320,11 +325,12 @@ class Schema(utype.Schema):
             bool, Type[Exception], List[Type[Exception]]
         ] = False,
         transaction: Union[bool, str] = False,
+        using: str = None,
     ) -> List[T]:
         # the queryset is contained in the data,
         # data with id will be updated (try, and create after not exists)
         # data without id will be created
-        compiler = cls._get_compiler(None)
+        compiler = cls._get_compiler(None, using=using)
         if not isinstance(data, list):
             raise TypeError(f"Invalid data: {data}, must be list")
         # 1. transform data list to schema instance list
@@ -358,11 +364,12 @@ class Schema(utype.Schema):
             bool, Type[Exception], List[Type[Exception]]
         ] = False,
         transaction: Union[bool, str] = False,
+        using: str = None,
     ) -> List[T]:
         # the queryset is contained in the data,
         # data with id will be updated (try, and create after not exists)
         # data without id will be created
-        compiler = cls._get_compiler(None)
+        compiler = cls._get_compiler(None, using=using)
         if not isinstance(data, list):
             raise TypeError(f"Invalid data: {data}, must be list")
         # 1. transform data list to schema instance list
@@ -401,26 +408,28 @@ class Query(utype.Schema):
 
         return _class
 
-    def get_generator(self):
-        return self.__parser__.get_generator(self, distinct=self.__distinct__)
+    def get_generator(self, using: str = None):
+        return self.__parser__.get_generator(
+            self, using=using, distinct=self.__distinct__
+        )
 
-    def get_queryset(self, base=None):
+    def get_queryset(self, base=None, using: str = None):
         if not self.__parser__.model:
             raise NotImplementedError
-        return self.get_generator().get_queryset(base)
+        return self.get_generator(using=using).get_queryset(base)
 
-    def count(self, base=None) -> int:
+    def count(self, base=None, using: str = None) -> int:
         if not self.__parser__.model:
             raise NotImplementedError
-        return self.get_generator().count(base)
+        return self.get_generator(using=using).count(base)
 
-    async def acount(self, base=None) -> int:
+    async def acount(self, base=None, using: str = None) -> int:
         if not self.__parser__.model:
             raise NotImplementedError
-        return await self.get_generator().acount(base)
+        return await self.get_generator(using=using).acount(base)
 
-    def get_context(self):
-        return self.get_generator().get_context()
+    def get_context(self, using: str = None):
+        return self.get_generator(using=using).get_context()
 
-    def __call__(self, base=None):
-        return self.get_queryset(base)
+    def __call__(self, base=None, using: str = None):
+        return self.get_queryset(base, using=using)

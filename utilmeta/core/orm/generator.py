@@ -20,6 +20,7 @@ class BaseQuerysetGenerator:
         values: dict,
         # --- config params
         distinct: bool = None,
+        using: str = None,
         **kwargs
     ):
         self.parser = parser
@@ -31,6 +32,7 @@ class BaseQuerysetGenerator:
             distinct = pref.orm_default_query_distinct
 
         self.distinct = distinct
+        self.using = using
         self.kwargs = kwargs
 
         self.page = None
@@ -59,7 +61,7 @@ class BaseQuerysetGenerator:
         raise NotImplementedError
 
     def get_context(self, **kwargs):
-        kwargs.update(includes=self.includes, excludes=self.excludes)
+        kwargs.update(includes=self.includes, excludes=self.excludes, using=self.using)
         return QueryContext(**kwargs)
 
     @property

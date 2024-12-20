@@ -171,7 +171,7 @@ user_config = auth.User(
 
 ```python
 from datetime import datetime
-from utilmeta.core import api, orm
+from utilmeta.core import api, orm, request
 from utilmeta.utils import exceptions
 from .models import User
 from . import auth

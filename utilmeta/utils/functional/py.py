@@ -4,6 +4,8 @@ import importlib
 from .. import constant
 import typing
 from functools import wraps
+import subprocess
+import sys
 
 __all__ = [
     "return_type",
@@ -15,7 +17,7 @@ __all__ = [
     "get_generator_result",
     "represent",
     "valid_attr",
-    "check_requirement",
+    # "check_requirement",
     "get_root_base",
     "function_pass",
     "common_representable",
@@ -125,17 +127,33 @@ def get_base_type(value) -> typing.Optional[type]:
 
 
 def print_time(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        import time
+    if inspect.iscoroutinefunction(f):
 
-        start = time.time()
-        r = f(*args, **kwargs)
-        end = time.time()
-        t = round(end - start, 3)
-        name = f.__name__
-        print(f"function {name} cost {t} s")
-        return r
+        @wraps(f)
+        async def wrapper(*args, **kwargs):
+            import time
+
+            start = time.time()
+            r = await f(*args, **kwargs)
+            end = time.time()
+            t = round(end - start, 3)
+            name = f.__name__
+            print(f"function {name} cost {t} s")
+            return r
+
+    else:
+
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            import time
+
+            start = time.time()
+            r = f(*args, **kwargs)
+            end = time.time()
+            t = round(end - start, 3)
+            name = f.__name__
+            print(f"function {name} cost {t} s")
+            return r
 
     return wrapper
 
@@ -221,41 +239,58 @@ def get_doc(obj) -> str:
     # return (getattr(obj, Attr.DOC, '') or '').replace('\t', '').strip('\n').strip()
 
 
-def check_requirement(
-    *pkgs: str, hint: str = None, check: bool = True, install_when_require: bool = False
-):
-    if len(pkgs) > 1:
-        for pkg in pkgs:
-            try:
-                return import_obj(pkg)
-            except (ModuleNotFoundError, ImportError):
-                pass
-    for pkg in pkgs:
-        try:
-            if check:
-                import_obj(pkg)
-            else:
-                raise ImportError
-        except (ModuleNotFoundError, ImportError):
-            if install_when_require:
-                print(f"INFO: current service require <{pkg}> package, installing...")
-                try:
-                    import sys
+# def check_requirement(
+#     *pkgs: str, hint: str = None, check: bool = True, install_when_require: bool = False
+# ):
+#     if len(pkgs) > 1:
+#         for pkg in pkgs:
+#             try:
+#                 return import_obj(pkg)
+#             except (ModuleNotFoundError, ImportError):
+#                 pass
+#     for pkg in pkgs:
+#         try:
+#             if check:
+#                 import_obj(pkg)
+#             else:
+#                 raise ImportError
+#         except (ModuleNotFoundError, ImportError):
+#             if install_when_require:
+#                 print(f"INFO: current service require <{pkg}> package, installing...")
+#                 try:
+#                     import sys
+#
+#                     os.system(f"{sys.executable} -m pip install {pkg}")
+#                 except Exception as e:
+#                     print(
+#                         f"install package failed with error: {e}, fallback to internal solution"
+#                     )
+#                     pip_main = import_obj("pip._internal:main")
+#                     pip_main(["install", pkg])
+#             else:
+#                 if hint:
+#                     print(hint)
+#                 raise ImportError(
+#                     f"package <{pkg}> is required for current settings, please install it "
+#                     f"or set install-when-require=True at meta.ini to allow auto installation"
+#                 )
 
-                    os.system(f"{sys.executable} -m pip install {pkg}")
-                except Exception as e:
-                    print(
-                        f"install package failed with error: {e}, fallback to internal solution"
-                    )
-                    pip_main = import_obj("pip._internal:main")
-                    pip_main(["install", pkg])
-            else:
-                if hint:
-                    print(hint)
-                raise ImportError(
-                    f"package <{pkg}> is required for current settings, please install it "
-                    f"or set install-when-require=True at meta.ini to allow auto installation"
-                )
+
+def install_package(package, retires: int = 3, timeout: int = None):
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--retries",
+            str(retires),
+            package,
+        ],
+        check=True,
+        timeout=timeout,
+    )
 
 
 def requires(*names, **mp):
@@ -268,18 +303,39 @@ def requires(*names, **mp):
             # return the 1st importable
         except (ModuleNotFoundError, ImportError):
             pass
+
+    from utilmeta.conf import Preference
+
+    pref = Preference.get()
+    if pref.dependencies_auto_install_disabled:
+        mps = []
+        for import_name, install_name in mp.items():
+            mps.append(f"{import_name}: pip install {install_name}")
+        raise ModuleNotFoundError(
+            f"""Required module not installed:
+%s
+"""
+            % "\n".join(mps)
+        )
+
     for import_name, install_name in mp.items():
         print(f"INFO: current service require <{install_name}> package, installing...")
-        try:
-            import sys
 
-            os.system(f"{sys.executable} -m pip install {install_name}")
+        try:
+            install_package(install_name)
         except Exception as e:
-            print(
-                f"install package failed with error: {e}, fallback to internal solution"
-            )
-            pip_main = import_obj("pip._internal:main")
-            pip_main(["install", install_name])
+            print(f"install package: <{install_name}> failed with error: {e}")
+
+        # try:
+        #     import sys
+        #     os.system(f"{sys.executable} -m pip install {install_name}")
+        #     # fixme: some uninstallable packages keep failing
+        # except Exception as e:
+        #     print(
+        #         f"install package failed with error: {e}, fallback to internal solution"
+        #     )
+        #     pip_main = import_obj("pip._internal:main")
+        #     pip_main(["install", install_name])
         try:
             return import_obj(import_name)
         except (ModuleNotFoundError, ImportError):

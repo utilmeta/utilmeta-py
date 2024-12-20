@@ -5,13 +5,13 @@ from utilmeta.utils import exceptions, time_now
 from datetime import datetime
 from typing import List, Optional
 
-setup_service(__name__, async_param=False)
+setup_service(__name__, async_param=[True])
 
 INVALID_ID = 2147483647
 
 
 class TestSchemaQuery:
-    def test_serialize_users(self, service):
+    def test_serialize_users(self, service, db_using):
         from app.schema import UserSchema, UserQuery
         res = UserSchema.serialize(
             UserQuery({
@@ -19,7 +19,7 @@ class TestSchemaQuery:
                 "within_days": 1,
                 "@page": 1,
                 "order": ["-followers_num", "-views_num"],
-            }).get_queryset(),
+            }).get_queryset(using=db_using),
         )
         assert len(res) == 2
         assert res[0]["username"] == "alice"
@@ -64,7 +64,7 @@ class TestSchemaQuery:
         assert sup.follower_names == []
         assert sup.follower_rep is None
 
-    def test_scope_and_excludes(self):
+    def test_scope_and_excludes(self, service, db_using):
         from app.schema import UserSchema, UserQuery
         res1 = UserSchema.serialize(
             UserQuery({
@@ -72,7 +72,7 @@ class TestSchemaQuery:
                 "@page": 1,
                 "order": ["-followers_num", "-views_num"],
                 "scope": ['username', '@views']
-            })
+            }), context=orm.QueryContext(using=db_using)
         )
         assert set(res1[0]) == {'username', '@views'}
         assert res1[0].sum_views == 103
@@ -83,16 +83,16 @@ class TestSchemaQuery:
                 "@page": 1,
                 "order": ["-followers_num", "-views_num"],
                 "exclude": ['username', 'followers_num', 'liked_slug']
-            })
+            }), context=orm.QueryContext(using=db_using)
         )
         assert 'username' not in res2[0]
         assert 'followers_num' not in res2[0]
         assert 'liked_slug' not in res2[0]
         assert res1[0].sum_views == 103
 
-    def test_init_articles(self, service):
+    def test_init_articles(self, service, db_using):
         from app.schema import ArticleSchema, ContentBase
-        article = ArticleSchema.init(1)
+        article = ArticleSchema.init(1, context=orm.QueryContext(using=db_using))
         assert article.id == article.pk == 1
         assert article.liked_bys_num == 3
         assert article.comments_num == 2
@@ -104,11 +104,11 @@ class TestSchemaQuery:
         assert article.author_tag['name'] == 'bob'
 
         # test sub relation
-        content = ContentBase.init(1)
+        content = ContentBase.init(1, context=orm.QueryContext(using=db_using))
         assert content.id == 1
         assert content.article.id == 1
 
-    def test_related_qs(self):
+    def test_related_qs(self, service, db_using):
         from app.schema import UserBase, ArticleSchema
         from app.models import Article, User
         from typing import List, Optional
@@ -141,7 +141,7 @@ class TestSchemaQuery:
                     for val in User.objects.filter(
                         followings__in=pks,
                         followers=user_id
-                    ).values('followings', 'pk'):
+                    ).values('followings', 'pk').using(db_using):
                         mp.setdefault(val['followings'], []).append(val['pk'])
                     return mp
 
@@ -152,18 +152,18 @@ class TestSchemaQuery:
 
                 return user_schema
 
-        res = UserSchema.init(2)
+        res = UserSchema.init(2, context=orm.QueryContext(using=db_using))
         assert res.top_article.views == 10
         assert res.top_article_slug == res.top_article.slug == 'big-shot'
         assert len(res.top_2_articles) == 2
         assert res.top_2_articles[0].id == 1
 
-        user = UserSchema.get_runtime_schema(2).init(1)
+        user = UserSchema.get_runtime_schema(2).init(1, context=orm.QueryContext(using=db_using))
         assert len(user.followers_you_known) == 1
         assert user.followers_you_known[0].username == 'jack'
         assert user.followers_you_known[0].followers_num == 1
 
-    def test_queryset_generator(self):
+    def test_queryset_generator(self, service, db_using):
         from app.models import Article
         from app.schema import ArticleQuery
         from django.db import models
@@ -171,11 +171,11 @@ class TestSchemaQuery:
             author__followers__in=[1, 2, 3]), pk__lte=5)
 
         query = ArticleQuery(limit=10)
-        assert query.count(dup_qs) == 4
-        assert query.get_queryset(dup_qs).count() == 4
+        assert query.count(dup_qs, using=db_using) == 4
+        assert query.get_queryset(dup_qs, using=db_using).count() == 4
 
     @pytest.mark.asyncio
-    async def test_async_queryset_generator(self):
+    async def test_async_queryset_generator(self, service, db_using):
         from app.models import Article
         from app.schema import ArticleQuery
         from django.db import models
@@ -183,17 +183,24 @@ class TestSchemaQuery:
             author__followers__in=[1, 2, 3]), pk__lte=5)
 
         query = ArticleQuery(limit=10)
-        assert await query.acount(dup_qs) == 4
-        assert await query.get_queryset(dup_qs).acount() == 4
+        assert await query.acount(dup_qs, using=db_using) == 4
+        assert await query.get_queryset(dup_qs, using=db_using).acount() == 4
+
+    @classmethod
+    async def refresh_db(cls, using):
+        db = orm.DatabaseConnections.get(using)
+        db.get_adaptor(asynchronous=True)._db = None
+        await db.connect()
 
     @pytest.mark.asyncio
-    async def test_async_init_users(self):
+    async def test_async_init_users(self, service, db_using):
+        await self.refresh_db(db_using)
         from app.schema import UserSchema
         from app.models import User
         user = await UserSchema.ainit(
             User.objects.filter(
                 username='alice',
-            )
+            ).using(db_using),
         )
         assert user.pk == 1
         assert user.followers_num == 2
@@ -206,7 +213,7 @@ class TestSchemaQuery:
         bob = await UserSchema.ainit(
             User.objects.filter(
                 username='bob',
-            )
+            ).using(db_using),
         )
         assert bob.pk == 2
         assert len(bob.articles) == 3
@@ -227,20 +234,21 @@ class TestSchemaQuery:
         assert len(bob.articles) == 3
 
         # ---
-        sup = UserSchema.init(5)
+        sup = UserSchema.init(5, context=orm.QueryContext(using=db_using))
         assert len(sup.articles) == 0
         assert sup.articles_num == 0
         assert sup.follower_names == []
 
     @pytest.mark.asyncio
-    async def test_async_init_users_with_sync_query(self):
+    async def test_async_init_users_with_sync_query(self, service, db_using):
+        await self.refresh_db(db_using)
         # for django, it requires bind_service=True in @awaitable
         from app.schema import UserSchema
         from app.models import User
         user = UserSchema.init(
             User.objects.filter(
                 username='alice',
-            )
+            ).using(db_using)
         )
         assert user.pk == 1
         assert user.followers_num == 2
@@ -249,25 +257,26 @@ class TestSchemaQuery:
         assert user.top_2_articles[0].views == 103
 
     @pytest.mark.asyncio
-    async def test_async_serialize_articles(self):
+    async def test_async_serialize_articles(self, service, db_using):
+        await self.refresh_db(db_using)
         from app.schema import ArticleSchema
         from app.models import Article
         articles = await ArticleSchema.aserialize(
-            [1, 2]
+            [1, 2], context=orm.QueryContext(using=db_using)
         )
         assert len(articles) == 2
         assert {a.pk for a in articles} == {1, 2}
         articles = await ArticleSchema.aserialize(
             Article.objects.filter(
                 slug='big-shot'
-            )
+            ).using(db_using)
         )
         assert len(articles) == 1
         assert articles[0].pk == 1
         assert articles[0].author_avg_articles_views == 6.5
         assert articles[0].author.followers_num == 2
 
-    def test_save(self):
+    def test_save(self, service, db_using):
         from app.schema import ArticleSchema
         from app.models import Article
         article = ArticleSchema[orm.A](
@@ -281,22 +290,22 @@ class TestSchemaQuery:
         assert article.creatable_field == 'a'
         assert article.slug == 'my-new-article-1'
         t = time_now()
-        article.save()
+        article.save(using=db_using)
         t1 = time_now()
-        inst = article.get_instance(fresh=True)
+        inst = article.get_instance(fresh=True, using=db_using)
         assert t1 > inst.created_at > t
         assert t1 > inst.updated_at > t
         article.content = 'my new content'
-        article.save()  # test save on mode 'a' with pk (should update instead of create)
+        article.save(using=db_using)  # test save on mode 'a' with pk (should update instead of create)
 
         # inst = article.get_instance(fresh=True)
         # t2 = time_now()
         # assert t2 > inst.updated_at > t1
 
         with pytest.raises(exceptions.BadRequest):
-            article.save(must_create=True)
+            article.save(must_create=True, using=db_using)
 
-        inst: Article = article.get_instance(fresh=True)
+        inst: Article = article.get_instance(fresh=True, using=db_using)
         assert inst.slug == 'my-new-article-1'
         assert inst.content == 'my new content'
         assert inst.author.id == 1
@@ -309,12 +318,12 @@ class TestSchemaQuery:
                 creatable_field='a',
                 author_id=1,
                 views=10
-            ).save()
+            ).save(using=db_using)
             # save again (with must_create=True by default) will raise IntegrityError, and re-throw as BadRequest
 
         article.slug = 'my-new-article'
-        article.save(must_update=True)
-        inst2: Article = article.get_instance(fresh=True)
+        article.save(must_update=True, using=db_using)
+        inst2: Article = article.get_instance(fresh=True, using=db_using)
         assert inst2.slug == 'my-new-article'
 
         article2 = ArticleSchema[orm.W](
@@ -324,7 +333,7 @@ class TestSchemaQuery:
             # test ignore on mode 'a'
         )
         with pytest.raises(orm.MissingPrimaryKey):
-            article2.save(must_update=True)
+            article2.save(must_update=True, using=db_using)
 
         assert article2.updated_at > t1
         # article.pk = None
@@ -332,7 +341,8 @@ class TestSchemaQuery:
         # assert inst.pk != article.pk
 
     @pytest.mark.asyncio
-    async def test_async_save(self):
+    async def test_async_save(self, service, db_using):
+        await self.refresh_db(db_using)
         from app.schema import ArticleSchema
         from app.models import Article
         article = ArticleSchema[orm.A](
@@ -345,13 +355,13 @@ class TestSchemaQuery:
         )
         assert article.creatable_field == 'a'
         assert article.slug == 'my-new-async-article-1'
-        await article.asave()
+        await article.asave(using=db_using)
 
         article.content = 'my new async content'
-        await article.asave()  # test save on mode 'a' with pk (should update instead of create)
+        await article.asave(using=db_using)  # test save on mode 'a' with pk (should update instead of create)
 
         with pytest.raises(exceptions.BadRequest):
-            await article.asave(must_create=True)
+            await article.asave(must_create=True, using=db_using)
 
         # SQL: INSERT INTO "article" ("basecontent_ptr_id", "title",
         # "description", "slug", "views") VALUES (%s, %s, %s, %s, %s) (193,
@@ -359,7 +369,7 @@ class TestSchemaQuery:
         # >       for idx, rec in enumerate(cursor_description):
         # E       TypeError: 'NoneType' object is not iterable
 
-        inst: Article = await article.aget_instance(fresh=True)
+        inst: Article = await article.aget_instance(fresh=True, using=db_using)
         assert inst.slug == 'my-new-async-article-1'
         assert inst.content == 'my new async content'
         assert inst.author_id == 1
@@ -371,12 +381,12 @@ class TestSchemaQuery:
                 creatable_field='a',
                 author_id=1,
                 views=10
-            ).asave()
+            ).asave(using=db_using)
             # save again (with must_save=True by default) will raise IntegrityError, and re-throw as BadRequest
 
         article.slug = 'my-new-async-article'
-        await article.asave(must_update=True)
-        inst2: Article = await article.aget_instance(fresh=True)
+        await article.asave(must_update=True, using=db_using)
+        inst2: Article = await article.aget_instance(fresh=True, using=db_using)
         assert inst2.slug == 'my-new-async-article'
 
         article2 = ArticleSchema[orm.W](
@@ -386,9 +396,9 @@ class TestSchemaQuery:
             # test ignore on mode 'a'
         )
         with pytest.raises(orm.MissingPrimaryKey):
-            await article2.asave(must_update=True)
+            await article2.asave(must_update=True, using=db_using)
 
-    def test_save_with_relations(self):
+    def test_save_with_relations(self, service, db_using):
         from app.models import Article, User, Follow, BaseContent, Comment
 
         class FollowSchema(orm.Schema[Follow]):
@@ -407,13 +417,13 @@ class TestSchemaQuery:
             username='new user 1',
             followings=[1, 2]
         )
-        user1.save()
+        user1.save(using=db_using)
         # test default with_relations=True
-        user1_inst: User = user1.get_instance(fresh=True)
+        user1_inst: User = user1.get_instance(fresh=True, using=db_using)
         assert user1_inst.username == 'new user 1'
-        assert set(Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)) == {1, 2}
+        assert set(Follow.objects.filter(user_id=user1.pk).using(db_using).values_list('target_id', flat=True)) == {1, 2}
 
-        user1 = UserSchema.init(user1_inst)
+        user1 = UserSchema.init(user1_inst, context=orm.QueryContext(using=db_using))
         following_objs = list(user1.user_followings)
         following_objs.sort(key=lambda x: x.target_id)
         following_objs.pop(0)
@@ -425,18 +435,18 @@ class TestSchemaQuery:
             followings=[INVALID_ID, 2]
         )
         with pytest.raises(exceptions.BadRequest):
-            user2.save(with_relations=True, transaction=True)
-        assert not User.objects.filter(username='new user 2').exists()
+            user2.save(with_relations=True, transaction=True, using=db_using)
+        assert not User.objects.filter(username='new user 2').using(db_using).exists()
 
         user_update1 = UserSchema[orm.W](
             id=user1.pk,
             username='new user 2',
             user_followings=following_objs,
         )
-        user_update1.save(with_relations=True)
-        user1_inst: User = user1.get_instance(fresh=True)
+        user_update1.save(with_relations=True, using=db_using)
+        user1_inst: User = user1.get_instance(fresh=True, using=db_using)
         assert user1_inst.username == 'new user 2'
-        assert set(Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)) == {2, 3}
+        assert set(Follow.objects.filter(user_id=user1.pk).using(db_using).values_list('target_id', flat=True)) == {2, 3}
 
         # test with_relations=False
         user_update2 = UserSchema[orm.W](
@@ -444,8 +454,8 @@ class TestSchemaQuery:
             username='new user 2',
             user_followings=[]
         )
-        user_update2.save(with_relations=False)
-        assert set(Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)) == {2, 3}
+        user_update2.save(with_relations=False, using=db_using)
+        assert set(Follow.objects.filter(user_id=user1.pk).using(db_using).values_list('target_id', flat=True)) == {2, 3}
 
         # test ignore relational errors
         following_objs.pop(0)
@@ -456,14 +466,14 @@ class TestSchemaQuery:
         )
         # 1. test transaction
         with pytest.raises(exceptions.BadRequest):
-            user3.save(with_relations=True, transaction=True)
-        assert not User.objects.filter(username='new user 3').exists()
+            user3.save(with_relations=True, transaction=True, using=db_using)
+        assert not User.objects.filter(username='new user 3').using(db_using).exists()
 
         # 2. test ignore_relation_errors=True
-        user3.save(with_relations=True, transaction=False, ignore_relation_errors=True)
-        user3_inst: User = user3.get_instance(fresh=True)
+        user3.save(with_relations=True, transaction=False, ignore_relation_errors=True, using=db_using)
+        user3_inst: User = user3.get_instance(fresh=True, using=db_using)
         assert user3_inst.username == 'new user 3'
-        assert set(Follow.objects.filter(user_id=user3.pk).values_list('target_id', flat=True)) == {3}
+        assert set(Follow.objects.filter(user_id=user3.pk).using(db_using).values_list('target_id', flat=True)) == {3}
 
         class BaseContentSchema(orm.Schema[BaseContent]):
             id: int
@@ -503,14 +513,14 @@ class TestSchemaQuery:
                 dict(author_id=2, content='cm2'),
             ]
         )
-        content.save(with_relations=True, transaction=True)
-        comment: Comment = Comment.objects.filter(pk=content.pk).first()
+        content.save(with_relations=True, transaction=True, using=db_using)
+        comment: Comment = Comment.objects.filter(pk=content.pk).using(db_using).first()
         assert comment.on_content.pk == 3
         assert comment.author.pk == 2
         assert comment.content == 'my comment 1'
-        assert set(comment.liked_bys.values_list('id', flat=True)) == {1, 3}
+        assert set(comment.liked_bys.values_list('id', flat=True).using(db_using)) == {1, 3}
         assert set(Comment.objects.filter(
-            on_content=comment).values_list('content', flat=True)) == {'cm1', 'cm2'}
+            on_content=comment).values_list('content', flat=True).using(db_using)) == {'cm1', 'cm2'}
 
         # fixme: transaction won't work in bind_service (will cause the db hang)
         # fixme: OneToOneRel with primary_key: cannot set?
@@ -518,7 +528,8 @@ class TestSchemaQuery:
     # todo: add one-to-one-rel key
 
     @pytest.mark.asyncio
-    async def test_async_save_with_relations(self):
+    async def test_async_save_with_relations(self, service, db_using):
+        await self.refresh_db(db_using)
         from app.models import Article, User, Follow, BaseContent, Comment
 
         class FollowSchema(orm.Schema[Follow]):
@@ -537,12 +548,12 @@ class TestSchemaQuery:
             username='async new user 1',
             followings=[1, 2]
         )
-        await user1.asave()
+        await user1.asave(using=db_using)
         # test default with_relations=True
 
-        user1_inst: User = await user1.aget_instance(fresh=True)
+        user1_inst: User = await user1.aget_instance(fresh=True, using=db_using)
         assert user1_inst.username == 'async new user 1'
-        assert {v async for v in Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)} == {1, 2}
+        assert {v async for v in Follow.objects.filter(user_id=user1.pk).using(db_using).values_list('target_id', flat=True)} == {1, 2}
 
         # -------------
         user2 = UserSchema[orm.A](
@@ -550,11 +561,11 @@ class TestSchemaQuery:
             followings=[INVALID_ID, 2]
         )
         with pytest.raises(exceptions.BadRequest):
-            await user2.asave(with_relations=True, transaction=True)
-        assert not await User.objects.filter(username='new async user 2').aexists()
+            await user2.asave(with_relations=True, transaction=True, using=db_using)
+        assert not await User.objects.filter(username='new async user 2').using(db_using).aexists()
         # ------------------
 
-        user1 = await UserSchema.ainit(user1_inst)
+        user1 = await UserSchema.ainit(user1_inst, context=orm.QueryContext(using=db_using))
         following_objs = list(user1.user_followings)
         following_objs.sort(key=lambda x: x.target_id)
         following_objs.pop(0)
@@ -565,10 +576,11 @@ class TestSchemaQuery:
             username='async new user 2',
             user_followings=following_objs,
         )
-        await user_update1.asave(with_relations=True)
-        user1_inst: User = await user1.aget_instance(fresh=True)
+        await user_update1.asave(with_relations=True, using=db_using)
+        user1_inst: User = await user1.aget_instance(fresh=True, using=db_using)
         assert user1_inst.username == 'async new user 2'
-        assert {v async for v in Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)} == {2, 3}
+        assert {v async for v in Follow.objects.filter(
+            user_id=user1.pk).using(db_using).values_list('target_id', flat=True)} == {2, 3}
 
         # test with_relations=False
         user_update2 = UserSchema[orm.W](
@@ -576,8 +588,9 @@ class TestSchemaQuery:
             username='async new user 2',
             user_followings=[]
         )
-        await user_update2.asave(with_relations=False)
-        assert {v async for v in Follow.objects.filter(user_id=user1.pk).values_list('target_id', flat=True)} == {2, 3}
+        await user_update2.asave(with_relations=False, using=db_using)
+        assert {v async for v in Follow.objects.filter(
+            user_id=user1.pk).using(db_using).values_list('target_id', flat=True)} == {2, 3}
 
         # test ignore relational errors
         following_objs.pop(0)
@@ -588,14 +601,15 @@ class TestSchemaQuery:
         )
         # # 1. test transaction
         with pytest.raises(exceptions.BadRequest):
-            await user3.asave(with_relations=True, transaction=True)
-        assert not await User.objects.filter(username='async new user 3').aexists()
+            await user3.asave(with_relations=True, transaction=True, using=db_using)
+        assert not await User.objects.filter(username='async new user 3').using(db_using).aexists()
 
         # 2. test ignore_relation_errors=True
-        await user3.asave(with_relations=True, transaction=False, ignore_relation_errors=True)
-        user3_inst: User = await user3.aget_instance(fresh=True)
+        await user3.asave(with_relations=True, transaction=False, ignore_relation_errors=True, using=db_using)
+        user3_inst: User = await user3.aget_instance(fresh=True, using=db_using)
         assert user3_inst.username == 'async new user 3'
-        assert {v async for v in Follow.objects.filter(user_id=user3.pk).values_list('target_id', flat=True)} == {3}
+        assert {v async for v in Follow.objects.filter(
+            user_id=user3.pk).using(db_using).values_list('target_id', flat=True)} == {3}
 
         class BaseContentSchema(orm.Schema[BaseContent]):
             id: int
@@ -636,16 +650,40 @@ class TestSchemaQuery:
                 dict(author_id=2, content='cm2'),
             ]
         )
-        await content.asave(with_relations=True, transaction=True)
-        comment: Comment = await Comment.objects.filter(pk=content.pk).afirst()
+        await content.asave(with_relations=True, transaction=True, using=db_using)
+        comment: Comment = await Comment.objects.filter(pk=content.pk).using(db_using).afirst()
         assert comment.on_content_id == 3
         assert comment.author_id == 2
         assert comment.content == 'my comment 1'
         assert {v async for v in Comment.objects.filter(
-            on_content=comment).values_list('content', flat=True)} == {'cm1', 'cm2'}
+            on_content=comment).using(db_using).values_list('content', flat=True)} == {'cm1', 'cm2'}
 
-        c = await ContentSchema.ainit(content.pk)
+        c = await ContentSchema.ainit(content.pk, context=orm.QueryContext(using=db_using))
         assert set(c.liked_bys) == {1, 3}
+
+    def test_handle_recursion(self, db_using):
+        from app.models import Follow, User
+        from utype.types import Self
+        from django.db.utils import IntegrityError
+
+        try:
+            Follow(target_id=1, user_id=1).save(using=db_using)
+            # self-following
+        except IntegrityError:
+            # ignore
+            pass
+
+        class UserFollowerRecursion(orm.Schema[User]):
+            id: int
+            username: str
+            followers: List[Self]
+            followings: List[Self]
+
+        user1 = UserFollowerRecursion.init(1, context=orm.QueryContext(using=db_using))
+        # infinite recursion will exceed the memory and cause this process to exit
+        assert user1.id == 1
+        assert any([follower.id == 1 for follower in user1.followers])
+        assert any([following.id == 1 for following in user1.followings])
 
     def test_bulk_save(self):
         pass

@@ -31,14 +31,12 @@ class CalcAPI(api.API):
 CalcAPI.__as__(app, route='/calc')
 
 from utilmeta.ops import Operations
+from tests.conftest import get_operations_db
 PORT = 9094
 
 Operations(
     route='ops',
-    database=Operations.Database(
-        name='operations_db',
-        engine='sqlite3'
-    ),
+    database=get_operations_db(),
     base_url=f'http://127.0.0.1:{PORT}',
     eager_migrate=True
 ).integrate(app, __name__)

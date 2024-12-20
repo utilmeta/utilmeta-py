@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
     from utilmeta.core.api import API
-from utilmeta.utils import BaseAdaptor, exceptions, import_obj, Error
+from utilmeta.utils import BaseAdaptor, exceptions, import_obj
 import re
 import inspect
 from utilmeta.core.request import Request
@@ -71,12 +71,10 @@ class ServerAdaptor(BaseAdaptor):
         self.background = config.background
         self.asynchronous = config.asynchronous
         if self.asynchronous is None:
-            config.asynchronous = self.asynchronous = self.default_asynchronous
+            self.asynchronous = self.default_asynchronous
+            config.set_asynchronous(self.asynchronous)
         self.proxy = None
         self.middlewares: List[ServiceMiddleware] = []
-
-    # def init_application(self):
-    #     return
 
     @property
     def root_pattern(self):

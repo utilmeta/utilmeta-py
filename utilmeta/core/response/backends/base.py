@@ -10,7 +10,7 @@ class ResponseAdaptor(BaseAdaptor):
 
     def __init__(self, response):
         if not self.qualify(response):
-            raise TypeError(f'Invalid response: {response}')
+            raise TypeError(f"Invalid response: {response}")
         self.response = response
         # self.request = request
         self._context = {}

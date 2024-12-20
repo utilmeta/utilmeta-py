@@ -131,12 +131,14 @@ class SanicServerAdaptor(ServerAdaptor):
 
     def run(self, **kwargs):
         self.setup()
-        self.app.run(
+        run_kwargs = dict(
             host=self.config.host,
             port=self.config.port,
             debug=not self.config.production,
-            **kwargs,
+            auto_reload=self.config.auto_reload,
         )
+        run_kwargs.update(kwargs)
+        self.app.run(**run_kwargs)
 
     def add_api(
         self,

@@ -87,3 +87,16 @@ class UserAPI(API):
         data.id = user.pk
         data.save()
         return UserBase.init(data.id)
+
+    from utilmeta.utils import print_time
+
+    @api.get
+    @print_time
+    async def test(self, using='postgresql'):
+        from app.schema import UserSchema
+        from app.models import User
+        return await UserSchema.ainit(
+            User.objects.filter(
+                username='alice',
+            ).using(using),
+        )

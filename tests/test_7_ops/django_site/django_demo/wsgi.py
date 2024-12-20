@@ -21,13 +21,11 @@ application = get_wsgi_application()
 
 from utilmeta.ops import Operations
 from .urls import ninja_api
+from tests.conftest import get_operations_db
 
 Operations(
     route='ops',
-    database=Operations.Database(
-        name='operations_db',
-        engine='sqlite3'
-    ),
+    database=get_operations_db(),
     base_url='http://127.0.0.1:9091',
     openapi=Operations.get_django_ninja_openapi({
         "api-ninja/": ninja_api

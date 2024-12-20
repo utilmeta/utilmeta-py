@@ -10,7 +10,7 @@ https://docs.djangoproject.com/en/4.2/howto/deployment/wsgi/
 import os
 from django.core.wsgi import get_wsgi_application
 import sys
-
+from tests.conftest import get_operations_db
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.dirname(__file__))
@@ -22,10 +22,7 @@ application = get_wsgi_application()
 from utilmeta.ops import Operations
 Operations(
     route='ops',
-    database=Operations.Database(
-        name='operations_db',
-        engine='sqlite3'
-    ),
+    database=get_operations_db(),
     base_url='http://127.0.0.1:9091',
     eager_migrate=True   # eager migration for test
 ).integrate(application, __name__)

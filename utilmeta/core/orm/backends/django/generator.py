@@ -20,12 +20,14 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
     def _get_unsliced_qs(self, base=None):
         self.process_data()
         if base is None:
-            qs: models.QuerySet = self.model.get_queryset()
+            qs: models.QuerySet = self.model.get_queryset(using=self.using)
         else:
             if isinstance(base, models.QuerySet):
                 if not issubclass(base.model, self.model.model):
                     raise TypeError(f"Invalid queryset: {base}")
                 qs = base
+                if self.using:
+                    qs = qs.using(self.using)
             else:
                 raise TypeError(f"Invalid queryset: {base}")
         if self.annotates:

@@ -27,17 +27,20 @@ class HttpxClientRequestAdaptor(ClientRequestAdaptor):
 
         with httpx.Client(
             timeout=float(timeout) if timeout is not None else None,
-            follow_redirects=allow_redirects
+            follow_redirects=allow_redirects,
         ) as client:
             resp = client.request(**self.request_kwargs)
             return HttpxClientResponseAdaptor(resp)
 
     @awaitable(__call__)
-    async def __call__(self, timeout: float = None, allow_redirects: bool = None, **kwargs):
+    async def __call__(
+        self, timeout: float = None, allow_redirects: bool = None, **kwargs
+    ):
         from utilmeta.core.response.backends.httpx import HttpxClientResponseAdaptor
+
         async with httpx.AsyncClient(
             timeout=float(timeout) if timeout is not None else None,
-            follow_redirects=allow_redirects
+            follow_redirects=allow_redirects,
         ) as client:
             resp = await client.request(**self.request_kwargs)
             return HttpxClientResponseAdaptor(resp)

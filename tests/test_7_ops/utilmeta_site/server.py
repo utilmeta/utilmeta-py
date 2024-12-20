@@ -37,12 +37,10 @@ service = UtilMeta(
 
 
 from utilmeta.ops import Operations
+from tests.conftest import get_operations_db
 service.use(Operations(
     route='ops',
-    database=Operations.Database(
-        name='operations_db',
-        engine='sqlite3'  # or 'postgres' / 'mysql' / 'oracle'
-    ),
+    database=get_operations_db(),
     eager_migrate=True
     # base_url='http://127.0.0.1:{}/'.format(PORT),
 ))

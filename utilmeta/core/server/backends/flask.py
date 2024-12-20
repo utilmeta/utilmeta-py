@@ -66,11 +66,15 @@ class FlaskServerAdaptor(ServerAdaptor):
         self.setup()
         self.config.startup()
         try:
-            self.app.run(
+            run_kwargs = dict(
                 host=self.config.host or self.DEFAULT_HOST,
                 port=self.config.port,
                 debug=not self.config.production,
-                **kwargs,
+                use_reloader=self.config.auto_reload,
+            )
+            run_kwargs.update(kwargs)
+            self.app.run(
+                **run_kwargs,
             )
         finally:
             self.config.shutdown()

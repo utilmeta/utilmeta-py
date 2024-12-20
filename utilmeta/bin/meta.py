@@ -232,10 +232,10 @@ class MetaCommand(BaseServiceCommand):
         print(
             f"UtilMeta service {BLUE % self.service.name} running at {self.main_file}"
         )
-        if os.name == 'nt':
-            env = f'set PYTHONPATH=%PYTHONPATH%;{self.service.project_dir} &&'
+        if os.name == "nt":
+            env = f"set PYTHONPATH=%PYTHONPATH%;{self.service.project_dir} &&"
         else:
-            env = f'PYTHONPATH=$PYTHONPATH:{self.service.project_dir}'
+            env = f"PYTHONPATH=$PYTHONPATH:{self.service.project_dir}"
         cmd = f"{sys.executable} {self.main_file}"
         if daemon:
             if os.name == "posix":
@@ -248,7 +248,7 @@ class MetaCommand(BaseServiceCommand):
 
             try_to_connect()
 
-        run(f'{env} {cmd}')
+        run(f"{env} {cmd}")
 
     @command
     def down(self):
@@ -297,7 +297,7 @@ class MetaCommand(BaseServiceCommand):
             print(RED % f"meta restart: load process: {pid} failed with error: {e}")
             exit(1)
         proc.kill()
-        print(f'current service [{self.service.name}](pid={pid}) stopped')
+        print(f"current service [{self.service.name}](pid={pid}) stopped")
         return self.run(daemon=True, connect=connect, log=log)
 
 

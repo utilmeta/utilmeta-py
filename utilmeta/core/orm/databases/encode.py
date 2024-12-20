@@ -166,20 +166,9 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
                     # if not self.in_transaction:
                     self.execute("PRAGMA foreign_keys = ON;")
                     # self.execute('PRAGMA legacy_alter_table = OFF;')
-                    # print('SQLITE EXECUTE')
 
             return SQLiteConnection
         return None
-
-    # async def process_db(self, db):
-    #     if self._processed:
-    #         return
-    #     if self.db_backend in ('sqlite', 'sqlite3'):
-    #         # ref: django.db.backends.sqlite3.base.get_new_connection
-    #         # print('EXECUTE PRAGMA')
-    #         await db.execute("PRAGMA foreign_keys = ON;")
-    #         await db.execute("PRAGMA legacy_alter_table = OFF;")
-    #     self._processed = True
 
     async def connect(self):
         db = self.get_db()

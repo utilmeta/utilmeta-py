@@ -15,7 +15,7 @@ from utilmeta.utils import (
     import_obj,
     get_origin,
     get_server_ip,
-    valid_url
+    valid_url,
 )
 from typing import Union
 from urllib.parse import urlsplit
@@ -109,10 +109,13 @@ class Operations(Config):
                 HTTPMethod.TRACE,
                 HTTPMethod.HEAD,
             ),
-            exclude_statuses: list = utype.Field(default=(), alias_from=[
-                'exclude_status',
-                'exclude_status_codes',
-            ]),
+            exclude_statuses: list = utype.Field(
+                default=(),
+                alias_from=[
+                    "exclude_status",
+                    "exclude_status_codes",
+                ],
+            ),
             exclude_request_headers: List[str] = (),
             exclude_response_headers: List[str] = (),
             # if these headers show up, exclude
@@ -140,7 +143,9 @@ class Operations(Config):
             forward: bool = False,
         ):
             if not valid_url(base_url, raise_err=False):
-                raise ValueError(f'Operations.Proxy: Invalid proxy base_url: {base_url}')
+                raise ValueError(
+                    f"Operations.Proxy: Invalid proxy base_url: {base_url}"
+                )
             super().__init__(locals())
 
         @property
@@ -254,7 +259,7 @@ class Operations(Config):
         if "$IP" in url:
             ip = get_server_ip(private_only=bool(self.proxy))
             if self.proxy:
-                ip = ip or get_server_ip() or '127.0.0.1'
+                ip = ip or get_server_ip() or "127.0.0.1"
             url = url.replace("$IP", ip)
         return url
 
@@ -486,6 +491,12 @@ class Operations(Config):
         self._openapi = None
         # clear openapi cache
 
+    @property
+    def connect_url(self):
+        if self.is_local:
+            return f"{__website__}/localhost?local_node={self.ops_api}"
+        return __website__
+
     def on_startup(self, service: UtilMeta):
         ops_api = self.ops_api
         if not ops_api:
@@ -513,7 +524,7 @@ class Operations(Config):
 
         print(
             f"UtilMeta OperationsAPI loaded at {ops_api}, "
-            f"connect your APIs at {__website__}"
+            f"connect your APIs at {self.connect_url}"
         )
         # from .log import setup_locals
         # threading.Thread(target=setup_locals, args=(self,)).start()

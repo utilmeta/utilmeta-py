@@ -15,6 +15,7 @@ from utilmeta.utils import (
     get_system_open_files,
     get_server_ip,
     DB,
+    multi,
     ignore_errors,
 )
 from .schema import ServerSchema
@@ -243,6 +244,22 @@ def get_db_connections(using: str):
         return values
 
 
+def get_num(res):
+    if not res or not multi(res):
+        return 0
+    for val in res:
+        if not val:
+            continue
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            continue
+        except Exception as e:
+            print(f"unexpected value {val} with error: {e}")
+    # for mysql: 'max_connections', [NUMBER]
+    return 0
+
+
 @ignore_errors(default=0)
 def get_db_server_connections(using: str):
     db_sql = {
@@ -258,7 +275,7 @@ def get_db_server_connections(using: str):
     with connections[db.alias].cursor() as cursor:
         db_type: str = str(cursor.db.display_name).lower()
         cursor.execute(db_sql[db_type])
-        return int(cursor.fetchone()[0])
+        return get_num(cursor.fetchone())
 
 
 @ignore_errors(default=0)
@@ -309,7 +326,7 @@ def get_db_size(using: str) -> int:
         if db_type == DB.Oracle:
             db_name = f"{db.user}/{db.name}"
         cursor.execute(db_sql[db_type] % db_name)
-        return int(cursor.fetchone()[0])
+        return get_num(cursor.fetchone())
 
 
 @ignore_errors(default=None)
@@ -329,7 +346,7 @@ def get_db_server_size(using: str) -> int:
         if db_type not in db_sql:
             return 0
         cursor.execute(db_sql[db_type])
-        return int(cursor.fetchone()[0])
+        return get_num(cursor.fetchone())
 
 
 @ignore_errors(default=None)
@@ -345,14 +362,7 @@ def get_db_max_connections(using: str) -> int:
         if db_type not in db_sql:
             return 0
         cursor.execute(db_sql[db_type])
-        res = cursor.fetchone()
-        for val in res:
-            try:
-                return int(val)
-            except ValueError:
-                pass
-        # for mysql: 'max_connections', [NUMBER]
-        return 0
+        return get_num(cursor.fetchone())
 
 
 @ignore_errors(default=None)
@@ -368,4 +378,4 @@ def get_db_transactions(using: str) -> int:
         if db_type not in db_sql:
             return 0
         cursor.execute(db_sql[db_type] % db.name)
-        return int(cursor.fetchone()[0])
+        return get_num(cursor.fetchone())

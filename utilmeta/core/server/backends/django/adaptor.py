@@ -407,7 +407,7 @@ class DjangoServerAdaptor(ServerAdaptor):
         # return self.app
         return self.app
 
-    def run(self):
+    def run(self, **kwargs):
         self.setup()
         self.check_application()
 
@@ -423,11 +423,13 @@ class DjangoServerAdaptor(ServerAdaptor):
             else:
                 print("using [daphne] as asgi server")
                 try:
-                    Server(
+                    run_kwargs = dict(
                         application=self.application(),
                         endpoints=[self.daphne_endpoint],
                         server_name=self.config.name,
-                    ).run()
+                    )
+                    run_kwargs.update(kwargs)
+                    Server(**run_kwargs).run()
                 finally:
                     self.config.shutdown()
                 return
@@ -439,10 +441,15 @@ class DjangoServerAdaptor(ServerAdaptor):
 
             print("using [uvicorn] as asgi server")
             try:
-                uvicorn.run(
-                    self.application(),
+                run_kwargs = dict(
                     host=self.config.host or self.DEFAULT_HOST,
                     port=self.config.port,
+                    reload=self.config.auto_reload,
+                )
+                run_kwargs.update(kwargs)
+                uvicorn.run(
+                    self.application(),
+                    **run_kwargs,
                 )
             finally:
                 self.config.shutdown()

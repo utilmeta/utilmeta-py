@@ -6,13 +6,17 @@ from . import expressions as exp
 from .constant import PK, ID, SEG
 from django.db import models
 from utilmeta.utils import awaitable, Error, multi, pop
-from typing import List, Tuple, Type, Union
+from typing import List, Tuple, Type, Union, TYPE_CHECKING
 from .queryset import AwaitableQuerySet
 import asyncio
 import warnings
 from datetime import timedelta
-from utilmeta.core.orm import exceptions
+from utilmeta.core.orm import exceptions, DatabaseConnections
 from enum import Enum
+
+
+if TYPE_CHECKING:
+    from .model import DjangoModelAdaptor
 
 
 def get_ignored_errors(
@@ -33,6 +37,7 @@ def get_ignored_errors(
 
 class DjangoQueryCompiler(BaseQueryCompiler):
     queryset: models.QuerySet
+    model: "DjangoModelAdaptor"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -63,6 +68,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     def init_queryset(self):
         if self.queryset is None:
             self.queryset = self.model.get_queryset().none()
+
         elif not isinstance(self.queryset, models.QuerySet):
             if multi(self.queryset):
                 pks = []
@@ -73,7 +79,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 if not pks:
                     self.queryset = self.model.get_queryset().none()
                 else:
-                    self.queryset = self.model.get_queryset(pk__in=pks)
+                    self.queryset = self.model.get_queryset(pks)
             else:
                 pk = self._get_pk(self.queryset)
                 if pk is not None:
@@ -81,8 +87,17 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 else:
                     self.queryset = self.model.get_queryset().none()
 
+        if not self.query_adaptor:
+            self.query_adaptor = self.model.query_adaptor_cls(
+                self.queryset, model=self.model
+            )
+
         if self.context.using:
             self.queryset = self.queryset.using(self.context.using)
+
+        elif self.query_adaptor.using:
+            self.context.using = self.query_adaptor.using
+
         if self.context.single:
             if not self.queryset.query.is_sliced:
                 self.queryset = self.queryset[:1]
@@ -105,6 +120,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # distinct here
                 continue
             pk_list.append(pk)
+            for f in self.pk_fields:
+                val.setdefault(f, pk)
             pk_map[pk] = val
             result.append(val)
         self.pk_list = pk_list
@@ -112,13 +129,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         self.values: List[dict] = result
 
     def clear_pks(self):
-        for val in self.values:
-            if PK not in self.pk_fields:
-                pk = pop(val, PK)
-            else:
-                pk = val[PK]
-            for f in self.pk_fields:
-                val.setdefault(f, pk)
+        if PK not in self.pk_fields:
+            for val in self.values:
+                pop(val, PK)
 
     def get_values(self):
         if self.queryset.query.is_empty():
@@ -153,7 +166,6 @@ class DjangoQueryCompiler(BaseQueryCompiler):
 
         if not self.values:
             return []
-
         self._resolve_recursion()
 
         async def query_isolated(f):
@@ -165,7 +177,12 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         tasks = []
         if self.pk_list:
             for key, field in self.isolated_fields.items():
-                tasks.append(asyncio.create_task(query_isolated(field), name=key))
+                if self.gather_async_fields:
+                    # parallel
+                    tasks.append(asyncio.create_task(query_isolated(field), name=key))
+                else:
+                    # directly execute in serial
+                    await query_isolated(field)
 
         if tasks:
             try:
@@ -186,6 +203,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             f"{self.parser.name}[{self.parser.model.model}] "
             f"serialize isolated field: [{repr(field.name)}] failed with error: "
         )
+        if isinstance(e, RecursionError):
+            prepend = None
         if not field.fail_silently or self.context.force_raise_error:
             raise Error(e).throw(prepend=prepend)
         warnings.warn(f"{prepend}{e}")
@@ -228,6 +247,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             self.isolated_fields.setdefault(field.name, field)
             if field.related_schema:
                 self.recursively = True
+
         elif field.expression:
             self.expressions.setdefault(
                 field.name, self.process_expression(field.expression)
@@ -265,7 +285,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         query_key = "__" + key
         # avoid "conflicts with a field on the model."
 
-        current_qs: models.QuerySet = self.model.get_queryset(pk__in=pk_list)
+        current_qs: models.QuerySet = self.model.get_queryset(pk_list, using=self.using)
         related_subquery: models.QuerySet = field.subquery
         related_queryset: models.QuerySet = field.queryset
         # - current_qs.filter(pk__in=self.pk_list).values(related_field, PK)   [no related_qs provided]
@@ -283,7 +303,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             if field.reverse_lookup:
                 related_queryset = related_queryset.filter(
                     **{field.reverse_lookup + "__in": pk_list}
-                )
+                ).using(self.using)
                 for val in related_queryset.values(PK, field.reverse_lookup):
                     rel = val[PK]
                     pk = val[field.reverse_lookup]
@@ -341,9 +361,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # also prevent redundant "None" over the non-exist fk
 
                 if m and f:
-                    for val in m.get_queryset(**{f + "__in": pk_list}).values(
-                        c or PK, __target=exp.F(f)
-                    ):
+                    for val in m.get_queryset(
+                        {f + "__in": pk_list}, using=self.using
+                    ).values(c or PK, __target=exp.F(f)):
                         rel = val["__target"]
                         if rel is not None:
                             pk_map.setdefault(rel, []).append(val[c or PK])
@@ -375,7 +395,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                         # like un-hashable data
                         continue
 
-            result_map = dict(self.recursive_map.get(field.related_schema) or {})
+            result_map = self.get_recursion_objects(field.related_schema, *related_pks)
             # try to use cached shared recursive map before query
             related_pks = related_pks.difference(result_map)
 
@@ -394,6 +414,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     if pk is None:
                         continue
                     result_map[pk] = inst
+                    # self.recursion_map.setdefault(field.related_schema, {})[pk] = inst
+                    # set schema instance here to be cached for other relation queries
+                    # [schema_cls, primary_key]
 
             # insert values
             for val in self.values:
@@ -433,7 +456,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
 
     def normalize_pk_list(self, value):
         if isinstance(value, models.QuerySet):
-            value = list(value.values_list("pk", flat=True))
+            value = list(value.using(self.using).values_list("pk", flat=True))
         if not multi(value):
             value = [value]
         lst = []
@@ -447,7 +470,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     @awaitable(normalize_pk_list)
     async def normalize_pk_list(self, value):
         if isinstance(value, models.QuerySet):
-            value = [pk async for pk in value.values_list("pk", flat=True)]
+            value = [
+                pk async for pk in value.using(self.using).values_list("pk", flat=True)
+            ]
         if not multi(value):
             value = [value]
         lst = []
@@ -501,7 +526,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         query_key = "__" + key
         # avoid "conflicts with a field on the model."
 
-        current_qs: models.QuerySet = self.model.get_queryset(pk__in=pk_list)
+        current_qs: models.QuerySet = self.model.get_queryset(pk_list, using=self.using)
         related_subquery: models.QuerySet = field.subquery
         related_queryset: models.QuerySet = field.queryset
 
@@ -516,7 +541,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             if field.reverse_lookup:
                 related_queryset = related_queryset.filter(
                     **{field.reverse_lookup + "__in": pk_list}
-                )
+                ).using(self.using)
                 async for val in related_queryset.values(PK, field.reverse_lookup):
                     rel = val[PK]
                     pk = val[field.reverse_lookup]
@@ -569,9 +594,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 # use reverse query due to the unfixed issue on the async backend
                 # also prevent redundant "None" over the non-exist fk
                 if m and f:
-                    async for val in m.get_queryset(**{f + "__in": pk_list}).values(
-                        c or PK, __target=exp.F(f)
-                    ):
+                    async for val in m.get_queryset(
+                        {f + "__in": pk_list}, using=self.using
+                    ).values(c or PK, __target=exp.F(f)):
                         rel = val["__target"]
                         if rel is not None:
                             pk_map.setdefault(rel, []).append(val[c or PK])
@@ -602,7 +627,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                         # like un-hashable data
                         continue
 
-            result_map = dict(self.recursive_map.get(field.related_schema) or {})
+            result_map = self.get_recursion_objects(field.related_schema, *related_pks)
             # try to use cached shared recursive map before query
             related_pks = related_pks.difference(result_map)
 
@@ -622,6 +647,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     if pk is None:
                         continue
                     result_map[pk] = inst
+                    # self.recursion_map.setdefault(field.related_schema, {})[pk] = inst
+
             # insert values
             for val in self.values:
                 rel = pk_map.get(str(val[PK]))
@@ -713,6 +740,10 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     ):
         if with_relations is None:
             with_relations = self.pref.orm_default_save_with_relations
+        if transaction is True:
+            if self.using:
+                transaction = self.using
+                # using the transaction db alias
         with TransactionWrapper(
             self.model, transaction, errors_map=self.get_errors_map(False)
         ):
@@ -751,47 +782,46 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 data, rel_keys, rel_objs = self.process_data(
                     data, with_relations=with_relations
                 )
-                if pk is None:
-                    # create
-                    if must_update:
-                        raise exceptions.MissingPrimaryKey
-                    try:
-                        obj = self.model.create(data)
-                    except self.get_integrity_errors(False) as e:
-                        raise self.get_integrity_error(e) from e
-                    pk = obj.pk
-                else:
-                    # attempt to update
-                    # then create if no rows was updated
-                    if must_create:
-                        rows = 0
-                    else:
-                        try:
-                            rows = self.model.update(data, pk=pk)
-                        except self.get_integrity_errors(False) as e:
-                            raise self.get_integrity_error(e) from e
-                        if not rows:
-                            inst = self.model.get_instance_recursively(pk=pk)
-                            # child not exists, but parent exists
-                            if inst:
-                                self.model.save_raw(pk=pk, **data)
-                                rows = 1
-                    if not rows:
+                try:
+                    if pk is None:
+                        # create
                         if must_update:
-                            raise exceptions.UpdateFailed
-                        try:
-                            obj = self.model.create(data)
-                        except self.get_integrity_errors(False) as e:
-                            raise self.get_integrity_error(e) from e
+                            raise exceptions.MissingPrimaryKey
+                        obj = self.queryset.create(**data)
                         pk = obj.pk
-                if with_relations and pk:
-                    self.save_relations(
-                        pk,
-                        relation_keys=rel_keys,
-                        relation_objects=rel_objs,
-                        must_create=must_create,
-                        ignore_errors=ignore_relation_errors,
-                    )
+                    else:
+                        # attempt to update
+                        # then create if no rows was updated
+                        if must_create:
+                            rows = 0
+                        else:
+                            rows = self.model.get_queryset(
+                                pk=pk, using=self.using
+                            ).update(**data)
+                            if not rows:
+                                inst = self.model.get_instance_recursively(
+                                    pk=pk, using=self.using
+                                )
+                                # child not exists, but parent exists
+                                if inst:
+                                    raw_inst = self.model.init_instance(pk=pk, **data)
+                                    raw_inst.save_base(raw=True, using=self.using)
+                                    rows = 1
+                        if not rows:
+                            if must_update:
+                                raise exceptions.UpdateFailed
+                            obj = self.queryset.create(**data)
+                            pk = obj.pk
+                    if with_relations and pk:
+                        self.save_relations(
+                            pk,
+                            relation_keys=rel_keys,
+                            relation_objects=rel_objs,
+                            must_create=must_create,
+                            ignore_errors=ignore_relation_errors,
+                        )
+                except self.get_integrity_errors(False) as e:
+                    raise self.get_integrity_error(e) from e
                 return pk
 
     @awaitable(save_data, bind_service=True, close_conn=True)
@@ -807,6 +837,10 @@ class DjangoQueryCompiler(BaseQueryCompiler):
     ):
         if with_relations is None:
             with_relations = self.pref.orm_default_save_with_relations
+        if transaction is True:
+            if self.using:
+                transaction = self.using
+                # using the transaction db alias
         async with TransactionWrapper(
             self.model, transaction, errors_map=self.get_errors_map(True)
         ):
@@ -846,50 +880,94 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     data, with_relations=with_relations
                 )
 
-                if pk is None:
-                    if must_update:
-                        raise exceptions.MissingPrimaryKey
-                    # create
-                    try:
-                        obj = await self.model.create(data)
-                    except self.get_integrity_errors(True) as e:
-                        raise self.get_integrity_error(e) from e
-                    pk = obj.pk
-                else:
-                    # attempt to update
-                    # then create if no rows was updated
-                    if not must_create:
-                        exists = await self.model.get_queryset(pk=pk).aexists()
-                        if exists:
-                            try:
-                                await self.model.update(data, pk=pk)
-                            except self.get_integrity_errors(True) as e:
-                                raise self.get_integrity_error(e) from e
-                        else:
-                            if must_update:
-                                raise exceptions.UpdateFailed
-                            inst = await self.model.aget_instance_recursively(pk=pk)
-                            if inst:
-                                # child not exists, but parent exists
-                                await self.model.asave_raw(pk=pk, **data)
-                            else:
-                                must_create = True
-                    if must_create:
-                        try:
-                            obj = await self.model.create(data)
-                        except self.get_integrity_errors(True) as e:
-                            raise self.get_integrity_error(e) from e
+                try:
+                    if pk is None:
+                        if must_update:
+                            raise exceptions.MissingPrimaryKey
+                        # create
+                        obj = await self.queryset.acreate(**data)
                         pk = obj.pk
+                    else:
+                        # attempt to update
+                        # then create if no rows was updated
+                        if not must_create:
+                            qs = self.model.get_queryset(pk=pk, using=self.using)
+                            exists = await qs.aexists()
+                            if exists:
+                                await qs.aupdate(**data)
+                            else:
+                                if must_update:
+                                    raise exceptions.UpdateFailed
+                                inst = await self.model.aget_instance_recursively(
+                                    pk=pk, using=self.using
+                                )
+                                if inst:
+                                    # child not exists, but parent exists
+                                    raw_inst = self.model.init_instance(pk=pk, **data)
+                                    await AwaitableQuerySet(
+                                        model=self.model.model, using=self.using
+                                    ).save_obj(raw_inst)
+                                else:
+                                    must_create = True
+                        if must_create:
+                            obj = await self.queryset.acreate(**data)
+                            pk = obj.pk
 
-                if with_relations and pk:
-                    await self.asave_relations(
-                        pk,
-                        relation_keys=rel_keys,
-                        relation_objects=rel_objs,
-                        must_create=must_create,
-                        ignore_errors=ignore_relation_errors,
-                    )
+                    if with_relations and pk:
+                        await self.asave_relations(
+                            pk,
+                            relation_keys=rel_keys,
+                            relation_objects=rel_objs,
+                            must_create=must_create,
+                            ignore_errors=ignore_relation_errors,
+                        )
+                except self.get_integrity_errors(True) as e:
+                    raise self.get_integrity_error(e) from e
                 return pk
+
+    def save_relation_keys(
+        self, obj, keys: list, field: ParserQueryField, add_only: bool = False
+    ):
+        if not isinstance(obj, self.model.model):
+            obj = self.model.init_instance(pk=obj)
+
+        through_model: DjangoModelAdaptor = field.model_field.through_model
+        related_model: DjangoModelAdaptor = field.model_field.related_model
+
+        from_field, to_field = field.model_field.through_fields
+        if not through_model or not related_model or not from_field or not to_field:
+            raise exceptions.InvalidRelationalUpdate(
+                f"Invalid relational keys update field: "
+                f"{repr(field.model_field.name)}, must be a many-to-may field/rel"
+            )
+
+        create_objs = []
+        all_keys = []
+        for key in keys:
+            if isinstance(key, related_model.model):
+                rel_obj = key
+            else:
+                rel_obj = related_model.init_instance(pk=key)
+            thr_data = {from_field.name: obj, to_field.name: rel_obj}
+            if not add_only:
+                thr_obj = through_model.query(thr_data, using=self.using).get_instance()
+                if thr_obj:
+                    all_keys.append(thr_obj.pk)
+                    continue
+            create_objs.append(thr_data)
+
+        through_qs = through_model.get_queryset(
+            {from_field.name: obj}, using=self.using
+        )
+
+        db = DatabaseConnections.get(through_qs.db)
+
+        with db.transaction(savepoint=False):
+            for val in create_objs:
+                obj = through_model.query(using=self.using).create(**val)
+                all_keys.append(obj.pk)
+            if not add_only:
+                through_qs.exclude(pk__in=all_keys).adelete()
 
     def save_relations(
         self,
@@ -909,7 +987,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         #   null=False (create / hard delete / update relation)
         for name, (field, keys) in relation_keys.items():
             field: ParserQueryField
-            inst: models.Model = self.model.model(pk=pk)
+            inst: models.Model = self.model.init_instance(pk=pk)
             if field.related_single:
                 if keys:
                     related_model = field.model_field.related_model.model
@@ -921,7 +999,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     relation_field = field.model_field.remote_field.column_name
                     setattr(related_inst, relation_field, pk)
                     try:
-                        related_inst.save(update_fields=[relation_field])
+                        related_inst.save(
+                            update_fields=[relation_field], using=self.using
+                        )
                     except error_classes as e:
                         warnings.warn(
                             f"orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}"
@@ -932,10 +1012,13 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     continue
 
                 try:
-                    if must_create:
-                        rel_field.add(*keys)
-                    else:
-                        rel_field.set(keys)
+                    self.save_relation_keys(
+                        inst, keys=keys, field=field, add_only=must_create
+                    )
+                    # if must_create:
+                    #     rel_field.add(*keys)
+                    # else:
+                    #     rel_field.set(keys)
                 except error_classes as e:
                     warnings.warn(
                         f"orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}"
@@ -960,6 +1043,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 must_create=must_create and not field.model_field.remote_field.is_pk,
                 ignore_errors=ignore_errors,
                 with_relations=True,
+                using=self.using,
             )
             if not must_create:
                 # delete the unrelated-relation
@@ -967,9 +1051,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     field_name = field.model_field.remote_field.name
                     if not field_name:
                         continue
-                    field.related_model.get_queryset(**{field_name: pk}).exclude(
-                        pk__in=[val.pk for val in result if val.pk]
-                    ).delete()
+                    field.related_model.get_queryset(
+                        {field_name: pk}, using=self.using
+                    ).exclude(pk__in=[val.pk for val in result if val.pk]).delete()
                 except error_classes as e:
                     warnings.warn(
                         f"orm.Schema(pk={repr(pk)}): ignoring relational "
@@ -982,8 +1066,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         if not isinstance(obj, self.model.model):
             obj = self.model.init_instance(pk=obj)
 
-        through_model = field.model_field.through_model
-        related_model = field.model_field.related_model
+        through_model: DjangoModelAdaptor = field.model_field.through_model
+        related_model: DjangoModelAdaptor = field.model_field.related_model
         from_field, to_field = field.model_field.through_fields
         if not through_model or not related_model or not from_field or not to_field:
             raise exceptions.InvalidRelationalUpdate(
@@ -999,20 +1083,24 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 rel_obj = related_model.init_instance(pk=key)
             thr_data = {from_field.name: obj, to_field.name: rel_obj}
             if not add_only:
-                thr_obj = await through_model.aget_instance(**thr_data)
+                thr_obj = await through_model.query(
+                    thr_data, using=self.using
+                ).aget_instance()
                 if thr_obj:
                     all_keys.append(thr_obj.pk)
                     continue
             create_objs.append(thr_data)
 
-        through_qs = AwaitableQuerySet(model=through_model.model).filter(
-            **{from_field.name: obj}
-        )
+        through_qs = AwaitableQuerySet(
+            model=through_model.model, using=self.using
+        ).filter(**{from_field.name: obj})
         db = through_qs.connections_cls.get(through_qs.db)
 
         async with db.async_transaction(savepoint=False):
             for val in create_objs:
-                obj = await AwaitableQuerySet(model=through_model.model).acreate(**val)
+                obj = await AwaitableQuerySet(
+                    model=through_model.model, using=self.using
+                ).acreate(**val)
                 all_keys.append(obj.pk)
             if not add_only:
                 await through_qs.exclude(pk__in=all_keys).adelete()
@@ -1043,7 +1131,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     relation_field = field.model_field.remote_field.column_name
                     setattr(related_inst, relation_field, pk)
                     try:
-                        await related_inst.asave(update_fields=[relation_field])
+                        await related_inst.asave(
+                            update_fields=[relation_field], using=self.using
+                        )
                     except error_classes as e:
                         warnings.warn(
                             f"orm.Schema(pk={repr(pk)}): ignoring relational errors for {repr(name)}: {e}"
@@ -1080,6 +1170,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 must_create=must_create and not field.model_field.remote_field.is_pk,
                 ignore_errors=ignore_errors,
                 with_relations=True,
+                using=self.using,
             )
             if not must_create:
                 # delete the unrelated-relation
@@ -1087,9 +1178,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     field_name = field.model_field.remote_field.name
                     if not field_name:
                         continue
-                    await field.related_model.get_queryset(**{field_name: pk}).exclude(
-                        pk__in=[val.pk for val in result if val.pk]
-                    ).adelete()
+                    await field.related_model.get_queryset(
+                        {field_name: pk}, using=self.using
+                    ).exclude(pk__in=[val.pk for val in result if val.pk]).adelete()
                 except error_classes as e:
                     warnings.warn(
                         f"orm.Schema(pk={repr(pk)}): ignoring relational "
@@ -1110,13 +1201,13 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             return ()
         from .queryset import AwaitableQuerySet
 
-        qs = self.model.get_queryset()
+        qs = self.model.get_queryset(using=self.using)
         from django.db.utils import IntegrityError
 
         if isinstance(qs, AwaitableQuerySet) or asynchronous:
             from utilmeta.core.orm import DatabaseConnections
 
-            db = DatabaseConnections.get(qs.db)
+            db = DatabaseConnections.get(self.using)
             errors = list(
                 db.get_adaptor(asynchronous=asynchronous).get_integrity_errors()
             )

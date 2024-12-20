@@ -71,17 +71,19 @@ class BaseDatabaseAdaptor:
         pkg = self.package_manager
         if not pkg:
             return
-        if pkg == 'apt':
+        if pkg == "apt":
             os.system("sudo apt-get install -y libpq-dev")
-        elif pkg == 'yum':
+        elif pkg == "yum":
             os.system("sudo yum install -y libpq-devel")
 
     def install_mysql(self):
         pkg = self.package_manager
         if not pkg:
             return
-        if pkg == 'apt':
-            os.system('sudo apt-get install pkg-config python3-dev build-essential'
-                      ' libmysqlclient-dev default-libmysqlclient-dev -y -m')
-        elif pkg == 'yum':
-            os.system('sudo yum install python-devel mysql-devel -y')
+        if pkg == "apt":
+            os.system(
+                "sudo apt-get install pkg-config python3-dev build-essential"
+                " libmysqlclient-dev default-libmysqlclient-dev -y -m"
+            )
+        elif pkg == "yum":
+            os.system("sudo yum install python-devel mysql-devel -y")

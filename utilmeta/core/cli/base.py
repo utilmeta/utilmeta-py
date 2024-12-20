@@ -510,7 +510,7 @@ class Client(PluginTarget):
                 resp = adaptor(
                     timeout=timeout,
                     allow_redirects=self._allow_redirects,
-                    proxies=self._proxies
+                    proxies=self._proxies,
                 )
             except Exception as e:
                 if not self._fail_silently:

@@ -204,7 +204,7 @@ class User(Property):
 
     def query_user(self, q=None, **kwargs):
         if self.user_model:
-            inst = self.user_model.get_instance(q, **kwargs)
+            inst = self.user_model.filter(q, **kwargs).get_instance()
             if inst is not None:
                 return inst
         return None
@@ -212,7 +212,7 @@ class User(Property):
     # @awaitable(query_user)
     async def aquery_user(self, q=None, **kwargs):
         if self.user_model:
-            inst = await self.user_model.aget_instance(q, **kwargs)
+            inst = await self.user_model.filter(q, **kwargs).aget_instance()
             if inst is not None:
                 return inst
         return None
@@ -323,13 +323,13 @@ class User(Property):
     def update_fields(self, request: Request, user, data=None) -> None:
         data = self.get_update_data(request, data=data)
         if data:
-            self.user_model.update(data, pk=user.pk)
+            self.user_model.query(pk=user.pk).update(data)
 
     # @awaitable(update_fields)
     async def aupdate_fields(self, request: Request, user, data=None) -> None:
         data = self.get_update_data(request, data=data)
         if data:
-            await self.user_model.update(data, pk=user.pk)
+            await self.user_model.query(pk=user.pk).aupdate(data)
 
     @classmethod
     def check_password(cls, password: str, encoded: str):

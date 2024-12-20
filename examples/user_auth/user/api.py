@@ -36,7 +36,7 @@ user_config = auth.User(
 @session_config.plugin
 class UserAPI(api.API):
     @api.post
-    def login(self, data: LoginSchema):
+    def login(self, data: LoginSchema = request.Body):
         user = user_config.login(
             request=self.request,
             ident=data.username,
@@ -47,7 +47,7 @@ class UserAPI(api.API):
         return UserSchema.init(user)
 
     @api.post
-    def signup(self, data: LoginSchema):
+    def signup(self, data: LoginSchema = request.Body):
         if User.objects.filter(username=data.username).exists():
             raise exceptions.BadRequest('Username exists')
         data.save()

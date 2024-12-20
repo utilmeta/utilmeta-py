@@ -210,9 +210,9 @@ class ServiceMetricsMixin(orm.Schema):
 
 class WorkerSchema(SystemMetricsMixin, ServiceMetricsMixin, orm.Schema[Worker]):
     server_id: int
-    server_remote_id: Optional[str]
+    server_remote_id: Optional[str] = orm.Field("server__remote_id")
     instance_id: int
-    instance_remote_id: Optional[str]
+    instance_remote_id: Optional[str] = orm.Field("instance__remote_id")
 
     pid: int
     memory_info: dict

@@ -22,6 +22,7 @@ __all__ = [
     "order_list",
     "setval",
     "dict_list",
+    "merge_dict",
     "regular",
     "hide_secret_values",
     "readable",
@@ -659,6 +660,18 @@ def merge_list(*lst, keys=None) -> List[dict]:
             val.update(item)
         result.append(restrict_keys(keys=keys, data=val) if keys else val)
     return result
+
+
+def merge_dict(*dicts: dict, null=False):
+    res = {}
+    dic = False
+    for val in dicts:
+        if isinstance(val, dict):
+            dic = True
+            res.update(val)
+    if not dic and null:
+        return None
+    return res
 
 
 def convert_data_frame(

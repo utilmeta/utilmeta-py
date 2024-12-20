@@ -191,9 +191,7 @@ class UtilMeta:
     def load_meta(self):
         self.meta_path = search_file(
             "utilmeta.ini", path=self.project_dir
-        ) or search_file(
-            "meta.ini", path=self.project_dir
-        )
+        ) or search_file("meta.ini", path=self.project_dir)
 
         if self.meta_path:
             self.project_dir = Path(os.path.dirname(self.meta_path))
@@ -315,9 +313,10 @@ class UtilMeta:
                 if not isinstance(self._application, self.adaptor.application_cls):
                     self._application = None
 
-            warnings.warn(
-                f"Replacing server backend from [{self.adaptor.backend}] to [{self.backend_name}]"
-            )
+            if self.adaptor.backend != self.backend:
+                warnings.warn(
+                    f"Replacing server backend from [{self.adaptor.backend}] to [{self.backend_name}]"
+                )
 
         # if not self.adaptor:
         self.adaptor = ServerAdaptor.dispatch(self)

@@ -49,7 +49,7 @@ __all__ = [
     "get_recursive_dirs",
     "get_sys_net_connections_info",
     "get_mac_address",
-    "detect_package_manager"
+    "detect_package_manager",
 ]
 
 import uuid
@@ -773,16 +773,20 @@ def get_real_ip(ip: str):
 
 def detect_package_manager():
     """Detects the package management tool (apt or yum) for the system."""
-    if os.name != 'posix':
+    if os.name != "posix":
         return None
     try:
         # Check for apt
-        apt_check = subprocess.run(["which", "apt"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        apt_check = subprocess.run(
+            ["which", "apt"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         if apt_check.returncode == 0:
             return "apt"
 
         # Check for yum
-        yum_check = subprocess.run(["which", "yum"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        yum_check = subprocess.run(
+            ["which", "yum"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         if yum_check.returncode == 0:
             return "yum"
 

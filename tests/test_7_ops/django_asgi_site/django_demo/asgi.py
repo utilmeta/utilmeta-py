@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from utilmeta.ops import Operations
 from utilmeta import UtilMeta
 from utilmeta.core import api, response
+from tests.conftest import get_operations_db
 
 service = UtilMeta(
     __name__,
@@ -51,9 +52,7 @@ PORT = 9100
 
 Operations(
     route='ops',
-    database=Operations.Database(
-        name='operations_db',
-    ),
+    database=get_operations_db(),
     base_url=f'http://127.0.0.1:{PORT}',
     eager_migrate=True
 ).integrate(service)

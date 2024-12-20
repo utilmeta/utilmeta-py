@@ -235,7 +235,7 @@ The additional specified OpenAPI document will be integrated with the automatica
 
 ## Connect to UtilMeta Platform
 
-UtilMeta provides a management platform for the observation and management operations of the API service operation and maintenance management system: [ UtilMeta API Service Management Platform ](https://ops.utilmeta.com) you can enter the platform to connect and manage your own UtilMeta service, view API documents, data, logs and monitoring.
+UtilMeta provides a platform for the observation and management operations of the API services: [UtilMeta Platform ](https://ops.utilmeta.com) you can enter the platform to connect and manage your UtilMeta service (or other services with supported frameworks), view API documents, data, logs and monitoring.
 ### Connect Local Node
 
 If you have introduced the Operations configuration, successfully run the local service, and see the following prompt

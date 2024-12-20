@@ -1,9 +1,8 @@
-from peewee import Model, ModelSelect, Expression, fn
+from peewee import Model, ModelSelect, Database
 from typing import Type
 from ..base import (
     ModelAdaptor,
-    QuerysetAdaptor,
-    QueryExpressionAdaptor,
+    ModelQueryAdaptor,
     ModelFieldAdaptor,
 )
 
@@ -12,8 +11,8 @@ class PeeweeModelFieldAdaptor(ModelFieldAdaptor):
     pass
 
 
-class PeeweeQuerysetAdaptor(QuerysetAdaptor):
-    # model_adaptor_cls = PeeweeModelAdaptor
+class PeeweeQuerysetAdaptor(ModelQueryAdaptor):
+    queryset_cls = ModelSelect
     queryset: ModelSelect
 
     @classmethod
@@ -28,24 +27,25 @@ class PeeweeQuerysetAdaptor(QuerysetAdaptor):
     def base_queryset(self):
         return self.model.select()
 
+    @property
+    def database(self) -> Database:
+        raise NotImplementedError
 
-class PeeweeQueryExpressionAdaptor(QueryExpressionAdaptor):
-    obj: Expression
+    def exists(self) -> bool:
+        return self.queryset.exists(self.database)
 
-    @classmethod
-    def qualify(cls, obj):
-        return isinstance(obj, Expression)
+    def count(self) -> int:
+        return self.queryset.count(self.database)
 
 
 class PeeweeModelAdaptor(ModelAdaptor):
     model: Type[Model]
-
-    queryset_adaptor_cls = PeeweeQuerysetAdaptor
-    query_expression_adaptor_cls = PeeweeQueryExpressionAdaptor
+    field_adaptor_cls = PeeweeModelFieldAdaptor
+    query_adaptor_cls = PeeweeQuerysetAdaptor
 
     @classmethod
     def qualify(cls, impl):
         return issubclass(impl, Model)
 
-    def get_queryset(self):
+    def get_queryset(self, query=None, pk=None, using: str = None):
         return self.model.select()

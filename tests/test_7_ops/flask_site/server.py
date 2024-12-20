@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from apiflask import APIFlask, Schema, abort
 from apiflask.fields import Integer, String
 from apiflask.validators import Length, OneOf
+from tests.conftest import get_operations_db
 
 app = APIFlask(__name__, root_path='/api')
 
@@ -42,10 +43,7 @@ PORT = 9093
 from utilmeta.ops import Operations
 Operations(
     route='ops',
-    database=Operations.Database(
-        name='operations_db',
-        engine='sqlite3'
-    ),
+    database=get_operations_db(),
     base_url=f'http://127.0.0.1:{PORT}',
     eager_migrate=True
 ).integrate(app, __name__)

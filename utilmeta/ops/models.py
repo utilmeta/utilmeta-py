@@ -1054,6 +1054,6 @@ supervisor_related_models = [
 ]
 supervisor_key_models = {
     # AccessToken: 'issuer',
-    ServiceLog: 'supervisor',
-    AggregationLog: 'supervisor',
+    ServiceLog: "supervisor",
+    AggregationLog: "supervisor",
 }

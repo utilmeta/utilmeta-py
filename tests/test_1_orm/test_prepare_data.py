@@ -3,7 +3,7 @@ from tests.conftest import setup_service
 setup_service(__name__)
 
 
-def test_prepare_data(service):
+def test_prepare_data(service, db_using):
     # from utilmeta.utils import exceptions as exc
     from django.db.utils import OperationalError, ProgrammingError
     # from server import service
@@ -16,17 +16,17 @@ def test_prepare_data(service):
     from utilmeta.core import orm
 
     try:
-        User.objects.exists()
+        User.objects.using(db_using).exists()
     except (OperationalError, ProgrammingError):
         from django.core.management import execute_from_command_line
-        execute_from_command_line([__name__, 'migrate'])
+        execute_from_command_line([__name__, 'migrate', f'--database={db_using}'])
         # os.system("python -m utilmeta migrate")
 
     # delete all data
-    User.objects.all().delete()
-    Article.objects.all().delete()
-    Comment.objects.all().delete()
-    Follow.objects.all().delete()
+    User.objects.all().using(db_using).delete()
+    Article.objects.all().using(db_using).delete()
+    Comment.objects.all().using(db_using).delete()
+    Follow.objects.all().using(db_using).delete()
 
     # test bulk create
     UserSchema[orm.A].bulk_save(
@@ -58,9 +58,10 @@ def test_prepare_data(service):
                 password="sudo-123",
             ),
         ],
+        using=db_using
     )
 
-    assert User.objects.count() == 5
+    assert User.objects.using(db_using).count() == 5
 
     objs = [
         Follow(id=1, target_id=1, user_id=2),
@@ -70,9 +71,9 @@ def test_prepare_data(service):
         Follow(id=5, target_id=3, user_id=2),
     ]
     for obj in objs:
-        obj.save()
+        obj.save(using=db_using)
 
-    assert Follow.objects.count() == 5
+    assert Follow.objects.using(db_using).count() == 5
 
     ArticleSchema[orm.A].bulk_save(
         [
@@ -119,6 +120,7 @@ def test_prepare_data(service):
                 public=False
             ),
         ],
+        using=db_using
     )
 
     CommentSchema[orm.A].bulk_save([
@@ -127,19 +129,19 @@ def test_prepare_data(service):
         dict(id=8, author_id=2, on_content_id=2, content="lol!"),
         dict(id=9, author_id=4, on_content_id=4, content="wow"),
         dict(id=10, author_id=5, on_content_id=4, content="brilliant~"),
-    ])
+    ], using=db_using)
 
-    assert sorted([val.pk for val in Article.objects.all()]) == [1, 2, 3, 4, 5]
-    assert sorted([val.pk for val in Comment.objects.all()]) == [6, 7, 8, 9, 10]
-    assert BaseContent.objects.filter(public=True).count() == 9
-    assert BaseContent.objects.filter(type="comment").count() == 5
+    assert sorted([val.pk for val in Article.objects.all().using(db_using)]) == [1, 2, 3, 4, 5]
+    assert sorted([val.pk for val in Comment.objects.all().using(db_using)]) == [6, 7, 8, 9, 10]
+    assert BaseContent.objects.filter(public=True).using(db_using).count() == 9
+    assert BaseContent.objects.filter(type="comment").using(db_using).count() == 5
 
-    article_1 = Article.objects.get(id=1)
-    article_2 = Article.objects.get(id=2)
-    article_3 = Article.objects.get(id=3)
-    article_4 = Article.objects.get(id=4)
-    comment_6 = Comment.objects.get(id=6)
-    comment_7 = Comment.objects.get(id=7)
+    article_1 = Article.objects.using(db_using).get(id=1)
+    article_2 = Article.objects.using(db_using).get(id=2)
+    article_3 = Article.objects.using(db_using).get(id=3)
+    article_4 = Article.objects.using(db_using).get(id=4)
+    comment_6 = Comment.objects.using(db_using).get(id=6)
+    comment_7 = Comment.objects.using(db_using).get(id=7)
 
     article_1.liked_bys.set([1, 3, 4])
     article_2.liked_bys.set([5])

@@ -51,9 +51,9 @@ class BaseServiceCommand(BaseCommand):
         ini_file = None
         exclude_params = []
         for i, arg in enumerate(args):
-            if arg.startswith('--ini'):
-                if '=' in arg:
-                    ini_file = arg.split('=')[1]
+            if arg.startswith("--ini"):
+                if "=" in arg:
+                    ini_file = arg.split("=")[1]
                     exclude_params.append(i)
                 else:
                     try:
@@ -63,8 +63,12 @@ class BaseServiceCommand(BaseCommand):
                         ini_file = None
                 break
         if exclude_params:
-            sys.argv = [self.exe] + [arg for i, arg in enumerate(sys.argv[1:]) if i not in exclude_params]
-            self.sys_args = [arg for i, arg in enumerate(args) if i not in exclude_params]
+            sys.argv = [self.exe] + [
+                arg for i, arg in enumerate(sys.argv[1:]) if i not in exclude_params
+            ]
+            self.sys_args = [
+                arg for i, arg in enumerate(args) if i not in exclude_params
+            ]
         if ini_file:
             path = path_join(self.cwd, ini_file)
             if os.path.isdir(path):

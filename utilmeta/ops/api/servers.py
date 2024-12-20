@@ -246,8 +246,8 @@ class ServersAPI(api.API):
     class BaseQuery(orm.Query):
         layer: int
         interval: Optional[int]
-        sample_interval: Optional[int] = orm.Field(default=None, defer_default=True)
-        cursor: Optional[datetime] = orm.Field(default=None, defer_default=True)
+        sample_interval: Optional[int] = utype.Field(default=None, defer_default=True)
+        cursor: Optional[datetime] = utype.Field(default=None, defer_default=True)
         # time > cursor
         start: datetime = orm.Filter(query=lambda v: models.Q(time__gte=v))
         end: datetime = orm.Filter(query=lambda v: models.Q(time__lte=v))

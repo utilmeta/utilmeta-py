@@ -3,7 +3,6 @@ import os
 import time
 import subprocess
 import signal
-import warnings
 import pytest
 import psutil
 from utilmeta import UtilMeta
@@ -41,7 +40,40 @@ WINDOWS = os.name == 'nt'
 #         cleanup_on_sigterm()
 
 
-def setup_service(name, backend: str = None, async_param: Union[list, bool] = True, orm: str = None):
+@pytest.fixture(params=('default', 'mysql', 'postgresql'), scope="module")
+def db_using(request):
+    return request.param
+
+
+def get_operations_db():
+    engine = os.environ.get('UTILMETA_OPERATIONS_DATABASE_ENGINE') or 'sqlite3'
+    from utilmeta.core.orm import Database
+    if engine == 'mysql':
+        return Database(
+            engine=engine,
+            name='utilmeta_test_ops_db',
+            host='127.0.0.1',
+            port=3306,
+            user='test_user',
+            password='test-tmp-password',
+        )
+    elif engine == 'postgresql':
+        return Database(
+            engine=engine,
+            name='utilmeta_test_ops_db',
+            host='127.0.0.1',
+            port=5432,
+            user='test_user',
+            password='test-tmp-password',
+        )
+    return Database(engine='sqlite3', name='operations_db')
+
+
+def setup_service(
+    name,
+    backend: str = None,
+    async_param: Union[list, bool] = True,
+):
     """
     If a list of params is provided, each param will not across and will execute in order
     for every ConfigParam, params inside are consider crossing, will enumerate every possible combination
@@ -366,7 +398,9 @@ def make_live_process(backend: str = None, port: int = None, cmdline: bool = Fal
     return service_process
 
 
-def make_cmd_process(file: Union[str, Path], *argv, cwd: Union[str, Path] = None, port: int = None):
+def make_cmd_process(file: Union[str, Path], *argv,
+                     cwd: Union[str, Path] = None,
+                     port: int = None):
     if not os.path.isabs(file):
         file = os.path.join(TEST_PATH, file)
     if not os.path.exists(file):
@@ -377,11 +411,13 @@ def make_cmd_process(file: Union[str, Path], *argv, cwd: Union[str, Path] = None
     # raise Exception(str(cmd))
 
     @pytest.fixture(scope="module")
-    def command_process():
+    def command_process(db_using):
         import os
         if os.environ.get('DJANGO_SETTINGS_MODULE'):
             os.environ.pop('DJANGO_SETTINGS_MODULE')
-        server = subprocess.Popen(cmd, env=os.environ.copy(), cwd=str(cwd or os.getcwd()))
+        env = os.environ.copy()
+        env['UTILMETA_OPERATIONS_DATABASE_ENGINE'] = db_using
+        server = subprocess.Popen(cmd, env=env, cwd=str(cwd or os.getcwd()))
 
         try:
             if port:

@@ -1,7 +1,7 @@
 from utype.parser.cls import ClassParser
 from .fields.field import ParserQueryField
 from .fields.filter import ParserFilter
-from . import exceptions
+from utilmeta.core.orm import exceptions
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,8 +23,10 @@ class QueryClassParser(ClassParser):
     def kwargs(self):
         return dict(model=self.model)
 
-    def get_generator(self, values: dict, **kwargs) -> "BaseQuerysetGenerator":
-        return self.model.generator_cls(self, values, **kwargs)
+    def get_generator(
+        self, values: dict, using: str = None, **kwargs
+    ) -> "BaseQuerysetGenerator":
+        return self.model.generator_cls(self, values, using=using, **kwargs)
 
     @property
     def schema_annotations(self):
@@ -41,7 +43,7 @@ class SchemaClassParser(ClassParser):
         model = getattr(obj, "__model__", None)
         from .backends.base import ModelAdaptor
 
-        self.model = ModelAdaptor.dispatch(model) if model else None
+        self.model: ModelAdaptor = ModelAdaptor.dispatch(model) if model else None
         super().__init__(obj, *args, **kwargs)
 
         serialize_options = getattr(obj, "__serialize_options__", None)
@@ -114,3 +116,18 @@ class SchemaClassParser(ClassParser):
         if self.model:
             data.update(model=self.model.ident)
         return data
+
+    @classmethod
+    def valid_schema(cls, schema_cls):
+        if isinstance(schema_cls, type):
+            parser_cls = getattr(schema_cls, "__parser_cls__", None)
+            parser = getattr(schema_cls, "__parser__", None)
+            if parser and isinstance(parser, cls):
+                return True
+            if (
+                parser_cls
+                and isinstance(parser_cls, type)
+                and issubclass(parser_cls, cls)
+            ):
+                return True
+        return False

@@ -37,7 +37,7 @@ class DataAPI(api.API):
 
     model: str = request.QueryParam(required=True)
     # model ref
-    # using: str = request.QueryParam(default=None)
+    using: str = request.QueryParam(default=None)
 
     def get_model(self):
         if "." not in self.model:
@@ -56,9 +56,22 @@ class DataAPI(api.API):
         self._adaptor = None
         # not trigger adaptor load until the first access
         self.model_class = None
+        self.database = None
+        self.check_using()
+
+    def check_using(self):
+        if self.using:
+            from utilmeta.core.orm import DatabaseConnections
+
+            try:
+                self.database = DatabaseConnections.get(self.using)
+            except exceptions.NotConfigured:
+                raise exceptions.BadRequest(
+                    f"Invalid database alias: {repr(self.using)}"
+                )
 
     @property
-    def adaptor(self):
+    def adaptor(self) -> ModelAdaptor:
         if self._adaptor:
             return self._adaptor
         self.model_class = self.get_model()
@@ -67,6 +80,10 @@ class DataAPI(api.API):
         except NotImplementedError:
             raise exceptions.BadRequest(f"Invalid model: {self.model}")
         return self._adaptor
+
+    @property
+    def queryset(self):
+        return self.adaptor.query(self.using)
 
     def parse_result(self, data, max_length: Optional[int] = None):
         if isinstance(data, list):
@@ -105,7 +122,7 @@ class DataAPI(api.API):
     # close all connections
     def query_data(self, query: QuerySchema = request.Body):
         try:
-            unsliced_qs = self.adaptor.get_queryset(**query.query)
+            unsliced_qs = self.adaptor.get_queryset(query.query, using=self.using)
             count = unsliced_qs.count()
             qs = unsliced_qs.order_by(*query.orders)[
                 (query.page - 1) * query.rows : query.page * query.rows
@@ -131,10 +148,10 @@ class DataAPI(api.API):
     def create_data(self, data: CreateDataSchema = request.Body):
         objs = []
         for val in data.data:
-            objs.append(self.adaptor.create(**val))
+            objs.append(self.adaptor.create(val, using=self.using))
         if not data.return_fields:
             return
-        qs = self.adaptor.get_queryset(objs)
+        qs = self.adaptor.get_queryset(objs, using=self.using)
         values = self.adaptor.values(qs, *data.return_fields)
         return self.parse_result(values, max_length=data.return_max_length)
 
@@ -146,7 +163,7 @@ class DataAPI(api.API):
         for val in data.data:
             pk = pop(val, "pk")
             if pk:
-                self.adaptor.update(val, pk=pk)
+                self.adaptor.update(val, pk=pk, using=self.using)
 
     def delete_data(
         self,
@@ -157,11 +174,11 @@ class DataAPI(api.API):
         # qs = self.adaptor.get_queryset(**query)
         # if limit is not None:
         #     qs = qs.order_by('pk')[:limit]
-        return self.adaptor.delete(pk=id)
+        return self.adaptor.delete(pk=id, using=self.using)
 
     @api.post("delete")
     @opsRequire("data.delete")
     @awaitable(delete_data)
     async def delete_data(self, id: str = request.BodyParam):
         # apply for async CASCADE
-        return await self.adaptor.adelete(pk=id)
+        return await self.adaptor.adelete(pk=id, using=self.using)

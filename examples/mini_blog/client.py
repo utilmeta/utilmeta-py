@@ -28,6 +28,7 @@ class APIClient(cli.Client):
         self, id: int = request.QueryParam(required=True)
     ) -> responses.article_get_response[200]: pass
 
+
 import httpx
 client = APIClient(base_url="http://127.0.0.1:8080", backend=httpx)
 # >>> resp = await client.article_get(id=1)

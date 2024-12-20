@@ -63,7 +63,8 @@ service.use(Operations(
         name=DB_OPS_PATH,
         engine='sqlite3',
     ),
-    secret_names=[Operations.DEFAULT_SECRET_NAMES, 'token']
+    secret_names=[Operations.DEFAULT_SECRET_NAMES, 'token'],
+    # monitor=Operations.Monitor(database_disabled=True)
 ))
 service.use(DatabaseConnections({
     'default': Database(
@@ -72,6 +73,22 @@ service.use(DatabaseConnections({
         # user=env.DB_USER,
         # password=env.DB_PASSWORD,
         # port=env.DB_PORT
+    ),
+    'postgresql': Database(
+        name='utilmeta_test_db',
+        engine='postgresql',
+        host='127.0.0.1',
+        port=5432,
+        user='test_user',
+        password='test-tmp-password',
+    ),
+    'mysql': Database(
+        name='utilmeta_test_db',
+        engine='mysql',
+        host='127.0.0.1',
+        port=3306,
+        user='test_user',
+        password='test-tmp-password',
     )
 }))
 service.use(CacheConnections({

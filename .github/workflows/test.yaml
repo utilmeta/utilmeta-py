@@ -56,6 +56,37 @@ jobs:
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test-tmp-password
+          POSTGRES_DB: utilmeta_test_db
+        options: >-
+          --health-cmd="pg_isready -U test_user"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+
+      mysql:
+        image: mysql:8
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: mysqlrootpassword
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test-tmp-password
+          MYSQL_DATABASE: utilmeta_test_db
+        options: >-
+          --health-cmd="mysqladmin -u test_user -p${MYSQL_PASSWORD} ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
@@ -78,6 +109,32 @@ jobs:
       - name: Run lint
         run: |
           flake8 utilmeta --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U test_user; then
+              echo "PostgreSQL is ready!"
+              break
+            fi
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 5
+          done
+          sudo -i -u postgres psql -c 'create utilmeta_test_ops_db;'
+          sudo -i -u postgres psql -c 'grant all privileges on database utilmeta_test_ops_db to test_user;'
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if mysqladmin -h localhost -P 3306 -u test_user -p${MYSQL_PASSWORD} ping --silent; then
+              echo "MySQL is ready!"
+              break
+            fi
+            echo "Waiting for MySQL to be ready..."
+            sleep 5
+          done
+          mysql -h localhost -P 3306 -u test_user -p${MYSQL_PASSWORD} -e "CREATE DATABASE utilmeta_test_ops_db;"
+
       - name: Run tests
         run: |
           pytest tests --cov=./utilmeta

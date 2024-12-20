@@ -66,9 +66,9 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         if not self._session_key:
             return None
         # to be inherited
-        session = self._model_cls.get_instance(
+        session = self._model_cls.filter(
             session_key=self._session_key, deleted_time=None
-        )
+        ).get_instance()
         if session:
             try:
                 self.get_cache().set(
@@ -87,9 +87,9 @@ class CachedDBSessionSchema(CacheSessionSchema, DBSessionSchema):
         if not self._session_key:
             return None
         # to be inherited
-        session = await self._model_cls.aget_instance(
+        session = await self._model_cls.filter(
             session_key=self._session_key, deleted_time=None
-        )
+        ).aget_instance()
         if session:
             try:
                 await self.get_cache().aset(

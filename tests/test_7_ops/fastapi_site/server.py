@@ -15,12 +15,10 @@ async def read_item(item_id) -> dict:
     return {"item_id": item_id}
 
 from utilmeta.ops import Operations
+from tests.conftest import get_operations_db
 Operations(
     route='v1/ops',
-    database=Operations.Database(
-        name='operations_db',
-        engine='sqlite3'
-    ),
+    database=get_operations_db(),
     secure_only=False,
     trusted_hosts=['127.0.0.1'],
     base_url=f'http://127.0.0.1:{PORT}/api',

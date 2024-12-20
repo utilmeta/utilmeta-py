@@ -50,9 +50,11 @@ class ParserQueryField(ParserField):
     def check_schema_cls(self, schema_cls):
         if isinstance(schema_cls, type):
             if self.model.qualify(schema_cls):
-                raise TypeError(f'You are using a model class: {schema_cls} to used as schema query class, '
-                                f'which is invalid, you should make a schema class using '
-                                f'orm.Schema[{schema_cls.__name__}]')
+                raise TypeError(
+                    f"You are using a model class: {schema_cls} to used as schema query class, "
+                    f"which is invalid, you should make a schema class using "
+                    f"orm.Schema[{schema_cls.__name__}]"
+                )
 
     def get_query_schema(self):
         parser = None
@@ -177,9 +179,24 @@ class ParserQueryField(ParserField):
 
     def setup(self, options: utype.Options):
         super().setup(options)
+        bound = getattr(self, "bound", None)
+        if bound:
+            from ..compiler import SchemaClassParser
+
+            if not SchemaClassParser.valid_schema(bound):
+                warnings.warn(
+                    f"orm.Field: {repr(self.attname)} can only applied"
+                    f" for orm.Schema of its subclasses",
+                    stacklevel=11,
+                )
+                return
+
         self.original_type = self.type
 
         from ..backends.base import ModelAdaptor
+        from utilmeta.conf import Preference
+
+        pref = Preference.get()
 
         if not isinstance(self.model, ModelAdaptor):
             return
@@ -232,7 +249,7 @@ class ParserQueryField(ParserField):
 
             if self.related_single is False:
                 warnings.warn(
-                    f"{self.model} schema field: {repr(self.name)} is a multi-relation with a subquery, "
+                    f"{self.model.model} schema field: {repr(self.name)} is a multi-relation with a subquery, "
                     f"you need to make sure that only 1 row of the query is returned, "
                     f"otherwise use query function instead"
                 )
@@ -382,14 +399,43 @@ class ParserQueryField(ParserField):
         else:
             if isinstance(self.field, QueryField) and self.field.field:
                 raise ValueError(
-                    f"orm.Field({repr(self.field.field)}) not exists in model: {self.model}"
+                    f"orm.Field({repr(self.field.field)}) not exists in model: {self.model.model}"
                 )
+
+            if self.is_required(options):
+                if self.has_mode(options, "r"):
+                    if not self.always_no_input(options):
+                        msg = (
+                            f"orm.Field: name {repr(self.field_name)} not exists "
+                            f"in model: {self.model.model} and is required for query"
+                        )
+                        if pref.orm_raise_non_exists_required_field:
+                            raise ValueError(msg)
+                        else:
+                            warnings.warn(msg, stacklevel=11)
+                if self.has_mode(options, "a", "w"):
+                    if not self.always_no_output(options):
+                        msg = (
+                            f"orm.Field: name {repr(self.field_name)} not exists "
+                            f"in model: {self.model.model} and will be inputted for create/update"
+                        )
+                        if pref.orm_raise_non_exists_required_field:
+                            raise ValueError(msg)
+                        else:
+                            warnings.warn(msg, stacklevel=11)
+
             # will not be queried (input of 'r' mode)
             if not self.no_input:
                 self.no_input = "r"
             if not self.no_output:
                 # no output for write / create
                 self.no_output = "aw"
+
+    @classmethod
+    def has_mode(cls, options: utype.Options, *modes: str):
+        if not options.mode:
+            return True
+        return any([m in options.mode for m in modes])
 
     def override_required(self, options: utype.Options):
         if not self.type_override:

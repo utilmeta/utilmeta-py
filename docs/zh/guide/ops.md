@@ -238,8 +238,8 @@ service.use(Operations(
 
 除了在公网部署和提供访问的 API 服务外，我们有时也需要管理内网集群中的 API 服务，比如公司内网的内部服务，这些服务没有公开的 IP 地址或访问 URL，管理这些内网服务需要设置内网集群中的公网代理，部署一个代理服务节点进行内网穿透与服务注册
 
-UtilMeta 已经提供了一个开源的代理服务 utilmeta-proxy：
-开源仓库：[https://github.com/utilmeta/utilmeta-proxy](https://github.com/utilmeta/utilmeta-proxy)
+UtilMeta 已经提供了一个开源的代理服务 utilmeta-proxy：[https://github.com/utilmeta/utilmeta-proxy](https://github.com/utilmeta/utilmeta-proxy)
+
 
 在 Operations 配置中，可以使用 `proxy` 参数配置代理服务节点的地址与设置
 

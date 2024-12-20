@@ -42,7 +42,7 @@ def try_to_connect(timeout: int = 5):
             f"please check your OperationsAPI: {config.ops_api} is accessible before connect"
         )
         return
-    local_manage_url = f"{__website__}/localhost?local_node={config.ops_api}"
+    local_manage_url = config.connect_url
     print(f"OperationsAPI connected at {local_manage_url}")
     webbrowser.open_new_tab(local_manage_url)
 
@@ -117,11 +117,11 @@ class OperationsCommand(BaseServiceCommand):
         if not live:
             error_message = str(info)
             if info.is_timeout:
-                error_message = 'connect timeout'
+                error_message = "connect timeout"
             elif info.is_aborted:
-                error_message = 'connect failed'
+                error_message = "connect failed"
             elif info.success:
-                error_message = 'response data syntax error'
+                error_message = "response data syntax error"
 
             if failed:
                 print(
@@ -144,9 +144,7 @@ class OperationsCommand(BaseServiceCommand):
         if not key:
             # check if it is localhost
             if self.config.is_local:
-                local_manage_url = (
-                    f"{__website__}/localhost?local_node={self.config.ops_api}"
-                )
+                local_manage_url = self.config.connect_url
                 print(f"OperationsAPI connected at {local_manage_url}")
                 webbrowser.open_new_tab(local_manage_url)
                 exit(0)
@@ -170,16 +168,19 @@ class OperationsCommand(BaseServiceCommand):
                     )
 
         if self.config.proxy:
-            print(f'Connect to supervisor using proxy: {self.config.proxy.base_url}')
+            print(f"Connect to supervisor using proxy: {self.config.proxy.base_url}")
             manager = self.config.resources_manager_cls(service=self.service)
             node_id = manager.init_service_resources(force=force)
             if node_id:
                 from .models import Supervisor
+
                 supervisor: Supervisor = Supervisor.filter(node_id=node_id).first()
                 if supervisor:
-                    print(f'UtilMeta supervisor[{node_id}] connected')
+                    print(f"UtilMeta supervisor[{node_id}] connected")
                     if supervisor.url:
-                        print(f"please visit {supervisor.url} to view and manage your APIs")
+                        print(
+                            f"please visit {supervisor.url} to view and manage your APIs"
+                        )
             return
 
         if not key:
@@ -198,6 +199,7 @@ class OperationsCommand(BaseServiceCommand):
             exit(1)
 
         from .connect import connect_supervisor
+
         connect_supervisor(key=key, base_url=to, service_id=service)
 
     @command

@@ -514,8 +514,10 @@ class ResourcesManager:
     def get_instance(self):
         from .log import setup_locals
         from .models import Resource
+
         setup_locals(self.ops_config)
         from .log import _instance
+
         return _instance or Resource.get_current_instance()
 
     def init_service_resources(
@@ -572,6 +574,7 @@ class ResourcesManager:
             if isinstance(resp, RegistryResponse):
                 if resp.result.node_id:
                     from utilmeta.bin.utils import update_meta_ini_file
+
                     update_meta_ini_file(node=resp.result.node_id)
                     return resp.result.node_id
             else:

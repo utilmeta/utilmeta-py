@@ -1,9 +1,10 @@
-from utilmeta.utils import awaitable
 from utilmeta.utils.adaptor import BaseAdaptor
 from typing import Tuple, Optional, List, Callable, Type
 from utype import Rule
 from ..generator import BaseQuerysetGenerator
 from ..compiler import BaseQueryCompiler
+
+__all__ = ["ModelQueryAdaptor", "ModelAdaptor", "ModelFieldAdaptor"]
 
 
 class ModelFieldAdaptor(BaseAdaptor):
@@ -188,12 +189,87 @@ class ModelFieldAdaptor(BaseAdaptor):
         raise NotImplementedError
 
 
+class ModelQueryAdaptor(BaseAdaptor):
+    queryset_cls = None
+
+    def __init__(self, queryset, model: "ModelAdaptor"):
+        self.queryset = queryset
+        self.model = model
+
+    @property
+    def using(self) -> str:
+        raise NotImplementedError
+
+    @classmethod
+    def get_kwargs(cls, d=None, **kwargs):
+        if isinstance(d, dict):
+            kwargs.update(d)
+        return kwargs
+
+    def filter(self, *args, **kwargs) -> "ModelQueryAdaptor":
+        raise NotImplementedError
+
+    def count(self) -> int:
+        raise NotImplementedError
+
+    async def acount(self) -> int:
+        raise NotImplementedError
+
+    def exists(self) -> bool:
+        raise NotImplementedError
+
+    async def aexists(self) -> bool:
+        raise NotImplementedError
+
+    def update(self, d=None, **data):
+        raise NotImplementedError
+
+    async def aupdate(self, d=None, **data):
+        raise NotImplementedError
+
+    def create(self, d=None, **data):
+        raise NotImplementedError
+
+    async def acreate(self, d=None, **data):
+        raise NotImplementedError
+
+    def bulk_create(self, data: list, **kwargs):
+        raise NotImplementedError
+
+    async def abulk_create(self, data: list, **kwargs):
+        raise NotImplementedError
+
+    def bulk_update(self, data: list, fields: list):
+        raise NotImplementedError
+
+    async def abulk_update(self, data: list, fields: list):
+        raise NotImplementedError
+
+    def delete(self):
+        raise NotImplementedError
+
+    async def adelete(self):
+        raise NotImplementedError
+
+    def values(self, *fields, **kwargs) -> List[dict]:
+        raise NotImplementedError
+
+    async def avalues(self, *fields, **kwargs) -> List[dict]:
+        raise NotImplementedError
+
+    def get_instance(self):
+        raise NotImplementedError
+
+    async def aget_instance(self):
+        raise NotImplementedError
+
+
 class ModelAdaptor(BaseAdaptor):
     field_adaptor_cls = ModelFieldAdaptor
+    query_adaptor_cls = ModelQueryAdaptor
     generator_cls = BaseQuerysetGenerator
     compiler_cls = BaseQueryCompiler
     model_cls = None
-    queryset_cls = None
 
     __backends_names__ = ["django", "peewee", "sqlalchemy"]
 
@@ -218,74 +294,7 @@ class ModelAdaptor(BaseAdaptor):
     def pk_field(self) -> field_adaptor_cls:
         raise NotImplementedError
 
-    def update(self, data: dict, q=None, **filters):
-        raise NotImplementedError
-
-    @awaitable(update)
-    async def update(self, data: dict, q=None, **filters):
-        raise NotImplementedError
-
-    def save_raw(self, pk=None, **data):
-        raise NotImplementedError
-
-    def asave_raw(self, pk=None, **data):
-        raise NotImplementedError
-
-    def create(self, d=None, **data):
-        raise NotImplementedError
-
-    @awaitable(create)
-    async def create(self, d=None, **data):
-        raise NotImplementedError
-
-    def bulk_create(self, data: list, **kwargs):
-        raise NotImplementedError
-
-    async def abulk_create(self, data: list, **kwargs):
-        raise NotImplementedError
-
-    def bulk_update(self, data: list, fields: list):
-        raise NotImplementedError
-
-    async def abulk_update(self, data: list, fields: list):
-        raise NotImplementedError
-
-    def delete(self, q=None, **filters):
-        raise NotImplementedError
-
-    async def adelete(self, q=None, **filters):
-        raise NotImplementedError
-
-    # def update_queryset(self, queryset, data: dict):
-    #     raise NotImplementedError
-    #
-    # def serialize_queryset(self, queryset):
-    #     raise NotImplementedError
-
-    def values(self, q=None, *fields, **filters) -> List[dict]:
-        raise NotImplementedError
-
-    async def avalues(self, q=None, *fields, **filters) -> List[dict]:
-        raise NotImplementedError
-
-    def get_queryset(self, q=None, **filters):
-        # for django it's like model.objects.all()
-        raise NotImplementedError
-
-    def get_instance_recursively(self, q=None, **filters):
-        raise NotImplementedError
-
-    def aget_instance_recursively(self, q=None, **filters):
-        raise NotImplementedError
-
-    def get_instance(self, q=None, **filters):
-        raise NotImplementedError
-
     def init_instance(self, pk=None, **data):
-        raise NotImplementedError
-
-    # @awaitable(get_instance)
-    async def aget_instance(self, q=None, **filters):
         raise NotImplementedError
 
     def check_subquery(self, qs):
@@ -369,4 +378,21 @@ class ModelAdaptor(BaseAdaptor):
         pass
 
     def is_sub_model(self, model):
+        raise NotImplementedError
+
+    def query(self, query=None, pk=None, using: str = None) -> ModelQueryAdaptor:
+        raise NotImplementedError
+
+    def filter(self, query=None, pk=None, **filters) -> ModelQueryAdaptor:
+        raise NotImplementedError
+
+    def get_queryset(self, query=None, pk=None, using: str = None):
+        # for django it's like model.objects.all()
+        raise NotImplementedError
+
+    # ------------- QUERY METHODS
+    def get_instance_recursively(self, query=None, pk=None, using: str = None):
+        raise NotImplementedError
+
+    async def aget_instance_recursively(self, query=None, pk=None, using: str = None):
         raise NotImplementedError

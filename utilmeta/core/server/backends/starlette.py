@@ -194,7 +194,7 @@ class StarletteServerAdaptor(ServerAdaptor):
                         starlette_request
                     )
                 except Exception as e:
-                    handlers = dict(self.app.exception_handlers or {})      # noqa
+                    handlers = dict(self.app.exception_handlers or {})  # noqa
                     err_handler = None
                     for cls in type(e).__mro__:
                         if cls in handlers:
@@ -203,10 +203,13 @@ class StarletteServerAdaptor(ServerAdaptor):
                     error = Error(e, request=request)
                     if err_handler:
                         from starlette.concurrency import run_in_threadpool
+
                         if inspect.iscoroutinefunction(err_handler):
                             starlette_response = await err_handler(starlette_request, e)
                         else:
-                            starlette_response = await run_in_threadpool(err_handler, starlette_request, e)
+                            starlette_response = await run_in_threadpool(
+                                err_handler, starlette_request, e
+                            )
                         adaptor = self.response_adaptor_cls(starlette_response)
                         if (
                             adaptor.content_length or 0
@@ -215,8 +218,12 @@ class StarletteServerAdaptor(ServerAdaptor):
                             starlette_response.body = body
                         response = Response(response=adaptor, error=error)
                     else:
-                        starlette_response = StarletteResponse(status_code=500)     # noqa: placeholder response
-                        response = Response(response=response, error=error, request=request)
+                        starlette_response = StarletteResponse(
+                            status_code=500
+                        )  # noqa: placeholder response
+                        response = Response(
+                            response=response, error=error, request=request
+                        )
                         exc = e
 
                 _current_request.set(None)
@@ -405,14 +412,18 @@ class StarletteServerAdaptor(ServerAdaptor):
         if self.background:
             pass
         else:
-            from utilmeta.utils import check_requirement
+            from utilmeta.utils import requires
 
-            check_requirement("uvicorn", install_when_require=True)
+            requires("uvicorn")
             import uvicorn
 
-            uvicorn.run(
-                self.app,
+            run_kwargs = dict(
                 host=self.config.host or self.DEFAULT_HOST,
                 port=self.config.port,
-                **kwargs,
+                reload=self.config.auto_reload,
+            )
+            run_kwargs.update(kwargs)
+            uvicorn.run(
+                self.app,
+                **run_kwargs,
             )

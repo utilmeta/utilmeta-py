@@ -2,16 +2,15 @@ from utilmeta.utils import SEG, awaitable
 from ..base import ModelFieldAdaptor, ModelAdaptor
 from typing import Tuple, Optional, List, Callable, Type
 
-# from .queryset import AwaitableQuerySet
 from django.db import models
 from django.db.models.base import ModelBase
 from django.db.models.options import Options
 from django.core import exceptions as exc
-from django.db.models.fields import PositiveIntegerRelDbTypeMixin
 from . import constant
 from . import expressions as exp
 import django
 from .field import DjangoModelFieldAdaptor, many_to
+from .query import DjangoModelQueryAdaptor
 from .generator import DjangoQuerysetGenerator
 from .compiler import DjangoQueryCompiler
 
@@ -21,10 +20,11 @@ class DjangoModelAdaptor(ModelAdaptor):
     # (like server adaptor is the entry point for request/response adaptor)
     backend = django
     field_adaptor_cls = DjangoModelFieldAdaptor
+    query_adaptor_cls = DjangoModelQueryAdaptor
     generator_cls = DjangoQuerysetGenerator
     compiler_cls = DjangoQueryCompiler
-    queryset_cls = models.QuerySet
     model_cls = models.Model
+    queryset_cls = models.QuerySet
     model: Type[models.Model]
 
     @property
@@ -47,122 +47,6 @@ class DjangoModelAdaptor(ModelAdaptor):
     @property
     def pk_field(self) -> field_adaptor_cls:
         return self.field_adaptor_cls(self.meta.pk)
-
-    def update(self, data: dict, q=None, **filters):
-        if not q and not filters:
-            # no filters
-            return
-        return self.get_queryset(q, **filters).update(**data)
-
-    @awaitable(update)
-    async def update(self, data: dict, q=None, **filters):
-        if not q and not filters:
-            # no filters
-            return
-        return await self.get_queryset(q, **filters).aupdate(**data)
-
-    def save_raw(self, pk=None, **data):
-        inst = self.init_instance(pk, **data)
-        inst.save_base(raw=True)
-
-    async def asave_raw(self, pk=None, **data):
-        inst = self.init_instance(pk, **data)
-        from .queryset import AwaitableQuerySet
-
-        return await AwaitableQuerySet(model=self.model)._insert_obj(inst, raw=True)
-
-    def create(self, d=None, **data) -> model_cls:
-        return self.get_queryset().create(**(d or data))
-
-    @awaitable(create)
-    async def create(self, d=None, **data) -> model_cls:
-        return await self.get_queryset().acreate(**(d or data))
-
-    def bulk_create(self, data: list, **kwargs):
-        objs = self.get_queryset().bulk_create(data, **kwargs)
-        return self.model.objects.filter(pk__in=[obj.pk for obj in objs])
-
-    async def abulk_create(self, data: list, **kwargs):
-        objs = await self.get_queryset().abulk_create(data, **kwargs)
-        return self.model.objects.filter(pk__in=[obj.pk for obj in objs])
-
-    def bulk_update(self, data: list, fields: list):
-        return self.get_queryset().bulk_update(data, fields=fields)
-
-    async def abulk_update(self, data: list, fields: list):
-        return await self.get_queryset().abulk_update(data, fields=fields)
-
-    def delete(self, q=None, **filters):
-        if not q and not filters:
-            # no filters
-            return
-        return self.get_queryset(q, **filters).delete()
-
-    async def adelete(self, q=None, **filters):
-        if not q and not filters:
-            # no filters
-            return
-        return await self.get_queryset(q, **filters).adelete()
-
-    def values(self, q=None, *fields, **filters) -> List[dict]:
-        # for django it's like model.objects.all()
-        if isinstance(q, models.QuerySet):
-            qs = q
-            if filters:
-                qs = q.filter(**filters)
-        else:
-            qs = self.get_queryset(q, **filters)
-        return list(qs.values(*fields))
-
-    async def avalues(self, q=None, *fields, **filters) -> List[dict]:
-        if isinstance(q, models.QuerySet):
-            qs = q
-            if filters:
-                qs = q.filter(**filters)
-        else:
-            qs = self.get_queryset(q, **filters)
-        return [val async for val in qs.values(*fields)]
-
-    def get_queryset(self, q=None, **filters) -> queryset_cls:
-        # for django it's like model.objects.all()
-        if isinstance(q, list):
-            q = models.Q(pk__in=[getattr(obj, "pk", obj) for obj in q])
-
-        args = (q,) if q else ()
-        try:
-            base = self.model.objects.all()
-        except AttributeError:
-            # swapped?
-            base = self.queryset_cls(self.model)
-        if args or filters:
-            return base.filter(*args, **filters)
-        return base
-
-    def get_instance_recursively(self, q=None, **filters):
-        inst = self.get_instance(q, **filters)
-        if inst:
-            return inst
-        for parent, field in self.meta.parents.items():
-            inst = self.__class__(parent).get_instance_recursively(q, **filters)
-            if inst:
-                return inst
-        return None
-
-    async def aget_instance_recursively(self, q=None, **filters):
-        inst = await self.aget_instance(q, **filters)
-        if inst:
-            return inst
-        for parent, field in self.meta.parents.items():
-            inst = await self.__class__(parent).aget_instance_recursively(q, **filters)
-            if inst:
-                return inst
-        return None
-
-    def get_instance(self, q=None, **filters) -> model_cls:
-        return self.get_queryset(q, **filters).first()
-
-    async def aget_instance(self, q=None, **filters) -> model_cls:
-        return await self.get_queryset(q, **filters).afirst()
 
     def init_instance(self, pk=None, **data):
         if pk:
@@ -372,6 +256,8 @@ class DjangoModelAdaptor(ModelAdaptor):
                 if not r_field:
                     return l_field
                 if operator in ("+", "*", "/", "^"):
+                    from django.db.models.fields import PositiveIntegerRelDbTypeMixin
+
                     if isinstance(
                         l_field, PositiveIntegerRelDbTypeMixin
                     ) and isinstance(r_field, PositiveIntegerRelDbTypeMixin):
@@ -447,3 +333,62 @@ class DjangoModelAdaptor(ModelAdaptor):
         elif isinstance(model, type) and issubclass(model, models.Model):
             return issubclass(self.model, model)
         return False
+
+    # QUERY METHODS --------------------------------------------
+    def get_instance_recursively(self, query=None, pk=None, using: str = None):
+        inst = self.query(query, pk=pk, using=using).get_instance()
+        if inst:
+            return inst
+        for parent, field in self.meta.parents.items():
+            inst = self.__class__(parent).get_instance_recursively(
+                query, pk=pk, using=using
+            )
+            if inst:
+                return inst
+        return None
+
+    async def aget_instance_recursively(self, query=None, pk=None, using: str = None):
+        inst = await self.query(query, pk=pk, using=using).aget_instance()
+        if inst:
+            return inst
+        for parent, field in self.meta.parents.items():
+            inst = await self.__class__(parent).aget_instance_recursively(
+                query, pk=pk, using=using
+            )
+            if inst:
+                return inst
+        return None
+
+    def get_queryset(self, query=None, pk=None, using: str = None):
+        q = None
+        if isinstance(query, list):
+            q = models.Q(pk__in=[getattr(obj, "pk", obj) for obj in query])
+        elif isinstance(query, dict):
+            q = models.Q(**query)
+        elif isinstance(query, models.Q):
+            q = query
+
+        args = (q,) if q else ()
+        try:
+            qs = self.model.objects.all()
+        except AttributeError:
+            # swapped?
+            qs = self.queryset_cls(self.model)
+        if using:
+            qs = qs.using(using)
+        if args:
+            qs = qs.filter(*args)
+        if pk:
+            qs = qs.filter(pk=pk)
+        return qs
+
+    def query(self, query=None, pk=None, using: str = None) -> DjangoModelQueryAdaptor:
+        return self.query_adaptor_cls(
+            self.get_queryset(query, pk=pk, using=using), model=self
+        )
+
+    def filter(self, query=None, pk=None, **filters) -> DjangoModelQueryAdaptor:
+        qs = self.query(query, pk=pk)
+        if filters:
+            qs = qs.filter(**filters)
+        return qs

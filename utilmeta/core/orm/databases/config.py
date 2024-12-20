@@ -2,7 +2,7 @@ import os
 from utilmeta.conf.base import Config
 from utilmeta import UtilMeta
 from utilmeta.utils import awaitable, exceptions, localhost
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Any
 from typing import ContextManager, AsyncContextManager
 from .base import BaseDatabaseAdaptor
 from .encode import EncodeDatabasesAsyncAdaptor
@@ -61,8 +61,33 @@ class Database(Config):
                 if engine in self.engine.lower():
                     self.port = p
                     break
-        self.adaptor: Optional[BaseDatabaseAdaptor] = None
+        # self.adaptor: Optional[BaseDatabaseAdaptor] = None
+        self._sync_adaptor: Optional[BaseDatabaseAdaptor] = None
+        self._async_adaptor: Optional[BaseDatabaseAdaptor] = None
+        self._alias = None
         self.asynchronous = False
+
+    @property
+    def alias(self) -> str:
+        return self._alias
+
+    @property
+    # @Field(no_input=True)
+    def adaptor(self):
+        if self.asynchronous:
+            return self._async_adaptor
+        return self._sync_adaptor
+
+    @property
+    def support_pure_async(self):
+        return self.is_sqlite or self.is_postgresql
+
+    # @adaptor.setter
+    # def adaptor(self, value: BaseDatabaseAdaptor):
+    #     if value.asynchronous:
+    #         self._async_adaptor = value
+    #     else:
+    #         self._sync_adaptor = value
 
     @property
     def params(self):
@@ -103,9 +128,9 @@ class Database(Config):
     def is_oracle(self):
         return "oracle" in self.engine
 
-    @property
-    def alias(self):
-        return self.adaptor.alias
+    # @property
+    # def alias(self):
+    #     return self.adaptor.alias
 
     @property
     def pooled(self):
@@ -165,33 +190,49 @@ class Database(Config):
                 netloc += f":{self.port}"
             return f"{user}@{netloc}/{self.name}"
 
-    def apply(self, alias: str, asynchronous: bool = None, project_dir: str = None):
+    def setup_adaptor(self, asynchronous, force: bool = False):
         if asynchronous:
+            if not force and self._async_adaptor:
+                return
             if self.async_adaptor_cls:
-                self.adaptor = self.async_adaptor_cls(self, alias)
-        else:
-            if self.sync_adaptor_cls:
-                self.adaptor = self.sync_adaptor_cls(self, alias)
+                self._async_adaptor = self.async_adaptor_cls(self, self.alias)
             else:
-                # default
+                raise exceptions.NotConfigured(
+                    f"Database adaptor: async not implemented"
+                )
+        else:
+            if not force and self._sync_adaptor:
+                return
+            if self.sync_adaptor_cls:
+                self._sync_adaptor = self.sync_adaptor_cls(self, self.alias)
+            else:
                 from ..backends.django.database import DjangoDatabaseAdaptor
 
-                self.adaptor = DjangoDatabaseAdaptor(self, alias)
+                self._sync_adaptor = DjangoDatabaseAdaptor(self, self.alias)
 
-        if not self.adaptor:
-            raise exceptions.NotConfigured("Database adaptor not implemented")
+    def apply(self, alias: str, asynchronous: bool = None, project_dir: str = None):
+        if self._alias and alias != self.alias:
+            raise exceptions.ConfigError(
+                f"Conflict database aliases: {repr(alias)}, {repr(self.alias)}"
+            )
+
+        self._alias = alias
+        self.asynchronous = asynchronous
+        self.setup_adaptor(asynchronous, force=True)
+
         if self.is_sqlite and project_dir:
             if not os.path.isabs(self.name):
                 self.name = str(os.path.join(project_dir, self.name))
-        self.asynchronous = asynchronous
+
         self.adaptor.check()
 
     def get_adaptor(self, asynchronous: bool = False) -> BaseDatabaseAdaptor:
-        if self.asynchronous == asynchronous and self.adaptor:
+        if self.adaptor and self.adaptor.asynchronous == asynchronous:
             return self.adaptor
+        self.setup_adaptor(asynchronous)
         if asynchronous:
-            return self.async_adaptor_cls(self, self.adaptor.alias)
-        return self.sync_adaptor_cls(self, self.adaptor.alias)
+            return self._async_adaptor
+        return self._sync_adaptor
 
     def connect(self):
         return self.get_adaptor(False).connect()
@@ -238,6 +279,31 @@ class Database(Config):
     def async_transaction(
         self, savepoint=None, isolation=None, force_rollback: bool = False
     ) -> AsyncContextManager:
+        if not self.support_pure_async:
+            adaptor = self.get_adaptor(False)
+            from asgiref.sync import sync_to_async
+
+            class AsyncAtomic:
+                def __init__(self):
+                    self.atomic = adaptor.transaction(
+                        savepoint, isolation, force_rollback=force_rollback
+                    )
+
+                async def __aenter__(self):
+                    return await sync_to_async(self.atomic.__enter__)()
+
+                def __enter__(self):
+                    return self.atomic.__enter__()
+
+                async def __aexit__(self, exc_type, exc_val, exc_tb):
+                    return await sync_to_async(self.atomic.__exit__)(
+                        exc_type, exc_val, exc_tb
+                    )
+
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    return self.atomic.__exit__(exc_type, exc_val, exc_tb)
+
+            return AsyncAtomic()  # noqa
         return self.get_adaptor(True).transaction(
             savepoint, isolation, force_rollback=force_rollback
         )

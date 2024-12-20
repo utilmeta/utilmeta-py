@@ -120,7 +120,7 @@ jobs:
             echo "Waiting for PostgreSQL to be ready..."
             sleep 5
           done
-          PGPASSWORD=test-tmp-password psql -h localhost -p 5432 -U test_user -c "CREATE DATABASE utilmeta_test_ops_db;"
+          PGPASSWORD=test-tmp-password psql -h localhost -p 5432 -U test_user -d utilmeta_test_db -c "CREATE DATABASE utilmeta_test_ops_db;"
 
       - name: Wait for MySQL
         run: |

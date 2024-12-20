@@ -72,20 +72,11 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
-      mysql:
-        image: mysql:8
-        ports:
-          - 3306:3306
-        env:
-          MYSQL_ROOT_PASSWORD: mysqlrootpassword
-          MYSQL_USER: test_user
-          MYSQL_PASSWORD: test-tmp-password
-          MYSQL_DATABASE: utilmeta_test_db
-        options: >-
-          --health-cmd="mysqladmin -u test_user -p${MYSQL_PASSWORD} ping"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=5
+    env:
+      DEFAULT_DB_DATABASE: utilmeta_test_db
+      OPERATIONS_DB_DATABASE: utilmeta_test_ops_db
+      MYSQL_DB_USER: root
+      MYSQL_DB_PASSWORD: root
 
     steps:
       - uses: actions/checkout@v3
@@ -110,6 +101,16 @@ jobs:
         run: |
           flake8 utilmeta --count --select=E9,F63,F7,F82 --show-source --statistics
 
+      - name: Setup MySQL
+        run: |
+          sudo /etc/init.d/mysql start
+          mysql -e "CREATE DATABASE ${{ env.DEFAULT_DB_DATABASE }};" -u${{ env.MYSQL_DB_USER }} -p${{ env.MYSQL_DB_PASSWORD }}
+          mysql -e "CREATE DATABASE ${{ env.OPERATIONS_DB_DATABASE }};" -u${{ env.MYSQL_DB_USER }} -p${{ env.MYSQL_DB_PASSWORD }}
+          mysql -e "CREATE USER 'test_user'@'%' IDENTIFIED BY 'test-tmp-password';" -u${{ env.MYSQL_DB_USER }} -p${{ env.MYSQL_DB_PASSWORD }}
+          mysql -e "GRANT ALL PRIVILEGES ON ${{ env.DEFAULT_DB_DATABASE }}.* TO 'test_user'@'%';" -u${{ env.MYSQL_DB_USER }} -p${{ env.MYSQL_DB_PASSWORD }}
+          mysql -e "GRANT ALL PRIVILEGES ON ${{ env.OPERATIONS_DB_DATABASE }}.* TO 'test_user'@'%';" -u${{ env.MYSQL_DB_USER }} -p${{ env.MYSQL_DB_PASSWORD }}
+          mysql -e "FLUSH PRIVILEGES;" -u${{ env.MYSQL_DB_USER }} -p${{ env.MYSQL_DB_PASSWORD }}
+
       - name: Wait for PostgreSQL
         run: |
           for i in {1..30}; do
@@ -121,18 +122,6 @@ jobs:
             sleep 5
           done
           PGPASSWORD=test-tmp-password psql -h localhost -p 5432 -U test_user -d utilmeta_test_db -c "CREATE DATABASE utilmeta_test_ops_db;"
-
-      - name: Wait for MySQL
-        run: |
-          for i in {1..30}; do
-            if mysqladmin -h localhost -P 3306 -u test_user -p${MYSQL_PASSWORD} ping --silent; then
-              echo "MySQL is ready!"
-              break
-            fi
-            echo "Waiting for MySQL to be ready..."
-            sleep 5
-          done
-          mysql -h localhost -P 3306 -u test_user -p${MYSQL_PASSWORD} -e "CREATE DATABASE utilmeta_test_ops_db;"
 
       - name: Run tests
         run: |

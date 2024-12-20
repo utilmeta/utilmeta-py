@@ -120,8 +120,7 @@ jobs:
             echo "Waiting for PostgreSQL to be ready..."
             sleep 5
           done
-          sudo -i -u postgres psql -c 'create utilmeta_test_ops_db;'
-          sudo -i -u postgres psql -c 'grant all privileges on database utilmeta_test_ops_db to test_user;'
+          PGPASSWORD=test-tmp-password psql -h localhost -p 5432 -U test_user -c "CREATE DATABASE utilmeta_test_ops_db;"
 
       - name: Wait for MySQL
         run: |

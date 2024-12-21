@@ -1,7 +1,7 @@
 import inspect
 import os
 import importlib
-from .. import constant
+from .. import constant, exceptions
 import typing
 from functools import wraps
 import subprocess
@@ -307,11 +307,11 @@ def requires(*names, **mp):
     from utilmeta.conf import Preference
 
     pref = Preference.get()
+    mps = []
+    for import_name, install_name in mp.items():
+        mps.append(f"{import_name}: pip install {install_name}")
     if pref.dependencies_auto_install_disabled:
-        mps = []
-        for import_name, install_name in mp.items():
-            mps.append(f"{import_name}: pip install {install_name}")
-        raise ModuleNotFoundError(
+        raise exceptions.DependencyNotInstalled(
             f"""Required module not installed:
 %s
 """
@@ -340,7 +340,14 @@ def requires(*names, **mp):
             return import_obj(import_name)
         except (ModuleNotFoundError, ImportError):
             pass
-    return None
+    raise exceptions.DependencyNotInstalled(
+        f"""Required module not installed:
+    %s
+    """
+        % "\n".join(mps)
+    )
+    # do not just return or raise ModuleNotFoundError,
+    # this will cause ServerAdaptor to recursively dispatch further
 
 
 def import_obj(dotted_path):

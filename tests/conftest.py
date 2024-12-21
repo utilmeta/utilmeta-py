@@ -3,6 +3,8 @@ import os
 import time
 import subprocess
 import signal
+
+import django
 import pytest
 import psutil
 from utilmeta import UtilMeta
@@ -45,8 +47,8 @@ def db_using(request):
     return request.param
 
 
-def get_operations_db():
-    engine = os.environ.get('UTILMETA_OPERATIONS_DATABASE_ENGINE') or 'sqlite3'
+def get_operations_db(engine: str = None):
+    engine = engine or os.environ.get('UTILMETA_OPERATIONS_DATABASE_ENGINE') or 'sqlite3'
     from utilmeta.core.orm import Database
     if engine == 'mysql':
         return Database(
@@ -67,6 +69,20 @@ def get_operations_db():
             password='test-tmp-password',
         )
     return Database(engine='sqlite3', name='operations_db')
+
+
+# def patch_time():
+#     if os.environ.get('UTILMETA_OPERATIONS_DATABASE_ENGINE') == 'postgresql' and django.VERSION <= (3, 2):
+#         try:
+#             from utilmeta import service
+#         except ImportError:
+#             pass
+#         else:
+#             from utilmeta.conf import Time
+#             service.use(Time(
+#                 use_tz=False
+#                 # temporary fix problem: database connection isn't set to UTC on lower django version
+#             ))
 
 
 def setup_service(

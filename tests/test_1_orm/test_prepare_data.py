@@ -1,6 +1,6 @@
-from tests.conftest import setup_service
+from tests.conftest import setup_service, db_using
 #
-setup_service(__name__)
+setup_service(__name__, async_param=False)
 
 
 def test_prepare_data(service, db_using):
@@ -130,6 +130,16 @@ def test_prepare_data(service, db_using):
         dict(id=9, author_id=4, on_content_id=4, content="wow"),
         dict(id=10, author_id=5, on_content_id=4, content="brilliant~"),
     ], using=db_using)
+
+    # reset sequences for PostgreSQL
+    if db_using == 'postgresql':
+        from django.db import connections
+        for model in [User, BaseContent, Follow]:
+            with connections[db_using].cursor() as cursor:
+                table_name = model._meta.db_table
+                max_id = model.objects.count()
+                sql = f"SELECT setval(pg_get_serial_sequence('{table_name}', 'id'), {max_id});"
+                cursor.execute(sql)
 
     assert sorted([val.pk for val in Article.objects.all().using(db_using)]) == [1, 2, 3, 4, 5]
     assert sorted([val.pk for val in Comment.objects.all().using(db_using)]) == [6, 7, 8, 9, 10]

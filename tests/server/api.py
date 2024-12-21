@@ -374,9 +374,9 @@ class TestAPI(api.API):
         return self.response(file=BytesIO(content.encode()))
 
     @api.get
-    @api.Retry(max_retries=3, retry_interval=0.2, max_retries_timeout=.35)
+    @api.Retry(max_retries=3, retry_interval=0.2)
     def retry(self):
-        raise exceptions.BadRequest('retry')
+        raise exceptions.BadRequest(f'retry: {self.request.adaptor.get_context("retry_index")}')
 
     @api.get
     @TestPlugin(num=1)

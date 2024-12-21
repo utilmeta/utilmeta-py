@@ -386,6 +386,7 @@ class UtilMeta:
             self.configs[config] = config()
         elif isinstance(config, object):
             self.configs[config.__class__] = config
+        return self
 
     def get_config(self, config_class: Type[T]) -> Optional[T]:
         obj = self.configs.get(config_class)

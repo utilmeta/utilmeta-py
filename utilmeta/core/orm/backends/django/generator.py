@@ -1,3 +1,5 @@
+import django
+
 from . import expressions as exp
 from ..base import ModelFieldAdaptor
 from utilmeta.core.orm.fields.filter import ParserFilter
@@ -124,7 +126,9 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
             raise TypeError(f"Invalid expression: {expression}")
         if distinct_count and isinstance(expression, exp.Count):
             expression.distinct = True
-        if isinstance(expression, exp.Sum):
+        if isinstance(expression, exp.Sum) and django.VERSION >= (4, 0):
+            # apply to django 4+ only
+            # or will cause ProgrammingError
             expression = exp.Subquery(
                 models.QuerySet(model=self.model.model)
                 .filter(pk=exp.OuterRef("pk"))

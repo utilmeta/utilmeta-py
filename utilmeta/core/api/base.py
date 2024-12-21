@@ -475,6 +475,10 @@ class API(PluginTarget):
         if isinstance(handler, APIRoute):
             cls._routes.append(handler)
             return
+        if any([r.handler == handler and r.route == route for r in cls._routes]):
+            # same route and handler, return
+            return
+
         api_route = cls._route_cls(
             handler=handler,
             route=route,

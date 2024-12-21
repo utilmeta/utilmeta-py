@@ -85,8 +85,9 @@ class TestClientClass:
 
             #
             tr = client.get_retry()
-            assert tr.status == 500
-            assert 'MaxRetriesTimeoutExceed' in tr.text
+            # assert tr.status == 500
+            # assert 'MaxRetriesTimeoutExceed' in tr.text
+            assert f'retry: 2' in tr.text
 
     def test_live_server_with_mount(self, server_thread, sync_request_backend):
         with APIClient(

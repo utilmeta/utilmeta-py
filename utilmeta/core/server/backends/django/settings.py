@@ -46,7 +46,8 @@ SETTINGS_MODULE = "DJANGO_SETTINGS_MODULE"
 DEFAULT_LANGUAGE_CODE = "en-us"
 DEFAULT_TIME_ZONE = "UTC"
 DEFAULT_USE_I18N = True
-DEFAULT_USE_TZ = True
+DEFAULT_USE_TZ = django.VERSION > (3, 2)
+# temporary fix problem: database connection isn't set to UTC on lower django version
 
 DB = "django.core.cache.backends.db.DatabaseCache"
 FILE = "django.core.cache.backends.filebased.FileBasedCache"
@@ -274,6 +275,22 @@ class DjangoSettings(Config):
         if isinstance(adaptor, DjangoServerAdaptor):
             adaptor.settings = self
 
+        time_config = Time.config()
+        if time_config:
+            for key, val in self.get_time(time_config).items():
+                self.change_settings(key, val)
+        else:
+            # the default django DATETIME_FORMAT is N j, Y, P
+            # which is not a valid datetime string
+            time_config = Time(
+                time_zone=getattr(django_settings, "TIME_ZONE", None),
+                use_tz=getattr(django_settings, "USE_TZ", DEFAULT_USE_TZ),
+                # date_format=getattr(django_settings, 'DATE_FORMAT', Time.DATE_DEFAULT),
+                # datetime_format=getattr(django_settings, 'DATETIME_FORMAT', Time.DATETIME_DEFAULT),
+                # time_format=getattr(django_settings, 'TIME_FORMAT', Time.TIME_DEFAULT),
+            )
+            service.use(time_config)
+
         databases = getattr(django_settings, "DATABASES", {})
         if not isinstance(databases, dict):
             databases = {}
@@ -312,6 +329,7 @@ class DjangoSettings(Config):
                             host=val.get("host"),
                             port=val.get("port"),
                             options=val.get("options"),
+                            # time_zone='UTC' if time_config.use_tz else val.get('time_zone')
                         ),
                     )
 
@@ -406,23 +424,6 @@ class DjangoSettings(Config):
         else:
             if getattr(django_settings, "DEBUG", None) is False:
                 service.production = True
-
-        time_config = Time.config()
-        if time_config:
-            for key, val in self.get_time(time_config).items():
-                self.change_settings(key, val)
-        else:
-            # the default django DATETIME_FORMAT is N j, Y, P
-            # which is not a valid datetime string
-            service.use(
-                Time(
-                    time_zone=getattr(django_settings, "TIME_ZONE", None),
-                    use_tz=getattr(django_settings, "USE_TZ", True),
-                    # date_format=getattr(django_settings, 'DATE_FORMAT', Time.DATE_DEFAULT),
-                    # datetime_format=getattr(django_settings, 'DATETIME_FORMAT', Time.DATETIME_DEFAULT),
-                    # time_format=getattr(django_settings, 'TIME_FORMAT', Time.TIME_DEFAULT),
-                )
-            )
 
         # set DEFAULT_AUTO_FIELD before a (probably) apps reload
         explicit_settings = getattr(self.django_settings, "_explicit_settings", None)
@@ -662,7 +663,7 @@ class DjangoSettings(Config):
             settings.update(
                 {
                     "TIME_ZONE": DEFAULT_TIME_ZONE,
-                    "USE_TZ": True,
+                    "USE_TZ": DEFAULT_USE_TZ,
                 }
             )
 

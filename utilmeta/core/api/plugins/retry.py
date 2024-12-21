@@ -109,15 +109,17 @@ class RetryPlugin(APIPlugin):
     def handle_max_retries_timeout(self, request: Request, set_timeout: bool = False):
         if not self.max_retries_timeout:
             return
+        current_retry = request.adaptor.get_context("retry_index") or 0
         start_time = request.time
         current_time = time_now()
         delta = (current_time - start_time).total_seconds() - self.max_retries_timeout
-        if delta <= 0:
-            # max retries time exceeded
-            raise self.max_retries_timeout_error_cls(
-                f"{self.__class__}: max_retries_timeout exceed for {abs(delta)} seconds",
-                max_retries_timeout=self.max_retries_timeout,
-            )
+        if current_retry > 0:
+            if delta > 0:
+                # max retries time exceeded
+                raise self.max_retries_timeout_error_cls(
+                    f"{self.__class__}: max_retries_timeout exceed for {abs(delta)} seconds {start_time} {current_time}",
+                    max_retries_timeout=self.max_retries_timeout,
+                )
 
         # reset request timeout
         if set_timeout:
@@ -143,14 +145,15 @@ class RetryPlugin(APIPlugin):
                 request.adaptor.update_context(timeout=timeout)
 
             to = request.adaptor.get_context("timeout")
-            if not to or to > delta:
-                request.adaptor.update_context(timeout=delta)
+            remaining_timeout = abs(delta)
+            if not to or to > remaining_timeout:
+                request.adaptor.update_context(timeout=remaining_timeout)
 
     def process_response(self, response: Response):
         request = response.request
         if not request:
             return response
-        current_retry = request.get_context("retry_index") or 0
+        current_retry = request.adaptor.get_context("retry_index") or 0
         if current_retry + 1 >= self.max_retries:
             # cannot retry
             return response
@@ -166,7 +169,7 @@ class RetryPlugin(APIPlugin):
         request = response.request
         if not request:
             return response
-        current_retry = request.get_context("retry_index") or 0
+        current_retry = request.adaptor.get_context("retry_index") or 0
         if current_retry + 1 >= self.max_retries:
             # cannot retry
             return response

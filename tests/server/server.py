@@ -14,6 +14,7 @@ from utilmeta.conf import Env
 # import django
 # import sanic
 import sys
+import django
 
 try:
     from sanic import Sanic
@@ -52,7 +53,7 @@ from utilmeta.core.server.backends.django import DjangoSettings
 from utilmeta.core.orm import DatabaseConnections, Database
 from utilmeta.core.cache import CacheConnections, Cache
 from utilmeta.ops.config import Operations
-from utilmeta.conf import Preference
+from utilmeta.conf import Preference, Time
 
 service.use(DjangoSettings(
     apps=['app']
@@ -99,6 +100,10 @@ service.use(CacheConnections({
 service.use(Preference(
     default_aborted_response_status=500,
     default_timeout_response_status=500
+))
+service.use(Time(
+    use_tz=django.VERSION > (3, 2)
+    # temporary fix problem: database connection isn't set to UTC on lower django version
 ))
 
 # ------ SET BACKEND

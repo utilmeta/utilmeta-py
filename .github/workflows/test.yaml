@@ -90,7 +90,7 @@ jobs:
           pip install flake8 pytest pytest-cov pytest-asyncio
           pip install jwcrypto psutil jwt
           pip install utype
-          pip install databases[aiosqlite] redis aioredis
+          pip install databases[aiosqlite] redis aioredis psycopg2 mysqlclient
           pip install django==${{ matrix.django-version }}
           pip install flask apiflask fastapi sanic[ext] tornado aiohttp uvicorn httpx requests python-multipart
       - name: Install conditional dependencies

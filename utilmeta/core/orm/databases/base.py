@@ -1,6 +1,6 @@
 from typing import Type, TYPE_CHECKING, List, Tuple
 
-from utilmeta.utils import cached_property, detect_package_manager, requires
+from utilmeta.utils import cached_property, detect_package_manager, requires, exceptions
 import os
 
 if TYPE_CHECKING:
@@ -47,21 +47,26 @@ class BaseDatabaseAdaptor:
         raise NotImplementedError
 
     def check(self):
+        # print('CHECK', self.alias)
+        # if self.checked.get(self.alias):
+        #     raise ValueError
+        # self.checked[self.alias] = True
         if self.config.is_mysql:
             try:
                 import MySQLdb
-            except ModuleNotFoundError:
+            except (ModuleNotFoundError, ImportError):
                 self.install_mysql()
                 requires(MySQLdb="mysqlclient")
+
         elif self.config.is_postgresql:
             try:
                 import psycopg2
-            except ModuleNotFoundError:
+            except (ModuleNotFoundError, ImportError):
                 try:
                     import psycopg
-                except ModuleNotFoundError:
+                except (ModuleNotFoundError, ImportError):
                     self.install_postgresql()
-                    requires(psycopg='"psycopg[binary,pool]"', psycopg2="psycopg2")
+                    requires(psycopg='psycopg[binary,pool]', psycopg2="psycopg2")
 
     @cached_property
     def package_manager(self):

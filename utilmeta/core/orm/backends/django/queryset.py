@@ -543,7 +543,15 @@ class AwaitableQuerySet(QuerySet):
 
     def __aiter__(self):
         if not self.support_pure_async:
-            return super().__aiter__()
+            try:
+                return super().__aiter__()
+            except AttributeError:
+                # compat django 3.0
+                async def generator():
+                    await sync_to_async(self._fetch_all)()
+                    for item in self._result_cache:
+                        yield item
+                return generator()
 
         async def generator():
             for item in await self.result():
@@ -657,12 +665,12 @@ class AwaitableQuerySet(QuerySet):
 
     async def afirst(self):
         if not self.support_pure_async:
-            return await super().afirst()
+            return await sync_to_async(self.first)()
         return await (self if self.ordered else self.order_by("pk"))[:1].instance()
 
     async def alast(self):
         if not self.support_pure_async:
-            return await super().alast()
+            return await sync_to_async(self.last)()
         return await (self.reverse() if self.ordered else self.order_by("pk"))[
             :1
         ].instance()
@@ -709,7 +717,8 @@ class AwaitableQuerySet(QuerySet):
 
     async def acreate(self, **kwargs):
         if not self.support_pure_async:
-            return await super().acreate(**kwargs)
+            # compat django 3, not using super().acreate
+            return await sync_to_async(self.create)(**kwargs)
         obj: Model = self.model(**kwargs)
         if self.meta.parents:
             db = self.database
@@ -912,7 +921,7 @@ class AwaitableQuerySet(QuerySet):
         and since it's async, we can do a async joined task to create all objects
         """
         if not self.support_pure_async:
-            return await super().abulk_create(
+            return await sync_to_async(self.bulk_create)(
                 objs,
                 batch_size=batch_size,
                 ignore_conflicts=ignore_conflicts,
@@ -1014,7 +1023,7 @@ class AwaitableQuerySet(QuerySet):
     # @awaitable(count)
     async def acount(self) -> int:
         if not self.support_pure_async:
-            return await super().acount()
+            return await sync_to_async(self.count)()
         query = self.query.clone()
         # query.clear_select_clause()
         # query.clear_select_fields()
@@ -1032,7 +1041,7 @@ class AwaitableQuerySet(QuerySet):
 
     async def aaggregate(self, *args, **kwargs):
         if not self.support_pure_async:
-            return await super().aaggregate(*args, **kwargs)
+            return await sync_to_async(self.aggregate)(*args, **kwargs)
         # --------------------------------------------
         # COPIED DIRECTLY FROM DJANGO 4.1.5
         """
@@ -1079,7 +1088,7 @@ class AwaitableQuerySet(QuerySet):
 
     async def aexists(self) -> bool:
         if not self.support_pure_async:
-            return await super().acount()
+            return await sync_to_async(self.count)()
         query = self.query.exists(self.db)
         db = self.database
         try:
@@ -1093,7 +1102,7 @@ class AwaitableQuerySet(QuerySet):
 
     async def aupdate(self, **kwargs):
         if not self.support_pure_async:
-            return await super().aupdate(**kwargs)
+            return await sync_to_async(self.update)(**kwargs)
         # ---------------
         # LOGIC COPIED FROM DJANGO 4.1.5
         self._not_support_combined_queries("update")
@@ -1129,7 +1138,7 @@ class AwaitableQuerySet(QuerySet):
 
     async def aget_or_create(self, defaults=None, **kwargs):
         if not self.support_pure_async:
-            return await super().aget_or_create(defaults, **kwargs)
+            return await sync_to_async(self.get_or_create)(defaults, **kwargs)
         # return await self.aget_or_create(defaults, **kwargs)
         self._for_write = True
         try:
@@ -1161,7 +1170,7 @@ class AwaitableQuerySet(QuerySet):
         keyword arguments.
         """
         if not self.support_pure_async:
-            return await super().aget(*args, **kwargs)
+            return await sync_to_async(self.get)(*args, **kwargs)
         if self.query.combinator and (args or kwargs):
             raise exceptions.NotSupportedError(
                 "Calling QuerySet.get(...) with filters after %s() is not "
@@ -1195,7 +1204,7 @@ class AwaitableQuerySet(QuerySet):
 
     async def aupdate_or_create(self, defaults=None, **kwargs):
         if not self.support_pure_async:
-            return await super().aupdate_or_create(defaults, **kwargs)
+            return await sync_to_async(self.update_or_create)(defaults, **kwargs)
         # return await self.aupdate_or_create(defaults, **kwargs)
         defaults = defaults or {}
         self._for_write = True
@@ -1217,7 +1226,7 @@ class AwaitableQuerySet(QuerySet):
         self, objs, fields, batch_size=None, no_transaction: bool = False
     ):
         if not self.support_pure_async:
-            return await super().abulk_update(objs, fields, batch_size=batch_size)
+            return await sync_to_async(self.bulk_update)(objs, fields, batch_size=batch_size)
         if batch_size is not None and batch_size < 0:
             raise ValueError("Batch size must be a positive integer.")
         if not fields:
@@ -1271,7 +1280,7 @@ class AwaitableQuerySet(QuerySet):
 
     async def adelete(self):
         if not self.support_pure_async:
-            return await super().adelete()
+            return await sync_to_async(self.delete)()
         # -------------------------------
         # COPIED FROM DJANGO 4.1.5
         # -------------------------------

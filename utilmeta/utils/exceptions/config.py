@@ -29,3 +29,13 @@ class UnsetError(ConfigError):
 
 class InvalidDeclaration(Exception):
     pass
+
+
+class DependencyNotInstalled(Exception):
+    def __init__(self, msg: str = None, *, import_name: str = None, install_name: str = None):
+        msg = msg or f"""Required module not installed: 
+{import_name}: {install_name}
+        """
+        super().__init__(msg)
+        self.import_name = import_name
+        self.install_name = install_name

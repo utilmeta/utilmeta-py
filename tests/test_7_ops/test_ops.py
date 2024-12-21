@@ -1,7 +1,8 @@
 import pytest
-from tests.conftest import make_cmd_process
+from tests.conftest import make_cmd_process, db_using
 from utilmeta.core import cli
 from utilmeta.ops.client import OperationsClient
+from utilmeta.core.api.plugins.retry import RetryPlugin
 # test import client here, client should not depend on ops models
 import utilmeta
 from utilmeta.ops import __spec_version__
@@ -47,11 +48,18 @@ utilmeta_process = make_cmd_process(
     port=9090
 )
 
+retry = RetryPlugin(
+    max_retries=3, max_retries_timeout=15, retry_interval=1
+)
+
 
 class TestOperations:
     if django.VERSION >= (4, 0):
         def test_django_operations(self, django_wsgi_process):
-            with OperationsClient(base_url='http://127.0.0.1:9091/ops') as client:
+            with OperationsClient(
+                base_url='http://127.0.0.1:9091/ops',
+                plugins=[retry]
+            ) as client:
                 info = client.get_info()
                 assert info.result.utilmeta == __spec_version__
 
@@ -90,7 +98,10 @@ class TestOperations:
                 assert isinstance(data, dict) and data.get('result') == 3
 
         def test_django_asgi_operations(self, django_asgi_process):
-            with OperationsClient(base_url='http://127.0.0.1:9100/ops') as client:
+            with OperationsClient(
+                base_url='http://127.0.0.1:9100/ops',
+                plugins=[retry]
+            ) as client:
                 info = client.get_info()
                 assert info.result.utilmeta == __spec_version__
 
@@ -123,7 +134,7 @@ class TestOperations:
     def test_fastapi_operations(self, fastapi_process):
         with OperationsClient(base_url='http://127.0.0.1:9092/api/v1/ops', base_headers={
             'cache-control': 'no-cache'
-        }) as client:
+        }, plugins=[retry]) as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
 
@@ -159,7 +170,7 @@ class TestOperations:
     def test_flask_operations(self, flask_process):
         with OperationsClient(base_url='http://127.0.0.1:9093/ops', base_headers={
             'cache-control': 'no-cache'
-        }) as client:
+        }, plugins=[retry]) as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
 
@@ -192,7 +203,7 @@ class TestOperations:
     def test_sanic_operations(self, sanic_process):
         with OperationsClient(base_url='http://127.0.0.1:9094/ops', base_headers={
             'cache-control': 'no-cache'
-        }) as client:
+        }, plugins=[retry]) as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
 
@@ -224,7 +235,7 @@ class TestOperations:
             assert 'Hello' in str(hello.data)
 
     def test_tornado_operations(self, tornado_process):
-        with OperationsClient(base_url='http://127.0.0.1:9095/v1/ops') as client:
+        with OperationsClient(base_url='http://127.0.0.1:9095/v1/ops', plugins=[retry]) as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
 
@@ -246,7 +257,7 @@ class TestOperations:
             assert '2.6.0' <= inst.utilmeta_version
 
     def test_utilmeta_operations(self, utilmeta_process):
-        with OperationsClient(base_url='http://127.0.0.1:9090/api/ops') as client:
+        with OperationsClient(base_url='http://127.0.0.1:9090/api/ops', plugins=[retry]) as client:
             info = client.get_info()
             assert info.result.utilmeta == __spec_version__
 

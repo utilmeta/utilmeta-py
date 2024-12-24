@@ -1,4 +1,4 @@
-from utilmeta.utils import keys_or_args
+from utilmeta.utils import keys_or_args, requires
 from typing import Dict, Optional, Union, Any
 from datetime import timedelta, datetime
 from ...base import BaseCacheAdaptor
@@ -26,11 +26,14 @@ class AioredisAdaptor(BaseCacheAdaptor):
     def check(self):
         try:
             import aioredis
-        except (ModuleNotFoundError, ImportError) as e:
-            raise e.__class__(
-                f"{self.__class__} as database adaptor requires to install caches. "
-                f"use pip install aioredis"
-            ) from e
+        except (ModuleNotFoundError, ImportError):
+            try:
+                requires('aioredis')
+            except Exception as e:
+                raise e.__class__(
+                    f"{self.__class__} as database adaptor requires to install caches. "
+                    f"use pip install aioredis"
+                ) from e
 
     async def get(self, key: str, default=None):
         cache = self.get_cache()

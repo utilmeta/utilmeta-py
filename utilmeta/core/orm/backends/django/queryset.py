@@ -551,6 +551,7 @@ class AwaitableQuerySet(QuerySet):
                     await sync_to_async(self._fetch_all)()
                     for item in self._result_cache:
                         yield item
+
                 return generator()
 
         async def generator():
@@ -1226,7 +1227,9 @@ class AwaitableQuerySet(QuerySet):
         self, objs, fields, batch_size=None, no_transaction: bool = False
     ):
         if not self.support_pure_async:
-            return await sync_to_async(self.bulk_update)(objs, fields, batch_size=batch_size)
+            return await sync_to_async(self.bulk_update)(
+                objs, fields, batch_size=batch_size
+            )
         if batch_size is not None and batch_size < 0:
             raise ValueError("Batch size must be a positive integer.")
         if not fields:

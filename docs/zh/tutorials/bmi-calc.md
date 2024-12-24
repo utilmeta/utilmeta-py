@@ -169,7 +169,7 @@ meta connect
 <img src="https://utilmeta.com/assets/image/demo-bmi-logs.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
 
 !!! tip
-	为了实时请求的性能，日志会在进程后台收集并且定期存储，如果没有立刻看到你可以稍候并刷新，更多的运维管理相关的配置可以参考 [运维与监控管理文档](../guide/ops)
+	为了实时请求的性能，日志会在进程后台收集并且定期存储，如果没有立刻看到你可以稍候并刷新，更多的运维管理相关的配置可以参考 [运维与监控管理文档](../../guide/ops)
 
 
 ## 案例源码

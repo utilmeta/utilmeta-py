@@ -234,16 +234,6 @@ service.use(Operations(
 
 额外指定的 OpenAPI 文档会与自动生成的接口文档进行整合后同步到 UtilMeta 平台
 
-### Proxy 集群代理配置
-
-除了在公网部署和提供访问的 API 服务外，我们有时也需要管理内网集群中的 API 服务，比如公司内网的内部服务，这些服务没有公开的 IP 地址或访问 URL，管理这些内网服务需要设置内网集群中的公网代理，部署一个代理服务节点进行内网穿透与服务注册
-
-UtilMeta 已经提供了一个开源的代理服务 utilmeta-proxy：[https://github.com/utilmeta/utilmeta-proxy](https://github.com/utilmeta/utilmeta-proxy)
-
-
-在 Operations 配置中，可以使用 `proxy` 参数配置代理服务节点的地址与设置
-
-
 ## 连接到 UtilMeta 管理平台
 
 UtilMeta 为 API 服务运维管理系统的观测与管理操作提供了一个管理平台：[UtilMeta API 服务管理平台](https://ops.utilmeta.com)
@@ -253,10 +243,10 @@ UtilMeta 为 API 服务运维管理系统的观测与管理操作提供了一个
 如果你已引入了 Operations 配置，成功运行本地服务，并且看到了以下提示
 
 ```
-UtilMeta OperationsAPI loaded at http://127.0.0.1[...], connect your APIs at https://ops.utilmeta.com
+UtilMeta OperationsAPI loaded at http://127.0.0.1[...], connect your APIs at https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1[...]
 ```
 
-你就可以连接本地节点进行调试了，只需要在服务目录 （包含 `meta.ini` 的目录）内部运行以下命令
+你就可以连接本地节点进行调试了，可以直接用浏览器打开上面的第二个链接，或在服务目录 （包含 `meta.ini` 的目录）内部运行以下命令
 
 ```
 meta connect
@@ -282,6 +272,51 @@ please visit [URL] to view and manage your APIs'
 ```
 
 点击那个 URL 就可以进入平台访问你已连接好的线上服务了，或者在执行成功后点击平台中的【I've executed successfully】按钮刷新状态
+
+### 连接内网集群
+
+除了在公网部署和提供访问的 API 服务外，我们有时也需要管理内网集群中的 API 服务，比如公司内网的内部服务，这些服务没有公开的 IP 地址或访问 URL，管理这些内网服务需要设置内网集群中的公网代理，部署一个代理服务节点进行内网穿透与服务注册，同时具备内网访问鉴权的功能
+
+UtilMeta 已经提供了一个开源的代理服务 [utilmeta-proxy](https://github.com/utilmeta/utilmeta-proxy)
+
+在 UtilMeta 平台中也有连接和管理内网集群的操作指引，点击【Add Cluster】即可进入添加集群功能
+<img src="https://utilmeta.com/assets/image/add-cluster-hint.png" href="https://ops.utilmeta.com" target="_blank" width="300"/>
+沿着其中的步骤指引进行操作将会自动搭建好一个集群的内网代理节点并连接到 UtilMeta 平台，之后集群中的服务只需要配置连接到代理节点即可，无需再手动连接到平台，代理节点会作为内网集群的服务注册中心向 UtilMeta 平台进行同步
+
+在 Operations 配置中，可以使用 `proxy` 参数配置代理服务节点的地址与设置，主要的参数有
+
+* `base_url`：代理节点的公网 URL 地址，在添加集群并设置代理域名后会自动生成这个地址
+* `forward`：是否正向代理节点的出向管理同步请求，比如同步源信息，汇报数据，报警通知等，这个参数在内网节点无法向公网地址发送请求时需要设置为 `True`
+
+```python
+from utilmeta import UtilMeta
+service = UtilMeta(__name__, ...)
+
+from utilmeta.ops import Operations
+from utilmeta.conf import Env
+
+env = Env(file='utilmeta-proxy.env')
+
+service.use(Operations(
+  route='ops',
+  database=Operations.Database(
+      name='utilmeta_proxy_ops',
+      host=env.get('UTILMETA_OPERATIONS_DB_HOST'),
+      port=env.get('UTILMETA_OPERATIONS_DB_PORT'),
+      engine=env.get('UTILMETA_OPERATIONS_DB_ENGINE'),
+      user=env.get('UTILMETA_OPERATIONS_DB_USER'),
+      password=env.get('UTILMETA_OPERATIONS_DB_PASSWORD'),
+  ),
+  proxy=Operations.Proxy(
+      base_url=env.get('UTILMETA_PROXY_BASE_URL'),
+      forward=False
+  ),
+  base_url='http://$IP/api'
+))
+```
+
+!!! note
+	集群中的服务节点需要与代理节点配置相同的 Operations 数据库，这个共同的数据库将会作为集群中的服务鉴权依据和管理存储中心，目前主要支持 PostgreSQL 和 MySQL 作为集群 Operations 存储，未来的版本会支持其他的存储源
 
 ## 连接现有 Python 项目
 
@@ -325,7 +360,7 @@ UtilMeta 框架就是靠这个文件识别 UtilMeta 项目，以及项目的核�
 
 ### 连接 Django
 
-对于 Django 项目，我们找到包含着 WSGI 应用的 `wsgi.py` (或 `asgi.py`) 文件，在 `application = get_wsgi_application()` 定义后插入 Operations 配置整合代码
+对于 Django 项目，我们找到包含着 WSGI 应用的 `wsgi.py` (或 ASGI 应用的 `asgi.py`) 文件，在 `application = get_wsgi_application()` 定义后插入 Operations 配置整合代码
 
 ```python
 import os
@@ -343,7 +378,7 @@ Operations(
     database=Operations.Database(
         name='operations_db',
         engine='sqlite3'
-        # or 'postgres' / 'mysql' / 'oracle'
+        # or 'postgres' / 'mysql'
     ),
     base_url='https://<YOUR DOMAIN>/api',
     # base_url='http://127.0.0.1:<YOUR_PORT>',   # 本地项目
@@ -360,13 +395,19 @@ Operations(
 !!! tip
 	如果你使用了 **Django REST framework**，UtilMeta 将会自动同步 DRF 生成的 OpenAPI 文档
 
-加入配置代码后，如果你的项目是本地运行，可以在重启项目后执行如下命令连接本地服务
+加入配置代码并重启后，如果你的项目是本地运行，你可以直接在项目启动后的输出中看到连接地址
+
+```
+UtilMeta OperationsAPI loaded at [管理接口地址], connect your APIs at [连接地址]
+```
+
+你也可以在重启项目后执行如下命令连接本地服务
 
 ```
 meta connect
 ```
 
-如果你的服务提供了网络访问，请进入 [UtilMeta 管理平台](https://ops.utilmeta.com)，创建项目团队并按照其中的提示操作
+如果你的服务提供了网络访问，请进入 [UtilMeta 管理平台](https://ops.utilmeta.com)，创建项目团队并按照其中的提示操作进行连接
 
 #### 同步 Django Ninja
 如果你正在使用 Django Ninja 框架，由于 Django Ninja 注入 django 应用的方式是通过 `urlpatterns`，UtilMeta 无法直接获取到 Django Ninja 的 `NinjaAPI` 应用来生成 OpenAPI 文档，所以你需要手动在 Operations 配置中指定，例如对于如下的 NinjaAPI
@@ -410,7 +451,7 @@ Operations(
 ).integrate(application, __name__)
 ```
 
-Operations 配置的 `openapi` 参数用于指定额外的 API 文档，我们这里直接调用 Operations 配置的 `get_django_ninja_openapi` 方法，其中的传入一个字典，字典的键是 NinjaAPI 挂载到 urlpatterns 的路径，比如上面例子中的 `api-ninja/`，字典的值就是对应的 `NinjaAPI()` 实例，由于 Django Ninja 可以创建多个 `NinjaAPI()` 实例，你都可以按照这个规则传入到函数中
+Operations 配置的 `openapi` 参数用于指定额外的 API 文档，我们这里直接调用 Operations 配置的 `get_django_ninja_openapi` 方法，其中的传入一个字典，字典的键是 NinjaAPI 挂载到 urlpatterns 的路径，比如上面例子中的 `'api-ninja/'`，字典的值就是对应的 `NinjaAPI()` 实例，由于 Django Ninja 可以创建多个 `NinjaAPI()` 实例，你都可以按照这个规则传入到函数中
 
 ### 连接 Flask
 
@@ -539,13 +580,13 @@ meta connect
 ### 管理平台概览
 在 UtilMeta 管理平台中，每个用户都可以创建或加入多个 **项目团队（Team）**，每个团队中可以连接并管理多个 **API 服务 （API Service）**，也可以添加多位成员，为他们赋予不同的管理权限
 
-!!! tip
-	类似于 Github 的 Organization
+!!! note
+	类似于 Github 的 Organization 和 Repo
 
 在 UtilMeta 平台的项目团队中添加 API 服务有两种方式：
 
 * 使用 UtilMeta 框架或者 UtilMeta 适配的框架开发，可以添加配置代码后一键接入平台
-* 其他的 API 服务，可以通过导入 OpenAPI 接口文档
+* 其他的 API 服务，可以通过导入或识别 OpenAPI 接口文档进行添加
 
 <img src="https://utilmeta.com/assets/image/connect-service-choose.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
 
@@ -556,7 +597,7 @@ meta connect
 * 查看 API 的调用与测试日志
 * 为 API 设置拨测监控与报警（即将上线）
 
-使用 UtilMeta 框架连接到平台的 API 服务称为 **UtilMeta 节点**，UtilMeta 框架的运维管理系统提供的 OperationsAPI 使得 UtilMeta 节点有了服务端的观测和汇报能力，所以 UtilMeta 节点相对普通的 API 服务有着以下的额外功能
+使用 UtilMeta 框架（或其他支持的框架）连接到平台的 API 服务称为 **UtilMeta 节点**，UtilMeta 框架的运维管理系统提供的 OperationsAPI 使得 UtilMeta 节点有了服务端的观测和汇报能力，所以 UtilMeta 节点相对普通的 API 服务有着以下的额外功能
 
 * 服务端请求实时日志查询
 * 数据管理 CRUD （需要服务端使用支持的 ORM 库，目前支持 django ORM）
@@ -584,7 +625,7 @@ meta connect
 点击左栏 **Data** 可以进入平台的数据管理板块
 
 <img src="https://utilmeta.com/assets/image/data-annotation-zh.png"  target="_blank" width="800"/>
-左侧的模型列表可以搜索或者使用标签过滤，点击模型后右侧将显示表结构与查询表数据，你可以在上方的字段查询栏添加多个字段查询，表中的每个字段也支持正反排序
+左侧的模型（数据表）列表可以搜索或者使用标签过滤，点击模型后右侧将显示表结构与查询表数据，你可以在上方的字段查询栏添加多个字段查询，表中的每个字段也支持正反排序
 
 表中的每个数据单元都是可以点击的，左击或右击都会展开选项卡，对于数据过大无法显示完整的数据可以展开，有权限的用户也可以对选中的数据行进行编辑或删除。点击右上角的【+】按钮可以创建新的数据实例
 
@@ -607,7 +648,7 @@ meta connect
 * **Service Logs**：服务端真实请求日志
 * **Test Logs**：在 UtilMeta 平台发起的调试与测试日志
 
-左侧下方的过滤选项包括日志等级，响应状态码，HTTP 方法和 API 接口等，还可以根据请求时间或处理时间进行排序
+左侧下方的过滤选项包括日志等级，响应状态码，HTTP 方法和 API 接口路径等，还可以根据请求时间或处理时间进行排序
 
 点击单条日志即可展开日志详情，日志会详细记录请求和响应的信息，异常调用栈等数据 
 
@@ -634,7 +675,7 @@ UtilMeta 节点提供的服务端管理能力，如数据管理，日志和监�
 <img src="https://utilmeta.com/assets/image/permissions-team-example.png"  target="_blank" width="600"/>
 
 !!! tip
-	成员可以在 **Team 团队**板块添加或设置权限
+	团队管理员可以在 **Team 团队**板块添加或设置成员权限
 
 正常授权后 UtilMeta 管理平台的客户端就会携带 access token 向你的服务端的  OperationsAPI 发起观测或管理请求，OperationsAPI 会对 access token 进行解析与鉴权，并执行合法的请求
 

@@ -25,13 +25,13 @@ class DjangoCacheAdaptor(BaseCacheAdaptor):
         cache: BaseCache = caches[self.alias]
         return cache
 
-    def check(self):
-        try:
-            import django
-        except (ModuleNotFoundError, ImportError) as e:
-            raise e.__class__(
-                f"{self.__class__} as database adaptor requires to install django"
-            ) from e
+    # def check(self):
+    #     try:
+    #         import django
+    #     except (ModuleNotFoundError, ImportError) as e:
+    #         raise e.__class__(
+    #             f"{self.__class__} as database adaptor requires to install django"
+    #         ) from e
 
     def get(self, key: str, default=None):
         return self.cache.get(key, default)

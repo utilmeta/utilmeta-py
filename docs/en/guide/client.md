@@ -1,18 +1,18 @@
 # Declarative Web client
 
-The UtilMeta framework not only provides an API class for the development of server-side interfaces, but also provides a class similar `Client` to the API class syntax for the development of client-side request code for interfacing with the API interface
+UtilMeta framework not only provides an API class for the development of server-side APIs, but also provides a similar class `Client` for the development of client-side request code for integrating with the API.
 
-Like a declarative interface, `Client` a class is a declarative client. It only needs to declare the request parameters and response template of the target interface into the function, and `Client` the class will automatically complete the construction of the API request and the parsing of the response.
+Like a declarative API, a `Client` class is a declarative client. It only needs to declare the request parameters and response template of the target API in the function, and the `Client` class will complete the construction of the API request and the parsing of the response automatically .
 
 !!! tip
-
+	In UtilMeta, `Client` is not only having an alike syntax as `API` class, but also using the same `Request` and `Response` class. Yep, this can reduce the mindset for developers a lot.
 ## Write a `Client` class
 
-Classes are written `Client` in the same way as [Writing API Class](../api-route), except that our class needs to inherit from the `utilmeta.core.cli.Client` class.
+Writing `Client` is as the same way as [Writing API Class](../api-route), except that our class needs to inherit from the `utilmeta.core.cli.Client` class.
 
 ### Request function
 
-We assume that we want to write `Client` classes for the following API interfaces
+We assume that we want to write `Client` classes for the following API:
 
 ```python
 from utilmeta import UtilMeta
@@ -24,7 +24,7 @@ class RootAPI(api.API):
 		return a + b
 ```
 
-We only need to write `Client` the request function according to the request parameter writing method of the API function, and leave the function body empty, as shown in
+We only need to write the request function for `Client` using the request parameter syntax, and leave the function body empty, as shown in
 ```python
 from utilmeta.core import cli, api, response
 
@@ -42,18 +42,19 @@ So when we call it like this,
 >>> resp = client.plus(a=1, b=2)
 ```
 
-A request is built based on your function declaration, which is equivalent to
+A request is built based on your function declaration
 ```
 curl https://127.0.0.1:8000/api/plus?a=1&b=2
 ```
 
-Parse the response as an `PlusResponse` instance of the response template declared by your request function, and you can `resp.result` access the result that has been converted to an integer type.
+And `Client` will parse the response as an `PlusResponse` instance of the response template declared by your request function, and you can use `resp.result` to access the result that has been converted to an integer type.
 
 !!! tip
+	You can view all request parameter declaring methods in [Handle Request Document](../handle-request), the rule is same for `Client` class 
 
 #### Specify the URL directly
 
-The request function can use the function name as the path and combine it with `Client` the `base_url` class to form the request URL. You can also specify the target URL path directly in the `@api` decorator. The following is an example of Github interface client code.
+The request function can use the function name as the path and combine it with the `base_url` of  `Client` class to form the request URL. You can also specify the target URL path directly in the `@api` decorator. The following is an example of Github API client code.
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -79,17 +80,18 @@ class GithubClient(cli.Client):
 	) -> response.Response: pass
 ```
 
-We specify the full URL path directly in the `@api` decorator, so that `Client` the class will ignore the `base_url` passed in when it is called and use the specified URL directly for access.
+We specify the full URL path directly in the `@api` decorator, so that the `Client` class will ignore the `base_url` passed in when it is called and use the specified URL directly.
 
-!!! Tip “asynchronous request function”
+!!! tip "asynchronous request function"
+	In the above example, we used async request functions, all you need is to add `async` to your function. but you should be noticed that async request function need an **async request library** to send a fully async request, currently UtilMeta support `httpx` and `aiohttp` as async request library, you can specify in the `backend` parameter of initializing `Client`
 	```python
 	>>> import httpx
 	>>> client = GithubClient(backend=httpx)
 	```
 
-#### Declare a response template
+#### Declare response template
 
-You can use UtilMeta’s response template to elegantly parse `Client` the response from the request function of a class. The response template should be declared in `Client` the request function ** Returns a value type hint ** of the class, and it needs to be declared as a response class that inherits from `Response`, or use `Union` multiple response classes combined. For example, the following is an example of `Client` a login interface class
+You can use UtilMeta’s response template to elegantly parse the response from the request function of a `Client` class. The response template should be declared at the **return type** of the function, and it needs to be declared as a response class that inherits from `Response`, or use `Union` to combine multiple response classes. For example, the following is an example of a login client class.
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -123,22 +125,23 @@ UserSchema(id=1, username='alice')
 
 Properties commonly used in declarative response template classes are
 
-*  `status`: You can specify a response code, which will be parsed to the response template only when the response code is the same as the response code.
-*  `result`: Access the result data of the response. If this property has a type declaration, the response will parse the result data according to this type.
-*  `headers`: Access the response header of the response. If this property is declared using a `Schema` class, the response will parse the response header according to this type.
+* `status`: Specify a response status code, `Client` will only parse response into this template if the status code is identical to `status`.
+* `result`: Declare the result data type of the response. If this property has a type declaration, the response will parse the result data according to this type.
+* `headers`: Declare the response header type of the response. If this property is declared using a `Schema` class, the response will parse the response header according to this type.
 
-If the response body is a JSON object and has a fixed schema, you can also use the following options to declare the corresponding schema key
+If the response body is a JSON object and has a fixed schema, you can also use the following options to declare the corresponding schema keys
 
-*  `result_key`: The corresponding ** Result data ** key in the response object. If this attribute is specified, `response.result` the result data accessed by the attribute will be parsed.
-*  `message_key`: The corresponding ** Error message ** key in the response object. If this property is specified, `response.message` the message string in the response body object will be accessed.
-*  `state_key`: The corresponding ** Service Status Code ** key in the response object. If this attribute is specified, `response.state` the business status code in the response object will be accessed.
-*  `count_key`: The corresponding ** Total number of query data ** key in the response object. If this attribute is specified, `response.count` the total number of query data in the response body object will be accessed.
+* `result_key`: The corresponding **Result Data** key in the response data object. If this attribute is specified, `response.result` will be the parsed data of `response.data[response.result_key]`
+* `message_key`: The corresponding **Error message** key in the response object.
+* `state_key`: The corresponding **Business Code** key in the response object
+* `count_key`: The corresponding **Total Number of Query Result** key in the response object (for pagination)
 
 !!! tip
+	You can accessed the unparsed response body object be `response.data`, where `response.result` will be the parsed result data (If the response template does not declare `result_key`, the result data will be the parsed `response.data`)
 
-#### Use to `Union` process multiple responses
+#### Handle multiple responses with `Union` 
 
-A common situation is that the interface may return multiple responses, such as success, failure, insufficient permissions, etc. This situation is difficult to deal with in a response template. We can use `Union` to combine multiple response templates, such as
+A common situation is that the API may return multiple kinds of responses, such as success, failure, insufficient permissions, etc. So we can use `Union` to combine multiple response templates, such as
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -167,11 +170,11 @@ class UserClient(cli.Client):
 	) -> Union[UserResponse, UserResponseFailed]: pass
 ```
 
-We have modified the above user login client code, added the response corresponding to the login failure status `UserResponseFailed`, and `UserResponse` combined `Union` it with the return type declaration of the login request function.
+We have modified the above user login client code, added the `UserResponseFailed` corresponding to the login failure status , and combined `UserResponse` in a `Union` as return type declaration of the login request function.
 
-In this way, when the status code of the response is 200, it will be resolved to `UserResponse` `UserResponseFailed`, and when the status code is 403, it will be resolved to.
+In this way, when the status code of the response is 200, it will be resolved to `UserResponse`, and when the status code is 403, it will be resolved to `UserResponseFailed`.
 
-In addition to the parsing based on the status code, if the response template does not provide a status code or multiple response templates provide the same status code, `Client` the class will parse according to the order in `Union[]` which the response templates are declared in. If the parsing is successful, it will return. If the parsing fails, it will continue to parse the next template. If all the templates fail to parse the response, the corresponding error will be thrown. If you don’t want to throw an error when the parsing fails, you can add an `Response` element at the `Union[]` end of, such as
+If the response template does not provide a status code, or multiple response templates provide the same status code, the `Client` class will parse according to the order which the response are declared in in the `Union[]`. If the parsing is successful, it will return. otherwise it will continue to parse the next template. If all the templates fail to parse the response, the corresponding error will be thrown. If you don’t want to throw an error when the parsing fails, you can add an `Response` element at the end of `Union[]`, such as
 
 ```python
 class UserClient(cli.Client):
@@ -185,13 +188,14 @@ class UserClient(cli.Client):
 
 The request function returns an `response.Response` instance when none of the previous templates can be parsed successfully
 
-!!! Tip “Returns the response directly in the API function”
+!!! tip "Return the response directly in the API function"
+	The response class you get from the request function is identical to the response class in API class (both are `utilmeta.core.response.Response`), So you can directly return the response from `Client` class as the return value of API function
 
 #### Custom Request Function
 
-In the above examples, we all use the declarative request parameter declaration and response template declaration, and let the `Client` class automatically build the request and parse the response according to the declaration. Such a request function is called ** Default request function **, and its function body does not need anything, just need `pass` it.
+In the above examples, we use the declarative request parameter and response template, let the `Client` class automatically build the request and parse the response according to the declaration. Such a request function is called **Default request function**, the function body does not need anything, just a `pass`.
 
-Of course, we can also write custom request call logic and response processing logic in the function body. Such a request function is a custom request function. The following is an example.
+Of course, we can also write custom request sending and response processing logic in the function body. Such a request function is a **Custom request function**. The following is an example.
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -229,27 +233,29 @@ class UserClient(cli.Client):
 			)
 ```
 
-We add a `_admin` parameter in the login request function. In the function logic, when this parameter is True, the user-defined request logic will be used. Otherwise, when `Client` the class detects that the result returned by the request function is null, the request will be constructed in the way of the default request function. Whether the request is custom or built by default, the response they return is parsed by the response template of the request function.
+We add a `_admin` parameter in the login request function, when this parameter is True, the user-defined request logic will be used. Otherwise, when `Client` detects that the result returned by the request function is `None`, the request will be constructed according to declaration by default. Both kind of response they return is parsed by the response template of the request function.
 
 !!! tip
+	A custom parameter in the request function should start with a underscore `'_'`, then it will not be recognized as a request parameter. But of course, if you do not need `Client` to generate request by default and custom your request logic completely, you do not need a `@api` decorator, just define a regular function is enough
 
-The `Client` class provides a built-in request function `request` and a series of request functions named after HTTP methods. You can call them in custom request logic. Their function parameters are
+The `Client` class provides a built-in request function `request()` and a series of request functions named after HTTP methods. You can call them in custom request logic. Their function parameters are
 
-*  `method`: Only the `request` function needs to be provided. Specify the HTTP method. Other functions named by HTTP method will use the corresponding HTTP method.
-*  `path`: Specifies the request path string. If the request path is a complete URL, it will be used directly, otherwise it will be concatenated with `Client` the `base_url` class.
-*  `query`: Specify the query parameter dictionary of the request, which will be parsed and spliced into the request URL together with the path.
-*  `data`: Specify the request body data, which can be dictionary, list, string or file. If the request header is specified `Content-Type`, it will be automatically generated according to the type of the request body data.
-*  `headers`: Specify the request header data and pass in a dictionary
-*  `cookies`: Specifies the Cookie data of the request. It can be passed in a dictionary or a Cookie string. The specified Cookie will be integrated with `Client` the Cookie held by the instance as the header of the request `Cookie`.
-*  `timeout`: Specifies the timeout for the request. By default, the class `default_timeout` parameter will be used `Client`.
+* `method`: Only the `request()` function needs to be provided. Specify the HTTP method. Other functions named by HTTP method will use the corresponding HTTP method.
+* `path`: Specifies the request path string. If the path is a complete URL, it will be used directly, otherwise it will be concatenated with the `base_url` of `Client` class.
+* `query`: Specify the query parameters dict of the request, which will be parsed and spliced into the request URL together with the path.
+* `data`: Specify the request body data, which can be dict, list, string or file. If the `Content-Type` request header isn't specified, it will be automatically generated according to the type of the request body data.
+* `headers`: Specify the request headers, pass in a dict
+* `cookies`: Specifies the Cookies of the request. It can be passed in a dict or a Cookie string. The specified Cookie will be integrated with the session Cookie held by the `Client` instance as the header `Cookie` of the request.
+* `timeout`: Specifies the timeout for the request. By default, the `default_timeout` parameter of `Client` class will be used.
 
-!!! Tip “Asynchronous built-in request functions”
+!!! tip "Asynchronous built-in request functions"
+	For all built-in request function, `Client` class has provided the corresponding async version, just add a `async_` prefix before function name, like `async_request`, `async_get`
 
 !!! warning
- 
+	 Do not name a request function as one of the above built-in functions. If you need to define a request function with the root path of the current `Client` class, just use  `@api.get("/")`
 ### Hook function
 
-In the writing of client code, we often need to process and fine-tune the request and response, and we can use the hook function to handle it conveniently. Three common hook functions have been defined in `Client` the class
+When writing of client code, we often need to process and fine-tune the request and response, so we can use the **hook function** to handle it conveniently. Three common hook functions have been defined in `Client` the class
 
 ```python
 class Client:
@@ -263,23 +269,24 @@ class Client:
         raise error.throw()
 ```
 
-If you need generic configuration for the request, response, or error handling of this `Client` class, you can extend these functions directly from the class and write your logic.
+If you need generic process for the request, response, or error handling of this `Client` class, you can extend these functions directly from the class and write your logic.
 
-* To `process_request` process the request, you can adjust the parameters in the request. If the function returns an `Response` instance, the requesting function will not initiate the request and will use the response directly.
-*  `process_response`: Process the response. You can modify the response header or adjust the data. If this function returns an `Request` instance, the request function will re-initiate the request. (This feature can be used to retry or redirect the request.)
-*  `handle_error` To handle an error, you can log or take action based on the error. If this function returns an `Response` `Request` instance, the request function will use the response as the return. If this function returns an instance, Then the requesting function will make the request and will throw the error if it does not return or if it returns something else.
+* `process_request`: process the request, you can adjust the parameters in the request. If the function returns an `Response` instance, the requesting function will not initiate the request and will use the response directly.
+* `process_response`: Process the response. You can modify the response header or adjust the data. If this function returns an `Request` instance, the request function will re-initiate the request. (This feature can be used to retry or redirect the request.)
+* `handle_error` To handle an error, you can log or take action based on the error. If this function returns an `Response` `Request` instance, the request function will use the response as the return. If this function returns an instance, Then the requesting function will make the request and will throw the error if it does not return or if it returns something else.
 
 !!! note
-
+	Generic hook function will on be effected on the default requet functions (using `pass` as function body), If you defined a custom request logic, it will not be processed by these functions, but you can still call `self.process_request` and `self.process_response` inside the function
+	
 #### Decorator hook function
 
-Compared with the general hook function, the hook function defined by using `@api` the decorator is more flexible in the selection of the target, and `Client` the decorator hook in the class is basically the same as [API 的装饰器钩子](./api-route/#_10) the usage:
+Compared with the generic hook function, the hook function defined by using `@api` the decorator is more flexible in the selection of the target, and the decorator hook in the `Client` class is basically the same as the usage of [API Decorator Hooks](../api-route/#hook-mechanism) :
 
-*  `@api.before` Preprocessing hooks, which process requests before they are called
-*  `@api.after`: Response processing hook, which processes the response after the request function call
-*  `@api.handle`: Error handling hook to handle when an error is thrown by the request function call chain
+* `@api.before` Preprocessing hooks, which process requests before they are called
+* `@api.after`: Response processing hook, which processes the response after the request function call
+* `@api.handle`: Error handling hook to handle when an error is thrown by the request function call chain
 
-The difference is that for `@api.before` the preprocessing hook, you need to use the first parameter to receive `Client` the request object generated by the class, and you can change the properties of this request object in the preprocessing hook.
+The difference between the `@api.before` is that for the preprocessing hook, you need to use the first parameter to receive the request object generated by the `Client` class, and you can change the properties of this request object in the preprocessing hook.
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -310,9 +317,9 @@ class GithubClient(cli.Client):
         self.token = token
 ```
 
-In this example, we added a preprocessing hook for `GithubClient` `get_user` the request function `add_authorization` that adds the parameter of the `token` instance to the `Authorizatio` request header, The first parameter `req` of the preprocessing hook is used to receive the request object for processing.
+In this example, we added a `add_authorization` preprocessing hook for the `get_user` request function of the `GithubClient` class. that adds the parameter of the `token` instance to the `Authorization` request header, The first parameter `req` of the preprocessing hook is used to receive the request object for processing.
 
-It should be noted that the scope of the decorator hook function is different from that of the general hook function in `Client` the class request function. For the default request function, the processing order is as follows
+It should be noted that the scope of the decorator hook function is different from that of the generic hook function. For the default request function, the processing order is as follows
 
 1.  `@api.before` Hook function
 2.  `process_request` Function
@@ -320,13 +327,14 @@ It should be noted that the scope of the decorator hook function is different fr
 4.  `process_response` Function
 5.  `@api.after` Hook function
 
-The errors thrown in steps 2, 3 and 4 can be handled by the `handle_error` general hook function, and the errors thrown in all steps (1 ~ 5) will be handled by the `@api.handle` hook function
+The errors thrown in steps 2, 3 and 4 can be handled by the `handle_error` generic hook function, and the errors thrown in all steps (1 ~ 5) will be handled by the `@api.handle` hook function
 
-!!! Tip “Async hook function”
+!!! tip "Async hook function"
+	You can use the `asynchronous` keyword to define an asynchronous hook function (including generic hooks and decorator hooks). The usage of asynchronous hook functions is the same as synchronous hook functions, but you need to declare the request function as asynchronous as well, otherwise asynchronous hook functions cannot be called in synchronous request functions
 
-### The mounting of the `Client` class
+### Mounting `Client`
 
-Similar to the API class, `Client` the class also supports the definition of multi-level tree routing through mounting, which is convenient for large request SDK to organize code. The following is an example
+Similar to the API class, the `Client` class also supports the definition of multi-level tree routing through mounting, which is convenient for large request SDK to organize code. The following is an example
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -353,17 +361,17 @@ class APIClient(cli.Client):
 	articles: ArticlesClient
 ```
 
-In this example, we `ArticlesClient` mount the class on the `articles` `APIClient` path to, and `UserClient` we mount the class on the `user` path so that when we make the following call
+In this example, we mount the `ArticlesClient` class on the `articles` path of `APIClient`, and `UserClient` on the `user` path, so that when we make the following call
 
 ```python
 >>> client = APIClient(base_url='http://127.0.0.1:8000/api')
 >>> client.articles.get_feed(limit=10)
 ```
-We will actually access `http://127.0.0.1:8000/api/articles/feed?limit=10`, that is, the mounted `Client` class `base_url` will add the mounted route at the end.
+We will actually access to `http://127.0.0.1:8000/api/articles/feed?limit=10`,  the mounted route will append to the `base_url` of  the `Client` class.
 
-### Mount the path parameters in the route
+### Path parameters
 
-When you need to define some complex routes, you can’t declare them directly through the class attribute. We can also use `@api.route` the decorator to declare the route name, which can also contain path parameters, such as
+When you need to define some routes name that can’t declared directly through the class attribute. We can also use the `@api.route` decorator to declare the route name, which can also contain path parameters, such as
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -383,15 +391,16 @@ class APIClient(cli.Client):
     )
 ```
 
-The route mounted in `CommentClient` this example is `'articles/{slug}/comments'`, which contains a path parameter `slug`. In `CommentClient` the request function of, you need to declare the `slug` parameter as `request.PathParam` (path parameter). So when we call
+The route mounted in `CommentClient` is `'articles/{slug}/comments'`, which contains a path parameter `slug`. In the request function of `CommentClient`, you need to declare the `slug` parameter as `request.PathParam` (path parameter). So when we call
 
 ```python
 >>> client = APIClient(base_url='http://127.0.0.1:8000/api')
 >>> client.comments.get_comment(id=1, slug='hello-world')
 ```
-Will be accessed.
 
-If the routing of a `Client` class is certain, you can also declare it directly using the class decorator, such as
+Will be accessed to  `http://127.0.0.1:8000/api/articles/hello-world/comments/1`
+
+If the route of a `Client` class is certain, you can also declare it directly using the class decorator, such as
 ```python
 from utilmeta.core import cli, api, request, response
 import utype
@@ -409,12 +418,12 @@ class APIClient(cli.Client):
 	comments: CommentClient
 ```
 
-### Client-side forms and films
+### Files and form
 
 There are two ways to add a file for a request using a client class
 
-* To use a single file ** Upload the file directly ** directly as the request body, you can specify the `utilmeta.core.file.File` as the request body type directly.
-* ** Upload a file using a form ** Use `multipart/form-data` Forms to transfer files. You can pass in other form fields in addition to the file.
+* **Upload the file directly**: Use file directly as the request body, you can specify `utilmeta.core.file.File` as the request body type.
+* **Upload files using form**: Use `multipart/form-data` forms to transfer files. You can pass in other form fields in addition to the file.
 
 ```python
 from utilmeta.core import cli, request, api, file
@@ -429,7 +438,7 @@ class APIClient(cli.Client):
     def multipart(self, data: FormData = request.Body): pass
 ```
 
-When passing in a file, you can pass a local file directly using File, such as
+When passing in a file, you can pass a local file directly using `File`, such as
 
 ```python
 client.multipart(data={
@@ -439,37 +448,40 @@ client.multipart(data={
 ```
 
 !!! tip
-
+	You can also specify `filename` in the File class, it will used as the filename of the `multipart/form-data` form, if not specified, the original local file name will be used.
 
 ## Invoke `Client`
 
-In the example above we have seen how to instantiate `Client` a class for invocation. Here are the complete `Client` class instantiation parameters.
+In the example above we have seen how to initialize a `Client` class for sending requests. Here are the complete parameters of the `Client` class.
 
-*  `base_url` Specify a base URL from which `Client` the request function in the instance and the URLs of other `Client` mounted instances will be extended (unless the corresponding request function has defined an absolute URL). This URL needs to be an absolute URL (the URL containing the request protocol and the source of the request)
-*  `backend`: You can pass in the name string or reference of a request library, which will be the request library that initiates the request call by default as a `Client` class function. The currently supported request libraries are `requests`, `aiohttp`, `httpx`, and `urllib`, and will be used if not set
+* `base_url`: Specify a base URL, all the request function or mounted classes in the `Client` instance will be extended this URL (unless the corresponding request function has defined an absolute URL). This URL needs to be an absolute URL (the URL containing the request protocol and the hostname)
+* `backend`: You can pass in the name string or reference of a request library, which will be the request library that initiates the request call for all the `Client` functions. The currently supported request libraries are `requests`, `aiohttp`, `httpx`, and `urllib`. by default will be `urllib`.
 
-!!! Warning “Asynchronous Request Library”
+!!! warning "Asynchronous Request Library"
+	If you are wring async request functions in `Client` class, please use async request library as `backend`, like `aiohttp` and `httpx`, or it will still be a sync request underlying.
 
-*  `service`: You can specify a UtilMeta service as `Client` the target service of the instance. If the specified `internal` parameter is True, `Client` the constructed request will not initiate a network request. Instead, it invokes the UtilMeta service’s internal route and generates a response, otherwise `Client` the instance’s `base_url` is automatically assigned to the UtilMeta service’s
-*  `internal`: Used to control `Client` the instance is request mode. The default is False. If True, the response is generated by internal invocation `service` of the specified service.
+* `service`: You can specify a **UtilMeta service** as the target service of the `Client` instance. If the specified `internal` parameter is True, the  constructed request by `Client`  will not initiate a network request. Instead, it invokes the UtilMeta service’s internal route and generates a response, otherwise the `Client` nstance’s `base_url` will be automatically assigned to the UtilMeta service’s `base_url`.
+* `internal`: Used to control the request mode of the `Client` instance. The default is False. If True, the response is generated by internal invocation the specified `service`.
 
 !!! note
+	If `internal=True` and the `service` is not specified. `Client` will try to import the registered UtilMeta service in current process
 
-*  `mock`: Specify whether it is a mock client. If it is True, `Client` the request function will not make an actual network request or internal call, but will directly generate a mock response according to the declared response template and return it. It can be used for client development before the interface is developed.
-*  `append_slash`: Whether to add an underscore at the end of the request URL by default
-*  `default_timeout` Specifies the default timeout for the request function, which can be a number of `int` seconds, `float` or `timedelta` an object
-*  `base_headers`: Use a dictionary to specify the default request header for the request function. The request header for each request will contain the request headers in this dictionary by default.
-*  `base_cookies` Specifies the default Cookie for the requesting function, which can be a dictionary, a Cookie string, or `SimpleCookie` an object.
-*  `base_query`: Specify the default query parameters for the request function
-*  `proxies`: Specifies `Client` the HTTP request proxy for the instance in the form
+* `mock`: Specify whether it is a **mock** client. If it is True, the request function of `Client` will not make an actual network request or internal call, but will directly generate a mock response according to the declared response template and return it. It can be used for client development before the API is developed.
+* `append_slash`: Whether to add a slash `'/'` at the end of the request URL by default.
+* `default_timeout`: Specifies the default timeout for the request function, which can be a `int` or `float` number of seconds, or a `timedelta` object
+* `base_headers`: Use a dict to specify the default request header for the request function. The request header for each request will contain theres headers by default.
+* `base_cookies`: Specifies the default Cookie for the requesting function, which can be a dict, a Cookie string, or a `SimpleCookie` object.
+* `base_query`: Specify the default query parameters for the request function
+* `proxies`: Specify the HTTP request proxy for the  `Client`  instance in the syntax of
 ```python
 {'http': '<HTTP_PROXY_URL>', 'https': '<HTTPS_PROXY_URL>'}
 ```
 
-*  `allow_redirects`: Whether to allow the underlying request library to perform request redirection. The default is None, which follows the default configuration of the request library.
-*  `fail_silently`: If set to True, when the response data of the request function cannot be parsed into the declared response template class, an error is not thrown, but a generic `Response` instance is returned. The default is False.
+* `allow_redirects`: Whether to allow the underlying request library to perform request redirection (3XX). The default is None, which follows the default configuration of the request library.
+* `fail_silently`: If set to True, when the response of the request function cannot be parsed into the declared response template, an error is not thrown, but a generic `Response` instance is returned. The default is False.
 
 !!! tip
+	In order to make some of the request function **fail silently** in the `Client` class, you can add a default `Response` class in the return type declaration.
 	```python
 	class APIClient(Client):
 		@api.get
@@ -490,15 +502,15 @@ Response [200 OK] "GET /get?a=1&b=2"
 {'a': '1', 'b': '2'}
 ```
 
-### Cookies session persistence
+### Cookies and Session
 
-A common requirement for a client is to provide a Session mechanism that, like a browser, can save and remember Cookies set in response and send them in the request. The Client class has such a mechanism built in.
+A common requirement for a client is to provide a Session mechanism like a browser, can save and remember **Cookies** set in response and send them in the following requests. The Client class has such a mechanism built in.
 
-When the response to your request contains a `Set-Cookie` response header, the Client class parses the cookies and stores them, and the Client class carries them in subsequent requests.
+When the response to your request contains a `Set-Cookie` response header, the Client parses the cookies and stores them, then carries them in subsequent requests.
 
-#### Isolate a session with a `with` statement
+#### Isolate session using `with`
 
-If you want the session state in the Client class to be kept in only a part of the code block, you can use `with` statements to organize and isolate these sessions. When the `with` statement exits, the session state in the client, such as cookies, will be cleaned up.
+If you want the session state in the Client class to be kept in only a part of the code block, you can use `with` statements to organize and isolate these sessions. When the `with` statement exits, the session state in the client such as cookies, will be cleaned up.
 
 ```python
 client = UserClient(
@@ -517,25 +529,32 @@ with client:
 ```
 
 
-## Generate `Client` class code
+## Generate `Client` code
 
-### Generate the request code for the UtilMeta service
+### Generate UtilMeta service
 
-The request SDK code to automatically generate the Client class for the UtilMeta service requires only one command to execute the entire command in your project directory (the containing `meta.ini` directory).
+You need only one command to generate the request Client code automatically for the UtilMeta service:
+Execute the following command in your project directory (directory containing `meta.ini`).
 
 ```
 meta gen_client
 ```
 
-### Generate request code for OpenAPI documentation
+You can add a `--to` argument to specify the generated filename, by default it will generate a file named `client.py` in your current directory, containing the client code.
 
-You can specify the OpenAPI URL or file address as a parameter when `--openapi` using `meta gen_client` the command, and UtilMeta will generate the client request SDK code according to the OpenAPI document corresponding to this address.
+### Generate for OpenAPI documentation
 
-##  `Client` Class code example
+You can specify the OpenAPI URL or file path as `--openapi` parameter using the `meta gen_client` command, and UtilMeta will generate the client request SDK code according to the corresponding OpenAPI document, like:
 
-### Realworld article interface
+```
+meta gen_client --openapi=https://petstore3.swagger.io/api/v3/openapi.json
+```
 
-As [ The Realworld blog project’s interface for getting posts](https://realworld-docs.netlify.app/specifications/backend/endpoints/#get-article) an example, use the `Client` UtilMeta class to write the client request.
+## `Client` code example
+
+### Realworld article API
+
+We use [The Realworld Article API](https://realworld-docs.netlify.app/specifications/backend/endpoints/#get-article) as an example to write UtilMeta `Client` class code.
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -589,12 +608,12 @@ class APIClient(cli.Client):
         pass
 ```
 
-Invoke
+Calling the API:
 
 ```python
->>> client = APIClient()
->>> resp = client.get_article(slug='how-to-train-your-dragon')
+>>> client = APIClient(base_url='https://realworld.utilmeta.com/api')
+>>> resp = client.get_article(slug='utilmeta-a-meta-backend-framework-for-python')
 >>> resp
-ArticleResponse [200 OK] "GET /api/articles/how-to-train-your-dragon"
+ArticleResponse [200 OK] "GET /api/articles/utilmeta-a-meta-backend-framework-for-python"
 ```
 

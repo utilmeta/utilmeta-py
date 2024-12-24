@@ -58,6 +58,7 @@ class Env(Schema):
     def _get_base_dir(cls):
         try:
             from utilmeta import service
+
             if service.project_dir:
                 return service.project_dir
         except ImportError:

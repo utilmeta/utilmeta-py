@@ -55,12 +55,12 @@ nav:
       - tutorials/bmi-calc.md
       - tutorials/user-auth.md
       - tutorials/realworld-blog.md
-#  - 社区相关:
+  - 社区相关:
 #      - community/contributing.md
 #      - community/contributors.md
 #      - community/faq.md
-#      - community/release.md
-#      - community/roadmap.md
+      - community/release.md
+      - community/roadmap.md
 #      - community/resources.md
   - 切换语言:
       - English: /py/en/

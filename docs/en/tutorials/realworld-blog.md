@@ -1066,6 +1066,16 @@ configure(service)
 	```
 	But all you need to do is adjust the port number and restart the project
 
+### Connect and Manage 
+
+When you developed the service and started, you can connect and manage your API service following the guide at [Connect API & Operations](../../guide/ops), UtilMeta Platform also provided a public demo for Realworld project, you can click  [https://beta.utilmeta.com/realworld](https://beta.utilmeta.com/realworld) to access.
+
+When your service is runing locally, you can see the output like
+```
+connect your APIs at https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8000/api/ops
+```
+
+You can click the output url to enter UtilMeta Platform and debug your local service.
 ### Blog frontend
 Frontend development and deployment of the blog project does not fall into the category of UtilMeta, but the tutorial here simply demonstrates how to install and run the frontend code of the blog project in the case locally, so that you can use and debug your API directly.
 
@@ -1101,6 +1111,3 @@ The following info indicates that the project has been started
 We can click to visit [http://localhost:5173/](http://localhost:5173/) to open the client of the blog.
 
 Then you can experience your own blog.
-
-
-## 7. Manage 

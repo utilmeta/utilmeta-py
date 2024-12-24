@@ -5,7 +5,7 @@ UtilMeta 框架不仅提供了 API 类用于服务端接口的开发，还提供
 与声明式接口一样，`Client` 类是一个声明式的客户端，只需要将目标接口的请求参数和响应模板声明到函数中，`Client` 类就会自动完成 API 请求的构建和响应的解析
 
 !!! tip
-	在 UtilMeta 中 `API` 类和 `Client` 类类似的不仅仅是语法，它们使用的 `Request` 和 `Response` 对象也是同一个类。没错，这样会降低开发者的心智成本，也能方便复用
+	在 UtilMeta 中 `API` 类和 `Client` 类类似的不仅仅是语法，它们使用的 `Request` 和 `Response` 对象也是同一个类。没错，这样会降低开发者的心智成本，也能方便复用插件代码
 
 
 ## 编写 `Client` 类
@@ -128,15 +128,15 @@ UserSchema(id=1, username='alice')
 声明响应模板类中常用的属性有
 
 * `status`: 可以指定一个响应码，只有响应的响应码与这个响应码一直时才会向这个响应模板解析
-* `result`：访问响应的结果数据，若这个属性有类型声明，响应将会把结果数据按照这个类型进行解析
-* `headers`：访问响应的响应头，若这个属性使用 `Schema` 类进行声明，响应将会把响应头按照这个类型进行解析
+* `result`：声明响应的结果数据，若这个属性有类型声明，响应将会把结果数据按照这个类型进行解析
+* `headers`：声明响应的响应头，若这个属性使用 `Schema` 类进行声明，响应将会把响应头按照这个类型进行解析
 
 如果响应体数据是一个 JSON 对象并且有着固定的模式，你也可以使用以下的选项声明对应的模式键值
 
 * `result_key`：响应对象中对应着 **结果数据** 的键，如果指定了这个属性，那么 `response.result` 属性访问到的结果数据将会是解析后的 `response.data[response.result_key]`
 * `message_key`：响应对象中对应着 **错误消息** 的键，如果指定了这个属性，那么 `response.message` 将会访问到响应体对象中的消息字符串
 * `state_key`：响应对象中对应着 **业务状态码** 的键，如果指定了这个属性，那么 `response.state` 将会访问到响应体对象中的业务状态码
-* `count_key`：响应对象中对应着 **查询数据总数** 的键，如果指定了这个属性，那么 `response.count` 将会访问到响应体对象中的查询数据总数
+* `count_key`：响应对象中对应着 **查询数据总数** 的键（用于分页），如果指定了这个属性，那么 `response.count` 将会访问到响应体对象中的查询数据总数
 
 !!! tip
 	你可以通过 `response.data` 访问到未解析的完整响应体对象，通过 `response.result` 访问到的是解析后的结果数据（如果响应模板没有声明 `result_key`，那么结果数据就是解析后的`response.data`）
@@ -240,12 +240,12 @@ class UserClient(cli.Client):
 !!! tip
 	在请求函数中添加的自定义属性需要使用下划线 `'_'` 开头，这样它才不会识别为请求查询参数。当然，如果你不希望 `Client` 类对你的自定义请求函数进行处理，而是完全定义自己的请求逻辑，你的函数就不需要使用 `@api` 装饰器，这样就是一个普通的函数了
 
-在 `Client` 类中提供了一个内置的请求函数 `request` 和一系列以 HTTP 方法为命名的请求函数，你可以在自定义的请求逻辑中调用，他们的函数参数为
+在 `Client` 类中提供了一个内置的请求函数 `request()` 和一系列以 HTTP 方法为命名的请求函数，你可以在自定义的请求逻辑中调用，他们的函数参数为
 
-* `method`：只有 `request` 函数需要提供，指定 HTTP 方法，其他以 HTTP 方法命名的函数将使用对应的 HTTP 方法
+* `method`：只有 `request()` 函数需要提供，指定 HTTP 方法，其他以 HTTP 方法命名的函数将使用对应的 HTTP 方法
 * `path`：指定请求路径字符串，如果请求路径是完整的 URL，将会直接使用，否则会与 `Client` 类的 `base_url` 进行拼接
 * `query`：指定请求的查询参数字典，将会与路径一起解析拼接为请求 URL
-* `data`：指定请求体数据，可以是字典，列表，字符串，文件，若为指定 `Content-Type` 请求头，将会根据请求体数据的类型自动生成
+* `data`：指定请求体数据，可以是字典，列表，字符串，文件，如果没有指定 `Content-Type` 请求头，将会根据请求体数据的类型自动生成
 * `headers`：指定请求头数据，传入一个字典
 * `cookies`：指定请求的 Cookie 数据，可以传入字典或 Cookie 字符串，指定的 Cookie 会与 `Client` 实例持有的 Cookie 进行整合作为请求的 `Cookie` 头
 * `timeout`：指定请求的超时时间，默认将使用 `Client` 类的 `default_timeout` 参数
@@ -283,13 +283,13 @@ class Client:
 
 #### 装饰器钩子函数
 
-相较于通用钩子函数，使用 `@api` 装饰器定义的钩子函数在目标的选择上更为灵活一些，`Client` 类中的装饰器钩子与 [API 的装饰器钩子](./api-route/#_10) 用法基本一致：
+相较于通用钩子函数，使用 `@api` 装饰器定义的钩子函数在目标的选择上更为灵活一些，`Client` 类中的装饰器钩子与 [API 的装饰器钩子](../api-route/#_10) 用法基本一致：
 
 * `@api.before`：预处理钩子，在请求函数调用前对请求进行处理
 * `@api.after`：响应处理钩子，在请求函数调用后对响应进行处理
 * `@api.handle`：错误处理钩子，在请求函数调用链抛出错误时进行处理
 
-其中的区别在于，对于 `@api.before` 预处理钩子，需要使用第一个参数接收 `Client` 类生成的请求对象，你可以在预处理钩子中对这个请求对象的属性进行更改
+与 API 钩子的区别在于，对于 `@api.before` 预处理钩子，需要使用第一个参数接收 `Client` 类生成的请求对象，你可以在预处理钩子中对这个请求对象的属性进行更改
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -320,7 +320,7 @@ class GithubClient(cli.Client):
         self.token = token
 ```
 
-在这个例子中，我们为 `GithubClient` 的 `get_user` 请求函数添加了一个预处理钩子函数 `add_authorization`，将实例的 `token` 参数添加到 `Authorizatio` 请求头，预处理钩子的第一个参数 `req` 用于接收请求对象进行处理
+在这个例子中，我们为 `GithubClient` 的 `get_user` 请求函数添加了一个预处理钩子函数 `add_authorization`，将实例的 `token` 参数添加到 `Authorization` 请求头，预处理钩子的第一个参数 `req` 用于接收请求对象进行处理
 
 需要注意的是装饰器钩子函数和通用钩子函数在 `Client` 类请求函数的作用范围并不同，对于默认请求函数而言，处理的顺序如下
 
@@ -374,7 +374,7 @@ class APIClient(cli.Client):
 
 ### 挂载路由中的路径参数
 
-当你需要定义一些复杂的路由时，无法直接通过类属性来声明，我们还可以用 `@api.route` 装饰器来声明路由名称，其中也可以包含路径参数，如
+当你需要定义一些无法直接通过类属性来声明的的路由路径时，我们还可以用 `@api.route` 装饰器来声明路由名称，其中也可以包含路径参数，如
 
 ```python
 from utilmeta.core import cli, api, request, response
@@ -458,7 +458,7 @@ client.multipart(data={
 在上文的例子我们已经了解了如何实例化 `Client` 类进行调用，下面是完整的 `Client` 类实例化参数
 
 * `base_url`：指定一个基准 URL，`Client` 实例中的请求函数与挂载的其他 `Client` 实例的 URL 都会从这个基准 URL 进行延申（除非对应的请求函数已经定义了绝对 URL），这个 URL 需要是一个绝对 URL （包含请求协议和请求源的 URL）
-* `backend`：可以传入一个请求库的名称字符串或引用，这个请求库将会作为 `Client` 类函数默认发起请求调用的请求库，目前支持的请求库包括 `requests`, `aiohttp`, `httpx` 与 `urllib`，如果不设置将使用 `urllib`
+* `backend`：可以传入一个请求库的名称字符串或引用，这个请求库将会作为 `Client` 类函数发起请求调用的请求库，目前支持的请求库包括 `requests`, `aiohttp`, `httpx` 与 `urllib`，如果不设置将使用 `urllib`
 
 !!! warning "异步请求库"
 	如果你在 `Client` 类中编写的是异步的请求函数，请使用异步的请求库作为 `backend`，比如 `aiohttp`, `httpx`，否则底层发起的还是同步的请求
@@ -470,7 +470,7 @@ client.multipart(data={
 	若 `internal=True` 而 `service` 未指定，则 `Client` 实例会尝试导入当前进程中注册的 UtilMeta 服务
 
 * `mock`：指定是否为 mock 客户端，如果为 True，`Client` 对请求函数不会进行实际的网络请求或内部调用，而是会直接根据声明的响应模板生成一个 mock 响应并返回，可以用于在接口尚未开发好时进行客户端开发
-* `append_slash`：是否默认在请求 URL 的末端添加下划线 `'/'`
+* `append_slash`：是否默认在请求 URL 的末端添加 `'/'`（当 URL末端不是 `'/'` 时）
 * `default_timeout`：指定请求函数默认的超时时间，可以是一个表示秒数的 `int`, `float` 或 `timedelta` 对象
 * `base_headers`：使用一个字典指定请求函数的默认请求头，每个请求的请求头都会默认包含这个字典中的请求头
 * `base_cookies`：指定请求函数的默认 Cookie，可以是一个字典，Cookie 字符串或 `SimpleCookie` 对象
@@ -480,7 +480,7 @@ client.multipart(data={
 {'http': '<HTTP_PROXY_URL>', 'https': '<HTTPS_PROXY_URL>'}
 ```
 
-* `allow_redirects`：是否允许底层请求库进行请求重定向，默认为 None，跟随请求库的默认配置
+* `allow_redirects`：是否允许底层请求库进行请求重定向（3XX），默认为 None，跟随请求库的默认配置
 * `fail_silently`：若设为 True，当请求函数的响应数据无法解析为声明的响应模板类时，不抛出错误，而是返回一个通用的 `Response` 实例，默认为 False
 
 !!! tip
@@ -536,15 +536,21 @@ with client:
 
 ### 为 UtilMeta 服务生成请求代码
 
-为 UtilMeta 服务自动生成 Client 类的请求 SDK 代码只需要一个命令，在你的项目目录（包含 `meta.ini` 的目录）下执行整个命令
+为 UtilMeta 服务自动生成 Client 类的请求 SDK 代码只需要一个命令，在你的项目目录（包含 `meta.ini` 的目录）下执行以下命令
 
 ```
 meta gen_client
 ```
 
+你可以额外增加 `--to` 参数指定生成的文件名，默认将会生成 `client.py` 到你的当前文件夹，其中包含着自动生成的客户端代码
+
 ### 为 OpenAPI 文档生成请求代码
 
-你可以在使用 `meta gen_client` 命令时传入 `--openapi` 参数，指定 OpenAPI 的 URL 或文件地址，UtilMeta 就会根据这个地址对应的 OpenAPI 文档生成客户端请求 SDK 代码
+你可以在使用 `meta gen_client` 命令时传入 `--openapi` 参数，指定 OpenAPI 的 URL 或文件地址，UtilMeta 就会根据这个地址对应的 OpenAPI 文档生成客户端请求 SDK 代码，如
+
+```
+meta gen_client --openapi=https://petstore3.swagger.io/api/v3/openapi.json
+```
 
 ## `Client` 类代码示例
 
@@ -604,12 +610,12 @@ class APIClient(cli.Client):
         pass
 ```
 
-调用
+调用方式：
 
 ```python
->>> client = APIClient()
->>> resp = client.get_article(slug='how-to-train-your-dragon')
+>>> client = APIClient(base_url='https://realworld.utilmeta.com/api')
+>>> resp = client.get_article(slug='utilmeta-a-meta-backend-framework-for-python')
 >>> resp
-ArticleResponse [200 OK] "GET /api/articles/how-to-train-your-dragon"
+ArticleResponse [200 OK] "GET /api/articles/utilmeta-a-meta-backend-framework-for-python"
 ```
 

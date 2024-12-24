@@ -17,7 +17,15 @@ from utilmeta.core.auth.properties import User
 from utilmeta.core.response.base import Headers, JSON, OCTET_STREAM, PLAIN
 from utilmeta.utils.context import Property, ParserProperty
 from utilmeta.utils.constant import HAS_BODY_METHODS
-from utilmeta.utils import valid_url, json_dumps, get_origin, file_like, multi, url_join
+from utilmeta.utils import (
+    valid_url,
+    json_dumps,
+    get_origin,
+    file_like,
+    multi,
+    url_join,
+    requires,
+)
 from utilmeta.conf import Preference
 from utype import Schema, Field, JsonSchemaGenerator
 from utype.parser.field import ParserField
@@ -69,6 +77,32 @@ def get_operation_id(
             ident = f"{origin}_{i}"
             i += 1
     return ident
+
+
+def get_docs_from_url(url, timeout: int = None):
+    if not valid_url(url, raise_err=False):
+        return None
+    from urllib.request import urlopen
+    from http.client import HTTPResponse
+
+    try:
+        resp: HTTPResponse = urlopen(url, timeout=timeout)
+    except Exception as e:
+        warnings.warn(f"parse external docs url: {url} failed: {e}")
+        return None
+    if resp.status == 200:
+        content_type = resp.getheader("Content-Type") or ""
+        if "yaml" in content_type or "yml" in content_type:
+            requires(yaml="pyyaml")
+            import yaml
+
+            obj = yaml.safe_load(resp.read())
+        else:
+            obj = json.loads(resp.read())
+    else:
+        return None
+    resp.close()
+    return obj
 
 
 class OpenAPIGenerator(JsonSchemaGenerator):
@@ -222,16 +256,16 @@ class ServerSchema(Schema):
 
 
 class ComponentsSchema(Schema):
-    schemas: dict = Field(default=None, defer_default=True)
-    responses: dict = Field(default=None, defer_default=True)
-    parameters: dict = Field(default=None, defer_default=True)
-    examples: dict = Field(default=None, defer_default=True)
-    requestBodies: dict = Field(default=None, defer_default=True)
-    headers: dict = Field(default=None, defer_default=True)
-    securitySchemes: dict = Field(default=None, defer_default=True)
-    links: dict = Field(default=None, defer_default=True)
-    callbacks: dict = Field(default=None, defer_default=True)
-    pathItems: dict = Field(default=None, defer_default=True)
+    schemas: dict = Field(default_factory=dict, defer_default=True)
+    responses: dict = Field(default_factory=dict, defer_default=True)
+    parameters: dict = Field(default_factory=dict, defer_default=True)
+    examples: dict = Field(default_factory=dict, defer_default=True)
+    requestBodies: dict = Field(default_factory=dict, defer_default=True)
+    headers: dict = Field(default_factory=dict, defer_default=True)
+    securitySchemes: dict = Field(default_factory=dict, defer_default=True)
+    links: dict = Field(default_factory=dict, defer_default=True)
+    callbacks: dict = Field(default_factory=dict, defer_default=True)
+    pathItems: dict = Field(default_factory=dict, defer_default=True)
 
 
 class OpenAPISchema(Schema):
@@ -397,6 +431,7 @@ class OpenAPI(BaseAPISpec):
 
         if file and file.filename and isinstance(docs, str):
             if file.filename.endswith(".yaml") or file.filename.endswith(".yml"):
+                requires(yaml="pyyaml")
                 import yaml
 
                 docs = yaml.safe_load(docs)
@@ -408,26 +443,10 @@ class OpenAPI(BaseAPISpec):
                 warnings.warn(f"parse external docs object failed: {e}")
                 return []
         if isinstance(docs, str):
-            if valid_url(docs):
-                from urllib.request import urlopen
-                from http.client import HTTPResponse
-
-                try:
-                    resp: HTTPResponse = urlopen(docs, timeout=self.URL_FETCH_TIMEOUT)
-                except Exception as e:
-                    warnings.warn(f"parse external docs url: {docs} failed: {e}")
+            if valid_url(docs, raise_err=False):
+                obj = get_docs_from_url(docs, timeout=self.URL_FETCH_TIMEOUT)
+                if not obj:
                     return []
-                if resp.status == 200:
-                    content_type = resp.getheader("Content-Type") or ""
-                    if "yaml" in content_type or "json" in content_type:
-                        import yaml
-
-                        obj = yaml.safe_load(resp.read())
-                    else:
-                        obj = json.loads(resp.read())
-                else:
-                    return []
-                resp.close()
             elif os.path.exists(docs):
                 try:
                     docs_content = open(docs, "r", errors="ignore").read()
@@ -435,6 +454,7 @@ class OpenAPI(BaseAPISpec):
                     warnings.warn(f"parse external docs file: {docs} failed: {e}")
                     return []
                 if docs.endswith(".yaml") or docs.endswith(".yml"):
+                    requires(yaml="pyyaml")
                     import yaml
 
                     obj = yaml.safe_load(docs_content)
@@ -446,6 +466,7 @@ class OpenAPI(BaseAPISpec):
                     obj = json.loads(docs)
                 except json.JSONDecodeError:
                     try:
+                        requires(yaml="pyyaml")
                         import yaml
 
                         obj = yaml.safe_load(docs)
@@ -605,6 +626,7 @@ class OpenAPI(BaseAPISpec):
     @classmethod
     def save_to(cls, schema, file: str):
         if file.endswith(".yaml") or file.endswith(".yml"):
+            requires(yaml="pyyaml")
             import yaml  # requires pyyaml
 
             content = yaml.dump(schema)
@@ -647,6 +669,7 @@ class OpenAPI(BaseAPISpec):
                 if path:
                     file_path = os.path.join(service.project_dir, path)
                     if path.endswith(".yml"):
+                        requires(yaml="pyyaml")
                         import yaml  # requires pyyaml
 
                         content = yaml.dump(_generated_document)
@@ -657,6 +680,7 @@ class OpenAPI(BaseAPISpec):
                     return content
                 else:
                     if ".yaml" in self.request.path or ".yml" in self.request.path:
+                        requires(yaml="pyyaml")
                         import yaml  # requires pyyaml
 
                         content = yaml.dump(_generated_document)

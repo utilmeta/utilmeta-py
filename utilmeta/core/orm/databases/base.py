@@ -66,7 +66,7 @@ class BaseDatabaseAdaptor:
                     import psycopg
                 except (ModuleNotFoundError, ImportError):
                     self.install_postgresql()
-                    requires(psycopg='psycopg[binary,pool]', psycopg2="psycopg2")
+                    requires(psycopg="psycopg[binary,pool]", psycopg2="psycopg2")
 
     @cached_property
     def package_manager(self):

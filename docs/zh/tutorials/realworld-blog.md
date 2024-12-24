@@ -1075,8 +1075,14 @@ configure(service)
 
 ### 连接并管理
 
-当你的博客服务开发好后，你可以按照 [运维与监控管理文档](../guide/ops) 来连接并观测管理你的 API 服务，UtilMeta 平台为 Realworld 案例项目也提供了一个公开的案例管理地址，你可以点击 [https://beta.utilmeta.com/realworld](https://beta.utilmeta.com/realworld) 访问
+当你的博客服务开发好后，你可以按照 [运维与监控管理文档](../../guide/ops) 来连接并观测管理你的 API 服务，UtilMeta 平台为 Realworld 案例项目也提供了一个公开的样例管理地址，你可以点击 [https://beta.utilmeta.com/realworld](https://beta.utilmeta.com/realworld) 访问
 
+当你在本地运行服务时，你可以可以看到这样的输出
+```
+connect your APIs at https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8000/api/ops
+```
+
+你可以直接点击输出中的链接进入 UtilMeta 平台连接并调试本地服务
 
 ### 博客前端
 博客的前端开发部署并不属于 UtilMeta 的范畴，但是教程这里简单示范如何在本地安装并运行案例中博客项目的前端代码，从而可以直接使用并调试你的 API

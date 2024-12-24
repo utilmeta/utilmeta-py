@@ -19,7 +19,7 @@ from utilmeta.utils import (
     json_dumps,
 )
 import json
-from typing import Tuple, List, Union, Optional, Type
+from typing import Tuple, List, Union, Optional
 from utilmeta.core import request
 from utype.types import ForwardRef
 
@@ -151,10 +151,15 @@ from utype.types import *
         return obj
 
     @classmethod
-    def generate_from(cls, url_or_file: str):
+    def generate_from(cls, url_or_file: str) -> "OpenAPIClientGenerator":
         url = valid_url(url_or_file, raise_err=False)
         if url:
-            pass
+            from utilmeta.core.api.specs.openapi import get_docs_from_url
+
+            document = get_docs_from_url(url)
+            if document:
+                return cls(document)
+            raise ValueError(f"Invalid document url: {url}")
         else:
             file_path = url_or_file
             content = open(file_path, "r").read()

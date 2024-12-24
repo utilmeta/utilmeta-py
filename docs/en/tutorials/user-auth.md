@@ -341,7 +341,60 @@ Quit the server with CTRL-BREAK.
 !!! tip
 	You can alter the `host` and `port` params of UtilMeta service in `server.py`  to change the address of the API service
 
-## 6. Debug API
+## 6. Connect the API
+
+UtilMeta framework has a built-in  API service management system, you can easily connect to your API services, view API documentation, logs, monitor and manage data. For our developed user login and registration interface, simply add the following configurations to the service in `server.py`
+
+```python
+from utilmeta.ops import Operations
+service.use(Operations(
+    route='ops',
+    database=Database(
+        name='operations_db',
+        engine='sqlite3',
+    )
+))
+```
+
+Our `Operations` configuration mount OperationsAPI to the route at `ops`, using a SQLite3 database to store your monitor and logs data.
+
+Restarting the service and we can see the following output
+
+```
+UtilMeta OperationsAPI loaded at http://127.0.0.1:8000/api/ops, connect your APIs at https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8000/api/ops
+```
+
+You can click [this link](https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8000/api/ops) directly to open UtilMeta Platform and connect to your local service, or run this command in your project directory
+
+```
+meta connect
+```
+
+<img src="https://utilmeta.com/assets/image/demo-user-connect-local.png" href="https://ops.utilmeta.com" target="_blank" width="600"/>
+
+Click **API** will lead us to the developed User login and signup APIs, we can select signup API, click **Debug** and create a user
+
+<img src="https://utilmeta.com/assets/image/demo-user-api-debug.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+
+After created successfully, you can click **Data** to view the newly created user data.
+
+<img src="https://utilmeta.com/assets/image/demo-user-data-query-user.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+We can select the row in the data table to edit or delete, or click **+** at the top right corner to create a new instance
+
+Below the data table is the table structure document of the User model
+
+You can also click **Logs** to view the request logs of the signup API we just requested.
+
+<img src="https://utilmeta.com/assets/image/demo-user-logs.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+Click the log row will expand the log detail information.
+
+!!! note
+	You might notice that the password fields in the data and log sections are automatically hidden, because their names match the default `'secret_name'` configured by Operations in UtilMeta service. For more detailed API service connection and management configurations, please refer to the [Operations and Management Document](../../guide/ops)
+
+!!! tip
+	Due to browser restrictions, local debugging on the web cannot send **cookies**. If you wish to debug the developed API more comprehensively, you can refer to the following section
+
+## 7. Debug API
 
 After starting our API service, we can debug the APIs using the client in UtilMeta, let's create a new file named `test.py` in the project directory and write
 ```python

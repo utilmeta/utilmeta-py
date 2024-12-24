@@ -218,6 +218,7 @@ class BaseCommand:
                 cmd = cmd_cls
 
             args = []
+            current_arg = None
             for arg in self.args:
                 arg = str(arg)
                 if arg.startswith("--"):
@@ -225,11 +226,20 @@ class BaseCommand:
                         key, *values = arg.split("=")
                         val = "=".join(values)
                         kwargs[key] = val  # = kwargs[str(key).strip('--')]
+                        current_arg = None
                     else:
+                        current_arg = arg
+                        # use the next common argument
                         kwargs[arg] = True  # = kwargs[str(arg).strip('--')]
                 elif arg.startswith("-"):
+                    current_arg = None
                     kwargs[arg] = True  # kwargs[arg.strip('-')] =
                 else:
+                    arg = arg.strip('"').strip("'")
+                    if current_arg:
+                        kwargs[str(current_arg)] = arg
+                        current_arg = None
+                        continue
                     args.append(arg)
             try:
                 return cmd(*args, **kwargs)

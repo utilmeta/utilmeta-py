@@ -419,7 +419,7 @@ env = ServiceEnvironment(file='/path/to/config.json')
 
 UtilMeta 提供了一个 `DjangoSettings` 配置，可以为所有使用 Django 作为 `backend` 的项目和使用 django ORM 的项目提供声明式的 django 配置， `DjangoSettings` 的常用配置参数如下
 
-* `secret_key`：指定 Django 的项目密钥，推荐在环境变量中生成一个长的随机密钥
+* `secret_key`：指定 Django 项目的密钥，推荐在环境变量中生成一个长的随机密钥
 * `apps`：用于指定 Django 的 `INSTALLED_APPS`
 * `apps_package`：这是一个便捷配置项，如果你的已安装 app 都放在一个包中，你可以使用 `apps_package` 指定这个包的路径，UtilMeta 会读取其中的所有子文件夹查找 django app
 * `middleware`：可以传入一个 django 中间件的列表
@@ -491,7 +491,7 @@ service.use(CacheConnections({
 目前 UtilMeta 支持两种缓存配置
 
 * **DjangoCache**：默认的缓存配置，将会使用 Django 的缓存进行实现，其中 `engine` 参数可以传入 Django 的缓存类
-* **RedisCache**：Redis 缓存配置，同时支持同步与异步用法，同步的用法由 Django 实现，异步的用法使用 `aioredis` 实现（若需使用请先安装 `aioredis` ）
+* **RedisCache**：Redis 缓存配置，同时支持同步与异步用法，同步的用法由 Django 实现，异步的用法使用 `aioredis` 实现
 
 ### `Time` 时间与时区配置
 
@@ -508,11 +508,40 @@ service.use(Time(
 ```
 
 其中的参数包括
+
 * `time_zone`：指定时间的时区，默认为本机的时区，可以使用 `'UTC'` 来指定 UTC 时区
 * `use_tz`：是否为项目的所有 datetime 时间开启时区（timezone aware），默认为 True，会同步 Django 的 `USE_TZ` 配置
-* `date_format`：`date` 类型的序列化格式，默认为 `%Y-%m-%d`
-* `time_format`：`time` 类型的序列化格式，默认为 `%H:%M:%S`
-* `datetime_format`：`datetime` 类型的序列化格式，默认为 `%Y-%m-%d %H:%M:%S`
+* `date_format`：指定 `date` 类型的序列化格式，默认为 `%Y-%m-%d`
+* `time_format`：指定 `time` 类型的序列化格式，默认为 `%H:%M:%S`
+* `datetime_format`：指定 `datetime` 类型的序列化格式，默认为 `%Y-%m-%d %H:%M:%S`
+
+
+### `Preference` 偏好参数配置
+
+你可以使用 `Preference` 来配置 UtilMeta 框架的特性中的参数
+
+```python
+from utilmeta.conf import Preference
+
+service.use(Preference(
+	client_default_request_backend=httpx,
+	default_aborted_response_status=500,
+	orm_raise_non_exists_required_field=True
+))
+```
+
+其中常用的参数有：
+
+* `strict_root_route`: 是否严格校验根 API 路由，默认为 False, 例如当 API 的根路由为 `/api` 时，`/api/user` 与 `/user` 均会访问到 `/user` 所在的根 API 函数，你可以设为 True，这样只有 `/api/user` （即以根路由开头的路径）才会被处理，其他路径都会返回 404 响应
+* `api_default_strict_response`：API 函数是否对生成的响应开启严格结果校验，默认为 None，如果设为 True，则 API 函数生成的响应默认都会对响应数据的类型和结构进行校验，校验不通过会直接抛出错误
+* `client_default_request_backend`：指定默认的 `Client` 类底层请求库，目前 UtilMeta 支持 `httpx`, `aiohttp`, `requests` 与 `urllib`，默认为 `urllib`
+* `default_aborted_response_status`：如果客户端请求失败无法得到响应时默认生成的响应码，默认为 503
+* `default_timeout_response_status`：如果客户端请求超时默认生成的响应码，默认为 504
+* `orm_default_query_distinct`：`orm.Query` 查询是否默认进行 `DISTINCT` ，默认不开启，需要在 `orm.Query` 类中指定 `__distinct__ = True` 才会进行去重处理
+* `orm_default_gather_async_fields`：在 `orm.Schema` 的异步查询方法中，是否对无关联的关系字段查询进行 `asyncio.gather` 聚合，默认是 False
+* `orm_raise_non_exists_required_field`：在 `orm.Schema`中的必传的字段没有在模型中检测到有对应名称的字段时，是否抛出错误，默认为 False，会给出 warnings 提示
+* `orm_schema_query_max_depth`：使用 `orm.Schema` 进行关系查询的最大查询深度，默认是 100，虽然关系查询有自动检测避免无限循环嵌套的机制，这个参数也可以作为兜底策略应对其他可能的情况增强关系查询的鲁棒性
+* `dependencies_auto_install_disabled`:  是否对运行服务或执行命令所需的未安装依赖库 **禁用** 自动安装，默认为 False，UtilMeta 检测到的未安装依赖会自动运行 `pip install` 进行安装，但是如果你的环境可能导致安装多次失败重试的话，你可以考虑开启这个参数对自动安装进行禁用，避免依赖安装占用大量的进程资源
 
 ## 运行服务
 

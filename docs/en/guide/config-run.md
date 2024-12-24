@@ -384,6 +384,136 @@ and declare the corresponding variables in the file, like
 !!! warning
 	If you are using the configuration file, please place the config file outside the project directory, or use `.gitignore` to exclude it from versioning control.
 
+
+## Common Configurations
+
+### `DjangoSettings`
+
+UtilMeta provides a `DjangoSettings` configuration that provides declarative Django configuration for all projects that use Django as a `backend` or use Django ORM. common parameters for `DjangoSettings` are
+
+* `secret_key`: Specifies the **secret key** for Django. It is recommended to generate a long random key in the environment variable.
+* `apps`: for specifying Django `INSTALLED_APPS`.
+* `apps_package`: This is a convenient configuration item. If your installed apps are all in a package, you can use `apps_package` to specify the path of the package. UtilMeta will read all the subfolders in it to find the Django app.
+* `middleware`: You can pass in a list of Django middleware here.
+* `module_name`: Specifies the configuration file reference for Django.
+* `extra`: You can pass in a dict to specify additional Django configuration.
+
+Also, if you don’t specify `module_name` for `DjangoSettings`, it will default to use the module where the UtilMeta service is located as the configuration, so you can also declare the Django configuration in this file directly from the service  **before** `setup()`. The usage is the same as the native Django configuration, for example
+
+```python
+from utilmeta import UtilMeta
+from config.conf import configure 
+import django
+
+DATA_UPLOAD_MAX_NUMBER_FILES = 1000
+
+service = UtilMeta(__name__, name='demo', backend=django)
+configure(service)
+
+service.setup()
+```
+
+!!! warning
+	`service.setup()` will trigger `django.setup()` and load all the Django settings, so you should configure the Django settings before setup
+
+### `DatabaseConnections`
+
+In UtilMeta, `DatabaseConnections` is used to configure the database connections. It accepts a dict parameter. The key of the dict is the name of the connection. The value is an `Database` instance used to configure the address and connection information of the database. In the ORM of UtilMeta, if it is not explicitly specified, The database connection with name `'default'` is used by default
+
+```python
+from utilmeta.core.orm import DatabaseConnections, Database
+from config.env import env
+
+service.use(DatabaseConnections({
+	'default': Database(
+		name='blog',
+		engine='postgresql',
+		host=env.DB_HOST,
+		user=env.DB_USER,
+		password=env.DB_PASSWORD,
+		port=env.DB_PORT,
+	)
+}))
+```
+
+!!! note
+	If you used Django, you should be familiar with this kind of configuration, `DatabaseConnections` will generate the `DATABASES` settings when using Django ORM.
+
+You can see the detailed usage in [ORM Configuration Database Connection](../schema-query/#database-and-orm-configuration)
+
+### `CacheConnections`
+
+`CacheConnections` is used to configure cache connections. Similar to `DatabaseConnections` syntax. The connection dictionary value specifies a cache instance in which the cache’s address and connection information can be configured. For example:
+
+```python
+from utilmeta.core.cache import CacheConnections, Cache
+from utilmeta.core.cache.backends.redis import RedisCache
+from config.env import env
+
+service.use(CacheConnections({
+	'default': RedisCache(
+		port=env.REDIS_PORT,
+		db=env.REDIS_DB,
+		password=env.REDIS_PASSWORD
+	),
+	'fallback': Cache(engine='django.core.cache.backends.locmem.LocMemCache')
+}))
+```
+
+UtilMeta currently supports two cache configurations
+
+* **DjangoCache**: The default cache configuration will be implemented using Django’s cache, where `engine` parameters can be passed into Django’s cache class.
+* **RedisCache**: Redis cache configuration supports both synchronous and asynchronous usage. Synchronous usage is implemented by Django, and asynchronous usage is implemented by `aioredis`
+
+### `Time`
+
+`Time` is used to configure time and time zone settings for the project, affecting time serialization in the API and time storage in the database
+
+```python
+from utilmeta.conf import Time
+
+service.use(Time(
+	time_zone='UTC',
+	use_tz=True,
+	datetime_format="%Y-%m-%dT%H:%M:%SZ"
+))
+```
+
+The parameters include:
+
+* `time_zone`: Specify the time zone of the time. The default is the local time zone. You can use `'UTC'` to specify the UTC time zone.
+* `use_tz`: Whether to enable timezone aware for all datetime times in the project. True by default, Django’s `USE_TZ` configuration will be synchronized.
+* `date_format`: Specify the `date` serialization format of the type. The default is  `%Y-%m-%d`
+* `time_format`: Specify the `time` serialization format of the type. The default is `%H:%M:%S`
+* `datetime_format`: Specify the `datetime` serialization format of the type. The default is `%Y-%m-%d %H:%M:%S`
+
+### `Preference`
+
+You can use `Preference` to configure the parameters in the UtilMeta framework’s features, like:
+
+```python
+from utilmeta.conf import Preference
+
+service.use(Preference(
+	client_default_request_backend=httpx,
+	default_aborted_response_status=500,
+	orm_raise_non_exists_required_field=True
+))
+```
+
+Commonly used parameters are:
+
+* `strict_root_route`: Whether to strictly verify the root API route. The default is False. For example, when the root route of the API is `/api`,  Both `/api/user` and `/user` will access to the `/user` of the root API function. You can set it to True so that only `/api/user` path that start with the root route are processed, and all other paths return a 404 response
+* `api_default_strict_response`: Whether the API function enables strict result verification for the generated response. The default is None. If it is set to True, the response generated by the API function will verify the type and structure of the response data by default. If the verification fails, an error will be thrown directly.
+* `client_default_request_backend`: Specify the default `Client` underlying request library of the class. Currently, UtilMeta supports `httpx`, `aiohttp`, `requests` and `urllib`, and the default is `urllib`
+* `default_aborted_response_status`: The response code generated by default if the client request fails and no response can be obtained. The default is 503.
+* `default_timeout_response_status`: The response code generated by default if the client request times out. The default is 504.
+* `orm_default_query_distinct`: Whether the `orm.Query` query performed `DISTINCT` by default. It is not enabled by default, only by specifying `__distinct__ = True` in the `orm.Query` class.
+* `orm_default_gather_async_fields`: In the asynchronous query methods of `orm.Schema`, whether to use  `asyncio.gather` to aggregate the query of unrelated relational fields. The default is False.
+* `orm_raise_non_exists_required_field`:  Whether to raise error if `orm.Schema` detect a required field that does not exists on the model. The default is False, a warning prompt will be given.
+* `orm_schema_query_max_depth`: Specify the maximum query depth for `orm.Schema`relational queries. The default is 100. Although relational queries have a mechanism to automatically detect and avoid infinite loop nesting, this parameter can also be used as a bottom-up strategy to deal with other possible situations to enhance the robustness of relational queries.
+* `dependencies_auto_install_disabled`: Whether to **Disable** automatically install uninstalled dependencies required to run services or execute commands. The default is False. Uninstalled dependencies detected by UtilMeta are automatically by `pip install`. However, if your environment may cause the installation to fail and retry many times, you can consider turning on this parameter to disable the automatic installation, so as to avoid relying on the installation to take up a lot of process resources.
+
 ## Run the service
 
 The UtilMeta service instance provides a `run()` method to run the service, and we’ve already seen its use.

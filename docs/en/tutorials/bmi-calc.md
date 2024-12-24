@@ -118,33 +118,46 @@ When we restart the project and visit [http://127.0.0.1:8000/api/bmi?weight=70&h
 {"value": 20.45, "level": 1}
 ```
 
-### Auto-generated OpenAPI docs
+## 4. Connect API
 
-UtilMeta can automatically generate API documentation for you based on the interface declaration you write. We just need to mount the API that generates the documentation on the RootAPI to access it.
+Once your UtilMeta service is developed, you can connect it to view a debugable API document, The `--ops` argument we added in setup command inserted a UtilMeta Operations config automatically, we can see it in `server.py` 
 
-you can mount an API to return the OpenAPI docs in json format, like
 ```python
-from utilmeta.core.api.specs.openapi import OpenAPI
+from utilmeta.ops.config import Operations
 
-class RootAPI(api.API):
-    docs: OpenAPI.as_api('openapi.json')  # new
-
-    @api.get
-    def bmi(self,
-            weight: float = utype.Param(gt=0, le=1000),
-            height: float = utype.Param(gt=0, le=4)
-            ) -> BMISchema:
-        return BMISchema(value=weight / height ** 2)
+service.use(Operations(
+    route='ops',
+    database=Database(
+        name='demo-bmi_utilmeta_ops',
+        engine='sqlite3',
+    ),
+))
 ```
 
-The `as_api()` parameter of the function can specify a local file address to store the generated OpenAPI JSON file.
+When the service is running, you can see the following output:
 
-Let’s restart the project and visit [http://127.0.0.1:8000/api/docs](http://127.0.0.1:8000/api/docs) to see the OpenAPI documentation in JSON format.
+```
+UtilMeta OperationsAPI loaded at http://127.0.0.1:8000/api/ops, connect your APIs at https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8000/api/ops
+```
 
-We can load this JSON document using any API debugger that implements the OpenAPI standard (such as [ Swagger Editor ](https://editor.swagger.io/)) and see that the input and response parameters of the API we wrote have been fully recorded in the API document.
+You can click [this link](https://ops.utilmeta.com/localhost?local_node=http://127.0.0.1:8000/api/ops) directly to open UtilMeta Platform and connect to your local service, or run this command in your project directory
 
-![ BMI API Doc ](https://utilmeta.com/assets/image/bmi-api-doc.png)
+```
+meta connect
+```
 
+You will see a browser tab prompted up and connected to the APIs you just created
+
+<img src="https://utilmeta.com/assets/image/demo-bmi-connect-local.png" href="https://ops.utilmeta.com" target="_blank" width="600"/>
+
+Click **API** will lead us to the BMI calculation API, We can click **Debug** to send a request 
+
+<img src="https://utilmeta.com/assets/image/demo-bmi-api-debug.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+Click **Log** will direct you to view the API logs we just triggered, you can cliick the log row to view the detailed info. 
+<img src="https://utilmeta.com/assets/image/demo-bmi-logs.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+
+!!! tip
+	For the performance of real-time requests, logs will be collected in the background of the process and stored regularly. If you don't see them immediately, you can wait and refresh them. For more information of Operations system you can refer to [Connect API and Operations](../../guide/ops)
 
 ## Source Code
 

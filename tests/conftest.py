@@ -434,7 +434,6 @@ def make_cmd_process(file: Union[str, Path], *argv,
         env = os.environ.copy()
         env['UTILMETA_OPERATIONS_DATABASE_ENGINE'] = db_using
         server = subprocess.Popen(cmd, env=env, cwd=str(cwd or os.getcwd()))
-
         try:
             if port:
                 import socket

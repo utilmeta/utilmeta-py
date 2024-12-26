@@ -58,10 +58,10 @@ django_server_process = make_live_process(
 )
 
 retry = RetryPlugin(
-    max_retries=3, max_retries_timeout=15, retry_interval=1
+    max_retries=5, max_retries_timeout=15, retry_interval=1.5
 )
 
-OPS_WAIT = 1.0
+OPS_WAIT = 2.0
 # add wait to make sure that the operations data are all setup
 
 

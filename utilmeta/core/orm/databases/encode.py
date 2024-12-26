@@ -229,18 +229,24 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
     @property
     def _param_converter(self):
         if self.async_engine == 'asyncpg':
+            json_types = []
             try:
                 from psycopg.types.json import Json, Jsonb
+                json_types.extend([Json, Jsonb])
             except (ModuleNotFoundError, ImportError):
-                return lambda x: x
-
-            json_types = (Json, Jsonb)
-
-            def converter(x):
-                if isinstance(x, json_types):
-                    return json_dumps(x.obj)
-                return x
-            return converter
+                pass
+            try:
+                from psycopg2._json import Json
+                json_types.append(Json)
+            except (ModuleNotFoundError, ImportError):
+                pass
+            json_types = tuple(json_types)
+            if json_types:
+                def converter(x):
+                    if isinstance(x, json_types):
+                        return json_dumps(getattr(x, 'obj', getattr(x, 'adapted', None)))
+                    return x
+                return converter
         return lambda x: x
 
     def _parse_sql_params(self, sql: str, params=None):

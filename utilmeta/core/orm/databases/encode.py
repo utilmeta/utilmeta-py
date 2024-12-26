@@ -1,7 +1,9 @@
+import inspect
+
 from .base import BaseDatabaseAdaptor
 from typing import Mapping, TYPE_CHECKING
 import re
-from utilmeta.utils import requires
+from utilmeta.utils import requires, json_dumps
 
 if TYPE_CHECKING:
     from .config import Database
@@ -28,6 +30,16 @@ from databases.core import Transaction, Database
 
 # https://github.com/encode/databases/issues/594
 class _Transaction(Transaction):
+    def __init__(
+        self,
+        connection_callable,
+        force_rollback: bool,
+        connect_callable=None,
+        **kwargs,
+    ) -> None:
+        super().__init__(connection_callable, force_rollback=force_rollback, **kwargs)
+        self.connect_callable = connect_callable
+
     async def commit(self) -> None:
         async with self._connection._transaction_lock:
             assert self._connection._transaction_stack[-1] is self
@@ -37,6 +49,13 @@ class _Transaction(Transaction):
             self._connection._transaction_stack.pop()
             await self._connection.__aexit__()
             self._transaction = None
+
+    async def start(self) -> "Transaction":
+        if self.connect_callable:
+            r = self.connect_callable()
+            if inspect.isawaitable(r):
+                await r
+        return await super().start()
 
     async def __aexit__(self, exc_type, exc_value, traceback):
         """
@@ -207,8 +226,24 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
             self._db = None
         return
 
-    @classmethod
-    def _parse_sql_params(cls, sql: str, params=None):
+    @property
+    def _param_converter(self):
+        if self.async_engine == 'asyncpg':
+            try:
+                from psycopg.types.json import Json, Jsonb
+            except (ModuleNotFoundError, ImportError):
+                return lambda x: x
+
+            json_types = (Json, Jsonb)
+
+            def converter(x):
+                if isinstance(x, json_types):
+                    return json_dumps(x.obj)
+                return x
+            return converter
+        return lambda x: x
+
+    def _parse_sql_params(self, sql: str, params=None):
         if not params:
             return sql, None
         if isinstance(params, Mapping):
@@ -220,7 +255,8 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
             )  # match array (only for postgres)
             replaces = tuple(f":param{i}" for i in range(0, len(params)))
             sql = sql % replaces
-            params = {f"param{i}": params[i] for i in range(0, len(params))}
+            converter = self._param_converter
+            params = {f"param{i}": converter(params[i]) for i in range(0, len(params))}
             # print('parsed:', sql, params)
             return sql, params
         else:
@@ -250,8 +286,12 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
 
     def transaction(self, savepoint=None, isolation=None, force_rollback: bool = False):
         db = self.get_db()
+
         return _Transaction(
-            db.connection, force_rollback=force_rollback, isolation=isolation
+            db.connection,
+            force_rollback=force_rollback,
+            isolation=isolation,
+            connect_callable=self.connect
         )
 
     def check(self):

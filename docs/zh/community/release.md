@@ -1,4 +1,16 @@
 # 版本发布记录
+## v2.7.2
+
+发布时间：2024/12/25
+
+### 优化项
+
+* `Client` 类对于响应码不匹配任何响应模板的响应，在 `fail_silently=False` 时会抛出错误
+
+### 问题修复
+
+* UtilMeta 平台的 Data 板块的数据查询问题修复
+
 
 ## v2.7.1
 
@@ -11,7 +23,7 @@
 ### 优化项
 
 * 对 `orm.Schema` 查询的无限循环嵌套问题解决方式进行优化，增加了 `Perference.orm_schema_query_max_depth` 设置限制 Schema 查询深度，默认为 100
-* 对 FastAPI / Starlette 应用优化服务端报错的处理逻辑，能够降异常调用栈记录到 Operations 系统的日志存储中并提供查看
+* 对 FastAPI / Starlette 应用优化服务端报错的处理逻辑，能够在日志中记录 FastAPI 接口抛出的异常调用栈信息
 
 ### 问题修复
 
@@ -31,7 +43,7 @@
 
 * 支持连接到 **代理节点** 进行内网服务集群的管理
 * 支持解析与同步 **Django Ninja** 的 OpenAPI 文档
-* 支持 `meta.ini` 中指定 `pidfile` 存储当前服务进程，同时支持 `restart` 重启服务命令和 `down` 停止服务命令 
+* 支持 `meta.ini` 中指定 `pidfile` 存储当前服务进程 PID，同时支持 `restart` 重启服务命令和 `down` 停止服务命令 
 
 ### 优化项
 

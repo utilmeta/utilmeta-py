@@ -155,6 +155,11 @@ In addition to the default behavior based on the primary key, you can adjust the
 
 * `must_create`: If set to True, the method is forced to be processed as a creation method, although an error is thrown if the data contains a primary key that has already been created.
 * `must_update`: If set to True, the method is forced to be processed as an update method, and an error is thrown when the update cannot be completed, such as when the primary key is missing or does not exist.
+* `transaction`: you can set to True or a database connection name to enable the **transaction** for that database, default is False, set to True will enable transaction for the default database of the corresponding model
+* `using`: Set a database connection name to specify the database to save, by default will be the default database of the corresponding model (`default` in Django ORM)
+
+!!! tip
+	The name of a database connection is the dict key defined in the `DatabaseConnections` configuration, like `'default'`
 
 The following example shows `save` the use of the method in the interface by writing and creating the article API.
 
@@ -211,8 +216,8 @@ The following is an example of an API for creating users in bulk
 	
 	class UserAPI(api.API):
 	    @api.post
-	    async def bulk(self, data: List[UserSchema] = request.Body):
-	        await UserSchema.abulk_save(data)
+	    async def bulk(self, data: List[UserSchema] = request.Body) -> List[UserSchema]:
+	         return await UserSchema.abulk_save(data)
 	```
 === "Sync API"
 	```python   hl_lines="10"
@@ -224,14 +229,20 @@ The following is an example of an API for creating users in bulk
 	
 	class UserAPI(api.API):
 	    @api.post
-	    def bulk(self, data: List[UserSchema] = request.Body):
-	        UserSchema.bulk_save(data)
+	    def bulk(self, data: List[UserSchema] = request.Body) -> List[UserSchema]:
+	         return UserSchema.bulk_save(data)
 	```
 
 The method in the example uses `List[UserSchema]` to annotate the body of the request, indicating that it accepts a list of JSON data. The API will automatically parse and convert it into a list of `UserSchema` instances. You only need to call the `UserSchema.bulk_save` method to create or update the data in this list in batches.
 
-!!! tip
-	whether an object of the list be updated or created depends on the existence of the primary key field, you can still use `must_create` or `must_update` to restrain the behaviour
+`bulk_save` will returns the saved Schema instances list, set the primary key value for the newly created instance. In the above example, we directly returned the result of `bulk_save` as the API response data.
+
+Apart from the first parameter that takes a list to save, `bulk_save` provided other parameters to control its save behaviour:
+
+* `must_create`: If set to True, all the items of the list are forced to be created, although an error is thrown if the data contains a primary key that has already been created.
+* `must_update`: If set to True, all the items of the list are forced to be updated, and an error is thrown when the update cannot be completed, such as when the primary key is missing or does not exist.
+* `transaction`: you can set to True or a database connection name to enable the **transaction** for that database, default is False, set to True will enable transaction for the default database of the corresponding model
+* `using`: Set a database connection name to specify the database to save, by default will be the default database of the corresponding model (`default` in Django ORM)
 
 ### `commit` - Update the queryset
 

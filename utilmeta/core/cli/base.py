@@ -9,7 +9,6 @@ from utilmeta.utils import (
     json_dumps,
     COMMON_METHODS,
     EndpointAttr,
-    valid_url,
     parse_query_string,
     parse_query_dict,
 )
@@ -72,6 +71,10 @@ def parse_proxies(
         for _s, _urls in proxies.items():
             values.update(parse_proxies(_urls, scheme=_s))
     return {}
+
+
+def is_timeout_error(e: Exception) -> bool:
+    return "timeout" in str(e).lower() or "timed out" in str(e).lower()
 
 
 class ClientParameters(Schema):
@@ -515,9 +518,8 @@ class Client(PluginTarget):
             except Exception as e:
                 if not self._fail_silently:
                     raise e from e
-                timeout = "timeout" in str(e).lower()
                 response = Response(
-                    timeout=timeout, error=e, request=request, aborted=True
+                    timeout=is_timeout_error(e), error=e, request=request, aborted=True
                 )
             else:
                 response = Response(response=resp, request=request)
@@ -562,9 +564,8 @@ class Client(PluginTarget):
             except Exception as e:
                 if not self._fail_silently:
                     raise e from e
-                timeout = "timeout" in str(e).lower()
                 response = Response(
-                    error=e, request=request, timeout=timeout, aborted=True
+                    error=e, request=request, timeout=is_timeout_error(e), aborted=True
                 )
             else:
                 response = Response(response=resp, request=request)

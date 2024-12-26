@@ -85,10 +85,13 @@ class ClientChainBuilder(BaseChainBuilder):
                         err = res
                     if isinstance(res, Request):
                         request = res
-                        continue
+                        # do not continue, we need to incr and detect [retry_index]
                     elif isinstance(res, Response):
                         break
-                raise err.throw()
+                    else:
+                        raise err.throw()
+                else:
+                    raise err.throw()
 
             retry_index += 1
             if retry_index >= self.pref.client_max_retry_loops:
@@ -139,10 +142,13 @@ class ClientChainBuilder(BaseChainBuilder):
                         err = res
                     if isinstance(res, Request):
                         request = res
-                        continue
+                        # do not continue, we need to incr and detect [retry_index]
                     elif isinstance(res, Response):
                         break
-                raise err.throw()
+                    else:
+                        raise err.throw()
+                else:
+                    raise err.throw()
 
             retry_index += 1
             if retry_index >= self.pref.client_max_retry_loops:

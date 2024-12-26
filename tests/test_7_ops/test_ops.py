@@ -48,6 +48,15 @@ utilmeta_process = make_cmd_process(
     port=9090
 )
 
+from tests.conftest import setup_service, make_live_process
+
+setup_service(__name__, backend='django')
+django_server_process = make_live_process(
+    backend='django',
+    port=9900,
+    cmdline=True
+)
+
 retry = RetryPlugin(
     max_retries=3, max_retries_timeout=15, retry_interval=1
 )
@@ -286,3 +295,136 @@ class TestOperations:
             inst = inst_resp.result[0]
             assert inst.language == 'python'
             assert '2.6.0' <= inst.utilmeta_version
+
+    def test_ops_api_data(self, service, django_server_process, db_using):
+        time.sleep(OPS_WAIT)
+        from utilmeta.ops.schema import QuerySchema, CreateDataSchema, UpdateDataSchema
+        from utilmeta.ops.config import Operations
+
+        with OperationsClient(base_url=service.get_config(Operations).ops_api,
+                              plugins=[retry], fail_silently=True) as client:
+            # for using in ['default', 'postgresql', 'mysql']:
+            resp = client.query_data(
+                model='app.models.Article',
+                using=db_using,
+                data=QuerySchema(
+                    query=dict(id=1)
+                )
+            )
+            assert resp.status == 200
+            assert len(resp.result) == 1
+            article = resp.result[0]
+            assert article.get('pk') == 1
+            assert db_using in article.get('tags', [])
+
+            # create data
+            resp = client.create_data(
+                model='app.models.Article',
+                using=db_using,
+                data=CreateDataSchema(
+                    data=[dict(
+                        author_id=2,
+                        title="Test Happy",
+                        slug="test-happy",
+                        content="hello content",
+                        tags=[db_using, "hello"],
+                    )],
+                    return_fields=['pk', 'tags']
+                )
+            )
+            assert resp.status == 200
+            assert len(resp.result) == 1
+            article = resp.result[0]
+            article_id = article.get('pk')
+            assert article_id
+            assert db_using in article.get('tags', [])
+
+            # update data
+            resp = client.update_data(
+                model='app.models.Article',
+                using=db_using,
+                data=UpdateDataSchema(
+                    data=[dict(
+                        pk=article_id,
+                        slug="test-new-happy",
+                        tags=[db_using, "world"],
+                    )],
+                )
+            )
+            assert resp.status == 200
+
+            # query again
+            resp = client.query_data(
+                model='app.models.Article',
+                using=db_using,
+                data=QuerySchema(
+                    query=dict(id=article_id)
+                )
+            )
+            assert resp.status == 200
+            assert len(resp.result) == 1
+            article = resp.result[0]
+            assert article.get('pk') == article_id
+            assert article.get('slug') == "test-new-happy"
+            assert db_using in article.get('tags', [])
+            assert "world" in article.get('tags', [])
+
+            # delete
+            resp = client.delete_data(
+                model='app.models.Article',
+                using=db_using,
+                id=article_id,
+            )
+            assert resp.status == 200
+            if not service.asynchronous:
+                # do not check async query result
+                assert resp.result == 2  # article and content instances
+
+            # query after delete
+            resp = client.query_data(
+                model='app.models.Article',
+                using=db_using,
+                data=QuerySchema(
+                    query=dict(id=article_id)
+                )
+            )
+            assert resp.status == 200
+            assert len(resp.result) == 0
+
+            # query non-exists model
+            resp = client.query_data(
+                model='app.models.What',
+                using=db_using,
+                data=QuerySchema(
+                    query=dict(id=1)
+                )
+            )
+            assert resp.status == 400
+
+            # query non-exists model
+            resp = client.query_data(
+                model='app.models.Article',
+                using='none',
+                data=QuerySchema(
+                    query=dict(id=1)
+                )
+            )
+            assert resp.status == 400
+
+    def test_ops_api_servers(self, service, django_server_process):
+        import platform
+        time.sleep(OPS_WAIT)
+        from utilmeta.ops.config import Operations
+
+        with OperationsClient(base_url=service.get_config(Operations).ops_api,
+                              plugins=[retry], fail_silently=True) as client:
+            resp = client.get_servers()
+            assert len(resp.result) >= 1
+            server = resp.result[0]
+            assert server.hostname == platform.node()
+
+    def test_ops_api_logs(self):
+        pass
+
+    def test_ops_connect_supervisor(self):
+        pass

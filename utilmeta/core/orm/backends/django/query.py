@@ -61,10 +61,12 @@ class DjangoModelQueryAdaptor(ModelQueryAdaptor):
         return await self.queryset.abulk_update(data, fields=fields)
 
     def delete(self):
-        return self.queryset.delete()
+        num, *_ = self.queryset.delete()
+        return num
 
     async def adelete(self):
-        return await self.queryset.adelete()
+        num, *_ = await self.queryset.adelete()
+        return num
 
     def values(self, *fields, **kwargs) -> List[dict]:
         return list(self.queryset.values(*fields, **kwargs))

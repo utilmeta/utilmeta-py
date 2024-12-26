@@ -88,15 +88,16 @@ class UserAPI(API):
         data.save()
         return UserBase.init(data.id)
 
-    from utilmeta.utils import print_time
-
-    @api.get
-    @print_time
-    async def test(self, using='postgresql'):
-        from app.schema import UserSchema
-        from app.models import User
-        return await UserSchema.ainit(
-            User.objects.filter(
-                username='alice',
-            ).using(using),
-        )
+    # @api.get
+    # async def test(self, using='postgresql'):
+    #     from app.schema import ArticleSchema
+    #     article = ArticleSchema[orm.A](
+    #         title='My new async article 2',
+    #         content='my async content',
+    #         creatable_field='a',
+    #         # test ignore on mode 'a'
+    #         author_id=1,
+    #         views=10
+    #     )
+    #     await article.asave(using=using)
+    #     return await article.aget_instance(fresh=True, using=using)

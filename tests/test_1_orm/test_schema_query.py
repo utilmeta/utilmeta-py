@@ -102,6 +102,7 @@ class TestSchemaQuery:
         assert article.author_avg_articles_views == 6.5
         assert len(article.comments) == 2
         assert article.author_tag['name'] == 'bob'
+        assert db_using in article.tags
 
         # test sub relation
         content = ContentBase.init(1, context=orm.QueryContext(using=db_using))
@@ -275,6 +276,7 @@ class TestSchemaQuery:
         assert articles[0].pk == 1
         assert articles[0].author_avg_articles_views == 6.5
         assert articles[0].author.followers_num == 2
+        assert db_using in articles[0].tags
 
     def test_save(self, service, db_using):
         from app.schema import ArticleSchema

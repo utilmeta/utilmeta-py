@@ -150,10 +150,15 @@ class ArticleSchema(orm.Schema[Article]):
 
 由一个 `orm.Schema` **实例**调用，将其中的数据保存到模型对应的数据表中，如果 Schema 实例中包含着存在于数据表中的主键，那么会更新对应的表记录，否则会创建一个新的表记录
 
-除了根据主键判断的默认行为外，你还可以通过两个参数调节 `save` 方法的行为
+你可以通过 `save` 方法的参数调节它的行为
 
 * `must_create`：如果设为 True，则该方法会被强制处理为创建方法，当然如果数据中包含了已经被创建的主键，则会抛出错误
 * `must_update`：如果设为 True，则该方法会被强制处理为更新方法，当无法完成更新（如缺少主键或者主键不存在时）会抛出错误
+* `transaction`：设为 True 或者数据库连接的名称来开启对应数据库连接的 **事务**，默认不开启，设为 True 开启的是模型默认连接数据库的事务
+* `using`：可以传入一个数据库连接名称字符串来指定保存到的数据库，默认将沿用对应模型的数据库配置（在 Django ORM 中默认为 `default` 数据库）
+
+!!! tip
+	数据库连接的名字就是在 `DatabaseConnections` 中定义的数据库字典的键，如 `'default'`
 
 下面以编写创建文章 API 为例展示了 `save` 方法在接口中的使用
 
@@ -210,8 +215,8 @@ class ArticleSchema(orm.Schema[Article]):
 	
 	class UserAPI(api.API):
 	    @api.post
-	    async def bulk(self, data: List[UserSchema] = request.Body):
-	        await UserSchema.abulk_save(data)
+	    async def bulk(self, data: List[UserSchema] = request.Body) -> List[UserSchema]:
+	         return await UserSchema.abulk_save(data)
 	```
 === "同步 API"
 	```python   hl_lines="10"
@@ -223,14 +228,20 @@ class ArticleSchema(orm.Schema[Article]):
 	
 	class UserAPI(api.API):
 	    @api.post
-	    def bulk(self, data: List[UserSchema] = request.Body):
-	        UserSchema.bulk_save(data)
+	    def bulk(self, data: List[UserSchema] = request.Body) -> List[UserSchema]:
+	         return UserSchema.bulk_save(data)
 	```
 
 例子中的方法使用 `List[UserSchema]` 作为请求体的类型声明，表示接受一个列表 JSON 数据，接口将自动解析转化为 UserSchema 实例的列表，你只需要调用 `UserSchema.bulk_save` 方法即可将这个列表中的数据批量创建或更新
 
-!!! tip
-	决定列表中的元素是创建还是更新依然是根据其中是否包含着数据表中存在的主键，你依然可以使用 `must_create` 和 `must_update` 来调节其中的行为
+`bulk_save` 方法会返回保存好的 Schema 数据实例列表，为新创建的数据实例设置主键值，在上面的例子中把这个结果直接作为 API 函数的响应数据返回
+
+除了第一个接受列表数据的参数外，`bulk_save` 方法还提供一些参数来调控其中的行为
+
+* `must_create`：如果设为 True，则列表中的元素会被强制创建，当然如果数据中包含了已经被创建的主键，则会抛出错误
+* `must_update`：如果设为 True，则列表中的元素会被强制更新，当无法完成更新（如缺少主键或者主键不存在时）会抛出错误
+* `transaction`：设为 True 或者数据库连接的名称来开启对应数据库连接的 **事务**，默认不开启，设为 True 开启的是模型默认连接数据库的事务
+* `using`：可以传入一个数据库连接名称字符串来指定保存到的数据库，默认将沿用对应模型的数据库配置（在 Django ORM 中默认为 `default` 数据库）
  
 ### `commit` - 更新查询集
 

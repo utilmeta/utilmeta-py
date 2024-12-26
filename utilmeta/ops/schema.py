@@ -244,3 +244,39 @@ class InstanceResourceSchema(ResourceDataSchema):
     language: Optional[str] = Field(default=None, defer_default=True)
     language_version: Optional[str] = Field(default=None, defer_default=True)
     utilmeta_version: Optional[str] = Field(default=None, defer_default=True)
+
+
+class ServerResourceSchema(ResourceDataSchema):
+    ip: Optional[str] = Field(default=None, defer_default=True)
+    cpu_num: Optional[int] = Field(default=None, defer_default=True)
+    memory_total: Optional[int] = Field(default=None, defer_default=True)
+    disk_total: Optional[int] = Field(default=None, defer_default=True)
+    system: Optional[str] = Field(default=None, defer_default=True)
+    hostname: Optional[str] = Field(default=None, defer_default=True)
+    platform: Optional[dict] = Field(default=None, defer_default=True)
+
+
+class QuerySchema(utype.Schema):
+    # id_list: list = None
+    query: dict = {}
+    orders: List[str] = ["pk"]
+    rows: int = utype.Field(default=10, le=100, ge=1)
+    page: int = utype.Field(default=1, ge=1)
+    fields: list = []
+    max_length: Optional[int] = None
+
+
+class CreateDataSchema(utype.Schema):
+    data: List[dict]
+    return_fields: List[str] = utype.Field(default_factory=list)
+    return_max_length: Optional[int] = None
+
+
+# class PkRequired(utype.Schema):
+#     __options__ = utype.Options(addition=True)
+#
+#     pk: Any = utype.Field(alias_from=['id'], no_output=True)
+
+
+class UpdateDataSchema(utype.Schema):
+    data: List[dict]

@@ -5,7 +5,7 @@ setup_service(__name__, async_param=False)
 
 def test_prepare_data(service, db_using):
     # from utilmeta.utils import exceptions as exc
-    from django.db.utils import OperationalError, ProgrammingError
+    # from django.db.utils import OperationalError, ProgrammingError
     # from server import service
     # setup service
     # service.setup()
@@ -15,12 +15,12 @@ def test_prepare_data(service, db_using):
     # from domain.blog.module import UserMain, ArticleMain, CommentMain, ArticleAdmin
     from utilmeta.core import orm
 
-    try:
-        User.objects.using(db_using).exists()
-    except (OperationalError, ProgrammingError):
-        from django.core.management import execute_from_command_line
-        execute_from_command_line([__name__, 'migrate', f'--database={db_using}'])
-        # os.system("python -m utilmeta migrate")
+    # try:
+    #     User.objects.using(db_using).exists()
+    # except (OperationalError, ProgrammingError):
+    from django.core.management import execute_from_command_line
+    execute_from_command_line([__name__, 'migrate', f'--database={db_using}'])
+    # os.system("python -m utilmeta migrate")
 
     # delete all data
     User.objects.all().using(db_using).delete()
@@ -75,6 +75,9 @@ def test_prepare_data(service, db_using):
 
     assert Follow.objects.using(db_using).count() == 5
 
+    from django.db.models import JSONField
+    print('JSON FIELD:', JSONField)
+
     ArticleSchema[orm.A].bulk_save(
         [
             dict(
@@ -84,7 +87,7 @@ def test_prepare_data(service, db_using):
                 # slug='big-shot',
                 content="big shot content",
                 views=10,
-                tags=["shock", "head"],
+                tags=["shock", "head", db_using],
             ),
             dict(
                 id=2,
@@ -93,6 +96,7 @@ def test_prepare_data(service, db_using):
                 content="news content",
                 # slug='some-news',
                 views=3,
+                tags=[db_using, "news"],
             ),
             dict(
                 id=3,
@@ -101,6 +105,7 @@ def test_prepare_data(service, db_using):
                 # slug='huge-one',
                 content="huge one",
                 views=0,
+                tags=[db_using],
             ),
             dict(
                 id=4,
@@ -138,8 +143,9 @@ def test_prepare_data(service, db_using):
             with connections[db_using].cursor() as cursor:
                 table_name = model._meta.db_table
                 max_id = model.objects.count()
-                sql = f"SELECT setval(pg_get_serial_sequence('{table_name}', 'id'), {max_id});"
-                cursor.execute(sql)
+                if max_id:
+                    sql = f"SELECT setval(pg_get_serial_sequence('{table_name}', 'id'), {max_id});"
+                    cursor.execute(sql)
 
     assert sorted([val.pk for val in Article.objects.all().using(db_using)]) == [1, 2, 3, 4, 5]
     assert sorted([val.pk for val in Comment.objects.all().using(db_using)]) == [6, 7, 8, 9, 10]

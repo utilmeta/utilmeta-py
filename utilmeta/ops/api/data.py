@@ -1,31 +1,10 @@
 from utilmeta.core import api, request
 from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
 from utilmeta.utils import reduce_value, SECRET, adapt_async, exceptions, awaitable, pop
-from ..schema import TableSchema
+from ..schema import TableSchema, QuerySchema, CreateDataSchema, UpdateDataSchema
 from utilmeta.core.orm import ModelAdaptor
 from utype.types import *
 from .utils import config
-import utype
-
-
-class QuerySchema(utype.Schema):
-    # id_list: list = None
-    query: dict = {}
-    orders: List[str] = ["pk"]
-    rows: int = utype.Field(default=10, le=100, ge=1)
-    page: int = utype.Field(default=1, ge=1)
-    fields: list = []
-    max_length: Optional[int] = None
-
-
-class CreateDataSchema(utype.Schema):
-    data: List[dict]
-    return_fields: List[str] = utype.Field(default_factory=list)
-    return_max_length: Optional[int] = None
-
-
-class UpdateDataSchema(utype.Schema):
-    data: List[dict]
 
 
 _tables: Optional[list] = None
@@ -62,7 +41,6 @@ class DataAPI(api.API):
     def check_using(self):
         if self.using:
             from utilmeta.core.orm import DatabaseConnections
-
             try:
                 self.database = DatabaseConnections.get(self.using)
             except exceptions.NotConfigured:
@@ -125,8 +103,9 @@ class DataAPI(api.API):
             unsliced_qs = self.adaptor.get_queryset(query.query, using=self.using)
             count = unsliced_qs.count()
             qs = unsliced_qs.order_by(*query.orders)[
-                (query.page - 1) * query.rows : query.page * query.rows
+                (query.page - 1) * query.rows: query.page * query.rows
             ]
+            # todo: adaptor for other ORM vendors
             fields = query.fields
             if not fields:
                 fields = ["pk"] + [
@@ -134,7 +113,7 @@ class DataAPI(api.API):
                     for f in self.adaptor.get_fields(many=False, no_inherit=True)
                     if f.column_name
                 ]
-            values = self.adaptor.values(qs, *fields)
+            values = self.adaptor.query(qs, using=self.using).values(*fields)
         except self.adaptor.field_errors as e:
             raise exceptions.BadRequest(str(e)) from e
         return self.response(
@@ -148,11 +127,11 @@ class DataAPI(api.API):
     def create_data(self, data: CreateDataSchema = request.Body):
         objs = []
         for val in data.data:
-            objs.append(self.adaptor.create(val, using=self.using))
+            objs.append(self.adaptor.query(using=self.using).create(val))
         if not data.return_fields:
             return
         qs = self.adaptor.get_queryset(objs, using=self.using)
-        values = self.adaptor.values(qs, *data.return_fields)
+        values = self.adaptor.query(qs, using=self.using).values(*data.return_fields)
         return self.parse_result(values, max_length=data.return_max_length)
 
     @api.post("update")
@@ -160,25 +139,29 @@ class DataAPI(api.API):
     @adapt_async(close_conn=True)
     # close all connections
     def update_data(self, data: UpdateDataSchema = request.Body):
+        rows = 0
         for val in data.data:
-            pk = pop(val, "pk")
+            pk = pop(val, "pk") or pop(val, "id")
             if pk:
-                self.adaptor.update(val, pk=pk, using=self.using)
+                r = self.adaptor.query(pk=pk, using=self.using).update(val)
+                if r and isinstance(r, int):
+                    rows += r
+        return rows
 
     def delete_data(
         self,
         id: str = request.BodyParam
         # query: dict = request.BodyParam,
         # limit: Optional[int] = request.BodyParam(None)
-    ):
+    ) -> int:
         # qs = self.adaptor.get_queryset(**query)
         # if limit is not None:
         #     qs = qs.order_by('pk')[:limit]
-        return self.adaptor.delete(pk=id, using=self.using)
+        return self.adaptor.query(pk=id, using=self.using).delete()
 
     @api.post("delete")
     @opsRequire("data.delete")
     @awaitable(delete_data)
-    async def delete_data(self, id: str = request.BodyParam):
+    async def delete_data(self, id: str = request.BodyParam) -> int:
         # apply for async CASCADE
-        return await self.adaptor.adelete(pk=id, using=self.using)
+        return await self.adaptor.query(pk=id, using=self.using).adelete()

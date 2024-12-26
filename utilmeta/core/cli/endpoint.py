@@ -277,6 +277,11 @@ class ClientEndpoint(BaseEndpoint):
                     raise e
                 continue
 
+        if not fail_silently:
+            raise exc.BadResponse(f"{response} cannot match status or converted to any of the response types:"
+                                  f" {self.response_types}, if you want a Response to return anyway, "
+                                  f"turn on fail_silently=True")
+
         return response
 
 

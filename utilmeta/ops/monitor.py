@@ -23,7 +23,6 @@ from .models import DatabaseConnection
 from utilmeta.core.orm import DatabaseConnections
 from utilmeta.core.cache import CacheConnections, Cache
 from typing import Optional, Tuple
-import sys
 
 
 def get_current_server(unit: int = 1024**2) -> ServerSchema:

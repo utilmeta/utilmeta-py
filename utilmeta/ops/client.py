@@ -16,9 +16,13 @@ from .schema import (
     ResourcesData,
     NodeInfoSchema,
     InstanceResourceSchema,
+    ServerResourceSchema,
     SupervisorPatchSchema,
     OpenAPISchema,
     TableSchema,
+    QuerySchema,
+    CreateDataSchema,
+    UpdateDataSchema
 )
 
 
@@ -30,25 +34,42 @@ class SupervisorResponse(response.Response):
 
 
 class SupervisorListResponse(SupervisorResponse):
+    status = 200
     name = "list"
     result: List[SupervisorBasic]
 
 
 class OpenAPIResponse(response.Response):
+    status = 200
     result: OpenAPISchema
 
 
 class InstanceResponse(SupervisorResponse):
+    status = 200
     name = "instance"
     result: List[InstanceResourceSchema]
 
 
+class ServerResponse(SupervisorResponse):
+    status = 200
+    name = "server"
+    result: List[ServerResourceSchema]
+
+
 class TableResponse(SupervisorResponse):
+    status = 200
     name = "table"
     result: List[TableSchema]
 
 
+class DataQueryResponse(SupervisorResponse):
+    status = 200
+    name = "query"
+    result: List[dict]
+
+
 class SupervisorInfoResponse(SupervisorResponse):
+    status = 200
     name = "info"
     result: SupervisorInfoSchema
 
@@ -63,6 +84,7 @@ class SupervisorInfoResponse(SupervisorResponse):
 
 
 class NodeInfoResponse(SupervisorResponse):
+    status = 200
     name = "add_node"
     result: NodeInfoSchema
 
@@ -74,6 +96,7 @@ class NodeInfoResponse(SupervisorResponse):
 
 
 class ServiceInfoResponse(SupervisorResponse):
+    status = 200
     name = "info"
     result: ServiceInfoSchema
 
@@ -85,6 +108,7 @@ class ServiceInfoResponse(SupervisorResponse):
 
 
 class SupervisorResourcesResponse(SupervisorResponse):
+    status = 200
     name = "resources"
     result: ResourcesData
 
@@ -95,16 +119,19 @@ class ReportResult(utype.Schema):
 
 
 class SupervisorNodeResponse(SupervisorResponse):
+    status = 200
     name = "add_node"
     result: Optional[SupervisorData] = None
 
 
 class SupervisorReportResponse(SupervisorResponse):
+    status = 200
     name = "report"
     result: ReportResult
 
 
 class SupervisorBatchReportResponse(SupervisorResponse):
+    status = 200
     name = "batch_report"
     result: List[dict]
 
@@ -357,6 +384,7 @@ class OperationsClient(Client):
     async def async_get_openapi(self) -> OpenAPIResponse:
         pass
 
+    # DATA ----------------------------------------------------
     @api.get("/data/tables")
     def get_tables(self) -> TableResponse:
         pass
@@ -365,12 +393,93 @@ class OperationsClient(Client):
     async def async_get_tables(self) -> TableResponse:
         pass
 
+    @api.post("/data/query")
+    def query_data(
+        self,
+        model: str = request.QueryParam,
+        using: str = request.QueryParam,
+        data: QuerySchema = request.Body
+    ) -> DataQueryResponse:
+        pass
+
+    @api.post("/data/query")
+    async def async_query_data(
+        self,
+        model: str = request.QueryParam,
+        using: str = request.QueryParam,
+        data: QuerySchema = request.Body
+    ) -> DataQueryResponse:
+        pass
+
+    @api.post("/data/create")
+    def create_data(
+        self,
+        model: str = request.QueryParam,
+        using: str = request.QueryParam,
+        data: CreateDataSchema = request.Body
+    ) -> Union[DataQueryResponse, SupervisorResponse]:
+        pass
+
+    @api.post("/data/create")
+    async def async_create_data(
+        self,
+        model: str = request.QueryParam,
+        using: str = request.QueryParam,
+        data: CreateDataSchema = request.Body
+    ) -> Union[DataQueryResponse, SupervisorResponse]:
+        pass
+
+    @api.post("/data/update")
+    def update_data(
+        self,
+        model: str = request.QueryParam,
+        using: str = request.QueryParam,
+        data: UpdateDataSchema = request.Body
+    ) -> SupervisorResponse:
+        pass
+
+    @api.post("/data/update")
+    async def async_update_data(
+        self,
+        model: str = request.QueryParam,
+        using: str = request.QueryParam,
+        data: UpdateDataSchema = request.Body
+    ) -> SupervisorResponse:
+        pass
+
+    @api.post("/data/delete")
+    def delete_data(
+        self,
+        model: str = request.QueryParam,
+        using: str = request.QueryParam,
+        id: str = request.BodyParam
+    ) -> SupervisorResponse[int]:
+        pass
+
+    @api.post("/data/update")
+    async def async_update_data(
+        self,
+        model: str = request.QueryParam,
+        using: str = request.QueryParam,
+        id: str = request.BodyParam
+    ) -> SupervisorResponse[int]:
+        pass
+
+    # SERVERS --------------------------------------------
     @api.get("/servers/instances")
     def get_instances(self) -> InstanceResponse:
         pass
 
     @api.get("/servers/instances")
     async def async_get_instances(self) -> InstanceResponse:
+        pass
+
+    @api.get("/servers")
+    def get_servers(self) -> ServerResponse:
+        pass
+
+    @api.get("/servers/instances")
+    async def async_get_servers(self) -> ServerResponse:
         pass
 
     @api.get("/")

@@ -1,6 +1,7 @@
 from utilmeta.core.cli import Client
 from utilmeta.core.file import File
 from utilmeta.core import request
+from utilmeta.core.api import Retry
 from typing import List
 from tests.conftest import make_live_process, make_server_thread, setup_service
 import pytest
@@ -280,6 +281,65 @@ class TestClientClass:
             resp = client.get_doc(category='test')
             assert resp.status == 500
             assert resp.is_aborted
+
+    def test_request_retry(self):
+        # test retry
+        retry1 = Retry(
+            max_retries=3, max_retries_timeout=5, retry_interval=0.1
+        )
+        retry2 = Retry(
+            max_retries=100, max_retries_timeout=0.5, retry_interval=0.1
+        )
+        with TestClient(
+            base_url='http://127.0.0.1:1',
+            default_timeout=0.2,
+            plugins=[retry1],
+            fail_silently=True
+        ) as client:
+            resp = client.get_doc(category='test')
+            retry_index = resp.request.adaptor.get_context('retry_index')
+            assert retry_index == 2
+            # retry stop at max_retries
+
+        with TestClient(
+            base_url='http://127.0.0.1:1',
+            default_timeout=0.2,
+            plugins=[retry2],
+        ) as client:
+            with pytest.raises(Exception) as e:
+                assert "timeout" in str(e).lower() or "timed out" in str(e).lower()
+                client.get_doc(category='test')
+                # retry stop at max_retries
+
+    @pytest.mark.asyncio
+    async def test_request_async_retry(self):
+        # test retry
+        retry1 = Retry(
+            max_retries=3, max_retries_timeout=5, retry_interval=0.1
+        )
+        retry2 = Retry(
+            max_retries=100, max_retries_timeout=0.5, retry_interval=0.1
+        )
+        with TestClient(
+            base_url='http://127.0.0.1:1',
+            default_timeout=0.2,
+            plugins=[retry1],
+            fail_silently=True
+        ) as client:
+            resp = await client.aget_doc(category='test')
+            retry_index = resp.request.adaptor.get_context('retry_index')
+            assert retry_index == 2
+            # retry stop at max_retries
+
+        with TestClient(
+            base_url='http://127.0.0.1:1',
+            default_timeout=0.2,
+            plugins=[retry2],
+        ) as client:
+            with pytest.raises(Exception) as e:
+                assert "timeout" in str(e).lower() or "timed out" in str(e).lower()
+                await client.aget_doc(category='test')
+                # retry stop at max_retries
 
     @pytest.mark.asyncio
     async def test_async_request_failure(self, async_request_backend):

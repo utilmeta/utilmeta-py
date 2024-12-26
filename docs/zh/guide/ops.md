@@ -280,7 +280,9 @@ please visit [URL] to view and manage your APIs'
 UtilMeta 已经提供了一个开源的代理服务 [utilmeta-proxy](https://github.com/utilmeta/utilmeta-proxy)
 
 在 UtilMeta 平台中也有连接和管理内网集群的操作指引，点击【Add Cluster】即可进入添加集群功能
+
 <img src="https://utilmeta.com/assets/image/add-cluster-hint.png" href="https://ops.utilmeta.com" target="_blank" width="300"/>
+
 沿着其中的步骤指引进行操作将会自动搭建好一个集群的内网代理节点并连接到 UtilMeta 平台，之后集群中的服务只需要配置连接到代理节点即可，无需再手动连接到平台，代理节点会作为内网集群的服务注册中心向 UtilMeta 平台进行同步
 
 在 Operations 配置中，可以使用 `proxy` 参数配置代理服务节点的地址与设置，主要的参数有

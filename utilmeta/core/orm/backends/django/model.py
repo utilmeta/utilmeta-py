@@ -361,19 +361,29 @@ class DjangoModelAdaptor(ModelAdaptor):
 
     def get_queryset(self, query=None, pk=None, using: str = None):
         q = None
+        qs = None
         if isinstance(query, list):
             q = models.Q(pk__in=[getattr(obj, "pk", obj) for obj in query])
         elif isinstance(query, dict):
             q = models.Q(**query)
         elif isinstance(query, models.Q):
             q = query
+        elif isinstance(query, models.QuerySet):
+            if query.model == self.model:
+                qs = query
+            elif issubclass(query.model, self.model) or isinstance(self.model, query.model):
+                q = models.Q(pk__in=query.values('pk'))
+            else:
+                raise TypeError(f'Invalid queryset {type(query)}, '
+                                f'queryset of {self.model} expected, got {query.model}')
 
         args = (q,) if q else ()
-        try:
-            qs = self.model.objects.all()
-        except AttributeError:
-            # swapped?
-            qs = self.queryset_cls(self.model)
+        if qs is None:
+            try:
+                qs = self.model.objects.all()
+            except AttributeError:
+                # swapped?
+                qs = self.queryset_cls(self.model)
         if using:
             qs = qs.using(using)
         if args:

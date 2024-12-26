@@ -338,7 +338,10 @@ class DatabaseConnections(Config):
         config = cls.config()
         if not config:
             raise exceptions.NotConfigured(cls)
-        return config.databases[alias]
+        try:
+            return config.databases[alias]
+        except KeyError as e:
+            raise exceptions.SettingNotConfigured(cls, item=alias) from e
 
     def items(self):
         return self.databases.items()

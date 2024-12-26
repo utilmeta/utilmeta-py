@@ -691,7 +691,7 @@ class AwaitableQuerySet(QuerySet):
         compiler = self.compiler
         try:
             q, params = compiler.as_sql()
-        except exceptions.EmptyResultSet:
+        except EmptyResultSet:
             return None if one else []
         db = self.database
         if one:
@@ -1094,7 +1094,7 @@ class AwaitableQuerySet(QuerySet):
         db = self.database
         try:
             q, params = query.get_compiler(self.db).as_sql()
-        except exceptions.EmptyResultSet:
+        except EmptyResultSet:
             return False
         # if django.VERSION > (4, 1):
         #     if params:
@@ -1190,7 +1190,7 @@ class AwaitableQuerySet(QuerySet):
         compiler = clone.query.get_compiler(self.db)
         try:
             q, params = compiler.as_sql()
-        except exceptions.EmptyResultSet:
+        except EmptyResultSet:
             return None
         result = await db.fetchall(q, params)
         if not result:
@@ -1318,13 +1318,14 @@ class AwaitableQuerySet(QuerySet):
         else:
             pks = await self.values_list("pk", flat=True).result()
             if not pks:
-                return True, 0
+                return 0, {}
+            print('PKS:', pks)
             await collector.acollect([self.model(pk=pk) for pk in pks])
 
-        deleted, _rows_count = await collector.async_delete()
+        res = await collector.async_delete()
         # Clear the result cache, in case this QuerySet gets reused.
         self._result_cache = None
-        return deleted, _rows_count
+        return res
 
 
 class AwaitableManager(Manager.from_queryset(AwaitableQuerySet)):

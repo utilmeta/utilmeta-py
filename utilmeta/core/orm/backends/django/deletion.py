@@ -38,7 +38,10 @@ class AwaitableCollector(Collector):
     async def delete_single(cls, qs: QuerySet, db: DatabaseConnections.database_cls):
         query = qs.query.clone()
         query.__class__ = sql.DeleteQuery
-        q, params = query.get_compiler(qs.db).as_sql()
+        try:
+            q, params = query.get_compiler(qs.db).as_sql()
+        except EmptyResultSet:
+            return 0
         await db.execute(q, params)
         # cursor = query.get_compiler(self.using).execute_sql(CURSOR)
         # if cursor:

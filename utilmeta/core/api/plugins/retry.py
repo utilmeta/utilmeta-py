@@ -117,7 +117,8 @@ class RetryPlugin(APIPlugin):
             if delta > 0:
                 # max retries time exceeded
                 raise self.max_retries_timeout_error_cls(
-                    f"{self.__class__}: max_retries_timeout exceed for {abs(delta)} seconds {start_time} {current_time}",
+                    f"{self.__class__}: max_retries_timeout({self.max_retries_timeout}s):"
+                    f" exceed for {abs(delta)} seconds",
                     max_retries_timeout=self.max_retries_timeout,
                 )
 
@@ -291,7 +292,6 @@ class RetryPlugin(APIPlugin):
             return False
         if retry_after:
             import time
-
             time.sleep(retry_after)
         return True
 
@@ -303,6 +303,5 @@ class RetryPlugin(APIPlugin):
             return False
         if retry_after:
             import asyncio
-
             await asyncio.sleep(retry_after)
         return True

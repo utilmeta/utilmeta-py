@@ -59,7 +59,7 @@ class ArticleSchema(ContentSchema[Article]):
         # 'w': orm.Relate('author'),
         'r': auth.Require()
     })
-
+    tags: List[str] = orm.Field(default_factory=list, defer_default=True)
     author: UserBase = Field(description='author field')
     author_name: str = orm.Field("author.username", alias="author.name")
     author__signup_time: datetime = orm.Field(no_output=True)  # test __ in field name

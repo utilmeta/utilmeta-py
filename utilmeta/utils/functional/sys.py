@@ -459,7 +459,10 @@ def get_max_socket_conn():
     if not posix_os:
         return None
     try:
-        r = os.popen("cat /proc/sys/net/core/somaxconn").read().strip("\n")
+        file = "/proc/sys/net/core/somaxconn"
+        if not os.path.exists(file):
+            return None
+        r = os.popen(f"cat {file}").read().strip("\n")
         if not r:
             return None
         return int(r)

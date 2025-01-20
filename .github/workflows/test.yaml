@@ -92,7 +92,8 @@ jobs:
           pip install utype
           pip install databases[aiosqlite] redis aioredis psycopg2 mysqlclient
           pip install django==${{ matrix.django-version }}
-          pip install flask apiflask fastapi sanic[ext] tornado aiohttp uvicorn httpx requests python-multipart
+          pip install flask apiflask fastapi tornado aiohttp uvicorn httpx requests python-multipart
+          pip install sanic[ext]==24.6.0
       - name: Install conditional dependencies
         if: ${{ matrix.django-version >= '4.0'}}
         run: |

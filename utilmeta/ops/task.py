@@ -1,7 +1,5 @@
 import os
 import threading
-import warnings
-
 from .config import Operations
 from .log import setup_locals, batch_save_logs, worker_logger
 from .monitor import get_sys_metrics
@@ -13,6 +11,47 @@ from .aggregation import aggregate_logs, aggregate_endpoint_logs
 from typing import Optional
 import random
 import time
+
+
+# class LogRedirector:
+#     """
+#     Redirects stdout, warnings, and/or errors of the current thread to a specific file based on the level.
+#     """
+#     def __init__(self, file, level="info"):
+#         self.file = open(file, "a") if isinstance(file, str) else file
+#         self.level = level.lower() if isinstance(level, str) else None
+#         self.original_stdout = sys.stdout
+#         self.original_stderr = sys.stderr
+#         self.original_showwarning = warnings.showwarning
+#
+#     def __enter__(self):
+#         if not self.file:
+#             return self
+#         if self.level == "info":
+#             sys.stdout = self.file
+#             sys.stderr = self.file
+#             warnings.showwarning = self._redirect_warning
+#         elif self.level == "warn":
+#             sys.stderr = self.file
+#             warnings.showwarning = self._redirect_warning
+#         elif self.level == "error":
+#             sys.stderr = self.file
+#         return self
+#
+#     def __exit__(self, exc_type, exc_value, traceback):
+#         if not self.file:
+#             return self
+#         self.file.close()
+#         if not self.level:
+#             return
+#         sys.stdout = self.original_stdout
+#         sys.stderr = self.original_stderr
+#         warnings.showwarning = self.original_showwarning
+#         # thread_name = threading.current_thread().name
+#         # print(f"[INFO] Stdout, warnings, and errors of thread '{thread_name}' are restored.")
+#
+#     def _redirect_warning(self, message, category, filename, lineno, file=None, line=None):
+#         print(warnings.formatwarning(message, category, filename, lineno), file=self.file)
 
 
 class BaseCycleTask:
@@ -109,35 +148,32 @@ class OperationWorkerTask(BaseCycleTask):
     def clear_connections(cls):
         # close all connections
         from django.db import connections
-
         connections.close_all()
 
     @property
     def node_id(self):
         return self.supervisor.node_id if self.supervisor else None
 
-    def handle_error(self, e):
+    def handle_error(self, e, type: str = 'ops.task'):
         err = Error(e)
         err.setup()
+        self.log(str(e) + '\n' + err.full_info, level='error')
         print(err.full_info)
-        if self.config.task_error_log:
-            try:
-                from utilmeta.utils import write_to
 
-                content = (
-                    f"[{os.getpid()}] {self._last_exec} Operations task worker execute cycle failed with error\n"
-                    + err.full_info
-                    + "\n"
-                )
-                write_to(self.config.task_error_log, content, mode="a")
-            except Exception as e:
-                pass
+    def log(self, message: str, level: str = 'info'):
+        return self.config.write_task_log(message, level=level)
+
+    def warn(self, message: str):
+        return self.log(message, 'warn')
 
     def worker_cycle(self):
         if not self._last_exec:
             self._last_exec = time_now()
 
+        self.log("worker cycle")
+
         if not self._init_cycle:
+            self.log("init ops migrate")
             self.config.migrate()
             # self.config.migrate()
             # 1. db not created
@@ -157,7 +193,7 @@ class OperationWorkerTask(BaseCycleTask):
             # 1. save logs
             batch_save_logs()
         except Exception as e:
-            warnings.warn(f"Save logs failed with error: {e}")
+            self.handle_error(e, type='ops.task.log')
 
         try:
             # 2. update worker
@@ -169,18 +205,18 @@ class OperationWorkerTask(BaseCycleTask):
             # to make sure that the connected workers has the primary role to execute the following
             self.update_workers()
         except Exception as e:
-            warnings.warn(f"Update workers failed with error: {e}")
+            self.warn(f"Update workers failed with error: {e}")
 
         if self._stopped:
             # if this worker is stopped
             # we exit right after collect all the memory-stored logs
             # other process (aka. the restarted process) will be take care of the rest
+            self.log("worker cycle stopped")
             return
 
         if self.is_worker_primary:
             # Is this worker the primary worker of the current instance
             # detect the running worker with the minimum PID
-
             if not self._synced and self._sync_retries < self.MAX_SYNC_RETRIES:
                 # 1st cycle
                 manager = self.config.resources_manager_cls(self.service)
@@ -190,7 +226,7 @@ class OperationWorkerTask(BaseCycleTask):
                     )
                     # ignore errors
                 except Exception as e:
-                    warnings.warn(f"sync resources failed with error: {e}")
+                    self.warn(f"sync resources failed with error: {e}")
                     self._sync_retries += 1
                 else:
                     self._synced = True
@@ -200,6 +236,8 @@ class OperationWorkerTask(BaseCycleTask):
             self.alert()
             self.aggregation()
             self.clear()
+
+            self.log(f"worker cycle [primary] finished")
 
         self._init_cycle = True
 
@@ -325,22 +363,22 @@ class OperationWorkerTask(BaseCycleTask):
             try:
                 self.server_monitor()
             except Exception as e:
-                warnings.warn(f"utilmeta.ops.task: server monitor failed: {e}")
+                self.warn(f"utilmeta.ops.task: server monitor failed: {e}")
         if not self.config.monitor.instance_disabled:
             try:
                 self.instance_monitor()
             except Exception as e:
-                warnings.warn(f"utilmeta.ops.task: instance monitor failed: {e}")
+                self.warn(f"utilmeta.ops.task: instance monitor failed: {e}")
         if not self.config.monitor.database_disabled:
             try:
                 self.database_monitor()
             except Exception as e:
-                warnings.warn(f"utilmeta.ops.task: database monitor failed: {e}")
+                self.warn(f"utilmeta.ops.task: database monitor failed: {e}")
         if not self.config.monitor.cache_disabled:
             try:
                 self.cache_monitor()
             except Exception as e:
-                warnings.warn(f"utilmeta.ops.task: cache monitor failed: {e}")
+                self.warn(f"utilmeta.ops.task: cache monitor failed: {e}")
 
     def instance_monitor(self):
         if not self.instance:

@@ -70,7 +70,9 @@ class ParserFilter(ParserField):
                         if not self.filter.query:
                             raise ValueError(
                                 f"Filter({repr(self.field_name)}) "
-                                f"not resolved to field in model: {model.model}"
+                                f"not resolved to field in model: {model.model}, "
+                                f"use the [query] param in Filter to custom query"
+                                f" or use utype.Field to make this a regular query param"
                             )
                     if not inspect.isfunction(self.query):
                         self.model.check_query(self.query)

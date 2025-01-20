@@ -135,7 +135,8 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             if rel == "self":
                 return self
             from .model import DjangoModelAdaptor
-
+            if not DjangoModelAdaptor.qualify(rel):
+                raise TypeError(f'Invalid related model: {rel} for field: {self.model.model}.{repr(self.name)}')
             return DjangoModelAdaptor(rel)
         return None
 
@@ -341,21 +342,21 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             if isinstance(field, models.PositiveSmallIntegerField):
                 kwargs["ge"] = 0
                 kwargs["le"] = constant.SM
-            elif isinstance(field, models.AutoField):
-                kwargs["ge"] = 1
-                kwargs["le"] = constant.MD
-            elif isinstance(field, models.BigAutoField):
-                kwargs["ge"] = 1
-                kwargs["le"] = constant.LG
-            elif isinstance(field, models.BigIntegerField):
-                kwargs["ge"] = -constant.LG
-                kwargs["le"] = constant.LG
             elif isinstance(field, models.PositiveBigIntegerField):
                 kwargs["ge"] = 0
                 kwargs["le"] = constant.LG
             elif isinstance(field, models.PositiveIntegerField):
                 kwargs["ge"] = 0
                 kwargs["le"] = constant.MD
+            elif isinstance(field, models.BigAutoField):
+                kwargs["ge"] = 1
+                kwargs["le"] = constant.LG
+            elif isinstance(field, models.AutoField):
+                kwargs["ge"] = 1
+                kwargs["le"] = constant.MD
+            elif isinstance(field, models.BigIntegerField):
+                kwargs["ge"] = -constant.LG
+                kwargs["le"] = constant.LG
             elif isinstance(field, models.SmallIntegerField):
                 kwargs["ge"] = -constant.SM
                 kwargs["le"] = constant.SM

@@ -1319,7 +1319,6 @@ class AwaitableQuerySet(QuerySet):
             pks = await self.values_list("pk", flat=True).result()
             if not pks:
                 return 0, {}
-            print('PKS:', pks)
             await collector.acollect([self.model(pk=pk) for pk in pks])
 
         res = await collector.async_delete()

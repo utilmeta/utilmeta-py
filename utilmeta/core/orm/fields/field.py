@@ -302,6 +302,11 @@ class ParserQueryField(ParserField):
                         if not self.no_input:
                             self.no_input = "a"
 
+            elif self.model_field.is_optional:
+                # if the field has a default and is required is schema, we will make it required only for read
+                if self.required is True:
+                    self.required = "r"
+
             if not self.model_field.is_writable or self.model.cross_models(
                 self.field_name
             ):
@@ -402,16 +407,25 @@ class ParserQueryField(ParserField):
                     f"orm.Field({repr(self.field.field)}) not exists in model: {self.model.model}"
                 )
 
+            if self.queryset is not None:
+                raise ValueError(
+                    f"orm.Field with queryset not specified a valid field name for model: {self.model.model}, "
+                    f"use the attribute name of orm.Field('field_name') to specify the field or lookup"
+                    f" to the target queryset"
+                )
+
             if self.is_required(options):
+                warned = False
                 if self.has_mode(options, "r"):
                     if not self.always_no_input(options):
                         msg = (
                             f"orm.Field: name {repr(self.field_name)} not exists "
                             f"in model: {self.model.model} and is required for query"
                         )
-                        if pref.orm_raise_non_exists_required_field:
+                        if pref.orm_on_non_exists_required_field == 'error':
                             raise ValueError(msg)
-                        else:
+                        elif pref.orm_on_non_exists_required_field == 'warn':
+                            warned = True
                             warnings.warn(msg, stacklevel=11)
                 if self.has_mode(options, "a", "w"):
                     if not self.always_no_output(options):
@@ -419,9 +433,9 @@ class ParserQueryField(ParserField):
                             f"orm.Field: name {repr(self.field_name)} not exists "
                             f"in model: {self.model.model} and will be inputted for create/update"
                         )
-                        if pref.orm_raise_non_exists_required_field:
+                        if pref.orm_on_non_exists_required_field == 'error':
                             raise ValueError(msg)
-                        else:
+                        elif pref.orm_on_non_exists_required_field == 'warn' and not warned:
                             warnings.warn(msg, stacklevel=11)
 
             # will not be queried (input of 'r' mode)
@@ -458,6 +472,9 @@ class ParserQueryField(ParserField):
             self.no_output = self.no_output or options.mode
             return
         remote_field_name = self.model_field.remote_field.column_name  # +_id
+        if not remote_field_name:
+            # fk maybe
+            return
         from utilmeta.core.orm import Schema
 
         self.related_schema = self.related_schema._get_relational_update_cls(
@@ -616,10 +633,7 @@ class QueryField(Field):
         queryset=None,
         fail_silently: bool = None,
         auth: dict = None,
-        # filter=None,
-        # order_by: Union[str, List[str], Callable] = None,
-        # limit: Union[int, Callable] = None,
-        # distinct: bool = None,
+        key_validator=None,
         isolated: bool = None,
         **kwargs
         # if module enabled result control (page / rows / limit / offset) and such params is provided
@@ -627,16 +641,9 @@ class QueryField(Field):
     ):
         super().__init__(**kwargs)
         self.field = field
-
-        # pref = Preference.get()
-        # if fail_silently is None:
-        #     fail_silently = pref.orm_default_field_fail_silently
-
         self.fail_silently = fail_silently
         self.isolated = isolated
         self.queryset = queryset
-        # self.filter = filter
-        # self.order_by = order_by
-        # self.limit = limit
-        # self.distinct = distinct
+        self.key_validator = key_validator
+        # validate foreign key value by
         self.auth = auth

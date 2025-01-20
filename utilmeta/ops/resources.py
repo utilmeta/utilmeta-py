@@ -425,6 +425,12 @@ class ResourcesManager:
         if ops_config:
             ops_config._node_id = node_id
 
+    def log(self, message: str, level: str = 'info', force: bool = False):
+        return self.ops_config.write_task_log(message, level=level, force=force)
+
+    def warn(self, message: str):
+        return self.log(message, 'warn', force=True)
+
     def sync_resources(self, supervisor: Supervisor = None, force: bool = False):
         from utilmeta import service
 
@@ -443,9 +449,7 @@ class ResourcesManager:
             if not supervisor.node_id:
                 continue
 
-            print(
-                f"sync resources of [{service.name}] to supervisor[{supervisor.node_id}]..."
-            )
+            self.log(f"sync resources of [{service.name}] to supervisor[{supervisor.node_id}]...", force=True)
 
             with SupervisorClient(
                 base_url=supervisor.base_url,
@@ -459,12 +463,10 @@ class ResourcesManager:
                         etag=supervisor.resources_etag if not force else None,
                     )
                 except Exception as e:
-                    print("meta: load resources failed with error: {}".format(e))
+                    self.warn("meta: load resources failed with error: {}".format(e))
                     continue
                 if not resources:
-                    print(
-                        "[etag] resources is identical to the remote supervisor, done"
-                    )
+                    self.log("[etag] resources is identical to the remote supervisor, done", force=True)
                     continue
 
                 resp = client.upload_resources(data=resources)
@@ -475,8 +477,8 @@ class ResourcesManager:
                     )
 
                 if supervisor.service != service.name:
-                    print(
-                        f"update supervisor and resources service name to [{service.name}]"
+                    self.log(
+                        f"update supervisor and resources service name to [{service.name}]", force=True
                     )
                     supervisor.service = service.name
                     supervisor.save(update_fields=["service"])
@@ -490,7 +492,7 @@ class ResourcesManager:
                     # we set the local node_id
 
                 if resp.status == 304:
-                    print("[304] resources is identical to the remote supervisor, done")
+                    self.log("[304] resources is identical to the remote supervisor, done", force=True)
                     continue
 
                 if resp.result.resources_etag:
@@ -499,16 +501,16 @@ class ResourcesManager:
 
                 self.save_resources(resp.result.resources, supervisor=supervisor)
 
-                print(
-                    f"sync resources to supervisor[{supervisor.node_id}] successfully"
+                self.log(
+                    f"sync resources to supervisor[{supervisor.node_id}] successfully", force=True
                 )
                 if resp.result.url:
                     if supervisor.url != resp.result.url:
                         supervisor.url = resp.result.url
                         supervisor.save(update_fields=["url"])
 
-                    print(
-                        f"you can visit {resp.result.url} to view the updated resources"
+                    self.log(
+                        f"you can visit {resp.result.url} to view the updated resources", force=True
                     )
 
     def get_instance(self):

@@ -16,6 +16,7 @@ from utilmeta.utils import (
     get_origin,
     get_server_ip,
     valid_url,
+    time_now
 )
 from typing import Union
 from urllib.parse import urlsplit
@@ -24,6 +25,7 @@ from . import __website__
 import sys
 import hashlib
 import os
+import warnings
 
 
 class Operations(Config):
@@ -35,7 +37,7 @@ class Operations(Config):
     HOST: ClassVar = "utilmeta.com"
     ROUTER_NAME: ClassVar = "_OperationsDatabaseRouter"
     DEFAULT_SECRET_NAMES: ClassVar = DEFAULT_SECRET_NAMES
-
+    TASK_LOG_LEVELS: ClassVar = ['info', 'warn', 'error']
     Database: ClassVar = Database
 
     class Monitor(Config):
@@ -179,7 +181,13 @@ class Operations(Config):
         monitor: Monitor = Monitor(),
         log: Log = Log(),
         report_disabled: bool = False,
-        task_error_log: str = None,
+        task_log: str = utype.Field(
+            default=None,
+            alias_from=[
+                "task_error_log",
+            ],
+        ),
+        task_log_level: Literal['info', 'warn', 'error'] = 'warn',
         max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
         local_scope: List[str] = ("*",),
         eager_migrate: bool = False,
@@ -231,7 +239,8 @@ class Operations(Config):
         self.log = log
         self.logger_cls_string = logger_cls
         self.resources_manager_cls_string = resources_manager_cls
-        self.task_error_log = task_error_log
+        self.task_log = task_log
+        self.task_log_level = task_log_level
         # self._token = token
         self._ready = False
         self._node_id = None
@@ -273,6 +282,24 @@ class Operations(Config):
         if not no_store:
             self._openapi = openapi
         return openapi
+
+    def write_task_log(self, message: str, level='info', force: bool = False):
+        if not force:
+            if not self.task_log_level:
+                return
+            if self.TASK_LOG_LEVELS.index(level) < self.TASK_LOG_LEVELS.index(self.task_log_level):
+                return
+        log_message = f"[{os.getpid()}] [ops.task.{level}] {time_now()} {message}"
+        if level == 'warn':
+            warnings.warn(log_message)
+        else:
+            print(log_message, flush=True)
+        if self.task_log:
+            try:
+                from utilmeta.utils import write_to
+                write_to(self.task_log, log_message + '\n', mode="a")
+            except Exception as e:
+                warnings.warn(f'[{os.getpid()}] [ops.task.{level}] write to {self.task_log} failed: {e}')
 
     # @property
     # def token(self):

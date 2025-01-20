@@ -1,7 +1,7 @@
 from utilmeta.core.request import Request
 from utilmeta.core.request import var
 from utilmeta.core.orm import ModelAdaptor
-from utilmeta.utils import exceptions
+from utilmeta.utils import exceptions, requires
 from .base import BaseAuthentication
 from typing import Any, Union
 
@@ -60,6 +60,7 @@ class JsonWebToken(BaseAuthentication):
         # self.jwk = jwk
         self.audience = audience
         self.user_token_field = user_token_field
+        requires('jwt')
 
     def apply_user_model(self, user_model: ModelAdaptor):
         if self.user_token_field and not isinstance(self.user_token_field, str):

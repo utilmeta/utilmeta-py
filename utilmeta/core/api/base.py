@@ -330,7 +330,11 @@ class API(PluginTarget):
 
         # compile route after mount hooks
         for route in routes:
-            route.compile_route()
+            try:
+                route.compile_route()
+            except Exception as e:
+                raise e.__class__(f'{cls}: compile route [{route.name}] '
+                                  f'failed with error: {e}') from e
 
         cls._routes.extend(routes)
         cls._default_error_hooks.update(default_error_hooks)

@@ -192,10 +192,20 @@ class DjangoModelAdaptor(ModelAdaptor):
             # abstract model meta.pk is None
             fields.append(DjangoModelFieldAdaptor(pk, model=self))
         for f in meta.get_fields() if many else meta.fields:
-            if self.field_adaptor_cls(f).is_pk:
+            try:
+                field = self.field_adaptor_cls(f)
+            except TypeError:
+                # not qualified
+                continue
+            if field.is_pk:
                 continue
             if f.remote_field:
-                if self.field_adaptor_cls(f.remote_field).is_pk:
+                try:
+                    remote_field = self.field_adaptor_cls(f.remote_field)
+                except TypeError:
+                    # not qualified
+                    continue
+                if remote_field.is_pk:
                     continue
             if no_inherit:
                 if f.model != self.model:

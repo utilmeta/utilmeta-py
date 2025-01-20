@@ -3,7 +3,7 @@ import datetime
 from utilmeta.bin.commands.base import BaseServiceCommand
 from utilmeta.bin.base import command, Arg
 import os
-from utilmeta.utils import write_to, SEG
+from utilmeta.utils import write_to, SEG, valid_attr
 from utilmeta.core.orm import DatabaseConnections
 from utilmeta.bin.constant import INIT_FILE, RED, BLUE
 from django.core.management import execute_from_command_line
@@ -23,12 +23,33 @@ class DjangoCommand(BaseServiceCommand):
         self.service.setup()  # setup here
 
     @command
-    def add(self, name: str):
+    def add(self, name: str = ""):
         """
         add an django application named <name> to this service, if your service specify an <apps_dir> in config,
         new application packages will create at there, elsewhere will create at current directory
         """
-        path = self.settings.apps_path or self.cwd
+
+        while not name:
+            print(f"Enter the name of the new django app:")
+            name = input(">>> ").strip()
+
+        if not valid_attr(name):
+            print(RED % f"meta add: app name {repr(name)} is not valid")
+            exit(1)
+
+        path = self.cwd
+        if self.settings.apps_packages:
+            if len(self.settings.apps_packages) == 1:
+                pkg = self.settings.apps_packages[0]
+            else:
+                print(f"Select from the app package you would like to add:")
+                for pkg in self.settings.apps_packages:
+                    print(f"* {pkg}")
+                pkg = None
+                while pkg not in self.settings.apps_packages:
+                    pkg = input(">>> ").strip()
+            path = self.settings.get_app_path(pkg)
+
         app = os.path.join(path, name)
         migrations = os.path.join(app, "migrations")
         init = os.path.join(app, INIT_FILE)

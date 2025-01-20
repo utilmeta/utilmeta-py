@@ -54,6 +54,9 @@ nav:
       - tutorials/bmi-calc.md
       - tutorials/user-auth.md
       - tutorials/realworld-blog.md
+  - Community:
+      - community/release.md
+      - community/roadmap.md
   - Languages:
       - English: /py/en/
       - 中文: /py/zh/

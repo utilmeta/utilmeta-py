@@ -855,6 +855,8 @@ class Response:
             if self.adaptor and is_hop_by_hop(key):
                 continue
             if str(key).lower() == "content-type":
+                if not with_content_type:
+                    continue
                 with_content_type = False
             header_values.append((str(key), str(val)))
         if with_content_type and self.content_type and self._content:  # non empty

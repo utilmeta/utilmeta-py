@@ -6,4 +6,4 @@ class ServiceEnvironment(Env):
     DJANGO_SECRET_KEY: str = ""
 
 
-env = ServiceEnvironment(sys_env="META_")
+env = ServiceEnvironment(sys_env="UTILMETA_")

@@ -160,13 +160,14 @@ class CORSPlugin(APIPlugin):
             if not self.override:
                 return response
         if self.cors_required(request):
+            allowed_methods = set([m.upper() for m in var.allow_methods.getter(request)])
+            if not allowed_methods and response.success:
+                allowed_methods = {request.method.upper()}
             response.update_headers(
                 **{
                     Header.ALLOW_ORIGIN: request.origin or "*",
                     Header.ALLOW_CREDENTIALS: "true",
-                    Header.ALLOW_METHODS: ",".join(
-                        set([m.upper() for m in var.allow_methods.getter(request)])
-                    ),
+                    Header.ALLOW_METHODS: ",".join(allowed_methods),
                 }
             )
             if request.is_options:

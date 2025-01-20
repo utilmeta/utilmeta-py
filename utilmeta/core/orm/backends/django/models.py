@@ -2,6 +2,17 @@ from django.db import models
 from .queryset import AwaitableManager, AwaitableQuerySet
 from utilmeta.utils.datastructure import Static
 from django.db.models import CharField, NOT_PROVIDED
+import utype.utils.encode
+
+
+class JSONField(models.JSONField):
+    def __init__(
+        self,
+        encoder=utype.utils.encode.JSONEncoder,
+        decoder=None,
+        **kwargs
+    ):
+        super(JSONField, self).__init__(encoder=encoder, decoder=decoder, **kwargs)
 
 
 class PasswordField(CharField):
@@ -268,6 +279,7 @@ class ChoiceField(CharField):
 
 
 class AwaitableModel(models.Model):
+    # todo: make sub model OneToOne pk on_delete=ACASCADE
     objects = AwaitableManager()
 
     class Meta:

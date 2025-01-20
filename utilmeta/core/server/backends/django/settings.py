@@ -76,7 +76,7 @@ class DjangoSettings(Config):
         root_urlconf: str = None,
         # current url conf (if there is an exists django project)
         secret_key: str = None,
-        apps_package: str = None,
+        apps_package: Union[str, List[str]] = None,
         # package ref (such as 'domain' / 'service.applications')
         apps: Union[tuple, List[str]] = (),
         database_routers: tuple = (),
@@ -102,7 +102,7 @@ class DjangoSettings(Config):
         #         self.django_settings = module_name
 
         self.secret_key = secret_key
-        self.apps_package = apps_package
+        self.apps_packages = [apps_package] if isinstance(apps_package, str) else (apps_package or [])
         self.apps = list(apps)
         self.allowed_hosts = allowed_hosts
         self.middleware = middleware
@@ -141,11 +141,18 @@ class DjangoSettings(Config):
                     setattr(self.module, attr, value)
                     setattr(settings, attr, value)
 
-    @property
-    def apps_path(self):
-        if not self.apps_package:
+    # @property
+    # def apps_path(self):
+    #     if not self.apps_package:
+    #         return None
+    #     package = import_obj(self.apps_package)
+    #     return package.__path__[0]
+
+    @classmethod
+    def get_app_path(cls, app_package: str):
+        if not app_package:
             return None
-        package = import_obj(self.apps_package)
+        package = import_obj(app_package)
         return package.__path__[0]
 
     @classmethod
@@ -186,11 +193,20 @@ class DjangoSettings(Config):
         installed_apps = list(DEFAULT_APPS)
         installed_apps.extend(self.apps)
 
-        if self.apps_package:
-            apps_path = self.apps_path
+        for app_package in self.apps_packages:
+            if not app_package:
+                continue
+            apps_path = self.get_app_path(app_package)
+            if not os.path.exists(apps_path):
+                raise FileNotFoundError(f'DjangoSettings app_package: {repr(app_package)} path: {apps_path} not found')
             hosted_labels = [p for p in next(os.walk(apps_path))[1] if "__" not in p]
             for app in hosted_labels:
-                label = f"{self.apps_package}.{app}"
+                label = f"{app_package}.{app}"
+
+                if not os.path.isdir(os.path.join(apps_path, app, 'migrations')):
+                    # not a app
+                    continue
+
                 if label not in installed_apps:
                     installed_apps.append(label)
 
@@ -405,7 +421,8 @@ class DjangoSettings(Config):
 
         self.merge_list_settings("MIDDLEWARE", self.middleware)
         self.merge_list_settings("ALLOWED_HOSTS", hosts)
-        self.merge_list_settings("DATABASE_ROUTERS", self.database_routers)
+        self.merge_list_settings("DATABASE_ROUTERS", self.database_routers, extend=False)
+        # merge to the front
 
         if self.append_slash:
             self.change_settings("APPEND_SLASH", self.append_slash, force=True)
@@ -497,13 +514,16 @@ class DjangoSettings(Config):
         try:
             if not force and hasattr(self.django_settings, settings_name):
                 return
-            if (
-                hasattr(self.django_settings, settings_name)
-                and getattr(self.django_settings, settings_name) != value
-            ):
-                pass
-            else:
-                return
+            # if (
+            #     hasattr(self.django_settings, settings_name)
+            #     and getattr(self.django_settings, settings_name) != value
+            # ):
+            #     pass
+            # else:
+            #     return
+            #
+            # do not detect the same settings and return to omit the settings change signal send
+            # this sill cause django missing some settings (like ROOT_URLCONF) when running in a command
         except ImproperlyConfigured:
             pass
         setattr(self.django_settings, settings_name, value)
@@ -516,7 +536,7 @@ class DjangoSettings(Config):
             enter=False,
         )
 
-    def merge_list_settings(self, settings_name: str, settings_list: list):
+    def merge_list_settings(self, settings_name: str, settings_list: list, extend: bool = True):
         if not settings_list or not settings_name or not self.django_settings:
             return
         settings = getattr(self.django_settings, settings_name, [])
@@ -527,8 +547,11 @@ class DjangoSettings(Config):
         new_values = []
         for value in settings_list:
             if value not in settings:
-                settings.append(value)
                 new_values.append(value)
+        if extend:
+            settings = settings + new_values
+        else:
+            settings = new_values + settings
         if new_values:
             self.change_settings(settings_name, settings, force=True)
         return new_values

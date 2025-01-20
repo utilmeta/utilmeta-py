@@ -407,7 +407,7 @@ class DjangoServerAdaptor(ServerAdaptor):
         # return self.app
         return self.app
 
-    def run(self, **kwargs):
+    def run(self, host: str = None, port: int = None, auto_reload: bool = None, **kwargs):
         self.setup()
         self.check_application()
 
@@ -470,14 +470,17 @@ class DjangoServerAdaptor(ServerAdaptor):
                     f"django debug runserver does not support asgi, please use an asgi server"
                 )
             try:
-                self.runserver()
+                self.runserver(host=host, port=port, auto_reload=auto_reload)
             finally:
                 self.config.shutdown()
                 return
 
     @property
     def location(self):
-        return f"{self.config.host or self.DEFAULT_HOST}:{self.config.port}"
+        return f"{self.config.host or self.DEFAULT_HOST}:{self.config.port or self.DEFAULT_PORT}"
+
+    def get_location(self, host: str, port: int):
+        return f"{host or self.config.host or self.DEFAULT_HOST}:{port or self.config.port or self.DEFAULT_PORT}"
 
     @property
     def production(self) -> bool:
@@ -489,15 +492,15 @@ class DjangoServerAdaptor(ServerAdaptor):
             f"tcp:{self.config.port}:interface={self.config.host or self.DEFAULT_HOST}"
         )
 
-    def runserver(self):
+    def runserver(self, host: str, port: int, auto_reload: bool = None):
         # debug server
         argv = [
             sys.argv[0],
             "runserver",
-            self.location,
+            self.get_location(host, port),
         ]  # if len(sys.argv) == 1 else sys.argv
         # if 'runserver' in argv:
-        if not self.config.auto_reload:
+        if not self.config.auto_reload or auto_reload is False:
             argv.append("--noreload")
         execute_from_command_line(argv)
 

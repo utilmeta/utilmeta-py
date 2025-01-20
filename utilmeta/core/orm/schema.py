@@ -1,5 +1,8 @@
 import utype
-from typing import TypeVar, Type, List, Union
+from typing import TypeVar, Type, List, Union, Callable
+
+from utype.parser.field import ParserField
+
 from utilmeta.core import request as req
 from .parser import SchemaClassParser, QueryClassParser
 from utilmeta.core.orm import exceptions
@@ -23,6 +26,7 @@ class Schema(utype.Schema):
         # no default, but default can be calculated when attr is called
     )
     __integrity_error_cls__ = BadRequest
+    __attribute_error_cls__ = BadRequest
     __parser_cls__ = SchemaClassParser
     __parser__: SchemaClassParser
     __field__ = req.Body
@@ -61,6 +65,14 @@ class Schema(utype.Schema):
 
         __caches__[k] = new_cls
         return new_cls
+
+    def __field_getter__(self, field: ParserField, getter: Callable = None):
+        try:
+            return super().__field_getter__(field, getter)
+        except AttributeError as e:
+            if self.__attribute_error_cls__:
+                raise self.__attribute_error_cls__(str(e)) from e
+            raise
 
     @property
     @utype.Field(no_output=True)

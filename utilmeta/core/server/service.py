@@ -20,6 +20,7 @@ from utilmeta.utils import (
     localhost,
 )
 from utilmeta.conf.base import Config
+from .backends.base import ServiceMiddleware
 import inspect
 from utilmeta.core.api import API
 from pathlib import Path
@@ -670,6 +671,10 @@ class UtilMeta:
         return self._auto_created
 
     @property
+    def ready(self):
+        return self._ready
+
+    @property
     def pool(self):
         from utilmeta.conf.pool import ThreadPool
 
@@ -684,3 +689,10 @@ class UtilMeta:
         from utilmeta.utils import get_server_ip
 
         return get_server_ip()
+
+    Middleware = ServiceMiddleware
+
+    def middleware(self, obj):
+        if inspect.isclass(obj):
+            obj = obj()
+        self.adaptor.add_middleware(obj)

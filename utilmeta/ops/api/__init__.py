@@ -1,7 +1,7 @@
 from utilmeta.core import api, orm, request, response
 from ..schema import SupervisorData
 from ..query import SupervisorPatch, AccessTokenSchema
-from utilmeta.utils import exceptions, adapt_async, Error
+from utilmeta.utils import exceptions, adapt_async, Error, convert_time
 from ..models import Supervisor, AccessToken
 from .. import __spec_version__
 from ..key import decode_token
@@ -284,8 +284,8 @@ class OperationsAPI(api.API):
                     token_obj = AccessTokenSchema(
                         token_id=token_id,
                         issuer_id=supervisor.id,
-                        issued_at=datetime.fromtimestamp(token_data.get("iat")),
-                        expiry_time=datetime.fromtimestamp(expires),
+                        issued_at=convert_time(datetime.fromtimestamp(token_data.get("iat"))),
+                        expiry_time=convert_time(datetime.fromtimestamp(expires)),
                         subject=token_data.get("sub"),
                         last_activity=self.request.time,
                         used_times=1,

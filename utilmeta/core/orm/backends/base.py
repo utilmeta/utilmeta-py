@@ -291,8 +291,15 @@ class ModelAdaptor(BaseAdaptor):
         return (Exception,)
 
     @property
+    def integrity_errors(self) -> Tuple[Type[Exception], ...]:
+        return (Exception,)
+
+    @property
     def pk_field(self) -> field_adaptor_cls:
         raise NotImplementedError
+
+    def get_pk(self, data: dict):
+        return data.get('id', None) or data.get('pk')
 
     def init_instance(self, pk=None, **data):
         raise NotImplementedError

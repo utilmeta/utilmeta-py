@@ -15,12 +15,12 @@ class AtomicPlugin(PluginBase):
         force_rollback: bool = False,
     ):
         super().__init__(locals())
-        self.alias = alias
+        self.alias = alias or "default"
         self.savepoint = savepoint
         self.durable = durable
         self.isolation = isolation
         self.force_rollback = force_rollback
-        self.db = DatabaseConnections.get(alias)
+        self.db = DatabaseConnections.get(self.alias)
 
         self.transaction = None
         self.async_transaction = None

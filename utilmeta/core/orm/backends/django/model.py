@@ -5,6 +5,7 @@ from typing import Tuple, Optional, List, Callable, Type
 from django.db import models
 from django.db.models.base import ModelBase
 from django.db.models.options import Options
+from django.db.utils import IntegrityError
 from django.core import exceptions as exc
 from . import constant
 from . import expressions as exp
@@ -40,6 +41,10 @@ class DjangoModelAdaptor(ModelAdaptor):
     def field_errors(self) -> Tuple[Type[Exception], ...]:
         return (exc.FieldError,)
 
+    @property
+    def integrity_errors(self) -> Tuple[Type[Exception], ...]:
+        return (IntegrityError,)
+
     @classmethod
     def qualify(cls, obj):
         return isinstance(obj, ModelBase)
@@ -47,6 +52,14 @@ class DjangoModelAdaptor(ModelAdaptor):
     @property
     def pk_field(self) -> field_adaptor_cls:
         return self.field_adaptor_cls(self.meta.pk)
+
+    def get_pk(self, data: dict):
+        pk = self.pk_field
+        for name in [pk.name, pk.column_name, 'id', 'pk']:
+            v = data.get(name)
+            if v is not None:
+                return v
+        return None
 
     def init_instance(self, pk=None, **data):
         if pk:

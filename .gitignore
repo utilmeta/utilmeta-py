@@ -22,6 +22,9 @@ db
 db_ops
 blog_ops
 db-journal
+db_ops-journal
+operations_db-journal
+__default_db-journal
 /tests/server/db
 /tests/server/db_ops
 */restats

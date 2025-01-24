@@ -1,3 +1,5 @@
+from django.db import IntegrityError
+
 from ..base import ModelQueryAdaptor
 from django.db.models import QuerySet
 from typing import List, TYPE_CHECKING
@@ -41,7 +43,21 @@ class DjangoModelQueryAdaptor(ModelQueryAdaptor):
         return await self.queryset.aupdate(**self.get_kwargs(d, **data))
 
     def create(self, d=None, **data):
-        return self.queryset.create(**self.get_kwargs(d, **data))
+        create_data = self.get_kwargs(d, **data)
+        pk = self.model.get_pk(create_data)
+        if pk:
+            inst = self.model.get_instance_recursively(
+                pk=pk, using=self.using
+            )
+            if inst.__class__ == self.model.model:
+                raise IntegrityError(f'Cannot create {self.model.model} '
+                                     f'instance: primary key {repr(pk)} already exists')
+            else:
+                # child not exists, but parent exists
+                raw_inst = self.model.init_instance(pk=pk, **data)
+                raw_inst.save_base(raw=True, using=self.using)
+                return
+        return self.queryset.create(**create_data)
 
     async def acreate(self, d=None, **data):
         return await self.queryset.acreate(**self.get_kwargs(d, **data))

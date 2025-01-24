@@ -1,4 +1,17 @@
 # Release Note
+
+## v2.7.3
+
+Release Date: 2025/1/24
+
+### Optimized
+
+* Support multiple packages in `DjangoSettings` 's `apps_package`
+* Optimize orm behaviour for optional model field (`default` specified field)
+* Provided more detailed task logs info and control for Operations system.
+* Optmize error handling for Operations data management APIs, return 400 for integrity error.
+* Optimize `Content-Type` recognition for nested logic request body type.
+
 ## v2.7.2
 
 Release Date: 2024/12/26

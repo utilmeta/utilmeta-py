@@ -47,10 +47,11 @@ MULTIPART = "multipart/form-data"
 
 def guess_content_type(schema: dict):
     if not schema:
-        return JSON
+        return None
 
     type = schema.get("type")
     format = schema.get("format")
+    conditions = schema.get('anyOf') or schema.get('allOf') or schema.get('oneOf')
 
     if type in ("object", "array"):
         return JSON
@@ -61,7 +62,13 @@ def guess_content_type(schema: dict):
     if format == "binary":
         return OCTET_STREAM
 
-    return PLAIN
+    if isinstance(conditions, list):
+        for cond in conditions:
+            ct = guess_content_type(cond)
+            if ct:
+                return ct
+
+    return None
 
 
 def get_operation_id(
@@ -160,6 +167,7 @@ class OpenAPIGenerator(JsonSchemaGenerator):
                     if field.get("items", {}).get("format") == "binary":
                         return MULTIPART
             return JSON
+
         return guess_content_type(body_schema)
 
     def generate_for_response(self, response: Type[Response]):
@@ -225,7 +233,7 @@ class OpenAPIGenerator(JsonSchemaGenerator):
         else:
             data_schema = result_schema
             if not content_type:
-                content_type = guess_content_type(data_schema)
+                content_type = guess_content_type(data_schema) or JSON
 
         response_schema = dict(
             content={content_type: {"schema": data_schema}},
@@ -861,6 +869,7 @@ class OpenAPI(BaseAPISpec):
                 if not content_type:
                     # guess
                     content_type = generator.get_body_content_type(schema) or PLAIN
+
                 media_types[content_type] = {"schema": schema}
                 body_description = prop.description
                 body_required = prop.required

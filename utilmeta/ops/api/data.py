@@ -1,4 +1,4 @@
-from utilmeta.core import api, request
+from utilmeta.core import api, request, orm
 from .utils import SupervisorObject, supervisor_var, WrappedResponse, opsRequire
 from utilmeta.utils import reduce_value, SECRET, adapt_async, exceptions, awaitable, pop
 from ..schema import TableSchema, QuerySchema, CreateDataSchema, UpdateDataSchema
@@ -126,8 +126,12 @@ class DataAPI(api.API):
     # close all connections
     def create_data(self, data: CreateDataSchema = request.Body):
         objs = []
-        for val in data.data:
-            objs.append(self.adaptor.query(using=self.using).create(val))
+        with orm.Atomic(self.using):
+            for val in data.data:
+                try:
+                    objs.append(self.adaptor.query(using=self.using).create(val))
+                except self.adaptor.integrity_errors as e:
+                    raise exceptions.BadRequest(str(e)) from e
         if not data.return_fields:
             return
         qs = self.adaptor.get_queryset(objs, using=self.using)
@@ -140,12 +144,16 @@ class DataAPI(api.API):
     # close all connections
     def update_data(self, data: UpdateDataSchema = request.Body):
         rows = 0
-        for val in data.data:
-            pk = pop(val, "pk") or pop(val, "id")
-            if pk:
-                r = self.adaptor.query(pk=pk, using=self.using).update(val)
-                if r and isinstance(r, int):
-                    rows += r
+        with orm.Atomic(self.using):
+            for val in data.data:
+                pk = pop(val, "pk") or pop(val, "id")
+                if pk:
+                    try:
+                        r = self.adaptor.query(pk=pk, using=self.using).update(val)
+                    except self.adaptor.integrity_errors as e:
+                        raise exceptions.BadRequest(str(e)) from e
+                    if r and isinstance(r, int):
+                        rows += r
         return rows
 
     def delete_data(

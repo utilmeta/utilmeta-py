@@ -218,7 +218,7 @@ class Schema(utype.Schema):
             attrs.update(__annotations__=annotations)
 
         name = cls.__parser__.name + suffix
-        forward = ForwardRef(name, module=cls.__module__)
+        forward = ForwardRef(name)
         # do not name as cls.__qualname__
         __caches__.setdefault(k, forward)
         # avoid infinite recursive generate like typing.Self

@@ -263,7 +263,6 @@ class EncodeDatabasesAsyncAdaptor(BaseDatabaseAdaptor):
             sql = sql % replaces
             converter = self._param_converter
             params = {f"param{i}": converter(params[i]) for i in range(0, len(params))}
-            # print('parsed:', sql, params)
             return sql, params
         else:
             raise ValueError(f"Invalid params: {params}")

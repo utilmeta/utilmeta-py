@@ -106,7 +106,7 @@ class SchemaClassParser(ClassParser):
 
     def get_pk(self, data: dict):
         for name in self.pk_names:
-            pk = data.get(name)
+            pk = data.get(name, data.__dict__.get(name))
             if pk is not None:
                 return pk
 

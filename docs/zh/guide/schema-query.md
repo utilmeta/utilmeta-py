@@ -367,13 +367,46 @@ UserSchema 中的 `articles` 字段指定了 `List[ArticleSchema]` 作为类型�
 	```
 	而 UtilMeta ORM 中的关系对象查询在执行时已经进行了优化，UtilMeta 会将关联关系先进行聚合，然后再集中查询，序列化的数据库查询总数为常数个（取决于 Schema 中声明的关系对象字段数量，而与目标查询集的长度无关），这样即简洁又高效，避免了 N + 1 的问题，无需开发者手动优化，在异步查询时还会把所有独立的关系查询并行处理，压缩执行时间
 
+#### 定制查询集
+
+对于 **多对** 关系对象的查询，我们有时需要对关系对象列表进行定制化的过滤或排序，此时你可以使用 `orm.Field` 的 `queryset` 参数直接指定一个查询集，比如下面的例子会为每个用户查询点赞数最多的文章列表
+
+```python hl_lines="14-18"
+from utilmeta.core import api, orm
+from .models import User, Article
+from django.db import models
+
+class ArticleSchema(orm.Schema[Article]):
+    id: int
+    author_name: str = orm.Field('author.username')
+    content: str
+
+class UserSchema(orm.Schema[User]):
+    username: str
+    most_liked_articles: List[ArticleSchema] = orm.Field(
+	    'articles',
+	    queryset=Article.objects.annotate(
+		    likes_num=models.Count('liked_bys')
+	    ).filter(
+            likes_num__gt=0
+        ).order_by('-likes_num')
+    )
+```
+
+在这个例子中，我们使用 `queryset`  参数为 `most_liked_articles` 字段指定了一个定制的查询集，过滤掉没有被赞的文章，并按照文章的赞数进行排序
+
+指定 `queryset` 的前提是字段需要指定一个明确的 **多对关系名称**，可以用 `orm.Field` 的第一个参数（如上面例子中的 `'articles'`）或者字段的属性名进行指定
+
+!!! warning "不要切片"
+	请 **不要** 对指定的 `queryset` 查询集进行切片处理（比如限制返回结果数量），因为为了优化 N + 1 查询问题， `queryset` 查询集的查询实现是一次性查询全部的关系对象并按照对应关系进行分发，如果你将查询集进行切片，查询出的实例所分配到的关系对象列表可能是不完整的，如果你需要实现类似 “为每个实例查询最多 N 条关系对象” 的需求，请参考下方的 **关系查询函数** 进行实现
+
 ### 关系查询函数
 
 关系查询函数提供了一个可以自定义的函数钩子，你可以为关系查询编写任意的条件，比如添加过滤和排序条件，控制数量等，关系查询函数有以下几种声明方式
 
 #### 单个主键查询函数
 函数接受目标查询集中的单个主键作为输入，返回一个关系模型的查询集，我们以一个需求作为例子：需要查询一个用户列表，其中每个用户都需要附带 **点赞数最多的2篇文章**，实现的代码示例如下
-```python
+```python hl_lines="8-12"
 class ArticleSchema(orm.Schema[Article]):
     id: int
     content: str
@@ -395,7 +428,7 @@ class UserSchema(orm.Schema[User]):
 
 观察上面的例子我们可以明显得出，要想得到目标的条件关系值，函数中的查询需要运行 N 次，N 是目标查询集的长度，那么什么情况可以压缩为单条查询呢？答案是当你只需要查询 **1 个** 目标关系对象时，这时你可以直接把查询集声明出来，UtilMeta 会将其处理成一条 **subquery 子查询** 从而压缩到单条查询，比如
 
-```python
+```python hl_lines="8-12"
 class ArticleSchema(orm.Schema[Article]):
     id: int
     content: str
@@ -438,7 +471,7 @@ class UserSchema(orm.Schema[User]):
 		return user_schema
 ```
 
-例子中 UserSchema 定义了一个类函数，从而可以为不同的请求用户生成不同的查询，在其中我们定义了一个 `get_followers_you_known` 查询函数，接受一个主键列表并构造出了一个字典，字典的键是传入的主键列表中的一个主键，对应的值是目标关系（Followers you known）用户的主键列表，之后返回这个字典，UtilMeta 会完成后续的聚合查询以及结果分发，最后每个用户 Schema 实例的 `followers_you_known` 字段都会包含满足条件要求的查询结果
+例子中 UserSchema 定义了一个类函数，从而可以为不同的请求用户生成不同的查询，在其中我们定义了一个 `get_followers_you_known` 查询函数，接受 **当前查询到的 Schema 实例的主键列表** 并构造出了一个字典，为每个主键映射到一个 **目标关系的主键列表**（即 Followers you known 的用户主键列表），之后返回这个字典，UtilMeta 会完成后续的聚合查询以及结果分发，最后每个用户 Schema 实例的 `followers_you_known` 字段都会包含满足条件要求的查询结果
 
 !!! tip  "动态 Schema 查询"
 	对于上面的例子，你在 API 函数中可以使用 `UserSchema.get_runtime_schema(request_user_id)` 获得根据当前用户 ID 动态生成的查询 Schema 类。这样的方式可以称为运行时的动态 Schema 查询
@@ -452,7 +485,7 @@ class UserSchema(orm.Schema[User]):
 * 查询商品有多少订单
 
 几乎含有关系字段的模型都需要对应关系的数量查询，对于 Django ORM，你可以使用 `models.Count('<relation_name>')` 来查询对应关系的数量，比如上面例子中的
-```python
+```python hl_lines="7"
 from utilmeta.core import orm
 from .models import User
 from django.db import models
@@ -470,6 +503,23 @@ UserSchema 的 `articles_num` 字段使用 `models.Count('articles')` 表示查�
 * `models.Sum`：求和计算，比如计算一个商品的总销售额
 * `models.Max`：最大值计算
 * `models.Min`：最小值计算
+
+表达式可以直接作为字段的属性值，也可以作为第一个参数传入 `orm.Field` 中，这样你可以指定更多的字段配置，比如
+
+```python hl_lines="8"
+from utilmeta.core import orm
+from .models import User
+from django.db import models
+
+class UserSchema(orm.Schema[User]):
+    username: str
+    articles_num: int = orm.Field(
+	    models.Count('articles'),
+	    title='文章数量',
+	    default=0
+    )
+```
+
 
 !!! tip
 	关于 Django 的聚合表达式的更多用法可以参考 [Django 聚合表达式文档](https://docs.djangoproject.com/zh-hans/5.0/topics/db/aggregation/)

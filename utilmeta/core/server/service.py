@@ -90,7 +90,6 @@ class UtilMeta:
         self.background = background
         self.asynchronous = asynchronous
 
-        # print('MODULE NAME:', module_name)
         self.name = name
         self.pid_file = None
 

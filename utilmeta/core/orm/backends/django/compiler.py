@@ -298,19 +298,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 for val in current_qs.values(PK, **{query_key: field.expression})
             }
 
-        elif isinstance(related_queryset, models.QuerySet):
-            # add reverse lookup
-            if field.reverse_lookup:
-                related_queryset = related_queryset.filter(
-                    **{field.reverse_lookup + "__in": pk_list}
-                ).using(self.using)
-                for val in related_queryset.values(PK, field.reverse_lookup):
-                    rel = val[PK]
-                    pk = val[field.reverse_lookup]
-                    if pk is not None:
-                        pk_map.setdefault(pk, []).append(rel)
-
         elif isinstance(related_subquery, models.QuerySet):
+            # prior than common queryset
             if not related_subquery.query.select:
                 # 1. queryset has no values
                 # 2. this is a related schema query, we should override the values to PK
@@ -325,6 +314,18 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 rel = val[query_key]
                 if rel is not None:
                     pk_map.setdefault(val[PK], []).append(rel)
+
+        elif isinstance(related_queryset, models.QuerySet):
+            # add reverse lookup
+            if field.reverse_lookup:
+                related_queryset = related_queryset.filter(
+                    **{field.reverse_lookup + "__in": pk_list}
+                ).using(self.using)
+                for val in related_queryset.values(PK, field.reverse_lookup):
+                    rel = val[PK]
+                    pk = val[field.reverse_lookup]
+                    if pk is not None:
+                        pk_map.setdefault(pk, []).append(rel)
 
         elif field.included:
             # o2 / fk
@@ -536,19 +537,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 async for val in current_qs.values(PK, **{query_key: field.expression})
             }
 
-        elif isinstance(related_queryset, models.QuerySet):
-            # add reverse lookup
-            if field.reverse_lookup:
-                related_queryset = related_queryset.filter(
-                    **{field.reverse_lookup + "__in": pk_list}
-                ).using(self.using)
-                async for val in related_queryset.values(PK, field.reverse_lookup):
-                    rel = val[PK]
-                    pk = val[field.reverse_lookup]
-                    if pk is not None:
-                        pk_map.setdefault(pk, []).append(rel)
-
         elif isinstance(related_subquery, models.QuerySet):
+            # subquery is prior than common queryset
+
             if not related_subquery.query.select:
                 # 1. queryset has no values
                 # 2. this is a related schema query, we should override the values to PK
@@ -560,6 +551,18 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 rel = val[query_key]
                 if rel is not None:
                     pk_map.setdefault(val[PK], []).append(rel)
+
+        elif isinstance(related_queryset, models.QuerySet):
+            # add reverse lookup
+            if field.reverse_lookup:
+                related_queryset = related_queryset.filter(
+                    **{field.reverse_lookup + "__in": pk_list}
+                ).using(self.using)
+                async for val in related_queryset.values(PK, field.reverse_lookup):
+                    rel = val[PK]
+                    pk = val[field.reverse_lookup]
+                    if pk is not None:
+                        pk_map.setdefault(pk, []).append(rel)
 
         elif field.included:
             # o2 / fk

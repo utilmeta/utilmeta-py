@@ -102,7 +102,6 @@ class ChoiceField(CharField):
         # return str(value)
 
     def to_python(self, value):
-        # print('TO PYTHON:', value, self.retrieve_key)
         if value is None:
             return value
         if self.retrieve_key:

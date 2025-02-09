@@ -4,7 +4,7 @@ import utype
 from utype import Field
 from utype.parser.field import ParserField
 from utype.parser.cls import ClassParser
-from utype.parser.rule import LogicalType
+from utype.parser.rule import LogicalType, resolve_forward_type
 from utype.types import *
 from utilmeta.utils import class_func, time_now
 
@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 
 class ParserQueryField(ParserField):
+    STACK_LEVEL = 11
+
     def __init__(self, model: "ModelAdaptor" = None, **kwargs):
         super().__init__(**kwargs)
         self._kwargs = kwargs
@@ -32,6 +34,8 @@ class ParserQueryField(ParserField):
         self.fail_silently = (
             self.field.fail_silently if isinstance(self.field, QueryField) else False
         )
+        self.field_name = self.field.field if (isinstance(self.field, QueryField) and
+                                               isinstance(self.field.field, str)) else self.attname
         self.many_included = False
         self.subquery = None
         self.queryset = (
@@ -187,7 +191,7 @@ class ParserQueryField(ParserField):
                 warnings.warn(
                     f"orm.Field: {repr(self.attname)} can only applied"
                     f" for orm.Schema of its subclasses",
-                    stacklevel=11,
+                    stacklevel=self.STACK_LEVEL,
                 )
                 return
 
@@ -201,63 +205,6 @@ class ParserQueryField(ParserField):
         if not isinstance(self.model, ModelAdaptor):
             return
 
-        if class_func(self.field_name):
-            from utype.parser.func import FunctionParser
-
-            func = FunctionParser.apply_for(self.field_name)
-            # fixme: ugly approach, getting the awaitable async function
-            async_func = getattr(func.obj, "_asyncfunc", None)
-            sync_func = getattr(func.obj, "_syncfunc", None)
-            if async_func and sync_func:
-                from utilmeta.utils import awaitable
-
-                if isinstance(self.field_name, classmethod):
-                    sync_func = classmethod(sync_func)
-                    async_func = classmethod(async_func)
-                sync_wrapper = FunctionParser.apply_for(sync_func).wrap(
-                    ignore_methods=True, parse_params=True, parse_result=True
-                )
-                async_wrapper = FunctionParser.apply_for(async_func).wrap(
-                    ignore_methods=True, parse_params=True, parse_result=True
-                )
-                self.func = awaitable(sync_wrapper)(async_wrapper)
-            else:
-                self.func = func.wrap(
-                    ignore_methods=True, parse_params=True, parse_result=True
-                )
-            self.func_multi = bool(func.pos_var)
-
-            if not self.mode:
-                self.mode = "r"
-
-            self.get_query_schema()
-            return
-
-        if self.model.check_subquery(self.field_name):
-            self.subquery = self.field_name
-            if not self.mode:
-                self.mode = "r"
-            self.related_model = self.model.get_model(self.subquery)
-            if not self.related_model:
-                raise ValueError(f"No model detected in queryset: {self.subquery}")
-            if self.queryset is not None:
-                raise ValueError(
-                    f"specify subquery field and queryset at the same time is not supported"
-                )
-
-            self.get_query_schema()
-
-            if self.related_single is False:
-                warnings.warn(
-                    f"{self.model.model} schema field: {repr(self.name)} is a multi-relation with a subquery, "
-                    f"you need to make sure that only 1 row of the query is returned, "
-                    f"otherwise use query function instead"
-                )
-
-            self.isolated = True
-            # force isolated for queryset query (even without schema)
-            return
-
         self.model_field = self.model.get_field(
             self.field_name, allow_addon=True, silently=True
         )
@@ -265,8 +212,85 @@ class ParserQueryField(ParserField):
             self.model_field.related_model if self.model_field else None
         )
 
+        if self.field_object is not None:
+            # check queryset first (only type, not model)
+            if self.model.check_queryset(
+                self.field_object, check_model=False
+            ):
+                # is queryset
+                if self.queryset is not None:
+                    raise ValueError(
+                        f"specify queryset field and queryset param at the same time is not supported"
+                    )
+                self.queryset = self.field_object
+
+        if not self.model_field:
+            if class_func(self.field_object):
+                from utype.parser.func import FunctionParser
+
+                func = FunctionParser.apply_for(self.field_object)
+                # fixme: ugly approach, getting the awaitable async function
+                async_func = getattr(func.obj, "_asyncfunc", None)
+                sync_func = getattr(func.obj, "_syncfunc", None)
+                if async_func and sync_func:
+                    from utilmeta.utils import awaitable
+
+                    if isinstance(self.field_object, classmethod):
+                        sync_func = classmethod(sync_func)
+                        async_func = classmethod(async_func)
+                    sync_wrapper = FunctionParser.apply_for(sync_func).wrap(
+                        ignore_methods=True, parse_params=True, parse_result=True
+                    )
+                    async_wrapper = FunctionParser.apply_for(async_func).wrap(
+                        ignore_methods=True, parse_params=True, parse_result=True
+                    )
+                    self.func = awaitable(sync_wrapper)(async_wrapper)
+                else:
+                    self.func = func.wrap(
+                        ignore_methods=True, parse_params=True, parse_result=True
+                    )
+                self.func_multi = bool(func.pos_var)
+                if self.queryset is not None:
+                    raise ValueError(
+                        f"specify function field and queryset at the same time is not supported"
+                    )
+
+            elif self.queryset is not None:
+                if self.model.check_subquery(self.queryset):
+                    self.subquery = self.queryset
+                    if not self.mode:
+                        self.mode = "r"
+                    self.related_model = self.model.get_model(self.subquery)
+                    if not self.related_model:
+                        raise ValueError(f"No model detected in queryset: {self.subquery}")
+
+            elif self.field_object is not None:
+                # not function
+                # not queryset
+                # maybe expression
+                self.model_field = self.model.get_field(
+                    self.field_object, allow_addon=True, silently=True
+                )
+
         # fix: get related model before get query schema
         self.get_query_schema()
+
+        if self.subquery is not None and not self.related_single:
+            warnings.warn(
+                f"{self.model.model} schema field: {repr(self.name)} is a multi-relation with a subquery, "
+                f"you need to make sure that only 1 row of the query is returned, "
+                f"otherwise use query function instead",
+                stacklevel=self.STACK_LEVEL,
+            )
+
+        if self.subquery is not None or self.func:
+            # do not proceed for subquery field and function field
+            if not self.mode:
+                self.mode = "r"
+
+            self.isolated = True
+            # force isolated for queryset query (even without schema)
+            return
 
         if self.model_field:
             self.primary_key = (
@@ -341,13 +365,26 @@ class ParserQueryField(ParserField):
                         f"Invalid queryset for field: {repr(self.model_field.name)}, "
                         f"no related model"
                     )
-                if not self.related_model.check_queryset(
+                qs = self.related_model.check_queryset(
                     self.queryset, check_model=True
-                ):
+                )
+                if not qs:
                     raise ValueError(
                         f"Invalid queryset for field: {repr(self.model_field.name)}, "
                         f"must be a queryset of model {self.related_model.model}"
                     )
+
+                if qs.is_sliced:
+                    msg = (
+                        f"orm.Field: name {repr(self.field_name)} detect slice field queryset "
+                        f"in model: {self.model.model}, which can cause incomplete output, "
+                        f"consider use query function instead"
+                    )
+                    if pref.orm_on_non_exists_required_field == 'error':
+                        raise ValueError(msg)
+                    elif pref.orm_on_non_exists_required_field == 'warn':
+                        warnings.warn(msg, stacklevel=self.STACK_LEVEL)
+
                 self.reverse_lookup, c = self.model.get_reverse_lookup(self.field_name)
                 if c or not self.reverse_lookup:
                     raise ValueError(
@@ -402,7 +439,7 @@ class ParserQueryField(ParserField):
                 # fixme: do not merge for ForwardRef
 
         else:
-            if isinstance(self.field, QueryField) and self.field.field:
+            if isinstance(self.field, QueryField) and isinstance(self.field.field, str):
                 raise ValueError(
                     f"orm.Field({repr(self.field.field)}) not exists in model: {self.model.model}"
                 )
@@ -426,7 +463,7 @@ class ParserQueryField(ParserField):
                             raise ValueError(msg)
                         elif pref.orm_on_non_exists_required_field == 'warn':
                             warned = True
-                            warnings.warn(msg, stacklevel=11)
+                            warnings.warn(msg, stacklevel=self.STACK_LEVEL)
                 if self.has_mode(options, "a", "w"):
                     if not self.always_no_output(options):
                         msg = (
@@ -436,7 +473,7 @@ class ParserQueryField(ParserField):
                         if pref.orm_on_non_exists_required_field == 'error':
                             raise ValueError(msg)
                         elif pref.orm_on_non_exists_required_field == 'warn' and not warned:
-                            warnings.warn(msg, stacklevel=11)
+                            warnings.warn(msg, stacklevel=self.STACK_LEVEL)
 
             # will not be queried (input of 'r' mode)
             if not self.no_input:
@@ -464,6 +501,12 @@ class ParserQueryField(ParserField):
                         return True
         return False
 
+    def resolve_forward_refs(self):
+        super().resolve_forward_refs()
+        self.related_schema, r = resolve_forward_type(self.related_schema)
+        if self.original_type != self.type:
+            self.original_type, r = resolve_forward_type(self.original_type)
+
     def setup_relational_update(self, options: utype.Options):
         if not self.related_schema:
             return None
@@ -478,7 +521,7 @@ class ParserQueryField(ParserField):
         from utilmeta.core.orm import Schema
 
         self.related_schema = self.related_schema._get_relational_update_cls(
-            field=remote_field_name, mode=options.mode
+            field=remote_field_name, mode=options
         )
         # can be cached
 
@@ -496,7 +539,7 @@ class ParserQueryField(ParserField):
                     if isinstance(arg, type) and issubclass(arg, Schema):
                         args.append(
                             arg._get_relational_update_cls(
-                                field=remote_field_name, mode=options.mode
+                                field=remote_field_name, mode=options
                             )
                         )
                     else:
@@ -513,7 +556,7 @@ class ParserQueryField(ParserField):
                     if isinstance(arg, type) and issubclass(arg, Schema):
                         rule_args.append(
                             arg._get_relational_update_cls(
-                                field=remote_field_name, mode=options.mode
+                                field=remote_field_name, mode=options
                             )
                         )
                     else:
@@ -530,7 +573,7 @@ class ParserQueryField(ParserField):
         else:
             if isinstance(self.type, type) and issubclass(self.type, Schema):
                 self.type = self.type._get_relational_update_cls(
-                    field=remote_field_name, mode=options.mode
+                    field=remote_field_name, mode=options
                 )
             else:
                 if isinstance(self.type, LogicalType) and self.type.combinator:
@@ -539,7 +582,7 @@ class ParserQueryField(ParserField):
                         if isinstance(arg, type) and issubclass(arg, Schema):
                             args.append(
                                 arg._get_relational_update_cls(
-                                    field=remote_field_name, mode=options.mode
+                                    field=remote_field_name, mode=options
                                 )
                             )
                         else:
@@ -547,6 +590,17 @@ class ParserQueryField(ParserField):
                     self.type = LogicalType.combine(self.type.combinator, *args)
         self.type_override = True
         self.relation_update_enabled = True
+
+    def relation_setup_required(self, options: utype.Options):
+        if self.relation_update_enabled:
+            return False
+        if self.model_field:
+            if self.related_schema:
+                if "a" in self.mode or "w" in self.mode:
+                    # UPDATE ON RELATIONAL
+                    if options.mode and set(options.mode).issubset(self.mode):
+                        return True
+        return False
 
     @property
     def readable(self):
@@ -585,14 +639,13 @@ class ParserQueryField(ParserField):
         return None
 
     @property
-    def field_name(self):
+    def field_object(self):
         if isinstance(self.field, QueryField):
             # do not use [or] / [bool] to validate such field
             # because that might be a queryset
-            if self.field.field is None:
-                return self.attname
-            return self.field.field
-        return self.attname
+            if self.field.field is not None and not isinstance(self.field.field, str):
+                return self.field.field
+        return None
 
     @property
     def is_sub_relation(self):

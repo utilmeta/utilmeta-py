@@ -4,6 +4,8 @@ from utilmeta.core import orm
 from utilmeta.utils import exceptions, time_now
 from datetime import datetime
 from typing import List, Optional
+from utype.types import Self
+
 
 setup_service(__name__, async_param=[True])
 
@@ -101,6 +103,10 @@ class TestSchemaQuery:
         assert article.author_articles_views == 13
         assert article.author_avg_articles_views == 6.5
         assert len(article.comments) == 2
+        assert article.comments[0].id > article.comments[1].id
+        # comments: List[CommentSchema] = orm.Field(
+        #     Comment.objects.order_by('-id'),
+        # )
         assert article.author_tag['name'] == 'bob'
         assert db_using in article.tags
 
@@ -496,6 +502,8 @@ class TestSchemaQuery:
         class CommentSchema(BaseContentSchema[Comment]):
             on_content_id: int
             type: str = orm.Field(mode='r', default='comment')
+            comments: List[Self] = orm.Field(mode='rwa')
+            # nested multi-layer comments update
 
         class ContentSchema(BaseContentSchema):
             comments: List[CommentSchema] = orm.Field(mode='rwa')
@@ -512,7 +520,15 @@ class TestSchemaQuery:
             comment=dict(on_content_id=3),
             comments=[
                 dict(author_id=1, content='cm1'),
-                dict(author_id=2, content='cm2'),
+                dict(
+                    author_id=2, content='cm2',
+                    comments=[
+                        dict(author_id=3, content='cm3'),
+                        dict(
+                            author_id=4, content='cm4'
+                        ),
+                    ]
+                ),
             ]
         )
         content.save(with_relations=True, transaction=True, using=db_using)
@@ -523,6 +539,10 @@ class TestSchemaQuery:
         assert set(comment.liked_bys.values_list('id', flat=True).using(db_using)) == {1, 3}
         assert set(Comment.objects.filter(
             on_content=comment).values_list('content', flat=True).using(db_using)) == {'cm1', 'cm2'}
+
+        # test nested content creations
+        assert set(Comment.objects.filter(
+            on_content__content='cm2').values_list('content', flat=True).using(db_using)) == {'cm3', 'cm4'}
 
         # fixme: transaction won't work in bind_service (will cause the db hang)
         # fixme: OneToOneRel with primary_key: cannot set?
@@ -632,6 +652,7 @@ class TestSchemaQuery:
         class CommentSchema(BaseContentSchema[Comment]):
             on_content_id: int
             type: str = orm.Field(mode='r', default='comment')
+            comments: List[Self] = orm.Field(mode='rwa')
 
         class ContentSchema(BaseContentSchema):
             comments: List[CommentSchema] = orm.Field(mode='rwa')
@@ -649,7 +670,15 @@ class TestSchemaQuery:
             comment=dict(on_content_id=3),
             comments=[
                 dict(author_id=1, content='cm1'),
-                dict(author_id=2, content='cm2'),
+                dict(
+                    author_id=2, content='cm2',
+                    comments=[
+                        dict(author_id=3, content='cm3'),
+                        dict(
+                            author_id=4, content='cm4'
+                        ),
+                    ]
+                ),
             ]
         )
         await content.asave(with_relations=True, transaction=True, using=db_using)
@@ -659,6 +688,9 @@ class TestSchemaQuery:
         assert comment.content == 'my comment 1'
         assert {v async for v in Comment.objects.filter(
             on_content=comment).using(db_using).values_list('content', flat=True)} == {'cm1', 'cm2'}
+        # test nested content creations
+        assert {v async for v in Comment.objects.filter(
+            on_content__content='cm2').values_list('content', flat=True).using(db_using)} == {'cm3', 'cm4'}
 
         c = await ContentSchema.ainit(content.pk, context=orm.QueryContext(using=db_using))
         assert set(c.liked_bys) == {1, 3}

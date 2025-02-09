@@ -20,8 +20,8 @@ class Preference(Config):
     orm_default_query_distinct: Optional[bool]
     orm_default_save_with_relations: bool
     orm_default_gather_async_fields: bool
-    # orm_raise_non_exists_required_field: bool
     orm_on_non_exists_required_field: Literal['error', 'warn', 'ignore'] = 'warn'
+    orm_on_sliced_field_queryset: Literal['error', 'warn', 'ignore'] = 'warn'
     orm_schema_query_max_depth: Optional[int]
     # orm_recursion: bool
     # orm_default_filter_required: Optional[bool]
@@ -56,16 +56,11 @@ class Preference(Config):
         orm_default_save_with_relations: bool = True,
         orm_default_query_distinct: Optional[bool] = None,
         orm_default_gather_async_fields: bool = False,
-        orm_raise_non_exists_required_field: bool = False,
         orm_on_non_exists_required_field: Literal['error', 'warn', 'ignore'] = 'warn',
+        orm_on_sliced_field_queryset: Literal['error', 'warn', 'ignore'] = 'warn',
         orm_schema_query_max_depth: Optional[int] = 100,
         dependencies_auto_install_disabled: bool = False,
-        # orm_schema_integrity_error_cls: Optional[Type[Exception]] = None,
-        # orm_default_filter_required: Optional[bool] = False,
-        # orm_default_field_fail_silently: bool = False,
     ):
-        if orm_raise_non_exists_required_field:
-            orm_raise_non_exists_required_field = 'error'
         super().__init__(locals())
 
     @classmethod

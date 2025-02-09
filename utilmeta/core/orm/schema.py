@@ -1,5 +1,5 @@
 import utype
-from typing import TypeVar, Type, List, Union, Callable
+from typing import TypeVar
 
 from utype.parser.field import ParserField
 
@@ -9,6 +9,7 @@ from utilmeta.core.orm import exceptions
 from utilmeta.utils.exceptions import BadRequest
 from .context import QueryContext
 from .fields.field import ParserQueryField
+from utype.types import ForwardRef, Type, List, Union, Callable
 
 
 T = TypeVar("T")
@@ -125,13 +126,19 @@ class Schema(utype.Schema):
         return cls.__parser__.get_compiler(qs, context=context)
 
     @classmethod
-    def _get_relational_update_cls(cls, field: str, mode: str):
+    def _get_relational_update_cls(cls, field: str, mode: Union[str, utype.Options]):
+        # class RoleSchema(orm.Schema[Member]):
+        #     id: int
+        #     member_id: int
+        #     name: str
+        #     description: str
+        #
         # class MemberSchema(orm.Schema[Member]):
         #     id: int
         #     project_id: int
         #     user: UserSchema
-        #     roles: list
         #     created_time: datetime
+        #     roles: List[RoleSchema] = orm.Field(mode='rwa') ---- field: member_id
         #
         # class ProjectSchema(orm.Schema[Project]):
         #     id: int
@@ -141,7 +148,12 @@ class Schema(utype.Schema):
         #     members: List[MemberSchema] = orm.Field(mode='rwa') ---- field: project_id
 
         global __caches__
-        k = (cls, mode, field)
+        options = mode if isinstance(mode, utype.Options) else utype.Options(mode=mode)
+        mode = mode.mode if isinstance(mode, utype.Options) else str(mode)
+        origin_cls = getattr(cls, '__origin_cls__', cls)
+
+        k = (origin_cls, str(options), field)
+
         if k in __caches__:
             return __caches__[k]
 
@@ -149,11 +161,8 @@ class Schema(utype.Schema):
         attrs = {
             "__qualname__": cls.__qualname__ + suffix,
             "__module__": cls.__module__,
+            "__options__": options
         }
-        if isinstance(mode, str):
-            attrs.update(__options__=utype.Options(mode=mode))
-        elif isinstance(mode, utype.Options):
-            attrs.update(__options__=mode)
 
         model_field = cls.__parser__.model.get_field(field)
         if not model_field:
@@ -166,19 +175,35 @@ class Schema(utype.Schema):
             )
 
         relational_fields = []
+        annotations = {}
+
         for name, parser_field in cls.__parser__.fields.items():
-            parser_field: SchemaClassParser.parser_field_cls
-            if (
-                parser_field.model_field
-                and parser_field.model_field.name == model_field.name
-            ):
-                if name == "pk":
-                    continue
-                attrs[parser_field.attname] = parser_field.field_cls(
-                    no_input=mode, mode=mode
-                )
-                if not parser_field.no_output:
-                    relational_fields.append(parser_field.attname)
+            if isinstance(parser_field, ParserQueryField):
+                if (
+                    parser_field.model_field
+                    and parser_field.model_field.name == model_field.name
+                ):
+                    if name == "pk":
+                        continue
+                    attrs[parser_field.attname] = parser_field.field_cls(
+                        no_input=mode,
+                        mode=mode,
+                        alias=name if name != parser_field.attname else None,
+                        alias_from=parser_field.field.alias_from
+                    )
+                    if not parser_field.no_output:
+                        relational_fields.append(parser_field.attname)
+
+                elif parser_field.relation_setup_required(options):
+                    # just copy the base field to trigger the relational setup
+                    attrs[parser_field.attname] = parser_field.field
+
+                    if not hasattr(cls.__parser__, 'annotations'):
+                        # compat utype < 0.6.5
+                        # will be deprecated in the future
+                        annotations[parser_field.attname] = cls.__annotations__.get(
+                            parser_field.attname, parser_field.type)
+
         if not relational_fields:
             attrs[field] = cls.__parser_cls__.parser_field_cls.field_cls(
                 no_input=mode, mode=mode, no_output=False
@@ -187,10 +212,29 @@ class Schema(utype.Schema):
 
         attrs.update(
             __relational_fields__=relational_fields,
-            # __relational_field__=field
+            __origin_cls__=origin_cls
         )
-        new_cls = utype.LogicalMeta(cls.__parser__.name + suffix, (cls,), attrs)
+        if annotations:
+            attrs.update(__annotations__=annotations)
+
+        name = cls.__parser__.name + suffix
+        forward = ForwardRef(name, module=cls.__module__)
+        # do not name as cls.__qualname__
+        __caches__.setdefault(k, forward)
+        # avoid infinite recursive generate like typing.Self
+        new_cls = utype.LogicalMeta(name, (cls,), attrs)
+        forward.__forward_evaluated__ = True
+        forward.__forward_value__ = new_cls
         __caches__[k] = new_cls
+
+        parser: SchemaClassParser = getattr(new_cls, '__parser__')
+        # parser.resolve_forward_refs(ignore_errors=False)
+        for name, parser_field in parser.fields.items():
+            if isinstance(parser_field, ParserQueryField):
+                if isinstance(parser_field.related_schema, ForwardRef):
+                    # resolve forward refs
+                    parser_field.resolve_forward_refs()
+
         return new_cls
 
     @classmethod

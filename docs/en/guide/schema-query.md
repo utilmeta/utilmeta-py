@@ -368,6 +368,39 @@ The `articles` field in UserSchema specified `List[ArticleSchema]` as a type ann
 	```
 	The relation queries in UtilMeta ORM have already been optimized during execution. which will aggregates the relation keys first, and then performs a single query using the aggregate list. The total number of database queries is a constant (depending on the number of relation fields, regardless of the length of the target queryset), which efficiently avoided N+1 issues, In asynchronous queries, all independent relation queries are also processed in parallel to compress execution time
 
+#### Custom queryset
+
+For queries of **multiple** relational objects, we sometimes need to customize filtering or sorting of the relational object list. In this case, you can use the `queryset` parameter of `orm.Field` to specifies a queryset directly, the following example will query each user of a list of articles with the highest number of likes:
+
+```python hl_lines="14-18"
+from utilmeta.core import api, orm
+from .models import User, Article
+from django.db import models
+
+class ArticleSchema(orm.Schema[Article]):
+    id: int
+    author_name: str = orm.Field('author.username')
+    content: str
+
+class UserSchema(orm.Schema[User]):
+    username: str
+    most_liked_articles: List[ArticleSchema] = orm.Field(
+	    'articles',
+	    queryset=Article.objects.annotate(
+		    likes_num=models.Count('liked_bys')
+	    ).filter(
+            likes_num__gt=0
+        ).order_by('-likes_num')
+    )
+```
+
+In the above example, use use `queryset` parameter to specify a custom queryset for `most_liked_articles` to filter out articles with no likes and sort by likes num
+
+The pre-condition for `queryset` parameter is to specify a **Multiple Relation Name**, you can use the first parameter of `orm.Field` (like `'articles'` in the above example) or the attribute name to specify,
+
+!!! warning "No Slicing"
+	Please **DO NOT** slice the specified `queryset` (such as limiting the number of returned results), because in order to optimize N+1 query problems, The query implementation of `queryset` is to query all relational objects at once and distribute them according to their corresponding relationships. If you slice the queryset, the list of relational objects assigned to the queried instances may be incomplete. If you need to implement a requirement similar to "querying up to N relational objects per instance", please refer to the **relational query function** below.
+
 ### Relational query function
 
 Relational query function provides a hook that can be customized. You can write any condition for the relational query, such as adding filter and sort conditions, controlling the quantity, etc. The relational query function can be declared in the following ways
@@ -375,7 +408,7 @@ Relational query function provides a hook that can be customized. You can write 
 #### Single primary-key function
 The function accepts a single primary key of the target queryset as input, and returns the related queryset. Let’s take a requirement as an example: we need to query a list of users, each user needs to attach **two most liked articles**. The code example for implementation is as follows
 
-```python
+```python hl_lines="8-12"
 class ArticleSchema(orm.Schema[Article]):
     id: int
     content: str
@@ -398,7 +431,7 @@ In this example, the `top_2_articles` field of UserSchema specifies a relational
 Looking at the above example, we can clearly see that in order to get the conditional relation value of the target, the query in the function needs to run N times, N is the length of the target queryset, so what can be compressed into a single query? 
 The answer is that when you only need to query **1** of the target relational object, you can directly declare the queryset, and UtilMeta will process it into a **subquery** to compress it into a single query, such as
 
-```python
+```python hl_lines="8-12"
 class ArticleSchema(orm.Schema[Article]):
     id: int
     content: str
@@ -441,7 +474,7 @@ class UserSchema(orm.Schema[User]):
 		return user_schema
 ```
 
-In the example, `UserSchema` defines a class function that generate different queries for different requesting users, in which we define a `get_followers_you_known` query function that accepts a list of primary keys and constructs a dictionary whose key is a from the passed in list. and the corresponding value is the primary key list of the target relationship (**Followers you known**) user. After this dictionary is returned, UtilMeta will complete the subsequent aggregate query and result distribution. Finally, the `followers_you_known` field of each user Schema instance will contain the query results that meet the condition requirement
+In the example, `UserSchema` defines a class function that generate different queries for different requesting users, in which we define a `get_followers_you_known` query function that accepts a list of **queried primary keys** of current Schema instances and constructs a dict that map each key with a primary key list of the **target relationship** (Followers you known). After this dictionary is returned, UtilMeta will complete the subsequent aggregate query and result distribution. Finally, the followers_you_known field of each user Schema instance will contain the query results that meet the condition requirement
 
 !!! tip "Dynamic Schema Query"
 	For the above example, you can call `UserSchema.get_runtime_schema(request_user_id)` in the API function to get the dynamic generated Schema class based on the user id of the current request, we often call it **Dynamic Schema Query**
@@ -455,7 +488,7 @@ Aggregation or calculation of a relational field is also a common development re
 * Get how many orders there are for the product
 
 Almost all models with relational fields require a query for the number of related objects. For Django ORM, you can use `models.Count('<relation_name>')` to query the number of relations, such as in the example above.
-```python
+```python hl_lines="7"
 from utilmeta.core import orm
 from .models import User
 from django.db import models
@@ -474,8 +507,20 @@ Beside quantities, expression queries can be used for some common data calculati
 *  `models.Max`: Maximum value calculation
 *  `models.Min`: Minimum value calculation
 
-!!! tip
-	More usage of django query expressions can refer to [Django aggregations](https://docs.djangoproject.com/en/5.0/topics/db/aggregation/)
+Query expressions can used as the attribute value directly, or passed as the first parameter of `orm.Field` to configure more field settings, for example:
+```python hl_lines="8"
+from utilmeta.core import orm
+from .models import User
+from django.db import models
+
+class UserSchema(orm.Schema[User]):
+    username: str
+    articles_num: int = orm.Field(
+	    models.Count('articles'),
+	    title='Articles Count',
+	    default=0
+    )
+```
 
 Here are some expressions that are commonly used in real-world development
 #### `Exists`
@@ -521,6 +566,9 @@ class ArticleSchema(orm.Schema[Article]):
             )
         return article_schema
 ```
+
+!!! tip
+	More usage of django query expressions can refer to [Django aggregations](https://docs.djangoproject.com/en/5.0/topics/db/aggregation/)
 
 ## `orm.Schema` usage
 

@@ -414,13 +414,11 @@ class Operations(Config):
         #     _ = settings.INSTALLED_APPS
         # if the settings is not configured, this will trigger ImproperlyConfigured
         # except (ImportError, ImproperlyConfigured):
-        #     print('NOT CONFIGURED')
         #     pass
         # else:
         #     django_settings = settings
         #     # this is a django application with settings configured
         #     # or a UtilMeta service with django settings and setup before Operations setup
-        #     print('SETTINGS CONFIGURED')
 
         from utilmeta.core.server.backends.django.settings import DjangoSettings
 

@@ -100,6 +100,7 @@ class ArticleSchema(ContentSchema[Article]):
     creatable_field: str = orm.Field(mode='a', default=None)
 
     comments: List[CommentSchema] = orm.Field(
+        Comment.objects.order_by('-id'),
         default_factory=list,
         fail_silently=False,
     )  # mount with module

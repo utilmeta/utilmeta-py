@@ -83,14 +83,14 @@ class DjangoModelAdaptor(ModelAdaptor):
                     return True
         raise ValueError("subquery result must be limited to 1 result")
 
-    def check_queryset(self, qs, check_model: bool = False):
+    def check_queryset(self, qs, check_model: bool = False) -> Optional[query_adaptor_cls]:
         if not isinstance(qs, self.queryset_cls):
-            return False
+            return None
         if check_model:
             model = qs.model
             if not issubclass(self.model, model):
-                return False
-        return True
+                return None
+        return self.query_adaptor_cls(qs, model=self)
 
     def get_model(self, qs: models.QuerySet):
         if not isinstance(qs, self.queryset_cls):
@@ -135,10 +135,18 @@ class DjangoModelAdaptor(ModelAdaptor):
         Get name from a field references
         """
         if not name:
+            if silently:
+                return None
             raise ValueError(f"{self.model}: empty field")
         if not isinstance(name, str):
             # field ref / expression
-            return self.field_adaptor_cls(name, model=self)
+            try:
+                return self.field_adaptor_cls(name, model=self)
+            except TypeError:
+                if silently:
+                    return None
+                raise
+
         if name == "pk":
             return self.field_adaptor_cls(self.meta.pk, model=self, lookup_name=name)
         model = self.model

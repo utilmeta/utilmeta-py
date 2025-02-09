@@ -21,6 +21,10 @@ class DjangoModelQueryAdaptor(ModelQueryAdaptor):
     def using(self):
         return self.queryset.db
 
+    @property
+    def is_sliced(self) -> bool:
+        return self.queryset.query.is_sliced
+
     def filter(self, *args, **kwargs) -> "DjangoModelQueryAdaptor":
         return self.__class__(self.queryset.filter(*args, **kwargs), model=self.model)
 

@@ -206,6 +206,10 @@ class ModelQueryAdaptor(BaseAdaptor):
             kwargs.update(d)
         return kwargs
 
+    @property
+    def is_sliced(self) -> bool:
+        raise NotImplementedError
+
     def filter(self, *args, **kwargs) -> "ModelQueryAdaptor":
         raise NotImplementedError
 
@@ -307,7 +311,7 @@ class ModelAdaptor(BaseAdaptor):
     def check_subquery(self, qs):
         raise NotImplementedError
 
-    def check_queryset(self, qs, check_model: bool = False):
+    def check_queryset(self, qs, check_model: bool = False) -> Optional[query_adaptor_cls]:
         raise NotImplementedError
 
     def get_model(self, qs) -> "ModelAdaptor":

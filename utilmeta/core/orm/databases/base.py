@@ -47,7 +47,6 @@ class BaseDatabaseAdaptor:
         raise NotImplementedError
 
     def check(self):
-        # print('CHECK', self.alias)
         # if self.checked.get(self.alias):
         #     raise ValueError
         # self.checked[self.alias] = True

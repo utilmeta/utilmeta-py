@@ -7,6 +7,7 @@ from .constant import COMMON_ERRORS
 from .exceptions import BadRequest, CombinedError
 from datetime import timedelta
 from utilmeta.utils.error import Error
+from utilmeta.utils import time_now
 import warnings
 
 __all__ = [
@@ -45,8 +46,11 @@ def ignore_errors(
                 return f(*args, **kwargs)
             except errors as e:
                 if log:
-                    warnings.warn(f"IGNORED ERROR for {f.__name__}: {e}")
+                    warnings.warn(f"[{str(time_now())}] IGNORED ERROR for {f.__name__}: {e}")
                     if log_detail:
+                        # ?fixme: if the repr of the exception variable
+                        #   is also the cause to trigger the exception
+                        #   this log might be FATAL (causing infinite loop that will drain the system resources)
                         Error(e).log(console=True)
                 # to avoid a public mutable value (like dict) cause unpredictable result
                 # allow to pass a value like dict or list and call it at runtime

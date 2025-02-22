@@ -477,7 +477,7 @@ so in the API functions `get`, `follow`, `unfollow`, you can use `self.profile` 
 !!! tip "hook function"
 	Hooks in UtilMeta API classes are called before/after the target endpoints or handle the errors. to reuse the logics better, you can refer to [Hooks Mechanism in API class](../../guide/api-route/#hook-mechanism)
 
-In addition, for the Profile object eturned by the API, it needs to return a dynamic field `following` that is not from user model. This field should return whether **The user of the current request** followed the target user, so its query expression cannot be written directly in the Schema class
+In addition, for the Profile object returned by the API, it needs to return a dynamic field `following` that is not from user model. This field should return whether **The user of the current request** followed the target user, so its query expression cannot be written directly in the Schema class
 
 Therefore in  `domain/user/schema.py`,  `ProfileSchema` defined a dynamic query function `get_runtime`, pass in the user of the current request, generate the corresponding query expression according to the requesting user, and then return a new class
 
@@ -796,14 +796,9 @@ We defined several hook functions in our example.
 
 ### Comment API
 
-Next we'll develop the comment APIs, from [API documentation for the comment APIs](https://realworld-docs.netlify.app/specifications/backend/endpoints#add-comments-to-an-article), we can see that the comment endpoints are all started with `/api/articles/:slug/comments`, and the path is located in the subdirectory of the article API, that is to say, the API class of the comment API needs to be mounted on the API class of the article API. We open `domain/article/api.py` and add the code for the comment API
+Before developing the comment APIs, let's add the comment Schema in the `domain/article/schema.py`: 
 
 ```python
-from utilmeta.core import api, request, orm, response
-from config.auth import API
-from .models import Article, Comment
-from .schema import CommentSchema
-
 # new +++
 class CommentSchema(orm.Schema[Comment]):
 	id: int = orm.Field(mode='r')
@@ -813,7 +808,17 @@ class CommentSchema(orm.Schema[Comment]):
 	updated_at: datetime
 	author: ProfileSchema
 	author_id: int = orm.Field(mode='a', no_input=True)
-	
+```
+
+From [API documentation for the comment APIs](https://realworld-docs.netlify.app/specifications/backend/endpoints#add-comments-to-an-article), we can see that the comment endpoints are all started with `/api/articles/:slug/comments`, and the path is located in the subdirectory of the article API, that is to say, the API class of the comment API needs to be mounted on the API class of the article API. We open `domain/article/api.py` and add the code for the comment API
+
+```python
+from utilmeta.core import api, request, orm, response
+from config.auth import API
+from .models import Article, Comment
+from .schema import CommentSchema
+
+# new +++	
 @api.route('{slug}/comments')
 class CommentAPI(API):
 	slug: str = request.SlugPathParam
@@ -867,6 +872,7 @@ class CommentAPI(API):
 		self.article = article
 
 class ArticleAPI(API):
+	# new +++
 	comments: CommentAPI
 ```
 
@@ -1051,9 +1057,10 @@ service = UtilMeta(
     backend=starlette,
     production=env.PRODUCTION,
     version=(1, 0, 0),
-    host='0.0.0.0' if env.PRODUCTION else '127.0.0.1',
-    port=80 if env.PRODUCTION else 8000,
-    asynchronous=True
+    port=8080,
+    asynchronous=True,
+    api='service.api.RootAPI',
+    route='/api'
 )
 configure(service)
 ```

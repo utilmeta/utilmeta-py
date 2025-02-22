@@ -14,6 +14,8 @@ CAUSE_DIVIDER = (
 
 
 class Error:
+    MAX_CAUSE_DEPTH: int = 3
+
     def __init__(self, e: Exception = None, request: "Request" = None):
         if isinstance(e, Exception):
             self.exc = e
@@ -39,30 +41,45 @@ class Error:
         # request context
         self.request = request
 
-    def setup(self, from_errors: list = ()):
+    def setup(
+        self,
+        from_errors: list = (),
+        with_cause: bool = True,
+        with_variables: bool = True,
+        depth: int = 0
+    ):
         if self.current_traceback:
             return
         # FIXME: lots of performance cost in this function
         self.current_traceback = "".join(traceback.format_tb(self.exc_traceback))
         self.traceback = self.current_traceback
-        if not from_errors:
+        if not from_errors and with_variables:
             try:
                 self.locals = inspect.trace()[-1][0].f_locals
                 # self.locals: Dict[str, Any] = Util.clean_kwargs(inspect.trace()[-1][0].f_locals, display=True)
             except IndexError:
                 self.locals = {}
 
-        cause = self.exc.__cause__
-        from_errors = [self.exc] + list(from_errors)
+        if with_cause and depth < self.MAX_CAUSE_DEPTH:
+            # fixme:
+            cause = self.exc.__cause__
+            from_errors = [self.exc] + list(from_errors)
 
-        if cause and cause not in from_errors:
-            cause_error = self.__class__(cause)
-            cause_error.setup(from_errors=from_errors)
-            self.traceback = cause_error.full_info + CAUSE_DIVIDER + self.traceback
-            # self.locals.update({
-            #     f'{cause.__class__.__name__}.{key}': val for key, val in cause_error.locals.items()
-            # })
+            if cause and cause not in from_errors:
+                cause_error = self.__class__(cause)
+                cause_error.setup(
+                    from_errors=from_errors,
+                    with_variables=with_variables,
+                    with_cause=with_cause,
+                    depth=depth + 1
+                )
+                self.traceback = cause_error.full_info + CAUSE_DIVIDER + self.traceback
+                # self.locals.update({
+                #     f'{cause.__class__.__name__}.{key}': val for key, val in cause_error.locals.items()
+                # })
 
+        from utilmeta.conf import Preference
+        pref = Preference.get()
         variables = []
         if self.locals:
             variables.append("Exception Local Variables:")
@@ -70,12 +87,11 @@ class Error:
             if key.startswith(SEG) and key.endswith(SEG):
                 continue
             try:
-                variables.append(f"{key} = {readable(val, max_length=100)}")
+                variables.append(f"{key} = {readable(val, max_length=pref.error_variable_max_length)}")
             except Exception as e:
                 print(f"Variable <{key}> serialize error: {e}")
         self.variable_info = "\n".join(variables)
         self.full_info = "\n".join([self.message, *variables])
-        # self.record_disabled = getattr(self.exc, 'record_disabled', False)
 
     def __str__(self):
         return f"<{self.type.__name__}: {str(self.exc)}>"
@@ -87,38 +103,6 @@ class Error:
     @property
     def message(self) -> str:
         return "{0}{1}: {2}".format(self.traceback, self.type.__name__, self.exc)
-
-    # @property
-    # def root_cause(self) -> Exception:
-    #     return self.get_causes()[0]
-
-    # def get_causes(self) -> List[Exception]:
-    #     # causes = getattr(self.exc, Attr.CAUSES, [])
-    #     # cause_reasons = [str(c.current_traceback) for c in causes]
-    #     # if self.current_traceback in cause_reasons:
-    #     #     return causes
-    #     causes = []
-    #     cause = self.exc
-    #     while cause:
-    #         causes.append(cause)
-    #         cause = cause.__cause__
-    #         if cause in causes:
-    #             break
-    #
-    #     causes.reverse()
-    #     # return [self, *getattr(self.exc, Attr.CAUSES, [])]
-    #     return causes
-
-    # @property
-    # def target(self) -> 'Error':
-    #     errors = []
-    #     target = None
-    #     for e in [*self.causes, self]:
-    #         if str(e) in errors:
-    #             continue
-    #         errors.append(str(e))
-    #         target = e
-    #     return target or self
 
     @property
     def status(self) -> int:
@@ -142,12 +126,9 @@ class Error:
     def headers(self):
         return getattr(self.exc, "headers", None)
 
-    def log(self, console: bool = False) -> int:
+    def log(self, console: bool = False, with_variables: bool = True) -> int:
         if not self.full_info:
-            self.setup()
-        # from .log import Logger
-        # if isinstance(logger, Logger):
-        #     logger.resolve(brief=str(self), msg=self.full_info, status=self.status)
+            self.setup(with_variables=with_variables)
         if console:
             print(self.full_info)
         return self.status

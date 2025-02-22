@@ -1,9 +1,8 @@
 import inspect
 from utype import Field
-
-# from utilmeta.conf import Preference
 from utype.parser.field import ParserField
 from utype.types import *
+from utilmeta.utils import class_func, lazy_classmethod_loader
 
 if TYPE_CHECKING:
     from ..backends.base import ModelAdaptor, ModelFieldAdaptor
@@ -55,6 +54,7 @@ class ParserFilter(ParserField):
         self.model_field: Optional[ModelFieldAdaptor] = None
         # self.query: Optional[Callable] = None
         self.filter = self.field if isinstance(self.field, Filter) else Filter()
+        self.query = self.filter.query
 
         if isinstance(model, ModelAdaptor):
             self.model = model
@@ -67,19 +67,25 @@ class ParserFilter(ParserField):
                     if self.model_field:
                         self.validate_field()
                     else:
-                        if not self.filter.query:
+                        if not self.query:
                             raise ValueError(
                                 f"Filter({repr(self.field_name)}) "
                                 f"not resolved to field in model: {model.model}, "
                                 f"use the [query] param in Filter to custom query"
                                 f" or use utype.Field to make this a regular query param"
                             )
-                    if not inspect.isfunction(self.query):
-                        self.model.check_query(self.query)
+                if self.query:
+                    if class_func(self.query):
+                        if isinstance(self.query, classmethod):
+                            self.query = lazy_classmethod_loader(self.query)
+                        elif isinstance(self.query, staticmethod):
+                            self.query = self.query.__func__
 
-    @property
-    def query(self):
-        return self.filter.query
+                        if not callable(self.query):
+                            raise TypeError(f'Invalid Filter query: {self.query}, '
+                                            f'must be a function or a query expression')
+                    else:
+                        self.model.check_query(self.query)
 
     @property
     def order(self):

@@ -1030,7 +1030,7 @@ You can configure the following code in `config/conf.py`
 	    }))
 	    service.setup()
 	```
-=== "config/sevice.py"
+=== "config/service.py"
 	```python
 	from utilmeta import UtilMeta
 	from config.conf import configure

@@ -796,14 +796,9 @@ class ArticleAPI(API):
 
 ### 评论接口
 
-接下来我们开发评论接口，从 [评论接口的 API 文档](https://realworld-docs.netlify.app/specifications/backend/endpoints/#add-comments-to-an-article) 可以发现，评论接口都是以 `/api/articles/:slug/comments` 作为路径开端的，并且路径位于文章接口的子目录，也就是说评论接口的 API 类需要挂载到文章接口的 API 类上，我们在 `domain/article/api.py` 中添加评论接口的代码
+接下来我们开发评论接口，还是先来编写评论的 Schema，我们打开 `domain/article/schema.py`，增加以下代码：
 
 ```python
-from utilmeta.core import api, request, orm, response
-from config.auth import API
-from .models import Article, Comment
-from .schema import CommentSchema
-
 # new +++
 class CommentSchema(orm.Schema[Comment]):
 	id: int = orm.Field(mode='r')
@@ -813,7 +808,17 @@ class CommentSchema(orm.Schema[Comment]):
 	updated_at: datetime
 	author: ProfileSchema
 	author_id: int = orm.Field(mode='a', no_input=True)
-	
+```
+
+从 [评论接口的 API 文档](https://realworld-docs.netlify.app/specifications/backend/endpoints/#add-comments-to-an-article) 可以发现，评论接口都是以 `/api/articles/:slug/comments` 作为路径开端的，并且路径位于文章接口的子目录，也就是说评论接口的 API 类需要挂载到文章接口的 API 类上，我们在 `domain/article/api.py` 中添加评论接口的代码
+
+```python
+from utilmeta.core import api, request, orm, response
+from config.auth import API
+from .models import Article, Comment
+from .schema import CommentSchema
+
+# new +++
 @api.route('{slug}/comments')
 class CommentAPI(API):
 	slug: str = request.SlugPathParam
@@ -867,6 +872,7 @@ class CommentAPI(API):
 		self.article = article
 
 class ArticleAPI(API):
+	# new +++
 	comments: CommentAPI
 ```
 
@@ -1057,9 +1063,10 @@ service = UtilMeta(
     backend=starlette,
     production=env.PRODUCTION,
     version=(1, 0, 0),
-    host='0.0.0.0' if env.PRODUCTION else '127.0.0.1',
-    port=80 if env.PRODUCTION else 8000,
-    asynchronous=True
+    port=8080,
+    asynchronous=True,
+    api='service.api.RootAPI',
+    route='/api'
 )
 configure(service)
 ```

@@ -36,6 +36,7 @@ class ParserQueryField(ParserField):
         )
         self.field_name = self.field.field if (isinstance(self.field, QueryField) and
                                                isinstance(self.field.field, str)) else self.attname
+        self.annotation_conflicted = False
         self.many_included = False
         self.subquery = None
         self.queryset = (
@@ -223,6 +224,24 @@ class ParserQueryField(ParserField):
                         f"specify queryset field and queryset param at the same time is not supported"
                     )
                 self.queryset = self.field_object
+
+            elif self.model_field:
+                # 1. func
+                # 2. query expression
+                msg = f'orm.field: {repr(self.field_name)} with {self.field_object} conflicted with model field'
+                if pref.orm_on_conflict_annotation == 'error':
+                    raise ValueError(msg)
+                elif pref.orm_on_conflict_annotation == 'warn':
+                    warnings.warn(msg, stacklevel=self.STACK_LEVEL)
+
+                # try new model field to override
+                self.model_field = self.model.get_field(
+                    self.field_object, silently=True
+                )
+                self.related_model = (
+                    self.model_field.related_model if self.model_field else None
+                )
+                self.annotation_conflicted = True
 
         if not self.model_field:
             if class_func(self.field_object):
@@ -437,6 +456,25 @@ class ParserQueryField(ParserField):
                         f"error: {e}"
                     )
                 # fixme: do not merge for ForwardRef
+
+            # VALIDATE FIELDS
+            if self.model_field.is_exp:
+                self.model.check_expressions(self.expression)
+
+            if self.field_name != self.name:
+                # field: ... = orm.Field('field.lookup')
+                # detect field collision
+                conflicted_field = self.model.get_field(
+                    self.name, allow_addon=True, silently=True
+                )
+                if conflicted_field:
+                    msg = (f'orm.field: {repr(self.name)} with field {repr(self.field_name)} '
+                           f'conflicted with model field')
+                    if pref.orm_on_conflict_annotation == 'error':
+                        raise ValueError(msg)
+                    elif pref.orm_on_conflict_annotation == 'warn':
+                        warnings.warn(msg, stacklevel=self.STACK_LEVEL)
+                    self.annotation_conflicted = True
 
         else:
             if isinstance(self.field, QueryField) and isinstance(self.field.field, str):

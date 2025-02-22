@@ -156,7 +156,10 @@ class OperationWorkerTask(BaseCycleTask):
 
     def handle_error(self, e, type: str = 'ops.task'):
         err = Error(e)
-        err.setup()
+        err.setup(
+            with_cause=False,
+            with_variables=False
+        )
         self.log(str(e) + '\n' + err.full_info, level='error')
         print(err.full_info)
 
@@ -890,7 +893,7 @@ class OperationWorkerTask(BaseCycleTask):
                     # using batch to handle history missing report
                     # avoid sending massive reports
                     values = []
-                    for obj in list(missing_reports[offset : offset + batch_size]):
+                    for obj in list(missing_reports[offset: offset + batch_size]):
                         obj: AggregationLog
                         service = obj.data.get("service")
                         if not service:

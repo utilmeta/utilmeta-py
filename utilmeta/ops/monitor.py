@@ -333,7 +333,9 @@ def get_db_server_size(using: str) -> int:
     from django.db import connections
 
     db_sql = {
-        DB.PostgreSQL: "select sum(pg_database_size(pg_database.datname)) from pg_database;",  # noqa
+        DB.PostgreSQL: "select sum(pg_database_size(pg_database.datname)) from pg_database "
+                       "where has_database_privilege(datname, 'CONNECT');",  # noqa
+        # fix: InsufficientPrivilege: permission denied for database XX
         DB.MySQL: "select sum(DATA_LENGTH)+sum(INDEX_LENGTH) from information_schema.tables;",  # noqa
         DB.Oracle: "select sum(bytes) from dba_segments;",  # noqa
     }

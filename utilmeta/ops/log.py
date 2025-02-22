@@ -6,8 +6,6 @@ from utilmeta.utils.context import ContextProperty, Property
 from typing import List, Optional, Union
 from utilmeta.core.server import ServiceMiddleware
 from utilmeta.utils import (
-    file_like,
-    SECRET,
     HAS_BODY_METHODS,
     hide_secret_values,
     normalize,
@@ -21,7 +19,6 @@ from utilmeta.utils import (
 from .config import Operations
 import threading
 import contextvars
-from datetime import timedelta
 import time
 from functools import wraps
 from django.db import models
@@ -853,19 +850,19 @@ class Logger(Property):
             query=query,
             data=data,
             result=result,
-            user_id=user_id,
+            user_id=str(user_id)[:100] if user_id else None,
             ip=str(request.ip_address),
             user_agent=parse_user_agents(request.headers.get("user-agent")),
             status=status,
-            request_type=request.content_type,
-            response_type=response.content_type,
+            request_type=str(request.content_type)[:200] if request.content_type else None,
+            response_type=str(response.content_type)[:200] if response.content_type else None,
             request_headers=request_headers,
             response_headers=response_headers,
             length=response.content_length,
             method=method,
             endpoint=endpoint,
-            endpoint_ident=endpoint_ident,
-            endpoint_ref=endpoint_ref,
+            endpoint_ident=str(endpoint_ident)[:200] if endpoint_ident else None,
+            endpoint_ref=str(endpoint_ref)[:200] if endpoint_ref else None,
             messages=self.messages,
             trace=self.get_trace(),
         )

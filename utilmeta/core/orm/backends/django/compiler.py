@@ -45,6 +45,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         self.pk_fields = set()
         self.fields = []
         self.expressions = dict(self.context.force_expressions or {})
+        self.annotation_aliases = {}
         self.isolated_fields = {}
 
     def _get_pk(self, value, robust: bool = False):
@@ -122,11 +123,18 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             pk_list.append(pk)
             for f in self.pk_fields:
                 val.setdefault(f, pk)
+            if self.annotation_aliases:
+                self.process_annotation_aliases(val)
             pk_map[pk] = val
             result.append(val)
         self.pk_list = pk_list
         self.pk_map = pk_map
         self.values: List[dict] = result
+
+    def process_annotation_aliases(self, val: dict):
+        for name, alias in self.annotation_aliases.items():
+            val[name] = pop(val, alias)
+        return val
 
     def clear_pks(self):
         if PK not in self.pk_fields:
@@ -249,9 +257,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 self.recursively = True
 
         elif field.expression:
-            self.expressions.setdefault(
-                field.name, self.process_expression(field.expression)
-            )
+            self.add_expression(field, self.process_expression(field.expression))
             return
 
         if field.included:
@@ -261,7 +267,19 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 if query_name == field.name:
                     self.fields.append(query_name)
                 else:
-                    self.expressions.setdefault(field.name, exp.F(query_name))
+                    self.add_expression(field, exp.F(query_name))
+
+    def add_expression(self, field: ParserQueryField, expr):
+        name = field.name
+
+        if field.annotation_conflicted:
+            name = SEG + field.name
+            self.annotation_aliases[field.name] = name
+            # prevent ValueError: The annotation 'XX' conflicts with a field on the model.
+
+        self.expressions.setdefault(
+            name, expr
+        )
 
     def query_isolated_field(self, field: ParserQueryField):
         """

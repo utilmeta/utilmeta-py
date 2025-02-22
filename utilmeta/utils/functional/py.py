@@ -24,6 +24,7 @@ __all__ = [
     "get_doc",
     "requires",
     "get_base_type",
+    "lazy_classmethod_loader"
 ]
 
 
@@ -80,6 +81,37 @@ def class_func(f):
         or inspect.ismethod(f)
         or inspect.isfunction(f)
     )
+
+
+def lazy_classmethod_loader(f: classmethod):
+    if not isinstance(f, classmethod):
+        return f
+
+    func = f.__func__
+    module_name = getattr(func, "__module__", '__main__')
+    try:
+        module = sys.modules[module_name]
+    except KeyError:
+        module = import_obj(module_name)
+
+    qualname = func.__qualname__
+    classes = qualname.split('.')[:-1]
+
+    def get_class():
+        # import class lazily at runtime
+        cls = module
+        for name in classes:
+            try:
+                cls = getattr(cls, name)
+            except AttributeError:
+                return cls
+        return cls
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(get_class(), *args, **kwargs)
+
+    return wrapper
 
 
 def function_pass(f):

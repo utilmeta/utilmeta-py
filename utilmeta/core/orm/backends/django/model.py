@@ -331,22 +331,28 @@ class DjangoModelAdaptor(ModelAdaptor):
         return output_field
 
     def check_expressions(self, expr):
-        if isinstance(expr, exp.CombinedExpression):
-            for exp_field in self.field_adaptor_cls.iter_combined_expression(expr):
-                f = self.field_adaptor_cls.get_exp_field(exp_field)
-                if f:
-                    self.get_field(f, allow_addon=True)
-        else:
-            f = self.field_adaptor_cls.get_exp_field(expr)
-            if f:
-                self.get_field(f, allow_addon=True)
-
-        output_field = self.resolve_output_field(expr)
-        if output_field:
-            # force set output field if resolved
-            expr.output_field = output_field
+        # if isinstance(expr, exp.CombinedExpression):
+        #     for exp_field in self.field_adaptor_cls.iter_combined_expression(expr):
+        #         f = self.field_adaptor_cls.get_exp_field(exp_field)
+        #         if f:
+        #             self.get_field(f, allow_addon=True)
+        # else:
+        #     f = self.field_adaptor_cls.get_exp_field(expr)
+        #     if f:
+        #         self.get_field(f, allow_addon=True)
+        #
+        # output_field = self.resolve_output_field(expr)
+        # if output_field:
+        #     # force set output field if resolved
+        #     expr.output_field = output_field
+        try:
+            _ = self.get_queryset().values(_=expr)
+        except exc.FieldError as e:
+            raise exc.FieldError(f"Invalid expression field {repr(expr)}: {e}")
 
     def check_query(self, q):
+        if not isinstance(q, (models.Q, models.QuerySet, list, dict)):
+            raise TypeError(f'Invalid query: {q}')
         try:
             self.get_queryset(q)
         except exc.FieldError as e:
@@ -433,3 +439,6 @@ class DjangoModelAdaptor(ModelAdaptor):
         if filters:
             qs = qs.filter(**filters)
         return qs
+
+    def save(self, updates: dict = None, **kwargs):
+        raise NotImplementedError

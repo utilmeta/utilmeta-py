@@ -1,5 +1,14 @@
 # Release Note
 
+## v2.7.4
+
+Release Date:  2025/2/10
+
+### Optimized
+
+* Optimized `queryset` handing in `orm.Field`.
+* Support multi-layer ORM relational objects update, prevent infinite loop in `Self` reference.
+
 ## v2.7.3
 
 Release Date: 2025/1/24

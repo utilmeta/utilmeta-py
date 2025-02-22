@@ -115,6 +115,27 @@ class TestSchemaQuery:
         assert content.id == 1
         assert content.article.id == 1
 
+    def test_orm_preferences(self, service):
+        # orm_on_conflict_annotation
+
+        from app.models import Article
+        from django.db import models
+
+        with pytest.raises(SyntaxError):
+            class Article_(orm.Schema[Article]):
+                id: int
+                not_exists: int = models.Count('not_exists')
+                # not exists
+
+        class ArticleData(orm.Schema[Article]):
+            id: int
+            author: str = orm.Field('author.username')
+            liked_bys: int = models.Count('liked_bys')
+
+        article = ArticleData.init(1)
+        assert article.author == 'bob'
+        assert article.liked_bys == 3
+
     def test_related_qs(self, service, db_using):
         from app.schema import UserBase, ArticleSchema
         from app.models import Article, User

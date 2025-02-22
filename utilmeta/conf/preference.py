@@ -22,6 +22,9 @@ class Preference(Config):
     orm_default_gather_async_fields: bool
     orm_on_non_exists_required_field: Literal['error', 'warn', 'ignore'] = 'warn'
     orm_on_sliced_field_queryset: Literal['error', 'warn', 'ignore'] = 'warn'
+    orm_on_conflict_annotation: Literal['error', 'warn', 'ignore'] = 'warn'
+    # ValueError: The annotation 'label' conflicts with a field on the model.
+
     orm_schema_query_max_depth: Optional[int]
     # orm_recursion: bool
     # orm_default_filter_required: Optional[bool]
@@ -29,6 +32,8 @@ class Preference(Config):
 
     strict_root_route: bool
     dependencies_auto_install_disabled: bool
+
+    error_variable_max_length: Optional[int]
 
     def __init__(
         self,
@@ -58,8 +63,10 @@ class Preference(Config):
         orm_default_gather_async_fields: bool = False,
         orm_on_non_exists_required_field: Literal['error', 'warn', 'ignore'] = 'warn',
         orm_on_sliced_field_queryset: Literal['error', 'warn', 'ignore'] = 'warn',
+        orm_on_conflict_annotation: Literal['error', 'warn', 'ignore'] = 'warn',
         orm_schema_query_max_depth: Optional[int] = 100,
         dependencies_auto_install_disabled: bool = False,
+        error_variable_max_length: Optional[int] = 100,
     ):
         super().__init__(locals())
 

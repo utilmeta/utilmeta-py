@@ -1042,7 +1042,7 @@ meta setup blog --temp=full
 	    }))
 	    service.setup()
 	```
-=== "config/sevice.py"
+=== "config/service.py"
 	```python
 	from utilmeta import UtilMeta
 	from config.conf import configure

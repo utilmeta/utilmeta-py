@@ -399,6 +399,8 @@ def reduce_value(data, max_length: int) -> dict:
 
 
 def readable(data, max_length: int = 20, more: bool = True) -> str:
+    if not max_length:
+        return repr(data)
     if data is None:
         return repr(None)
     _bytes = False

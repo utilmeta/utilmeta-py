@@ -73,52 +73,77 @@ class DBSessionSchema(BaseSessionSchema):
             created_time=self._request.time if self._request else time_now(),
         )
 
-    def load_object(self, must_create: bool = False):
-        """
-        To be inherit
-        """
-        session_id = None
-        if not self.session_key:
-            self._session_key = self._get_new_session_key()
-        elif not must_create:
-            obj = self._model_cls.filter(session_key=self.session_key).get_instance()
-            session_id = obj.pk if obj else None
-        return self._model_cls.init_instance(id=session_id, **self.get_session_data())
+    # def load_object(self, must_create: bool = False):
+    #     """
+    #     To be inherit
+    #     """
+    #     session_id = None
+    #     if not self.session_key:
+    #         self._session_key = self._get_new_session_key()
+    #     elif not must_create:
+    #         obj = self._model_cls.filter(session_key=self.session_key).get_instance()
+    #         session_id = obj.pk if obj else None
+    #     return self._model_cls.init_instance(id=session_id, **self.get_session_data())
+    #
+    # async def aload_object(self, must_create: bool = False):
+    #     """
+    #     To be inherit
+    #     """
+    #     session_id = None
+    #     if not self.session_key:
+    #         self._session_key = await self._aget_new_session_key()
+    #     elif not must_create:
+    #         obj = await self._model_cls.filter(
+    #             session_key=self.session_key
+    #         ).aget_instance()
+    #         session_id = obj.pk if obj else None
+    #     data = self.get_session_data()
+    #     if inspect.isawaitable(data):
+    #         data = await data
+    #     return self._model_cls.init_instance(id=session_id, **data)
 
-    async def aload_object(self, must_create: bool = False):
-        """
-        To be inherit
-        """
-        session_id = None
-        if not self.session_key:
-            self._session_key = await self._aget_new_session_key()
-        elif not must_create:
-            obj = await self._model_cls.filter(
-                session_key=self.session_key
-            ).aget_instance()
-            session_id = obj.pk if obj else None
-        data = self.get_session_data()
-        if inspect.isawaitable(data):
-            data = await data
-        return self._model_cls.init_instance(id=session_id, **data)
-
-    def db_save(self, must_create=False, force: bool = True):
+    def db_save(self, must_create=False):
         if self.session_key is None:
             return self.create()
-        obj = self.load_object(must_create)
-        if not obj.pk:
-            must_create = True
-        obj.save(force_insert=must_create, force_update=not must_create and force)
+        # obj = self.load_object(must_create)
+        # if not obj.pk:
+        #     must_create = True
+        # if not must_create and obj.pk:
+        #     self._model_cls.query(pk=obj.pk).update(self.get_session_data())
+        # else:
+        #     obj.save(force_insert=must_create, force_update=not must_create and force)
+        if must_create:
+            try:
+                self._model_cls.query().create(self.get_session_data())
+            except Exception as e:
+                raise SessionCreateError(f'Create session failed with error: {e}') from e
+            return
+        # update or create
+        self._model_cls.query().update_or_create(
+            session_key=self.session_key,
+            defaults=self.get_session_data(),
+        )
 
     # @awaitable(db_save)
-    async def adb_save(self, must_create=False, force: bool = True):
+    async def adb_save(self, must_create=False):
         if self.session_key is None:
             return await self.acreate()
-        obj = await self.aload_object(must_create)
-        if not obj.pk:
-            must_create = True
-        await obj.asave(
-            force_insert=must_create, force_update=not must_create and force
+        # obj = await self.aload_object(must_create)
+        # if not obj.pk:
+        #     must_create = True
+        # await obj.asave(
+        #     force_insert=must_create, force_update=not must_create and force
+        # )
+        if must_create:
+            try:
+                await self._model_cls.query().acreate(self.get_session_data())
+            except Exception as e:
+                raise SessionCreateError(f'Create session failed with error: {e}') from e
+            return
+        # update or create
+        await self._model_cls.query().aupdate_or_create(
+            session_key=self.session_key,
+            defaults=self.get_session_data(),
         )
 
     def save(self, must_create: bool = False):

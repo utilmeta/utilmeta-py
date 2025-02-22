@@ -234,7 +234,13 @@ class ModelQueryAdaptor(BaseAdaptor):
     def create(self, d=None, **data):
         raise NotImplementedError
 
+    def update_or_create(self, defaults: dict = None, **data):
+        raise NotImplementedError
+
     async def acreate(self, d=None, **data):
+        raise NotImplementedError
+
+    async def aupdate_or_create(self, defaults: dict = None, **data):
         raise NotImplementedError
 
     def bulk_create(self, data: list, **kwargs):
@@ -399,6 +405,13 @@ class ModelAdaptor(BaseAdaptor):
 
     def get_queryset(self, query=None, pk=None, using: str = None):
         # for django it's like model.objects.all()
+        raise NotImplementedError
+
+    def save(
+        self,
+        filters: dict = None,
+        updates: dict = None,
+    ):
         raise NotImplementedError
 
     # ------------- QUERY METHODS

@@ -212,14 +212,24 @@ class UserQuery(orm.Query[User]):
     followers: int
     followings: int
     follower_name: str = orm.Filter("followers.username")
-    within_days: int = orm.Filter(query=lambda v: exp.Q(
-        signup_time__gte=datetime.now() - timedelta(days=v)
-    ))
+
+    @classmethod
+    def within_days_func(cls, v):
+        return exp.Q(
+            signup_time__gte=datetime.now() - timedelta(days=v)
+        )
+
+    within_days: int = orm.Filter(query=within_days_func)
     signup_date: date = orm.Filter('signup_time.date')
     followers_num: int = orm.Filter(exp.Count("followers"))
+
+    @staticmethod
+    def follower_num_func(v):
+        return exp.Q(followers_num_gte__gte=v)
+
     followers_num_gte: int = orm.Filter(
         exp.Count("followers"),
-        query=lambda v: exp.Q(followers_num_gte__gte=v),
+        query=follower_num_func,
         alias='followers_num>='
     )
     # ugly though...

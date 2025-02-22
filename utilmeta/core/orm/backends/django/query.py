@@ -53,18 +53,48 @@ class DjangoModelQueryAdaptor(ModelQueryAdaptor):
             inst = self.model.get_instance_recursively(
                 pk=pk, using=self.using
             )
-            if inst.__class__ == self.model.model:
-                raise IntegrityError(f'Cannot create {self.model.model} '
-                                     f'instance: primary key {repr(pk)} already exists')
-            else:
-                # child not exists, but parent exists
-                raw_inst = self.model.init_instance(pk=pk, **data)
-                raw_inst.save_base(raw=True, using=self.using)
-                return
+            if inst:
+                if inst.__class__ == self.model.model:
+                    raise IntegrityError(f'Cannot create {self.model.model} '
+                                         f'instance: primary key {repr(pk)} already exists')
+                else:
+                    # child not exists, but parent exists
+                    raw_inst = self.model.init_instance(pk=pk, **data)
+                    raw_inst.save_base(raw=True, using=self.using)
+                    return
         return self.queryset.create(**create_data)
 
     async def acreate(self, d=None, **data):
+        create_data = self.get_kwargs(d, **data)
+        pk = self.model.get_pk(create_data)
+        if pk:
+            inst = await self.model.aget_instance_recursively(
+                pk=pk, using=self.using
+            )
+            if inst:
+                if inst.__class__ == self.model.model:
+                    raise IntegrityError(f'Cannot create {self.model.model} '
+                                         f'instance: primary key {repr(pk)} already exists')
+                else:
+                    # child not exists, but parent exists
+                    raw_inst = self.model.init_instance(pk=pk, **data)
+                    from .queryset import AwaitableQuerySet
+                    await AwaitableQuerySet(
+                        model=self.model.model,
+                        using=self.using
+                    ).save_obj(raw_inst)
+                    return
         return await self.queryset.acreate(**self.get_kwargs(d, **data))
+
+    def update_or_create(self, defaults: dict = None, **data):
+        return self.queryset.update_or_create(
+            defaults=defaults, **data
+        )
+
+    async def aupdate_or_create(self, defaults: dict = None, **data):
+        return await self.queryset.aupdate_or_create(
+            defaults=defaults, **data
+        )
 
     def bulk_create(self, data: list, **kwargs):
         objs = self.queryset.bulk_create(data, **kwargs)

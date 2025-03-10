@@ -21,6 +21,10 @@ class AiohttpClientResponseAdaptor(ResponseAdaptor):
         return self.response.reason
 
     @property
+    def url(self):
+        return str(self.response.url)
+
+    @property
     def headers(self):
         return self.response.headers
 

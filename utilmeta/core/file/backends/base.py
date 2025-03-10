@@ -4,6 +4,8 @@ import inspect
 
 
 class FileAdaptor(BaseAdaptor):
+    __backends_package__ = 'utilmeta.core.file.backends'
+
     def __init__(self, file):
         self.file = file
         self.object = self.get_object()

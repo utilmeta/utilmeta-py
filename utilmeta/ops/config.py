@@ -16,7 +16,8 @@ from utilmeta.utils import (
     get_origin,
     get_server_ip,
     valid_url,
-    time_now
+    time_now,
+    private_address
 )
 from typing import Union
 from urllib.parse import urlsplit
@@ -193,10 +194,11 @@ class Operations(Config):
         eager_migrate: bool = False,
         eager_mount: bool = False,
         # new in v2.6.5 +---------
-        # token: str = None
-        # proxy_url: str = None,
-        # proxy_forward_requests: bool = None,
         proxy: Proxy = None,
+        # new in v2.7.5 +---------
+        connection_key: str = None,
+        private_scope: List[str] = (),
+        # use token mode to authorize network service with private IP
     ):
         super().__init__(locals())
 
@@ -241,6 +243,9 @@ class Operations(Config):
         self.resources_manager_cls_string = resources_manager_cls
         self.task_log = task_log
         self.task_log_level = task_log_level
+        self.connection_key = connection_key
+        self.private_scope = private_scope
+
         # self._token = token
         self._ready = False
         self._node_id = None
@@ -310,8 +315,20 @@ class Operations(Config):
         return not self.local_scope
 
     @property
+    def private_disabled(self):
+        return not self.private_scope or not self.connection_key or not self.is_secure
+
+    @property
     def is_local(self):
         return localhost(self.ops_api)
+
+    @property
+    def is_private(self):
+        # 1. IP
+        #      ip.is_private
+        # 2. domain
+        #      resolve to ip
+        return private_address(self.ops_api)
 
     @property
     def is_secure(self):
@@ -518,7 +535,7 @@ class Operations(Config):
 
     @property
     def connect_url(self):
-        if self.is_local:
+        if self.is_local or (self.private_disabled and self.is_private):
             return f"{__website__}/localhost?local_node={self.ops_api}"
         return __website__
 

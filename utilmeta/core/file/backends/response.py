@@ -1,6 +1,7 @@
 from .base import FileAdaptor
 from utilmeta.core.response import Response
 from utilmeta.core.response.base import ResponseAdaptor
+from urllib.parse import urlsplit
 
 
 class ResponseFileAdaptor(FileAdaptor):
@@ -24,27 +25,34 @@ class ResponseFileAdaptor(FileAdaptor):
         return True
 
     def get_object(self):
-        file = self.file.file
+        file = self.response.file
         if file:
             return file.file
         from io import BytesIO
-
-        return BytesIO(self.file.body)
+        return BytesIO(self.response.body)
 
     @property
     def size(self):
-        length = self.file.content_length
+        length = self.response.content_length
         if length:
             return length
         return super().size
 
     @property
     def content_type(self):
-        return self.file.content_type
+        return self.response.content_type
 
     @property
     def filename(self):
-        return self.file.filename
+        filename = self.response.filename
+        if filename:
+            return filename
+        url = self.response.url
+        if isinstance(url, str):
+            parsed = urlsplit(url)
+            if parsed.path:
+                return parsed.path.split('/')[-1]
+        return ''
 
     def close(self):
-        self.file.close()
+        self.response.close()

@@ -14,7 +14,7 @@
 
 ### ORM
 
-* **SQLAchemy**
+* **SQLAlchemy**
 * **Peewee**
 
 ### Runtime Backend

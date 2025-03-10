@@ -41,6 +41,7 @@ __all__ = [
     "normalize",
     "url_join",
     "localhost",
+    "private_address",
     "etag",
     "dumps",
     "loads",
@@ -166,6 +167,25 @@ def localhost(host: str) -> bool:
         host = "http://" + host
     hostname = urlparse(host).hostname
     return hostname in ["127.0.0.1", "localhost"]
+
+
+def private_address(host: str, local: bool = False) -> bool:
+    if not isinstance(host, str):
+        return False
+    if localhost(host):
+        return local
+    if "://" not in host:
+        # can be http/https/unix/redis...
+        host = "http://" + host
+    hostname = urlparse(host).hostname
+    from .sys import get_ip
+    ip = get_ip(hostname)
+    if not ip:
+        return False
+    try:
+        return ip_address(ip).is_private
+    except ValueError:
+        return False
 
 
 def encode_query(

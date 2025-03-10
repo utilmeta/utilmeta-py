@@ -30,7 +30,13 @@ NO_CACHES = ["no-cache", "no-store", "max-age=0"]
 
 @api.CORS(
     allow_origin="*",
-    allow_headers=["authorization", "cache-control", "x-utilmeta-node-id", "x-node-id"],
+    allow_headers=[
+        "authorization",
+        "cache-control",
+        "x-utilmeta-node-id",
+        "x-node-id",
+        "x-utilmeta-connection-key",
+    ],
     cors_max_age=3600 * 6,
 )
 class OperationsAPI(api.API):
@@ -90,15 +96,22 @@ class OperationsAPI(api.API):
     def get(self):
         try:
             from utilmeta import service  # noqa
-
             name = service.name
         except ImportError:
             # raise exceptions.ServerError('service not initialized')
             name = None
+        requires = []
+        if ((config.is_local and not config.local_disabled) or
+                (config.is_private and not config.private_disabled)):
+            if config.connection_key:
+                requires.append('connection_key')
+        else:
+            requires.append('authorization')
         return dict(
             utilmeta=__spec_version__,
             service=name,
             timestamp=int(self.request.time.timestamp() * 1000),
+            requires=requires,
         )
 
     @adapt_async(close_conn=config.db_alias)
@@ -162,14 +175,22 @@ class OperationsAPI(api.API):
         node_id: str = request.HeaderParam(
             "X-UtilMeta-Node-ID", alias_from=["x-node-id"], default=None
         ),
+        connection_key: str = request.HeaderParam(
+            "X-UtilMeta-Connection-Key", default=None
+        ),
     ):
-        type, token = self.request.authorization
+        type, auth_token = self.request.authorization
         node_id = node_id or self.request.query.get("node")
-        if not token:
+        if not auth_token:
+            from utilmeta import service
             if not config.local_disabled and config.is_local:
-                from utilmeta import service
-
                 if str(self.request.ip_address) == "127.0.0.1":
+                    if config.connection_key:
+                        if not connection_key:
+                            raise exceptions.Unauthorized(state='connection_key_missing')
+                        if connection_key != config.connection_key:
+                            raise exceptions.Unauthorized(state='connection_key_wrong')
+
                     # LOCAL -> LOCAL MANAGE
                     try:
                         supervisor = SupervisorObject.init(
@@ -198,7 +219,44 @@ class OperationsAPI(api.API):
                         # raise exceptions.Unauthorized
                     var.scopes.setter(self.request, config.local_scope)
                     return
+
+            elif not config.private_disabled and config.is_private and self.request.ip_address.is_private:
+                # manage services in private network
+                if not connection_key:
+                    raise exceptions.Unauthorized(state='connection_key_missing')
+                if connection_key != config.connection_key:
+                    raise exceptions.Unauthorized(state='connection_key_wrong')
+
+                try:
+                    supervisor = SupervisorObject.init(
+                        Supervisor.objects.filter(
+                            node_id=node_id,
+                            disabled=False,
+                            local=True,
+                            ops_api=config.ops_api,
+                        )
+                    )
+                    supervisor_var.setter(self.request, supervisor)
+                except orm.EmptyQueryset:
+                    supervisor_var.setter(
+                        self.request,
+                        SupervisorObject(
+                            id=None,
+                            service=service.name,
+                            node_id=None,
+                            disabled=False,
+                            ident=None,
+                            local=True,
+                            ops_api=config.ops_api,
+                        ),
+                    )
+                    pass
+                    # raise exceptions.Unauthorized
+                var.scopes.setter(self.request, config.private_scope)
+                return
+
             raise exceptions.Unauthorized
+
         # node can also be included in the query params to avoid additional headers
         if not node_id:
             raise exceptions.BadRequest("Node ID required", state="node_required")
@@ -213,7 +271,7 @@ class OperationsAPI(api.API):
             )
         ):
             try:
-                token_data = decode_token(token, public_key=supervisor.public_key)
+                token_data = decode_token(auth_token, public_key=supervisor.public_key)
             except ValueError:
                 raise exceptions.BadRequest(
                     "Invalid token format", state="token_expired"

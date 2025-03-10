@@ -705,9 +705,11 @@ class Response:
 
     @property
     def url(self):
-        if not self.request:
-            return None
-        return self.request.url
+        if self.request:
+            return self.request.url
+        if self.adaptor:
+            return self.adaptor.url
+        return None
 
     @property
     def time(self):

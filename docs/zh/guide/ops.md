@@ -273,7 +273,8 @@ please visit [URL] to view and manage your APIs'
 
 点击那个 URL 就可以进入平台访问你已连接好的线上服务了，或者在执行成功后点击平台中的【I've executed successfully】按钮刷新状态
 
-### 连接内网集群
+
+### 连接内网集群【代理模式】
 
 除了在公网部署和提供访问的 API 服务外，我们有时也需要管理内网集群中的 API 服务，比如公司内网的内部服务，这些服务没有公开的 IP 地址或访问 URL，管理这些内网服务需要设置内网集群中的公网代理，部署一个代理服务节点进行内网穿透与服务注册，同时具备内网访问鉴权的功能
 
@@ -319,6 +320,45 @@ service.use(Operations(
 
 !!! note
 	集群中的服务节点需要与代理节点配置相同的 Operations 数据库，这个共同的数据库将会作为集群中的服务鉴权依据和管理存储中心，目前主要支持 PostgreSQL 和 MySQL 作为集群 Operations 存储，未来的版本会支持其他的存储源
+
+### 直连内网节点
+
+除了上文的连接管理整个内网集群的 **代理模式** 外，UtilMeta 还提供了一种类似于连接本地节点的方式直接管理内网中的服务节点，这种直连内网服务管理需要满足两个条件：
+
+* 你的客户端（你打开 UtilMeta 管理平台的浏览器的电脑）与你要管理的 UtilMeta 服务位于同一 **内网**，也就是说你的电脑可以直接通过服务的内网地址直接访问到服务的 API 接口
+* 你的内网服务节点需要提供 HTTPS 协议的访问
+
+!!! note
+	对 HTTPS 协议的要求是浏览器对每一个使用 HTTPS 协议服务的网页（UtilMeta 管理平台）所调用任何除了本机地址（localhost / 127.0.0.1）外的 URL 的要求，之后 UtilMeta 也规划上线桌面客户端或浏览器插件，可以绕过这个限制
+
+满足以上条件后，直连内网节点需要你对 Operations 增加两项配置：
+
+* `connection_key`：为了保障内网节点的安全，直连内网节点需要你在 Operations 配置中预先设置一个密钥（最好是一个较长的随机字符串），UtilMeta 对于来自内网的管理请求会先校验这个密钥，校验通过后才会执行对应的请求
+* `private_scope`：对内网请求的权限范围的授权，权限范围的取值参考上文 `local_scope` 部分的介绍，如果需要授予全部权限，可以使用 `['*']`
+
+配置示例如下：
+```python
+from config.env import env
+from utilmeta.ops import Operations
+
+service.use(Operations(
+	base_url='https://my-private-service.com/api',   # replace with your domain
+	# other settings...
+	connection_key=env.CONNECTION_KEY,
+	private_scope=['*']
+))
+```
+
+配置完成后重启服务你会看到输出中有类似本地服务的
+
+```
+UtilMeta OperationsAPI loaded at https://my-private-service.com/api/ops, connect your APIs at https://ops.utilmeta.com/localhost?local_node=https://my-private-service.com/api/ops
+```
+
+直接点击第二个链接即可进入 UtilMeta 平台连接你的内网节点，进入后会弹出一个对话框让你输入之前设置好的 `connection_key`，输入正确的密钥即可连接并管理内网节点
+
+<img src="https://utilmeta.com/assets/image/set-connection-key-en.png" href="https://ops.utilmeta.com" target="_blank" width="500"/>
+
 
 ## 连接现有 Python 项目
 

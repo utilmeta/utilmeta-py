@@ -73,34 +73,28 @@ class DBSessionSchema(BaseSessionSchema):
             created_time=self._request.time if self._request else time_now(),
         )
 
-    # def load_object(self, must_create: bool = False):
-    #     """
-    #     To be inherit
-    #     """
-    #     session_id = None
-    #     if not self.session_key:
-    #         self._session_key = self._get_new_session_key()
-    #     elif not must_create:
-    #         obj = self._model_cls.filter(session_key=self.session_key).get_instance()
-    #         session_id = obj.pk if obj else None
-    #     return self._model_cls.init_instance(id=session_id, **self.get_session_data())
-    #
-    # async def aload_object(self, must_create: bool = False):
-    #     """
-    #     To be inherit
-    #     """
-    #     session_id = None
-    #     if not self.session_key:
-    #         self._session_key = await self._aget_new_session_key()
-    #     elif not must_create:
-    #         obj = await self._model_cls.filter(
-    #             session_key=self.session_key
-    #         ).aget_instance()
-    #         session_id = obj.pk if obj else None
-    #     data = self.get_session_data()
-    #     if inspect.isawaitable(data):
-    #         data = await data
-    #     return self._model_cls.init_instance(id=session_id, **data)
+    def load_object(self, must_create: bool = False):
+        session_id = None
+        if not self.session_key:
+            self._session_key = self._get_new_session_key()
+        elif not must_create:
+            obj = self._model_cls.filter(session_key=self.session_key).get_instance()
+            session_id = obj.pk if obj else None
+        return self._model_cls.init_instance(id=session_id, **self.get_session_data())
+
+    async def aload_object(self, must_create: bool = False):
+        session_id = None
+        if not self.session_key:
+            self._session_key = await self._aget_new_session_key()
+        elif not must_create:
+            obj = await self._model_cls.filter(
+                session_key=self.session_key
+            ).aget_instance()
+            session_id = obj.pk if obj else None
+        data = self.get_session_data()
+        if inspect.isawaitable(data):
+            data = await data
+        return self._model_cls.init_instance(id=session_id, **data)
 
     def db_save(self, must_create=False):
         if self.session_key is None:

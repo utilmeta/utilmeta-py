@@ -124,8 +124,9 @@ class File:
 
     @property
     def suffix(self) -> str:
-        if "." in self.filename:
-            return str(self.filename.split(".")[-1]).lower()
+        if self.filename:
+            if "." in self.filename:
+                return str(self.filename.split(".")[-1]).lower()
         type = self.content_type
         if not type:
             return ""

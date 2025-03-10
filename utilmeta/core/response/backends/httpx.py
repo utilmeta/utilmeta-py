@@ -15,6 +15,10 @@ class HttpxClientResponseAdaptor(ResponseAdaptor):
         return self.response.status_code
 
     @property
+    def url(self):
+        return str(self.response.url)
+
+    @property
     def reason(self):
         return self.response.reason_phrase
 

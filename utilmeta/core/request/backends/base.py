@@ -21,6 +21,7 @@ import io
 
 
 class RequestAdaptor(BaseAdaptor):
+    __backends_package__ = 'utilmeta.core.request.backends'
     file_adaptor_cls = None
     json_decoder_cls = json.JSONDecoder
 

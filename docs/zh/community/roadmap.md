@@ -14,7 +14,7 @@
 
 ### ORM 支持
 
-* **SQLAchemy**
+* **SQLAlchemy**
 * **Peewee**
 
 ### 运行时 backend 支持

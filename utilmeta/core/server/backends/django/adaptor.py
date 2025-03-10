@@ -298,7 +298,9 @@ class DjangoServerAdaptor(ServerAdaptor):
         # func = self._get_api(api, asynchronous=asynchronous)
         # path = f'{route.strip("/")}/(.*)' if route.strip('/') else '(.*)'
         # return re_path(path, func)
-        self.add_api(api, route=route, asynchronous=asynchronous)
+        # setup before add api
+        api_route = rf"^{route.strip('/')}(\/.*)?$"
+        return self.add_api(api, route=api_route, asynchronous=asynchronous)
 
     def add_api(
         self,
@@ -308,6 +310,10 @@ class DjangoServerAdaptor(ServerAdaptor):
         top: bool = False,
     ):
         api = self._get_api(utilmeta_api_class, asynchronous=asynchronous)
+
+        # if not self.settings.url_conf:
+        #     self.settings.setup(self.config)
+
         urls = getattr(self.settings.url_conf, self.URLPATTERNS, [])
         find = False
         for url in urls:
@@ -328,7 +334,16 @@ class DjangoServerAdaptor(ServerAdaptor):
             urls.insert(0, api_path)
         else:
             urls.append(api_path)
-        setattr(self.settings.url_conf, self.URLPATTERNS, urls)
+
+        if self.settings.url_conf:
+            # if is None, the settings may not been setup yet
+            # eg.
+            # urlpatterns = [
+            #     re_path('test/(.*)', django_test),
+            #     CalcAPI.__as__(django, route='/calc'),
+            # ]
+            setattr(self.settings.url_conf, self.URLPATTERNS, urls)
+        return api_path
 
     def _get_api(self, utilmeta_api_class, asynchronous: bool = False):
         """

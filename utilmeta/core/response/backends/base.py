@@ -6,6 +6,7 @@ from http.cookies import SimpleCookie
 
 
 class ResponseAdaptor(BaseAdaptor):
+    __backends_package__ = 'utilmeta.core.response.backends'
     json_decoder_cls = json.JSONDecoder
 
     def __init__(self, response):
@@ -15,6 +16,17 @@ class ResponseAdaptor(BaseAdaptor):
         # self.request = request
         self._context = {}
         self._body = None
+
+    @classmethod
+    def get_module_name(cls, obj):
+        name = super().get_module_name(obj)
+        if not name:
+            obj_cls = getattr(obj, '__class__', None)
+            if obj_cls and isinstance(obj_cls, type):
+                module = obj_cls.__module__
+                if isinstance(module, str):
+                    return module.split('.')[0]
+        return name
 
     @classmethod
     def reconstruct(cls, adaptor):
@@ -33,6 +45,11 @@ class ResponseAdaptor(BaseAdaptor):
     @property
     def reason(self):
         raise NotImplementedError
+
+    @property
+    def url(self):
+        # for client response
+        return None
 
     @property
     def headers(self):

@@ -3,6 +3,8 @@ from utilmeta.core.request.base import Request
 
 
 class ClientRequestAdaptor(BaseAdaptor):
+    __backends_package__ = 'utilmeta.core.cli.backends'
+
     @classmethod
     def get_module_name(cls, obj: "Request"):
         if isinstance(obj, Request):

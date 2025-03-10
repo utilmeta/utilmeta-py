@@ -10,6 +10,10 @@ class TornadoClientResponseAdaptor(ResponseAdaptor):
         return isinstance(obj, ClientResponse)
 
     @property
+    def url(self):
+        return str(self.response.effective_url)
+
+    @property
     def status(self):
         return self.response.code
 

@@ -18,6 +18,7 @@ class BaseAdaptor:
             name = obj.__name__
         if isinstance(obj, str):
             name = obj
+
         return name
 
     @classmethod

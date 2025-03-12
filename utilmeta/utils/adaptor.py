@@ -34,7 +34,11 @@ class BaseAdaptor:
                 if cls.__backends_package__
                 else name
             )
-            import_obj(ref)
+            try:
+                import_obj(ref)
+            except (ModuleNotFoundError, ImportError):
+                # ignore import error
+                pass
         else:
             cls.load_from_base()
 

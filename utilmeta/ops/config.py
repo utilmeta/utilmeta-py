@@ -17,7 +17,6 @@ from utilmeta.utils import (
     get_server_ip,
     valid_url,
     time_now,
-    private_address
 )
 from typing import Union
 from urllib.parse import urlsplit
@@ -322,13 +321,13 @@ class Operations(Config):
     def is_local(self):
         return localhost(self.ops_api)
 
-    @property
-    def is_private(self):
-        # 1. IP
-        #      ip.is_private
-        # 2. domain
-        #      resolve to ip
-        return private_address(self.ops_api)
+    # @property
+    # def is_private(self):
+    #     # 1. IP
+    #     #      ip.is_private
+    #     # 2. domain
+    #     #      resolve to ip
+    #     return private_address(self.ops_api, unknown=True)
 
     @property
     def is_secure(self):
@@ -535,7 +534,7 @@ class Operations(Config):
 
     @property
     def connect_url(self):
-        if self.is_local or (self.private_disabled and self.is_private):
+        if self.is_local:
             return f"{__website__}/localhost?local_node={self.ops_api}"
         return __website__
 

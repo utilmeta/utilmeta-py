@@ -102,7 +102,7 @@ class OperationsAPI(api.API):
             name = None
         requires = []
         if ((config.is_local and not config.local_disabled) or
-                (config.is_private and not config.private_disabled)):
+                (self.request.ip_address.is_private and not config.private_disabled)):
             if config.connection_key:
                 requires.append('connection_key')
         else:
@@ -220,7 +220,7 @@ class OperationsAPI(api.API):
                     var.scopes.setter(self.request, config.local_scope)
                     return
 
-            elif not config.private_disabled and config.is_private and self.request.ip_address.is_private:
+            elif not config.private_disabled and self.request.ip_address.is_private:
                 # manage services in private network
                 if not connection_key:
                     raise exceptions.Unauthorized(state='connection_key_missing')

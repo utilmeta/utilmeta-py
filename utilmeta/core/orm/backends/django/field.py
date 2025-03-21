@@ -322,6 +322,11 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
                         _args = [base_field.rule]
 
         params = self._get_params(field)
+
+        if _type == bool:
+            params = {}
+            # requires no params
+
         kwargs = {}
 
         if params.get("max_length"):

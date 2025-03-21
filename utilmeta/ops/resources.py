@@ -17,7 +17,7 @@ from .schema import (
     language_version,
 )
 from utilmeta import UtilMeta
-from utilmeta.utils import fast_digest, json_dumps, get_ip, time_now, ignore_errors
+from utilmeta.utils import fast_digest, json_dumps, get_ip, time_now
 from django.db import models
 import utilmeta
 
@@ -49,7 +49,11 @@ class ModelGenerator:
                 secret = False
             if f.is_pk:
                 secret = False
-            schema = JsonSchemaGenerator(f.rule)()
+            try:
+                schema = JsonSchemaGenerator(f.rule)()
+            except Exception as e:
+                warnings.warn(f'Generate schema for field {repr(name)} at {self.model} failed: {e}')
+                continue
             if schema.get("type") == "boolean":
                 secret = False
             data = {

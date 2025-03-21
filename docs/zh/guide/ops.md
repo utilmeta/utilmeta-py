@@ -326,10 +326,10 @@ service.use(Operations(
 除了上文的连接管理整个内网集群的 **代理模式** 外，UtilMeta 还提供了一种类似于连接本地节点的方式直接管理内网中的服务节点，这种直连内网服务管理需要满足两个条件：
 
 * 你的客户端（你打开 UtilMeta 管理平台的浏览器的电脑）与你要管理的 UtilMeta 服务位于同一 **内网**，也就是说你的电脑可以直接通过服务的内网地址直接访问到服务的 API 接口
-* 你的内网服务节点需要提供 HTTPS 协议的访问
+* 你的内网服务节点需要提供 HTTPS 协议的访问（需要配置 SSL 证书）
 
 !!! note
-	对 HTTPS 协议的要求是浏览器对每一个使用 HTTPS 协议服务的网页（UtilMeta 管理平台）所调用任何除了本机地址（localhost / 127.0.0.1）外的 URL 的要求，之后 UtilMeta 也规划上线桌面客户端或浏览器插件，可以绕过这个限制
+	对 HTTPS 协议的要求是浏览器对每一个使用 HTTPS 协议服务的网页（UtilMeta 管理平台）所调用任何除了本机地址（localhost / 127.0.0.1）外的 URL 的要求（参考文档：[Mixed Content | MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content)），之后 UtilMeta 也规划上线桌面客户端或浏览器插件，可以绕过这个限制
 
 满足以上条件后，直连内网节点需要你对 Operations 增加两项配置：
 
@@ -349,18 +349,31 @@ service.use(Operations(
 ))
 ```
 
+其中 `base_url` 也需要设置为使用 HTTPS 协议和域名的服务地址
+
 !!! note
 	使用直连内网节点的功能需要 UtilMeta 框架 2.7.5 及以上的版本
 
-配置完成后重启服务你会看到输出中有类似本地服务的
+配置完成后重启服务你会看到输出中包括 OperationsAPI 的地址
 
 ```
-UtilMeta OperationsAPI loaded at https://my-private-service.com/api/ops, connect your APIs at https://ops.utilmeta.com/localhost?local_node=https://my-private-service.com/api/ops
+UtilMeta OperationsAPI loaded at https://my-private-service.com/api/ops
 ```
 
-直接点击第二个链接即可进入 UtilMeta 平台连接你的内网节点，进入后会弹出一个对话框让你输入之前设置好的 `connection_key`，输入正确的密钥即可连接并管理内网节点
+之后我们进入 [UtilMeta 管理平台](https://ops.utilmeta.com)，进入你创建的团队中，点击顶栏中的【+】按钮中的【Connect Local API】连接内网服务
+
+<img src="https://utilmeta.com/assets/image/connect-local-hint.png" href="https://ops.utilmeta.com" target="_blank" width="300"/>
+
+在点击打开的对话框中输入服务的 OperationsAPI 地址（例如 `https://my-private-service.com/api/ops`）
+
+<img src="https://utilmeta.com/assets/image/connect-local-api-form.png" href="https://ops.utilmeta.com" target="_blank" width="500"/>
+
+连接成功后会提示你输入之前设置好的 `connection_key`，输入正确的密钥即可连接并管理内网节点
 
 <img src="https://utilmeta.com/assets/image/set-connection-key-en.png" href="https://ops.utilmeta.com" target="_blank" width="500"/>
+
+!!! note
+	勾选保存即可将 `connection_key` 与内网服务地址保存到这个项目团队中，后面再次连接就不需要重复输入了
 
 
 ## 连接现有 Python 项目

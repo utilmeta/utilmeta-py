@@ -185,7 +185,7 @@ class Migration(migrations.Migration):
             model_name="basecontent",
             name="liked_bys",
             field=models.ManyToManyField(
-                db_table="like", related_name="likes", to="app.user"
+                db_table="liked", related_name="likes", to="app.user"
             ),
         ),
         migrations.AlterUniqueTogether(

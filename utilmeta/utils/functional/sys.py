@@ -1,6 +1,7 @@
 import os
 import socket
 import re
+import warnings
 from datetime import datetime
 from typing import Optional, List, Union, Tuple, Dict, Set
 from .. import constant
@@ -33,6 +34,7 @@ __all__ = [
     "parse_socket",
     "get_processes",
     "get_code",
+    "resolve_domain",
     "current_master",
     "get_system_fds",
     "read_from",
@@ -740,7 +742,38 @@ def get_recursive_dirs(
     return result
 
 
-def get_ip(host: str, ip_only: bool = False) -> Optional[str]:
+def resolve_domain(domain: str, timeout: float = None):
+    try:
+        import dns.resolver
+        # dnspython
+    except (ModuleNotFoundError, ImportError):
+        if timeout is not None:
+            warnings.warn(f'resolve_domain specified timeout ({timeout}) with installing dnspython, '
+                          f'it takes no effect')
+        # timeout take no effect
+        try:
+            return socket.gethostbyname(domain)
+        except (socket.error, OSError):
+            return None
+    else:
+        if not timeout:
+            from utilmeta.conf import Preference
+            pref = Preference.get()
+            timeout = pref.default_dns_resolve_timeout
+
+        try:
+            resolver = dns.resolver.Resolver()
+            if timeout:
+                resolver.timeout = timeout
+                resolver.lifetime = timeout
+            answer = resolver.resolve(domain, 'A')
+            for rdata in answer:
+                return rdata.address
+        except (dns.resolver.Timeout, dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+            return None
+
+
+def get_ip(host: str, ip_only: bool = False, timeout: float = None) -> Optional[str]:
     import ipaddress
 
     try:
@@ -759,11 +792,7 @@ def get_ip(host: str, ip_only: bool = False) -> Optional[str]:
     if ip_only:
         return None
     from .web import get_hostname
-
-    try:
-        return socket.gethostbyname(get_hostname(host))
-    except (socket.error, OSError):
-        return None
+    return resolve_domain(get_hostname(host), timeout=timeout)
 
 
 def get_real_ip(ip: str):

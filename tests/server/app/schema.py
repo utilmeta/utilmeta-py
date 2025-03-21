@@ -1,13 +1,13 @@
 from utype.types import *
 from utilmeta.core import orm, auth
-from .models import User, Article, Comment, BaseContent
+from .models import User, Article, Comment, BaseContent, ArticleStats
 from utype import Field
 from utilmeta.core.orm.backends.django import expressions as exp
 from utilmeta.utils import awaitable
 from django.db import models
 
 
-__all__ = ["UserSchema", "ArticleSchema", "CommentSchema",
+__all__ = ["UserSchema", "ArticleSchema", "CommentSchema", "ArticleStatsSchema", "ArticleStatsQuery",
            "ContentSchema", 'UserBase', 'UserQuery', 'ArticleQuery', 'ArticleBase', 'ContentBase']
 
 
@@ -279,3 +279,16 @@ class ArticleQuery(orm.Query[Article]):
     offset: int = orm.Offset(alias='@offset')
     limit: int = orm.Limit(alias='@limit')
     scope: dict = orm.Scope()
+
+
+class ArticleStatsQuery(orm.Query[ArticleStats]):
+    article_id: int
+    comments_gte: int = orm.Filter(query=lambda x: models.Q(comments_num__gte=x))
+    liked_bys_gte: int = orm.Filter(query=lambda x: models.Q(liked_bys_num__gte=x))
+    sort: str = orm.OrderBy([ArticleStats.article_id, ArticleStats.liked_bys_num, ArticleStats.comments_num])
+
+
+class ArticleStatsSchema(orm.Schema[ArticleStats]):
+    article_id: int
+    comments_num: int
+    liked_bys_num: int

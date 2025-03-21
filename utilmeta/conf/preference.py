@@ -16,6 +16,7 @@ class Preference(Config):
     default_response_status: Optional[int]
     default_aborted_response_status: int
     default_timeout_response_status: int
+    default_dns_resolve_timeout: Optional[float]
 
     orm_default_query_distinct: Optional[bool]
     orm_default_save_with_relations: bool
@@ -67,6 +68,7 @@ class Preference(Config):
         orm_schema_query_max_depth: Optional[int] = 100,
         dependencies_auto_install_disabled: bool = False,
         error_variable_max_length: Optional[int] = 100,
+        default_dns_resolve_timeout: Optional[float] = None,
     ):
         super().__init__(locals())
 

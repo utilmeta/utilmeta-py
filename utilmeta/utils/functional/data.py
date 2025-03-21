@@ -381,12 +381,14 @@ def reduce_value(data, max_length: int) -> dict:
         t = "object"
         length = len(str(data))
         items = len(data)
-    elif isinstance(data, (str, bytes)):
+    elif isinstance(data, (str, bytes, memoryview, bytearray)):
         length = len(data)
     else:
         return data
     if length <= max_length:
         return data
+    if isinstance(data, (memoryview, bytearray)):
+        data = bytes(data)
     if isinstance(data, bytes):
         data = data.decode("utf-8", "ignore")
     result["$reduced"] = True

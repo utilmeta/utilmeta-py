@@ -1,5 +1,27 @@
 # Release Note
 
+## v2.7.5
+
+Release Date:  2025/3/21
+
+### New features
+
+* ·Operations support `connection_key` to authorize the local and private services, and support connecting to private service directly after `connection_key` and `private_scope` are set.
+* Add `meta check` command to check if UtilMeta can load normally (no error)
+
+### Optimized
+
+* Optimized `orm.Field` to support lookup that has conflicted name with field name. 
+* Optimized runtime dispatch for all Adaptors (request, response, file, ...) with `__backends_package__` specified.
+* Optimized ResponseFile's file name recognition.
+* Optimized Session's `save` for database drivin session.
+* Optimized Filter's `query` to handle `@classmethod`.
+* orm support query and serialize `managed=False` Django model (such as the database view model without primary key)
+
+### Fixed
+
+* Fix Django route mounting problem (`__as__` method)
+
 ## v2.7.4
 
 Release Date:  2025/2/10

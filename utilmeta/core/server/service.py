@@ -489,7 +489,7 @@ class UtilMeta:
             if not self.adaptor:
                 raise ValueError("UtilMeta: backend is required to mount applications")
             self.adaptor.mount(api, route=route)
-            return
+            return api
 
         if self._root_api:
             if getattr(self.root_api, "__ref__", str(self.root_api)) != getattr(
@@ -502,6 +502,13 @@ class UtilMeta:
             return
         self.root_api = api
         self.root_url = str(route).strip("/")
+        return api
+
+        # return api incase that user wants to add decorator upon the @service.mount
+        # @api.CORS(...)
+        # @service.mount
+        # class RootAPI(api.API):
+        #
 
     def mount_to_api(self, api, route: str, eager: bool = False):
         if not inspect.isclass(api) and issubclass(api, API):

@@ -48,6 +48,17 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         self.annotation_aliases = {}
         self.isolated_fields = {}
 
+    @property
+    def model_options(self):
+        return self.model.meta
+
+    @property
+    def with_pk(self):
+        if self.model_options.managed:
+            return True
+        # unmanaged database views
+        return bool(self.pk_fields)
+
     def _get_pk(self, value, robust: bool = False):
         if robust:
             if isinstance(value, models.Model):
@@ -108,6 +119,12 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             return
         elif not isinstance(values, list):
             values = [values]
+        if not self.with_pk:
+            if self.annotation_aliases:
+                for val in values:
+                    self.process_annotation_aliases(val)
+            self.values: List[dict] = values
+            return
         result = []
         # deduplicate
         pk_list = []
@@ -137,6 +154,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         return val
 
     def clear_pks(self):
+        if not self.with_pk:
+            return
         if PK not in self.pk_fields:
             for val in self.values:
                 pop(val, PK)
@@ -145,17 +164,21 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         if self.queryset.query.is_empty():
             return []
         self.process_fields()
-        values = list(self.queryset.values(PK, *self.fields, **self.expressions))
+        fields = [PK, *self.fields] if self.with_pk else self.fields
+        values = list(self.queryset.values(*fields, **self.expressions))
         self.set_values(values)
         # set values before query isolation fields
         if not self.values:
             return []
         self._resolve_recursion()
-        for field in self.isolated_fields.values():
-            try:
-                self.query_isolated_field(field)
-            except Exception as e:
-                self.handle_isolated_field(field, e)
+
+        if self.pk_list:
+            for field in self.isolated_fields.values():
+                try:
+                    self.query_isolated_field(field)
+                except Exception as e:
+                    self.handle_isolated_field(field, e)
+
         self.clear_pks()
         return self.values
 
@@ -164,7 +187,9 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         if self.queryset.query.is_empty():
             return []
         self.process_fields()
-        values_qs = self.queryset.values(PK, *self.fields, **self.expressions)
+
+        fields = [PK, *self.fields] if self.with_pk else self.fields
+        values_qs = self.queryset.values(*fields, **self.expressions)
         if isinstance(self.queryset, AwaitableQuerySet):
             values = await values_qs.result(one=self.context.single)
         else:

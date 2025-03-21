@@ -115,6 +115,42 @@ class TestSchemaQuery:
         assert content.id == 1
         assert content.article.id == 1
 
+    def test_unmanaged_view_model_query(self, service, db_using):
+        from app.schema import ArticleStatsSchema, ArticleStatsQuery
+        res1 = ArticleStatsSchema.serialize(
+            ArticleStatsQuery(comments_gte=2, sort='liked_bys_num'),
+            context=orm.QueryContext(using=db_using)
+        )
+        assert len(res1) == 2
+        assert res1[0].article_id == 4
+        assert res1[1].article_id == 1
+        assert res1[1].comments_num == 2
+        assert res1[1].liked_bys_num == 3
+        res = ArticleStatsSchema.init(
+            ArticleStatsQuery(article_id=1),
+            context=orm.QueryContext(using=db_using)
+        )
+        assert res.article_id == 1
+        assert res.comments_num == 2
+
+    @pytest.mark.asyncio
+    async def test_async_unmanaged_view_model_query(self, service, db_using):
+        await self.refresh_db(db_using)
+        from app.schema import ArticleStatsSchema, ArticleStatsQuery
+        res1 = await ArticleStatsSchema.aserialize(
+            ArticleStatsQuery(comments_gte=2, sort='liked_bys_num'), context=orm.QueryContext(using=db_using)
+        )
+        assert len(res1) == 2
+        assert res1[0].article_id == 4
+        assert res1[1].article_id == 1
+        assert res1[1].comments_num == 2
+        assert res1[1].liked_bys_num == 3
+        res = await ArticleStatsSchema.ainit(
+            ArticleStatsQuery(article_id=1), context=orm.QueryContext(using=db_using)
+        )
+        assert res.article_id == 1
+        assert res.comments_num == 2
+
     def test_orm_preferences(self, service):
         # orm_on_conflict_annotation
 
@@ -204,6 +240,7 @@ class TestSchemaQuery:
 
     @pytest.mark.asyncio
     async def test_async_queryset_generator(self, service, db_using):
+        await self.refresh_db(db_using)
         from app.models import Article
         from app.schema import ArticleQuery
         from django.db import models

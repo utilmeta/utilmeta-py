@@ -40,6 +40,13 @@ class MetaCommand(BaseServiceCommand):
             self.load_service()
         except RuntimeError:
             return
+        except Exception as e:
+            from utilmeta.utils import Error
+            err = Error(e)
+            err.setup()
+            print(err.message)
+            print(RED % '[error]: load utilmeta service failed with error: {}'.format(e))
+            return
         for name, cmd in self.service.commands.items():
             if not name:
                 for cls in cmd:
@@ -215,6 +222,26 @@ class MetaCommand(BaseServiceCommand):
                 f"| asynchronous" if self.service.asynchronous else "",
             )
         print(f"  environment:", sys.version, platform.platform())
+
+    @command
+    def check(self):
+        """
+        check if utilmeta service has no errors and ready to run
+        """
+        if not self._service:
+            print(RED % f'meta check failed: service not loaded')
+            return
+        try:
+            _ = self.service.application()
+        except Exception as e:
+            from utilmeta.utils import Error
+            err = Error(e)
+            err.setup()
+            print(err.message)
+            print(RED % f'[error]: load utilmeta application: {repr(self.service.name)} failed with error: {e}')
+            print(RED % f'meta check failed: application not loaded')
+            return
+        print(f'meta check passed for service: {BLUE % self.service.name}')
 
     @command
     def run(

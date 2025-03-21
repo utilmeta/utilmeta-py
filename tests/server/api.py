@@ -412,3 +412,11 @@ class RootAPI(api.API):
     @api.get
     def plus(self, a: int, b: int) -> int:
         return a + b
+
+    class fQuery(utype.Schema):
+        f: str
+
+    @api.get
+    def file(self, fq: fQuery = request.Query):
+        from utilmeta.core.file import File
+        return self.response(attachment=File(fq.f.encode(), filename='f.txt'))

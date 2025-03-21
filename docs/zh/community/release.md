@@ -2,9 +2,12 @@
 
 ## v2.7.5
 
+发布时间：2025/3/21
+
 ### 新特性
 
 * ·Operations 系统支持配置 `connection_key` 对本地或内网的直连管理模式请求进行鉴权，配置 `connection_key` 与 `private_scope` 参数后可以在 UtilMeta 管理平台中直接管理与客户端位于同一内网的 UtilMeta 服务
+* 新增 `meta check` 命令用于检测 UtilMeta 服务是否加载正常（启动无错误）
 
 ### 优化项
 
@@ -13,6 +16,7 @@
 * 优化 File 文件对于 ResponseFile (HTTP 响应作为文件) 的文件名识别
 * 优化数据库驱动的 Session 的保存（`save`） 行为
 * 优化 Filter 组件的 `query` 查询函数对于 `@classmethod` 类方法的处理
+* orm 支持查询和序列化 `managed=False` 的 Django 模型（如没有主键的数据库视图） 
 
 ### 问题修复
 

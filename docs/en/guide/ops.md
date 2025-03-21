@@ -233,7 +233,7 @@ The additional specified OpenAPI document will be integrated with the automatica
 ## Connect to UtilMeta Platform
 
 UtilMeta provides a platform for the observation and management operations of the API services: [UtilMeta Platform ](https://ops.utilmeta.com) you can enter the platform to connect and manage your UtilMeta service (or other services with supported frameworks), view API documents, data, logs and monitoring.
-### Connect Local Node
+### Connect Local API
 
 If you have configured the Operations successfully and run the local service, you can see the following prompt
 
@@ -253,7 +253,7 @@ meta connect
 You can see that the browser opened a window of UtilMeta platform, where you can see the APIs, Data tables, log and monitoring of your service.
 
 <img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
-### Connect Public service
+### Connect Public Service
 
 Connecting to the API service deployed online with public network address requires you to register an account on the UtilMeta platform. Because the management of online services requires a stricter authorization and authentication mechanism, you need to create a project team on the UtilMeta platform first. When you enter an empty project team, You can see the connection prompt for the UtilMeta platform
 
@@ -269,7 +269,7 @@ please visit [URL] to view and manage your APIs'
 
 Click the URL to access the online service you have connected in UtilMeta Platform, or click the **I’ve executed successfully** button in the platform to refresh after successful execution
 
-### Connect Intranet Cluster
+### Connect Intranet Cluster (by proxy)
 
 In addition to manage API services on the public network, we sometimes need to manage API services in private network clusters, such as internal services within the company's intranet, which do not have public IP addresses or access URLs. To manage these internal network services, we need to set up public network proxies in the internal network cluster, deploy a proxy service node for internal network penetration with authentication and service registration.
 
@@ -315,6 +315,60 @@ service.use(Operations(
 
 !!! note
 	UtilMeta services in the cluster should share the same Operations database as the proxy service, this database will serve as the service authentication basis and management storage center in the cluster. Current version mainly support PostgreSQL and MySQL as operations storage, futher releases will support other storage vendors.
+
+### Connect Private Service (directly)
+
+Beside the proxy mode in the above section, UtilMeta also provided a method to connect service node in the private network directly, similiar to connecting local API, with two conditions required:
+
+* Your management client (the computer that opened the UtilMeta Platform) must located at the **same private network** with the service you are going to manage. which means your computer can directly access the private service's API.
+* Your private service should provide HTTPS access (with SSL certificates)
+
+!!! note
+	 In the site that served with HTTPS (i.e. UtilMeta platform), browser will block all http requests (except for localhost), as you can see in the [Mixed Content | MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content), so to connect to the private service directly, you should use the HTTPS protocol
+
+After meeting the above conditions,  you need to add two additional configurations for Operations:
+
+* `connection_key`: In order to ensure the security of private network nodes, directly connecting to private network nodes requires you to pre-set a key (preferably a long random string) in the Operations configuration. UtilMeta will first verify this key for management requests from the private network, and only execute the corresponding request after verification is successful.
+* `private_scope`:  Authorize the permission range for private network requests. The value of the permission range can refer to the introduction in the `'local_scope'` section above. If you need to grant all permissions, you can use `['*']`
+
+The configuration example is as follows:
+```python
+from config.env import env
+from utilmeta.ops import Operations
+
+service.use(Operations(
+	base_url='https://my-private-service.com/api',   # replace with your domain
+	# other settings...
+	connection_key=env.CONNECTION_KEY,
+	private_scope=['*']
+))
+```
+
+Noted that `base_url` should also need to set to the address with HTTPS protocol and domain name.
+
+!!! note
+	Connect to private network service directly requres UtilMeta >= 2.7.5
+
+After the configuration, restart your service and you will see the OperationsAPI URL in the output
+
+```
+UtilMeta OperationsAPI loaded at https://my-private-service.com/api/ops
+```
+
+Then we can login to [UtilMeta Platform](https://ops.utilmeta.com), enter your project team, click the **\[Connect Local API\]** of  **\[+\]** button on the top bar
+
+<img src="https://utilmeta.com/assets/image/connect-local-hint.png" href="https://ops.utilmeta.com" target="_blank" width="300"/>
+
+Enter the OperationsAPI URL of your service in the prompted dialog, (for example: `https://my-private-service.com/api/ops`)
+
+<img src="https://utilmeta.com/assets/image/connect-local-api-form.png" href="https://ops.utilmeta.com" target="_blank" width="500"/>
+
+If you connected successfully, UtilMeta platform will prompt you to enter the `connection_key` you configured in the service, enter the correct key then you will be connected to your private service directly
+
+<img src="https://utilmeta.com/assets/image/set-connection-key-en.png" href="https://ops.utilmeta.com" target="_blank" width="500"/>
+
+!!! note
+	With "Save the key" checked, you can save the `connection_key` and OperationsAPI address of the private service to your project team, you won't need to enter these info again to connect to this service next time.
 
 ## Connect to Python project
 

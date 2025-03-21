@@ -169,7 +169,7 @@ def localhost(host: str) -> bool:
     return hostname in ["127.0.0.1", "localhost"]
 
 
-def private_address(host: str, local: bool = False) -> bool:
+def private_address(host: str, local: bool = False, unknown: bool = False) -> bool:
     if not isinstance(host, str):
         return False
     if localhost(host):
@@ -181,6 +181,10 @@ def private_address(host: str, local: bool = False) -> bool:
     from .sys import get_ip
     ip = get_ip(hostname)
     if not ip:
+        if unknown:
+            # allow unknown address as private address
+            # it can be achieved by altering hosts file
+            return True
         return False
     try:
         return ip_address(ip).is_private

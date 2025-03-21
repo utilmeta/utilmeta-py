@@ -46,7 +46,7 @@ class BaseContent(AwaitableModel):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     public = models.BooleanField(default=False)
-    liked_bys = models.ManyToManyField(User, related_name="likes", db_table="like")
+    liked_bys = models.ManyToManyField(User, related_name="likes", db_table="liked")
     author = models.ForeignKey(User, related_name="contents", on_delete=models.CASCADE)
     author_id: int
     type = models.CharField(max_length=20, default="article")
@@ -88,3 +88,13 @@ class Session(AbstractSession):
 
     class Meta:
         db_table = 'session'
+
+
+class ArticleStats(AwaitableModel):
+    article_id = models.PositiveIntegerField()
+    comments_num = models.PositiveIntegerField(default=0)
+    liked_bys_num = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "article_stats"
+        managed = False

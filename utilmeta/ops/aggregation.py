@@ -145,10 +145,10 @@ def aggregate_logs(
         dict_values[field] = dicts
 
     service_logs_duration = service_logs.order_by("-duration")
-    mean_time = service_logs_duration[requests // 2].duration if requests else 0
-    p95_time = service_logs_duration[requests // 20].duration if requests else 0
-    p99_time = service_logs_duration[requests // 100].duration if requests else 0
-    p999_time = service_logs_duration[requests // 1000].duration if requests else 0
+    mean_time = service_logs_duration.values_list('duration', flat=True)[requests // 2] if requests else 0
+    p95_time = service_logs_duration.values_list('duration', flat=True)[requests // 20] if requests else 0
+    p99_time = service_logs_duration.values_list('duration', flat=True)[requests // 100] if requests else 0
+    p999_time = service_logs_duration.values_list('duration', flat=True)[requests // 1000] if requests else 0
 
     if layer:
         return dict(

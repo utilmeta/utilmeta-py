@@ -690,10 +690,10 @@ class OperationWorkerTask(BaseCycleTask):
         #     return False
         if not self.instance or not self.server or not self.worker:
             return False
-        return not self.connected_workers.filter(
-            # pid__lt=os.getpid()
-            start_time__lt=self.worker.start_time
-        ).exists()
+        primary_worker = self.connected_workers.order_by(
+            'start_time', 'pid'
+        ).first()
+        return primary_worker == self.worker
 
     @property
     def current_day(self) -> datetime:

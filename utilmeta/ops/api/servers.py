@@ -269,8 +269,6 @@ class ServersAPI(api.API):
             q = models.Q(
                 node_id=self.supervisor.node_id,
             )
-            if id:
-                q &= models.Q(remote_id=id)
         else:
             if type != "server":
                 from utilmeta import service
@@ -278,8 +276,12 @@ class ServersAPI(api.API):
                 q = models.Q(service=service.name)
             else:
                 q = models.Q()
-            if id:
+        if id:
+            if id.isdigit():
                 q &= models.Q(remote_id=id) | models.Q(id=id)
+            else:
+                q &= models.Q(remote_id=id)
+
         query.update(
             type=type,
             deprecated=False,

@@ -288,7 +288,10 @@ class TestOperations:
 
             calc = paths.get('/add') or paths.get('/add/')
             assert calc
-            assert calc.get('get')
+            plus_operation = calc.get('get')
+            assert plus_operation
+            assert plus_operation.get('description') == 'add api: input a, b, return a + b'
+
             assert paths.get('/hello', {}).get('get')
             # -- inst
             inst_resp = client.get_instances()

@@ -251,6 +251,10 @@ class BaseEndpoint(PluginTarget):
         return getattr(self.f, "__module__", None)
 
     @property
+    def doc_string(self):
+        return utils.get_doc(self.f)
+
+    @property
     def is_method(self):
         return self.name.lower() == self.method.lower()
 

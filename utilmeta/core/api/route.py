@@ -156,6 +156,7 @@ class APIRoute(BaseRoute):
 
         if isinstance(handler, Endpoint):
             self.method = handler.method
+            doc = handler.doc_string
             if handler.is_method and route:
                 raise ValueError(
                     f"Endpoint method: <{self.method}> (with HTTP method name) "
@@ -164,6 +165,7 @@ class APIRoute(BaseRoute):
             if not route:
                 route = handler.route
         elif inspect.isclass(handler) and issubclass(handler, API):
+            doc = get_doc(handler)
             if not route:
                 raise ValueError(
                     f"API handler: {handler} should specify a route, got empty"
@@ -186,7 +188,8 @@ class APIRoute(BaseRoute):
 
         self.kwargs = kwargs
         self.summary = summary
-        self.description = description or get_doc(handler)
+        self.doc_string = doc
+        self.description = description or doc
         self.tags = tags
         self.deprecated = deprecated
         self.private = private or handler.__name__.startswith("_")

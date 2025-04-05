@@ -17,6 +17,9 @@ class RootAPI(api.API):
 
     @api.get
     def add(self, a: int, b: int) -> int:
+        """
+        add api: input a, b, return a + b
+        """
         return a + b
 
     @api.get

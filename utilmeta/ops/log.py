@@ -241,7 +241,8 @@ def setup_locals(config: Operations, close_conn: bool = False):
     from .models import Resource, Worker, Supervisor
     from utilmeta import service
 
-    global _worker, _version, _supervisor, _instance, _server, _endpoints_map, _openapi, _endpoints_patterns, _path_prefix, _databases, _caches
+    global _worker, _supervisor, _instance, _server, _endpoints_map, \
+        _openapi, _endpoints_patterns, _path_prefix, _databases, _caches
     # node_id = config.node_id
     _supervisor = Supervisor.current().first()
     # reset supervisor
@@ -486,7 +487,6 @@ class LogMiddleware(ServiceMiddleware):
             if response.success and logger.vacuum:
                 return response.close()
 
-        global _responses_queue
         _responses_queue.append(response)
 
         if len(_responses_queue) >= self.config.max_backlog:

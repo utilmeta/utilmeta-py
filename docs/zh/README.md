@@ -144,6 +144,7 @@ UtilMeta OperationsAPI loaded at http://127.0.0.1:8080/ops, connect your APIs at
 点击左侧 **API** 板块即可看到生成的 API 文档
 
 <img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+
 本地 API 在连接平台后可以使用以下功能
 
 * **Data**: 数据管理 CRUD，比如在上面的例子中，你可以进入添加 `user` 与 `article` 实例

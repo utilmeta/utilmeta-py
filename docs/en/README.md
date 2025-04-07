@@ -141,6 +141,7 @@ You can connect your APIs by open this link: [https://ops.utilmeta.com/localhost
 
 Click **API** and your will see the generated API document, you can debug your API here
 <img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+
 With your local API connected, you can use these features
 
 * **Data**: Manage database data (CRUD), in this example, you can add `user` and `article` instance

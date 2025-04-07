@@ -34,7 +34,6 @@ class Schema(utype.Schema):
     __model__ = None
 
     def __class_getitem__(cls: T, item) -> T:
-        global __caches__
         k = (cls, item)
         if k in __caches__:
             return __caches__[k]
@@ -147,7 +146,6 @@ class Schema(utype.Schema):
         #     owner_id: int = orm.Field(no_input='aw')
         #     members: List[MemberSchema] = orm.Field(mode='rwa') ---- field: project_id
 
-        global __caches__
         options = mode if isinstance(mode, utype.Options) else utype.Options(mode=mode)
         mode = mode.mode if isinstance(mode, utype.Options) else str(mode)
         origin_cls = getattr(cls, '__origin_cls__', cls)

@@ -1,4 +1,4 @@
-# Run & Deploy
+# Configure, Run & Deploy
 
 This document describes how to configure and run the UtilMeta service and how to deploy it in a production environment.
 
@@ -24,6 +24,7 @@ The first parameter of the UtilMeta service receives the name of the current mod
 * `asynchronous`:  whether the service provides an asynchronous APIs. The default is determined by the runtime framework.
 * `api`:  pass in UtilMeta’s root API class or its reference string
 * `route`:  pass in the path string of the root API. The default is `'/'`, which will mount to the root path.
+* `auto_reload`: set to `True` to enable service auto reload when the code changed during debug, default is None.
 
 When you initialize UtilMeta, you can also import the UtilMeta service instance of the current process in this way
 
@@ -393,7 +394,23 @@ UtilMeta provides a `DjangoSettings` configuration that provides declarative Dja
 
 * `secret_key`: Specifies the **secret key** for Django. It is recommended to generate a long random key in the environment variable.
 * `apps`: for specifying Django `INSTALLED_APPS`.
-* `apps_package`: This is a convenient configuration item. If your installed apps are all in a package, you can use `apps_package` to specify the path of the package. UtilMeta will read all the subfolders in it to find the Django app.
+* `apps_package`: If your django apps are defined under some folder, such as:
+``` hl_lines="3"
+/project
+	/config
+	/domain
+		/app1
+			/migrations
+			models.py
+		/app2
+			/migrations
+			models.py
+```
+
+	 You can specify `apps_package='domain'` to easily recognize all apps under the `/domain` folder, current approach is to detect all subfolders with `migrations` folder.
+	 
+	 If the are multiple packages that contains apps, you can pass in a list like `apps_package=['domain.apps', 'vendors']`
+	 
 * `middleware`: You can pass in a list of Django middleware here.
 * `module_name`: Specifies the configuration file reference for Django.
 * `extra`: You can pass in a dict to specify additional Django configuration.

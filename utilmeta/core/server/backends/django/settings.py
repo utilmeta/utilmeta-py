@@ -196,6 +196,7 @@ class DjangoSettings(Config):
         for app_package in self.apps_packages:
             if not app_package:
                 continue
+            app_package = app_package.replace('/', '.').replace('\\', '.').strip('.')
             apps_path = self.get_app_path(app_package)
             if not os.path.exists(apps_path):
                 raise FileNotFoundError(f'DjangoSettings app_package: {repr(app_package)} path: {apps_path} not found')

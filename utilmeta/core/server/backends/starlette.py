@@ -14,7 +14,7 @@ from utilmeta.core.api import API
 from utilmeta.core.request import Request
 from utilmeta.utils import HAS_BODY_METHODS, RequestType, exceptions, pop, Error
 import contextvars
-from typing import Optional
+from typing import Optional, Type
 
 _current_request = contextvars.ContextVar("_starlette.request")
 # _current_response = contextvars.ContextVar('_starlette.response')
@@ -54,7 +54,7 @@ class StarletteServerAdaptor(ServerAdaptor):
         self._ready = False
         self._mounts = {}
 
-    def adapt(self, api: "API", route: str, asynchronous: bool = None):
+    def adapt(self, api: Type["API"], route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
         self.add_api(self.app, api, asynchronous=asynchronous, route=route)

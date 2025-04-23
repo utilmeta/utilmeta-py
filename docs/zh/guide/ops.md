@@ -256,7 +256,11 @@ meta connect
 	UtilMeta 版本 2.6.2 及以上支持这个用法
 
 即可看到浏览器中打开了 UtilMeta 管理平台的窗口，你可以在其中看到你服务的 API，数据表，日志和监控等
+
 <img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+!!! warning "Cookie"
+	在本地直连（以及内网服务直连）模式下，无法直接从浏览器发送 Cookie 到 API 服务（因为 UtilMeta 平台与本地服务是跨域的），连接线上公网服务则不会有这样的问题因为请求可以通过 UtilMeta 平台进行转发，后续 UtilMeta 平台会上线浏览器插件和桌面版客户端解决直连服务的 Cookie 调试问题，目前你可以使用 [UtilMeta 的声明式 Web 客户端](../client) 来编写调试脚本和测试用例
+
 ### 连接线上服务
 
 连接在线上部署的，提供网络访问地址的 API 服务需要你进入 UtilMeta 平台注册一个账号，因为管理线上服务需要更严格的授权与鉴权机制，所以需要你在 UtilMeta 平台中先创建一个项目团队，进入空的项目团队中时，你可以看到 UtilMeta 平台的连接提示

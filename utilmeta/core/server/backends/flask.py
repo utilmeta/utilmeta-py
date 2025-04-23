@@ -8,6 +8,7 @@ from .base import ServerAdaptor
 from utilmeta.core.api import API
 import sys
 import contextvars
+from typing import Type
 
 _current_request = contextvars.ContextVar("_flask.request")
 _current_response = contextvars.ContextVar("_flask.response")
@@ -39,7 +40,7 @@ class FlaskServerAdaptor(ServerAdaptor):
     #     return self.config._application if isinstance(self.config._application, self.application_cls) \
     #         else self.application_cls(self.config.module_name)
 
-    def adapt(self, api: "API", route: str, asynchronous: bool = None):
+    def adapt(self, api: Type["API"], route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
         self.add_api(self.app, api, asynchronous=asynchronous, route=route)

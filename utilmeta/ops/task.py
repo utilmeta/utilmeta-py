@@ -136,6 +136,7 @@ class OperationWorkerTask(BaseCycleTask):
         self._init_cycle = False
         self._synced = False
         self._sync_retries = 0
+        self._clear_date = None
 
     def __call__(self, *args, **kwargs):
         try:
@@ -238,11 +239,21 @@ class OperationWorkerTask(BaseCycleTask):
             self.heartbeat()
             self.alert()
             self.aggregation()
-            self.clear()
+
+            if self.do_clear():
+                self.clear()
 
             self.log(f"worker cycle [primary] finished")
 
         self._init_cycle = True
+
+    def do_clear(self):
+        if not self.config.clear_daily:
+            return True
+        if self._clear_date == datetime.today():
+            return False
+        self._clear_date = datetime.today()
+        return True
 
     @property
     def connected_workers(self):

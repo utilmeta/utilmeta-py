@@ -444,8 +444,6 @@ class API(PluginTarget):
     @classmethod
     def __as__(cls, backend, route: str, *, asynchronous: bool = None):
         from utilmeta import UtilMeta
-        from utilmeta.core.server.backends.base import ServerAdaptor
-
         if isinstance(backend, UtilMeta):
             service = backend
         else:
@@ -458,7 +456,7 @@ class API(PluginTarget):
                 service._auto_created = True
             service.mount_to_api(cls, route=route)
         # backend can be a module name or application
-        adaptor = ServerAdaptor.dispatch(service)
+        adaptor = service.adaptor
         return adaptor.adapt(cls, route=route, asynchronous=asynchronous)
 
     @classonlymethod

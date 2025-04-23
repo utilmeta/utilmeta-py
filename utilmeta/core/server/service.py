@@ -471,6 +471,11 @@ class UtilMeta:
         if callable(f):
             self.events.setdefault("shutdown", []).append(f)
 
+    def adapt(self, route: str):
+        root_api = self.resolve()
+        from utilmeta.utils import url_join
+        return self.adaptor.adapt(root_api, url_join(route, self.root_url), asynchronous=self.asynchronous)
+
     def mount(self, api=None, route: str = ""):
         if not api:
 

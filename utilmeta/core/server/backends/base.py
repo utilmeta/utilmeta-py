@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Type
 
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
@@ -35,7 +35,7 @@ class ServerAdaptor(BaseAdaptor):
     def reconstruct(cls, adaptor: "BaseAdaptor"):
         pass
 
-    def adapt(self, api: "API", route: str, asynchronous: bool = None):
+    def adapt(self, api: Type["API"], route: str, asynchronous: bool = None):
         raise NotImplementedError
 
     @classmethod

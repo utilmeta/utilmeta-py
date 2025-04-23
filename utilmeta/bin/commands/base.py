@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional
 
 from ..base import BaseCommand, command
@@ -108,31 +109,46 @@ class BaseServiceCommand(BaseCommand):
     def application_ref(self):
         return self.service_config.get("app")
 
+    def load_application(self):
+        if self.application_ref:
+            self._application = import_obj(self.application_ref)
+            try:
+                from utilmeta import service
+            except ImportError:
+                raise RuntimeError(
+                    "UtilMeta service not configured, "
+                    "make sure you are inside a path with meta.ini, "
+                    "and service is declared in meta.ini"
+                )
+            else:
+                self._service = service
+                return self._application
+
     def load_service(self):
         import utilmeta
-
         utilmeta._cmd_env = True
 
         if not self.service_ref:
             if self.application_ref:
-                self._application = import_obj(self.application_ref)
-                try:
-                    from utilmeta import service
-                except ImportError:
-                    raise RuntimeError(
-                        "UtilMeta service not configured, "
-                        "make sure you are inside a path with meta.ini, "
-                        "and service is declared in meta.ini"
-                    )
-                else:
-                    self._service = service
-                    return service
+                self.load_application()
             else:
                 raise RuntimeError(
                     "UtilMeta service not configured, make sure you are inside a path with meta.ini"
                 )
 
-        service = import_obj(self.service_ref)
+            if self._service:
+                return self._service
+
+        try:
+            service = import_obj(self.service_ref)
+        except Exception as e:
+            warnings.warn(f'load service failed with error: {e}')
+            if self.application_ref:
+                print('trying to load application')
+                self.load_application()
+                if self._service:
+                    return self._service
+            raise
         if not isinstance(service, UtilMeta):
             raise RuntimeError(
                 f"Invalid UtilMeta service: {self.service}, should be an UtilMeta instance"

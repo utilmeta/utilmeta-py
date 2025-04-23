@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 from tests.conftest import make_cmd_process, db_using
 from utilmeta.core import cli
@@ -108,6 +110,12 @@ class TestOperations:
                 assert add.status == 200
                 data = add.data
                 assert isinstance(data, dict) and data.get('result') == 3
+
+                now = client.get('/api/v1/time/now')
+                assert now.status == 200
+                assert isinstance(now.data, dict)
+                assert isinstance(datetime.datetime.strptime(
+                    now.data.get('data'), '%Y-%m-%d %H:%M:%S'), datetime.datetime)
 
         def test_django_asgi_operations(self, django_asgi_process):
             time.sleep(OPS_WAIT)

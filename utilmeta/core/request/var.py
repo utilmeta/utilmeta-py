@@ -1,6 +1,3 @@
-import warnings
-
-
 from typing import Callable
 from utilmeta.utils import awaitable
 from utilmeta.utils.context import Property
@@ -27,7 +24,7 @@ class RequestContextVar(Property):
         )
         self.key = key
         self.default = default
-        self.factory = factory
+        self.factories = [factory] if callable(factory) else []
         self.cached = cached
         self.static = static
 
@@ -64,8 +61,10 @@ class RequestContextVar(Property):
         if self.contains(request):
             r = request.adaptor.get_context(self.key)
         elif unprovided(r):
-            if callable(self.factory):
-                r = self.factory(request)
+            for f in self.factories:
+                r = f(request)
+                if not unprovided(r):
+                    break
             if unprovided(r):
                 if callable(self.default):
                     r = self.default()
@@ -81,10 +80,12 @@ class RequestContextVar(Property):
         if self.contains(request):
             r = request.adaptor.get_context(self.key)
         elif unprovided(r):
-            if callable(self.factory):
-                r = self.factory(request)
+            for f in self.factories:
+                r = f(request)
                 if inspect.isawaitable(r):
                     r = await r
+                if not unprovided(r):
+                    break
             if unprovided(r):
                 if callable(self.default):
                     r = self.default()
@@ -108,15 +109,11 @@ class RequestContextVar(Property):
             return
         request.adaptor.delete_context(self.key)
 
-    def register_factory(self, func, force: bool = False):
-        if self.factory:
-            if self.factory != func:
-                if force:
-                    raise ValueError(f"factory conflicted: {func}, {self.factory}")
-                else:
-                    warnings.warn(f"factory conflicted: {func}, {self.factory}")
-            return
-        self.factory = func
+    def register_factory(self, func):
+        if not callable(func):
+            raise ValueError(f'Invalid factory function: {func} for {self.key}: not callable')
+        if func not in self.factories:
+            self.factories.append(func)
 
 
 # cached context var

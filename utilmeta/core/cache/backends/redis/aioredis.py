@@ -12,11 +12,26 @@ class AioredisAdaptor(BaseCacheAdaptor):
         super().__init__(config, alias=alias)
         self._cache = None
 
+    @classmethod
+    def load_aioredis(cls):
+        try:
+            from redis import asyncio as aioredis
+            return aioredis
+        except (ModuleNotFoundError, ImportError):
+            import sys
+            if sys.version_info >= (3, 13):
+                raise ModuleNotFoundError(f'{cls} requires to install redis>=4.2.0rc1')
+            try:
+                # try the deprecated aioredis for lower version of Python (still compatible)
+                import aioredis
+                return aioredis
+            except (ModuleNotFoundError, ImportError):
+                raise ModuleNotFoundError(f'{cls} requires to install redis>=4.2.0rc1')
+
     def get_cache(self):
         if self._cache:
             return self._cache
-        import aioredis
-
+        aioredis = self.load_aioredis()
         rd = aioredis.from_url(
             self.config.get_location(), encoding="utf-8", decode_responses=True
         )
@@ -25,14 +40,15 @@ class AioredisAdaptor(BaseCacheAdaptor):
 
     def check(self):
         try:
-            import aioredis
+            from redis import asyncio as aioredis
         except (ModuleNotFoundError, ImportError):
             try:
-                requires('aioredis')
+                requires(redis='redis>=4.2.0rc1')
+                # Aioredis is now in redis-py 4.2.0rc1+
             except Exception as e:
                 raise e.__class__(
-                    f"{self.__class__} as database adaptor requires to install caches. "
-                    f"use pip install aioredis"
+                    f"{self.__class__} as cache adaptor requires to install caches. "
+                    f"use pip install redis>=4.2.0rc1"
                 ) from e
 
     async def get(self, key: str, default=None):

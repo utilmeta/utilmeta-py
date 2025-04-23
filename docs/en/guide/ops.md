@@ -253,6 +253,9 @@ meta connect
 You can see that the browser opened a window of UtilMeta platform, where you can see the APIs, Data tables, log and monitoring of your service.
 
 <img src="https://utilmeta.com/assets/image/connect-local-api.png" href="https://ops.utilmeta.com" target="_blank" width="800"/>
+!!! warning "Cookie"
+	When you connecting local API directly, it is not possible to directly send **cookies** from the browser to API service (because the UtilMeta platform is cross domain with local service). Connecting to online public services will not have this problem because requests can be forwarded through the UtilMeta platform. In the future, UtilMeta platform will launch browser plugin and desktop client to solve the problem. Currently, you can use [UtilMeta's declarative web client](../client) to write debugging scripts and test cases for local APIs with cookies.
+
 ### Connect Public Service
 
 Connecting to the API service deployed online with public network address requires you to register an account on the UtilMeta platform. Because the management of online services requires a stricter authorization and authentication mechanism, you need to create a project team on the UtilMeta platform first. When you enter an empty project team, You can see the connection prompt for the UtilMeta platform

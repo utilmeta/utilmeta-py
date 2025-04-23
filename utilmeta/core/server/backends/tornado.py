@@ -6,7 +6,7 @@ from utilmeta.core.request.backends.tornado import TornadoServerRequestAdaptor
 from .base import ServerAdaptor
 import asyncio
 from utilmeta.core.api import API
-from typing import Optional
+from typing import Optional, Type
 
 
 class TornadoServerAdaptor(ServerAdaptor):
@@ -29,7 +29,7 @@ class TornadoServerAdaptor(ServerAdaptor):
     def production(self) -> bool:
         return not self.app.settings.get("debug")
 
-    def adapt(self, api: "API", route: str, asynchronous: bool = None):
+    def adapt(self, api: Type["API"], route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
         func = self.get_request_handler(

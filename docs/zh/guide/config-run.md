@@ -24,6 +24,7 @@ UtilMeta 服务的第一个参数接收当前模块的名称（`__name__`），�
 * `asynchronous`：强制指定服务是否提供异步接口，默认由运行时框架的特性决定
 * `api`：传入 UtilMeta 的根 API 类或它的引用字符串 
 * `route`：传入 UtilMeta 的根 API 挂载的路径字符串，默认为 `'/'`，即挂载到根路径
+* `auto_reload`: 设为 `True` 可以启用服务在代码更新时的自动重载（不建议用于生产），默认未开启
 
 当你初始化 UtilMeta 后，除了直接导入外，你还可以用这种方式导入当前进程的 UtilMeta 服务实例
 
@@ -420,11 +421,28 @@ env = ServiceEnvironment(file='/path/to/config.json')
 UtilMeta 提供了一个 `DjangoSettings` 配置，可以为所有使用 Django 作为 `backend` 的项目和使用 django ORM 的项目提供声明式的 django 配置， `DjangoSettings` 的常用配置参数如下
 
 * `secret_key`：指定 Django 项目的密钥，推荐在环境变量中生成一个长的随机密钥
-* `apps`：用于指定 Django 的 `INSTALLED_APPS`
-* `apps_package`：这是一个便捷配置项，如果你的已安装 app 都放在一个包中，你可以使用 `apps_package` 指定这个包的路径，UtilMeta 会读取其中的所有子文件夹查找 django app
+* `apps`：可以传入一个包列表用于直接指定 Django 的 `INSTALLED_APPS`
+* `apps_package`：如果你的 django app 都定义在某个文件夹中，例如：
+```  hl_lines="3"
+/project
+	/config
+	/domain
+		/app1
+			/migrations
+			models.py
+		/app2
+			/migrations
+			models.py
+```
+
+	 你可以指定 `apps_package='domain'` 来便捷地识别 `/domain`  中所有的 app，目前的识别方式是检测其中是否包括 `migrations` 文件夹（即 django 用于保存 app 中数据模型变更记录的文件夹）
+	 
+	 如果有多个这样的包你还可以传入一个包的相对路径的列表，如 `apps_package=['domain.apps', 'vendors']`
+
 * `middleware`：可以传入一个 django 中间件的列表
 * `module_name`：指定 django 的配置文件引用
 * `extra`：可以传入一个字典指定额外的 Django 配置
+
 
 另外，如果你没有为 `DjangoSettings` 指定 `module_name`，它将默认使用 UtilMeta 服务所在的模块作为配置，所以你也可以在服务 `setup()` **之前** 直接在这个文件中声明 django 配置，用法与原生 django 配置一样，例如
 

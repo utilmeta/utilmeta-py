@@ -26,6 +26,7 @@ from .settings import DjangoSettings
 import contextvars
 from django.core.handlers.asgi import ASGIHandler
 from django.core.handlers.wsgi import WSGIHandler
+from typing import Type
 
 _current_request = contextvars.ContextVar("_django.request")
 _current_response = contextvars.ContextVar("_django.response")
@@ -292,7 +293,7 @@ class DjangoServerAdaptor(ServerAdaptor):
         setattr(self.settings.url_conf, self.URLPATTERNS, urls)
         self._mounts[route] = app
 
-    def adapt(self, api: "API", route: str, asynchronous: bool = None):
+    def adapt(self, api: Type["API"], route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
         # func = self._get_api(api, asynchronous=asynchronous)

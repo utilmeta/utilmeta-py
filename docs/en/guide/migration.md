@@ -200,11 +200,60 @@ if __name__ == "__main__":
 
 Just take the result of  `API.__as__` as a route of `tornado.web.Application`
 
-### Integration rules
+### API Integration rules
 
 When integrate UtilMeta to other existing projects, you should only integrate **One** API classes. If you develop other API classes, you can use API mounting as a subroute of the integrated API classes.
 
 Because the service is not controlled by UtilMeta when the UtilMeta API integrate other projects,  so `API.__as__` will create a hidden UtilMeta service for control, in order to avoid service conflicts, you can only call the `API.__as__` function once.
+
+### Configure UtilMeta service
+
+You can declare a UtilMeta service instance to inject your configurations. Set the API class you defined as root API of service using `api` param, then replace the `__as__` method to `service.adapt` to adapt the entire service, like:
+
+```python hl_lines="34"
+import django
+from django.urls import re_path
+from django.http.response import HttpResponse
+from utilmeta.core import api, response
+
+class TimeAPI(api.API):
+    class response(response.Response):
+        result_key = 'data'
+        message_key = 'msg'
+
+    @api.get
+    def now(self):
+        return self.request.time
+
+def django_test(request, route: str):
+    return HttpResponse(route)
+
+from utilmeta import UtilMeta
+from utilmeta.conf import Time
+
+service = UtilMeta(
+    __name__,
+    name='time',
+    backend=django，
+    api=TimeAPI,
+)
+service.use(Time(
+    datetime_format="%Y-%m-%d %H:%M:%S",
+    use_tz=False
+))
+
+urlpatterns = [
+    re_path('test/(.*)', django_test),
+    service.adapt('/api/v1/time')
+]
+```
+`service.adapt` takes a route param to specify the adapted route that will prepend to the UtilMeta service root url. Using the above method, when request `/api/v1/time/now`, you will see the datetime string using the configured format:
+```json
+{"data": "2025-04-15 16:38:30", "msg": ""}
+```
+
+!!! note
+	The `backend` param of UtilMeta service instance should be consistent to the framework the project using.
 
 ## Integrate other frameworks
 

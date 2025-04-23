@@ -51,10 +51,7 @@ class RedisCache(Cache):
 
     @property
     def async_con(self):
-        from aioredis.client import Redis
-
-        cli: Redis = self.get_adaptor(True).get_cache()
-        return cli
+        return self.get_adaptor(True).get_cache()
 
     def info(self):
         from redis.exceptions import ConnectionError

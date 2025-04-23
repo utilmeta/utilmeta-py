@@ -11,6 +11,8 @@ class Scope(Field):
     # TEMPLATE_ALIASES = ['template', 'includes', 'scope', 'fields']
     # EXCLUDES_ALIASES = ['excludes', 'skip']
 
+    # todo: support related scope
+    #  id,title,author(name,email)
     def __init__(
         self,
         excluded: bool = False,

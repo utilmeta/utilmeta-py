@@ -189,6 +189,7 @@ class Operations(Config):
         ),
         task_log_level: Literal['info', 'warn', 'error'] = 'warn',
         max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
+        clear_daily: bool = False,
         local_scope: List[str] = ("*",),
         eager_migrate: bool = False,
         eager_mount: bool = False,
@@ -244,6 +245,7 @@ class Operations(Config):
         self.task_log_level = task_log_level
         self.connection_key = connection_key
         self.private_scope = private_scope
+        self.clear_daily = clear_daily
 
         # self._token = token
         self._ready = False

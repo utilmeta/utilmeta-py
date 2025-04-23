@@ -201,11 +201,64 @@ if __name__ == "__main__":
 
 就是将 `API.__as__` 的结果作为 `tornado.web.Application` 的一条路由
 
-### UtilMeta 接入规则
+### API 接入规则
 
 在将 UtilMeta 接入其他的现有项目时，你应该只接入 **一个** API 类，如果你开发了其他的 API 类，那么可以使用挂载作为接入的 API 类的子路由
 
 因为在 UtilMeta 接口接入其他项目的时候，服务不是由 UtilMeta 控制的，所以 `API.__as__` 函数会创建一个 隐藏的 UtilMeta 服务进行调控，所以为了避免服务冲突，你只能调用一次 `API.__as__` 函数
+
+### 配置 UtilMeta 服务
+
+如果你需要对 UtilMeta 接口进行额外的配置，你可以直接声明一个 UtilMeta 服务实例来注入配置，把定义好的 API 类通过 `api` 参数指定为服务的根 API，然后可以使用 `service.adapt` 方法代替 `__as__` 方法进行服务的适配，例如
+
+```python hl_lines="34"
+import django
+from django.urls import re_path
+from django.http.response import HttpResponse
+from utilmeta.core import api, response
+
+class TimeAPI(api.API):
+    class response(response.Response):
+        result_key = 'data'
+        message_key = 'msg'
+
+    @api.get
+    def now(self):
+        return self.request.time
+
+def django_test(request, route: str):
+    return HttpResponse(route)
+
+from utilmeta import UtilMeta
+from utilmeta.conf import Time
+
+service = UtilMeta(
+    __name__,
+    name='time',
+    backend=django，
+    api=TimeAPI,
+)
+service.use(Time(
+    datetime_format="%Y-%m-%d %H:%M:%S",
+    use_tz=False
+))
+
+urlpatterns = [
+    re_path('test/(.*)', django_test),
+    service.adapt('/api/v1/time')
+]
+```
+
+`service.adapt` 方法接收一个路径参数，可以指定服务挂载的路径，如果 UtilMeta 服务定义了根路径，`adapt` 方法的挂载路径会加在服务根路径的前方
+
+使用这样的适配方式，当请求路径 `/api/v1/time/now` 时，就可以看到按照配置格式序列化的当前时间，如
+```json
+{"data": "2025-04-15 16:38:30", "msg": ""}
+```
+
+!!! note
+	声明的 UtilMeta 服务实例所使用的 `backend` 需要与当前项目所使用的框架一致  
+
 
 ## 接入其他框架接口
 

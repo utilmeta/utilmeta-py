@@ -16,12 +16,18 @@ class TestCache:
         cache.pop('key')
         assert cache.get('key') is None
 
+    def test_aioredis(self):
+        from utilmeta.core.cache.backends.redis.aioredis import AioredisAdaptor
+        aioredis = AioredisAdaptor.load_aioredis()
+        assert aioredis.from_url
+
     # @pytest.mark.asyncio
     # async def test_async_cache(self):
     #     from utilmeta.core.cache import Cache
     #     cache = Cache(
     #         engine='memory'
     #     )
+    #     cache.apply('default', asynchronous=True)
     #     assert await cache.aget('key') is None
     #     await cache.aset('key', '123')
     #     assert await cache.aget('key') == '123'

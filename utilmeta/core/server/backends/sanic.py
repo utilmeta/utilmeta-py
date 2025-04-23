@@ -7,6 +7,7 @@ from utilmeta.core.request import Request
 from .base import ServerAdaptor
 from utilmeta.core.api import API
 import contextvars
+from typing import Type
 
 _current_request = contextvars.ContextVar("_sanic.request")
 _current_response = contextvars.ContextVar("_sanic.response")
@@ -46,7 +47,7 @@ class SanicServerAdaptor(ServerAdaptor):
         self.setup()
         return self.app
 
-    def adapt(self, api: "API", route: str, asynchronous: bool = None):
+    def adapt(self, api: Type["API"], route: str, asynchronous: bool = None):
         if asynchronous is None:
             asynchronous = self.default_asynchronous
         self.add_api(self.app, api, asynchronous=asynchronous, route=route)

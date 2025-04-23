@@ -1,6 +1,12 @@
 from django.urls import path, include
 from django.contrib.auth.models import User
 from rest_framework import routers, serializers, viewsets
+import os
+import sys
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
 
 
 # Serializers define the API representation.

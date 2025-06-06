@@ -3,7 +3,7 @@ from tests.conftest import setup_service
 from utilmeta.core import orm
 from utilmeta.utils import exceptions, time_now
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Set
 from utype.types import Self
 
 
@@ -776,6 +776,65 @@ class TestSchemaQuery:
         assert user1.id == 1
         assert any([follower.id == 1 for follower in user1.followers])
         assert any([following.id == 1 for following in user1.followings])
+
+    def test_pure_query_function(self):
+        from app.models import Follow, User, Article
+
+        class UserQuerySchema(orm.Schema[User]):
+            id: int
+            username: str
+
+            @classmethod
+            def get_article_tags(cls, *pks):
+                mp = {}
+                for tags, author_id in Article.objects.filter(
+                    author__in=pks,
+                ).values_list('tags', 'author_id'):
+                    mp.setdefault(author_id, set()).update(tags or [])
+                return mp
+
+            article_tags: Set[str] = orm.Field(get_article_tags)
+
+        users = UserQuerySchema.serialize([1, 2, 3])
+        alice = users[0]
+        bob = users[1]
+        jack = users[2]
+        assert alice.username == 'alice'
+        assert alice.article_tags == set()
+        assert bob.username == 'bob'
+        assert bob.article_tags == {'default', 'shock', 'head', 'news'}
+        assert jack.username == 'jack'
+        assert jack.article_tags == set()
+
+    @pytest.mark.asyncio
+    async def test_async_pure_query_function(self):
+        from app.models import Follow, User, Article
+
+        class UserQuerySchema(orm.Schema[User]):
+            id: int
+            username: str
+
+            @classmethod
+            async def get_article_tags(cls, *pks):
+                mp = {}
+                async for tags, author_id in Article.objects.filter(
+                    author__in=pks,
+                ).values_list('tags', 'author_id'):
+                    mp.setdefault(author_id, set()).update(tags or [])
+                return mp
+
+            article_tags: Set[str] = orm.Field(get_article_tags)
+
+        users = await UserQuerySchema.aserialize([1, 2, 3])
+        alice = users[0]
+        bob = users[1]
+        jack = users[2]
+        assert alice.username == 'alice'
+        assert alice.article_tags == set()
+        assert bob.username == 'bob'
+        assert bob.article_tags == {'default', 'shock', 'head', 'news'}
+        assert jack.username == 'jack'
+        assert jack.article_tags == set()
 
     def test_bulk_save(self):
         pass

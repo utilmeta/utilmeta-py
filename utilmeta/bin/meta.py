@@ -135,27 +135,40 @@ class MetaCommand(BaseServiceCommand):
 
         write_config({"utilmeta": settings}, self.ini_path)
 
-    def _get_openapi(self):
+    def _get_openapi(self, api_prefix: str = None):
         from utilmeta.ops.config import Operations
 
-        ops_config = self.service.get_config(Operations)
-        if ops_config:
-            return ops_config.openapi
-        from utilmeta.core.api.specs.openapi import OpenAPI
+        if not api_prefix:
+            ops_config = self.service.get_config(Operations)
+            if ops_config:
+                return ops_config.openapi
 
-        return OpenAPI(self.service)()
+        from utilmeta.core.api.specs.openapi import OpenAPI
+        return OpenAPI(self.service, api_prefix=api_prefix)()
 
     @command()
-    def gen_openapi(self, to: str = Arg(alias="--to", default="openapi.json")):
+    def gen_openapi(
+        self,
+        to: str = Arg(alias="--to", default=None),
+        api_prefix: str = Arg(alias="--prefix", default=None)
+    ):
         """
         Generate OpenAPI document file for current service
         --to: target file name, default to be openapi.json
+        --prefix: specify an API path prefix, this generation will only generate APIs with path startswith this prefix
         """
         self.service.setup()  # setup here
-        print(f"generate openapi document file for service: [{self.service.name}]")
+        msg = f"generate openapi document file for service: [{self.service.name}]"
+        if api_prefix:
+            msg += f" with API prefix: {repr(api_prefix)}"
+        print(msg)
         from utilmeta.core.api.specs.openapi import OpenAPI
-
-        openapi = self._get_openapi()
+        openapi = self._get_openapi(api_prefix=api_prefix)
+        if not to:
+            if api_prefix:
+                to = f'{api_prefix.strip("/").replace("/", "_")}_openapi.json'
+            else:
+                to = 'openapi.json'
         path = OpenAPI.save_to(openapi, to)
         print(f"OpenAPI document generated at {path}")
 
@@ -163,7 +176,8 @@ class MetaCommand(BaseServiceCommand):
     def gen_client(
         self,
         openapi: str = Arg(alias="--openapi", default=None),
-        to: str = Arg(alias="--to", default="client.py"),
+        to: str = Arg(alias="--to", default=None),
+        api_prefix: str = Arg(alias="--prefix", default=None),
         split_body_params: str = Arg(alias="--split-body-params", default=True),
         black: str = Arg(alias="--black", default=True),
         space_indent: str = Arg(alias="--spaces-indent", default=True),
@@ -172,6 +186,7 @@ class MetaCommand(BaseServiceCommand):
         Generate UtilMeta Client code for current service or specified OpenAPI document (url or file)
         --openapi: specify target OpenAPI document (url / filepath / document string), default to be the document of current UtilMeta service
         --to: target file name, default to be openapi.json
+        --prefix: specify a API path prefix, this generation will only generate APIs with path startswith this prefix
         """
         from utilmeta.core.cli.specs.openapi import OpenAPIClientGenerator
 
@@ -181,11 +196,16 @@ class MetaCommand(BaseServiceCommand):
         else:
             self.service.setup()  # setup here
             print(f"generate client file for service: [{self.service.name}]")
-            openapi_docs = self._get_openapi()
+            openapi_docs = self._get_openapi(api_prefix=api_prefix)
             generator = OpenAPIClientGenerator(openapi_docs)
         generator.space_ident = space_indent
         generator.black_format = black
         generator.split_body_params = split_body_params
+        if not to:
+            if api_prefix:
+                to = f'{api_prefix.strip("/").replace("/", "_")}_client.py'
+            else:
+                to = "client.py"
         path = generator(to)
         print(f"Client file generated at {path}")
 

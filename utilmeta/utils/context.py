@@ -8,6 +8,10 @@ from functools import partial
 from contextvars import ContextVar
 
 
+class ContextPropertySwitch(Exception):
+    pass
+
+
 class ParserProperty:
     def __init__(self, prop: Union[Type["Property"], "Property"], field: ParserField):
         self.prop = prop
@@ -43,6 +47,7 @@ class Property(Field):
     __key__ = None
     __type__ = None
     __ident__ = None
+    __exclusive__ = False
     __private__ = False
     __no_default__ = None
 
@@ -127,24 +132,61 @@ class ContextWrapper:
 
             if prop.__ident__:
                 if prop.__ident__ in ident_props:
-                    raise DuplicateContextProperty(ident=prop.__ident__)
-                ident_props[prop.__ident__] = prop
+                    if prop.__exclusive__:
+                        raise DuplicateContextProperty(
+                            f'duplicated {repr(prop.__ident__)} properties',
+                            ident=prop.__ident__
+                        )
+                ident_props.setdefault(str(prop.__ident__), []).append(prop)
+
             properties[key] = attrs[val.attname] = self.init_prop(prop, val)
 
         self.properties: Dict[str, ParserProperty] = properties
+        self.ident_props: Dict[str, List[Property]] = ident_props
         self.attrs: Dict[str, ParserProperty] = attrs
         self.parser = parser
 
     def init_prop(self, prop, val) -> ParserProperty:  # noqa, to be inherit
         return prop.init(val)
 
+    def _switch_failed_prop(self, mp: dict, prop: Property):
+        if not prop.__ident__ or prop.__exclusive__:
+            return False
+        props = self._handle_prop_parsed(mp, prop)
+        if props:
+            # [other_props]
+            return True
+        origin_props = self.ident_props.get(prop.__ident__)
+        if origin_props and len(origin_props) > 1:
+            return True
+        return False
+
+    @classmethod
+    def _handle_prop_parsed(cls, mp: dict, prop: Property):
+        if not prop.__ident__:
+            return False
+        props = mp.get(prop.__ident__)
+        if isinstance(props, list) and prop in props:
+            props.remove(prop)
+            return props
+        return False
+
     def parse_context(self, context: object) -> dict:
         if not isinstance(context, self.context_cls):
             # should raise TypeError
             pass
         params = {}
+        mp = {k: list(v) for k, v in self.ident_props.items()}
         for key, prop in self.properties.items():
-            value = prop.get(context)
+            try:
+                value = prop.get(context)
+            except ContextPropertySwitch as e:
+                if not self._switch_failed_prop(mp, prop.prop):
+                    print('NOT SWITCH ERR:', e, prop.prop, prop.prop.__ident__, self.ident_props, mp)
+                    raise
+                value = None
+            else:
+                self._handle_prop_parsed(mp, prop.prop)
             if not unprovided(value):
                 params[key] = value
         return params
@@ -154,10 +196,18 @@ class ContextWrapper:
             # should raise TypeError
             pass
         params = {}
+        mp = {k: list(v) for k, v in self.ident_props.items()}
         for key, prop in self.properties.items():
-            value = prop.get(context)
-            if inspect.isawaitable(value):
-                value = await value
+            try:
+                value = prop.get(context)
+                if inspect.isawaitable(value):
+                    value = await value
+            except ContextPropertySwitch:
+                if not self._switch_failed_prop(mp, prop.prop):
+                    raise
+                value = None
+            else:
+                self._handle_prop_parsed(mp, prop.prop)
             if not unprovided(value):
                 params[key] = value
         return params

@@ -1,5 +1,26 @@
 # Release Note
 
+## v2.7.6
+
+Release Date:  2025/6/6
+
+### New features
+
+* UtilMeta service instance supported `adapt(route: str)` method, used to integrate UtilMeta API into existing Python backend projects that requires the UtilMeta service configuration.
+* API function suported defining multiple `request.Query` , `request.Headers` and `request.Body` (with different Content-Type alternatives), along with data parsing and OpenAPi document generation,
+* `orm.Field` supported value query function, can be used to conveniently and efficiently organize custom query code beyond serialization of relational objects
+* `meta gen_openapi` command added `--prefix` argument to specify an API path prefix, and generate document only for the APIs with path startswith this prefix.
+
+### Optimized
+
+* OpenAPI supported extract doc string of API function to description.
+* Operations supported `clear_daily`, enable to run the deletion task of the stale data daily.
+* `File` object added `content_md5` property to get the MD5 value of the file content (can be used in de-duplicate or cache).
+
+### Fixed
+
+* Fixed the import issue of `aioredis` (redis>=4.2.0rc1+ supported asynchronous internally)
+
 ## v2.7.5
 
 Release Date:  2025/3/21

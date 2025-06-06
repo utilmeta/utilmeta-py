@@ -288,6 +288,35 @@ def get_requests(backend: str = None, asynchronous: bool = False):
         ),
         (
             "post",
+            "multi_body",
+            {},
+            {
+                'name': 'form'
+            },
+            {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            [None, None, {'name': 'form'}],
+            200,
+        ),
+        (
+            "post",
+            "multi_body",
+            {},
+            {
+                'name': 'json',
+                'operation': 'post',
+                'params': {'key': 'val'}
+            },
+            {},
+            [{'name': 'json'}, {
+                'operation': 'post',
+                'params': {'key': 'val'}
+            }, None],
+            200,
+        ),
+        (
+            "post",
             "log/2022/1/INFO",
             {"status": "500"},
             {"title": "yyyy", "views": 3},

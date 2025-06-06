@@ -476,6 +476,35 @@ class UserSchema(orm.Schema[User]):
 !!! tip  "动态 Schema 查询"
 	对于上面的例子，你在 API 函数中可以使用 `UserSchema.get_runtime_schema(request_user_id)` 获得根据当前用户 ID 动态生成的查询 Schema 类。这样的方式可以称为运行时的动态 Schema 查询
 
+### 值查询函数
+
+上面我们介绍了关系查询函数，关系查询函数需要把当前查询到的数据主键与关联模型的主键进行对应，再由字段定义的关系模型 Schema 进行序列化
+
+不过如果我们不需要进行进一步的序列化，而是直接将查询函数中的结果输出，那么只需要完成主键与字段值的对应即可定义**值查询函数**，比如下面的例子
+
+```python
+from .models import User, Article
+
+class UserQuerySchema(orm.Schema[User]):
+	id: int
+	username: str
+
+	@classmethod
+	def get_article_tags(cls, *pks):
+		mp = {}
+		for tags, author_id in Article.objects.filter(
+			author__in=pks,
+		).values_list('tags', 'author_id'):
+			mp.setdefault(author_id, set()).update(tags or [])
+		return mp
+
+	article_tags: Set[str] = orm.Field(get_article_tags)
+```
+
+这个例子中我们定义的 `article_tags` 并不直接对应模型字段，而是使用 `get_article_tags` 函数把文章作者与作者所有文章的标签进行对应，就可以得到每个作者的全部文章标签集合
+
+`get_article_tags` 就是值查询函数，这是一种方便且高效地组织查询代码的方式，比如上面的例子就使用一条查询完成了任意数量用户的文章标签查询
+
 ### 表达式查询
 
 对于某个关系字段的聚合或计算也是常见的开发需求，比如

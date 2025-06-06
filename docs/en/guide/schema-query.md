@@ -479,6 +479,35 @@ In the example, `UserSchema` defines a class function that generate different qu
 !!! tip "Dynamic Schema Query"
 	For the above example, you can call `UserSchema.get_runtime_schema(request_user_id)` in the API function to get the dynamic generated Schema class based on the user id of the current request, we often call it **Dynamic Schema Query**
 
+
+### Value query function
+
+Above, we introduced the relational query function, which needs to correspond the primary key of the currently queried data with the primary key of the related model for the target field, and then serialize it using the relational model schema defined by the field.
+
+However, if we do not need further serialization and directly output the results from the query function, we only need to complete the correspondence between the primary key and field values, this function will called **value query function**, as shown in the following example
+
+```python
+from .models import User, Article
+
+class UserQuerySchema(orm.Schema[User]):
+	id: int
+	username: str
+
+	@classmethod
+	def get_article_tags(cls, *pks):
+		mp = {}
+		for tags, author_id in Article.objects.filter(
+			author__in=pks,
+		).values_list('tags', 'author_id'):
+			mp.setdefault(author_id, set()).update(tags or [])
+		return mp
+
+	article_tags: Set[str] = orm.Field(get_article_tags)
+```
+
+In this example, the `articles tags` we defined do not directly correspond to the model fields or related schema. Instead, we use the `get_article_tags` function to map the the article author with all the tags of the author's articles, and we can get the complete set of article tags for each author.
+
+`get_article_tags` is a value query function, which is a convenient and efficient way to organize query code. For example, the above example uses a single query to complete the query of article tags for any number of users.
 ### Query Expression
 
 Aggregation or calculation of a relational field is also a common development requirement, such as

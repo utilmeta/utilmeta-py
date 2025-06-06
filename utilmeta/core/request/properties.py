@@ -36,6 +36,7 @@ __all__ = [
 
 class Path(Property):
     __ident__ = "path"
+    __exclusive__ = True
 
     @classmethod
     def getter(cls, request: Request, *keys: str):
@@ -44,6 +45,7 @@ class Path(Property):
 
 class URL(Property):
     __ident__ = "url"
+    __exclusive__ = True
 
     @classmethod
     def getter(cls, request: Request, field: ParserField = None):
@@ -51,6 +53,9 @@ class URL(Property):
 
 
 class Host(Property):
+    __ident__ = "host"
+    __exclusive__ = True
+
     @classmethod
     def getter(cls, request: Request, field: ParserField = None):
         return request.host
@@ -648,6 +653,8 @@ class UserAgent(Property):
 
 class Address(Property):
     __type__ = Union[IPv4Address, IPv6Address]
+    __ident__ = 'address'
+    __exclusive__ = True
 
     @classmethod
     def getter(cls, request: Request, field: ParserField = None):
@@ -675,6 +682,8 @@ class Address(Property):
 
 class Time(Property):
     __type__ = datetime
+    __ident__ = 'time'
+    __exclusive__ = True
 
     @classmethod
     def getter(cls, request: Request, field: ParserField = None):

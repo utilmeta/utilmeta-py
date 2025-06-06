@@ -315,6 +315,20 @@ class TestAPI(api.API):
         print(x_test_header)
         return headers.auth_token, headers.meta, headers.cookie, dic  # noqa
 
+    class BodyPart1(utype.Schema):
+        name: str = 'default'
+
+    class BodyPart2(utype.Schema):
+        operation: str
+        params: dict
+
+    @api.post
+    def multi_body(self,
+                   data: Optional[BodyPart1] = request.Json,
+                   data_part2: Optional[BodyPart2] = request.Json,
+                   form: Optional[BodyPart1] = request.Form):
+        return [data, data_part2, form]
+
     @api.post
     def headers_kwargs(
         self,

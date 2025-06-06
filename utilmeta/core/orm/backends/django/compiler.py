@@ -203,7 +203,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
 
         async def query_isolated(f):
             try:
-                await self.query_isolated_field(f)
+                await self.async_query_isolated_field(f)
             except Exception as e:
                 self.handle_isolated_field(f, e)
 
@@ -378,17 +378,20 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     pk_map.setdefault(val[PK], fk)
 
         elif field.func:
+            # 1. has related schema (schema with related model attached)
+            #    we extract primary key values only for the next related schema query
+            # 2. has no related schema
+            #    this can happen if user only wants to query certain values without further query
+            #    we return the function result AS IS
+
             if field.func_multi:
-                pk_map = self.normalize_pk_map(
-                    field.func(*self.pk_list, __class__=self.parser.obj)
-                )
+                pk_map = field.func(*self.pk_list, __class__=self.parser.obj)
                 # normalize pks from user input
             else:
                 for pk in self.pk_list:
-                    pk_map[str(pk)] = self.normalize_pk_list(
-                        field.func(pk, __class__=self.parser.obj)
-                    )
+                    pk_map[str(pk)] = field.func(pk, __class__=self.parser.obj)
 
+            pk_map = self.normalize_pk_map(pk_map, pk_only=bool(field.related_schema))
             # normalize user input
         else:
             # many related field / common values
@@ -511,8 +514,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             lst.append(pk)
         return lst
 
-    @awaitable(normalize_pk_list)
-    async def normalize_pk_list(self, value):
+    async def async_normalize_pk_list(self, value):
         if isinstance(value, models.QuerySet):
             value = [
                 pk async for pk in value.using(self.using).values_list("pk", flat=True)
@@ -527,29 +529,34 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             lst.append(pk)
         return lst
 
-    def normalize_pk_map(self, pk_map: dict):
+    def normalize_pk_map(self, pk_map: dict, pk_only: bool = True):
         if not isinstance(pk_map, dict):
             raise TypeError(f"Invalid pk map: {pk_map}, must be a dict")
         result = {}
         for k, value in pk_map.items():
-            lst = self.normalize_pk_list(value)
-            if lst:
-                result[str(k)] = lst
+            if pk_only:
+                lst = self.normalize_pk_list(value)
+                if lst:
+                    result[str(k)] = lst
+            else:
+                result[str(k)] = value
         return result
 
-    @awaitable(normalize_pk_map)
-    async def normalize_pk_map(self, pk_map: dict):
+    async def async_normalize_pk_map(self, pk_map: dict, pk_only: bool = True):
         if not isinstance(pk_map, dict):
             raise TypeError(f"Invalid pk map: {pk_map}, must be a dict")
         result = {}
         for k, value in pk_map.items():
-            lst = await self.normalize_pk_list(value)
-            if lst:
-                result[str(k)] = lst
+            if pk_only:
+                lst = await self.async_normalize_pk_list(value)
+                if lst:
+                    result[str(k)] = lst
+            else:
+                result[str(k)] = value
         return result
 
-    @awaitable(query_isolated_field)
-    async def query_isolated_field(self, field: ParserQueryField):
+    # @awaitable(query_isolated_field)
+    async def async_query_isolated_field(self, field: ParserQueryField):
         """
         - field_config.queryset
             - queryset has values
@@ -615,18 +622,23 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     pk_map.setdefault(val[PK], fk)
 
         elif field.func:
+            # 1. has related schema (schema with related model attached)
+            #    we extract primary key values only for the next related schema query
+            # 2. has no related schema
+            #    this can happen if user only wants to query certain values without further query
+            #    we return the function result AS IS
+
             if field.func_multi:
                 pk_map = field.func(*self.pk_list, __class__=self.parser.obj)
                 if inspect.isawaitable(pk_map):
                     pk_map = await pk_map
-                pk_map = await self.normalize_pk_map(pk_map)
-                # normalize pks from user input
             else:
                 for pk in self.pk_list:
                     rel_qs = field.func(pk, __class__=self.parser.obj)
                     if inspect.isawaitable(rel_qs):
                         rel_qs = await rel_qs
-                    pk_map[str(pk)] = await self.normalize_pk_list(rel_qs)
+                    pk_map[str(pk)] = rel_qs
+            pk_map = await self.async_normalize_pk_map(pk_map, pk_only=bool(field.related_schema))
 
         else:
             if field.is_sub_relation:

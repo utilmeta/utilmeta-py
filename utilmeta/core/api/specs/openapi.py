@@ -115,8 +115,8 @@ def get_docs_from_url(url, timeout: int = None):
 class OpenAPIGenerator(JsonSchemaGenerator):
     DEFAULT_REF_PREFIX = "#/components/schemas/"
 
-    def generate_for_field(self, f: ParserField, options=None):
-        data = super().generate_for_field(f, options=options)
+    def generate_for_field(self, f: ParserField, options=None, **kwargs):
+        data = super().generate_for_field(f, options=options, **kwargs)
         if data is None:
             return data
         t = f.output_type if self.output else f.type
@@ -308,6 +308,7 @@ class OpenAPI(BaseAPISpec):
         service: "UtilMeta",
         external_docs: Union[str, dict, Callable] = None,
         base_url: str = None,
+        api_prefix: str = None,
     ):
         super().__init__(service)
         self.defs = {}
@@ -319,6 +320,7 @@ class OpenAPI(BaseAPISpec):
         self.operations = set()
         self.external_docs = external_docs
         self.base_url = base_url
+        self.api_prefix = api_prefix
         self.pref = Preference.get()
         self.tags = {}
         # self.operations = {}
@@ -379,6 +381,9 @@ class OpenAPI(BaseAPISpec):
                     components[key] = dict(values)
 
             for path, values in doc_paths.items():
+                if self.api_prefix:
+                    if not path.strip('/').startswith(self.api_prefix.strip('/')):
+                        continue
                 if path in paths:
                     paths[path].update(values)
                 else:
@@ -788,8 +793,8 @@ class OpenAPI(BaseAPISpec):
         body_params = {}
         body_form = False
         body_params_required = []
-        body_required = False
-        body_description = ""
+        body_required = None
+        body_descriptions = []
         auth_requirements = []
 
         for key, prop_holder in props.items():
@@ -870,9 +875,35 @@ class OpenAPI(BaseAPISpec):
                     # guess
                     content_type = generator.get_body_content_type(schema) or PLAIN
 
-                media_types[content_type] = {"schema": schema}
-                body_description = prop.description
-                body_required = prop.required
+                if isinstance(schema, dict) and {'type': 'null'} in (schema.get('anyOf') or []):
+                    # Optional[BodySchema]
+                    body_required = False
+                    body_conditions = list(schema.get('anyOf'))
+                    body_conditions.remove({'type': 'null'})
+                    if len(body_conditions) == 1:
+                        schema = body_conditions[0]
+
+                current_content = media_types.get(content_type)
+                body_schema = {"schema": schema}
+
+                if current_content:
+                    current_schema = current_content.get('schema')
+                    if current_schema:
+                        all_of = current_schema.get('allOf')
+                        if isinstance(all_of, list):
+                            all_of.append(schema)
+                            body_schema = {'schema': all_of}
+                        else:
+                            body_schema = {'schema': {'allOf': [current_schema, schema]}}
+
+                media_types[content_type] = body_schema
+                if prop.description:
+                    body_descriptions.append(prop.description)
+
+                if len(media_types) > 1:
+                    body_required = True
+                if body_required is None:
+                    body_required = prop.required
 
             elif prop.__ident__ in self.PARAMS_IN:
                 # all the params in this prop is in the __ident__
@@ -926,7 +957,7 @@ class OpenAPI(BaseAPISpec):
                     "schema": {
                         "type": "object",
                         "properties": body_params,
-                        "required": body_params_required,
+                        "required": body_params_required or False,
                     }
                 }
             }
@@ -934,8 +965,8 @@ class OpenAPI(BaseAPISpec):
         body = None
         if media_types:
             body = dict(content=media_types, required=body_required)
-            if body_description:
-                body.update(description=body_description)
+            if body_descriptions:
+                body.update(description='\n'.join(body_descriptions))
         return params, body, auth_requirements
 
     @property
@@ -1055,6 +1086,11 @@ class OpenAPI(BaseAPISpec):
         new_tags = [*tags, route.name] if route.name else list(tags)
         # route_tags = route.get_tags()
         path = self._path_join(*new_routes)
+
+        if self.api_prefix:
+            if not path.strip('/').startswith(self.api_prefix.strip('/')):
+                return {}
+
         route_data = {
             k: v
             for k, v in dict(

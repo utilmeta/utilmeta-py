@@ -1,5 +1,25 @@
 # 版本发布记录
 
+## v2.7.6
+
+发布时间：2025/6/6
+
+### 新特性
+
+* UtilMeta 服务实例新增 `adapt(route: str)` 方法，用于在现有 Python 后端项目中引入 UtilMeta 框架接口，并需要同时声明 UtilMeta 服务配置时使用
+* API 函数支持同时定义多个 `request.Query` ，`request.Headers` 与 `request.Body` (可以对应不同的 Content-Type)，支持对应的数据解析与 OpenAPI 文档生成
+* `orm.Field` 支持定义值查询函数，可以用于方便高效地组织关系对象序列化之外的自定义查询代码
+* `meta gen_openapi` 命令新增 `--prefix` 参数，用于指定一个 API 路径前缀，只生成这个路径下的 API 文档
+### 优化项
+
+* OpenAPI 文档支持提取 API 函数中的 doc_string (三引号 """ 中的内容) 到 description
+* Operations 系统支持 `clear_daily` 参数，启用后每天只会运行一次数据清理
+* File 类型新增 `content_md5` 属性获取文件内容的 md5 值（可用于去重检测或缓存）
+
+### 问题修复
+
+* 修复 `aioredis` 的导入问题（redis>=4.2.0rc1+ 中内置了异步功能）
+
 ## v2.7.5
 
 发布时间：2025/3/21

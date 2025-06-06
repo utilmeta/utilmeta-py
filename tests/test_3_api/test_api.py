@@ -1,4 +1,4 @@
-from utilmeta.core import api, request, file
+from utilmeta.core import api, request, file, orm
 from utilmeta.core.api import API
 from utilmeta.core import response
 import pytest
@@ -22,6 +22,20 @@ class TestAPIClass:
 
         resp2 = Response(response=Response(status=400, result='123'), status=422)
         assert resp2.status == 422
+
+    def test_declaration(self):
+        class _API(api.API):    # noqa
+            class QuerySchema(orm.Query):
+                a: int
+                b: str
+
+            @api.get
+            def test(self, query: QuerySchema):
+                # QuerySchema will be string by default under from __future__ import annotations
+                # we use API.__dict__ as local vars to evaluate the forward ref
+                pass
+
+        assert _API.test.wrapper.properties['query'].prop.__ident__ == 'query'
 
     def test_invalid_declaration(self):
         with pytest.raises(TypeError):

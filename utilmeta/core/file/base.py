@@ -3,7 +3,7 @@ from .backends.base import FileAdaptor
 import utype
 from typing import Type, Optional
 from utilmeta.utils.exceptions import UnprocessableEntity
-from utilmeta.utils import file_like
+from utilmeta.utils import file_like, cached_property
 from pathlib import Path
 
 __all__ = ["File", "Image", "Audio", "Video", "FileType"]
@@ -109,6 +109,15 @@ class File:
     @property
     def content_type(self) -> str:
         return self._content_type or self.adaptor.content_type
+
+    @cached_property
+    def content_md5(self) -> str:
+        import hashlib
+        hash_md5 = hashlib.md5()
+        for chunk in iter(lambda: self.read(4096), b""):
+            hash_md5.update(chunk)
+        self.seek(0)
+        return hash_md5.hexdigest()
 
     @property
     def filename(self) -> str:

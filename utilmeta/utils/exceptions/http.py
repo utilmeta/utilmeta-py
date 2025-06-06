@@ -1,5 +1,6 @@
 from typing import List, Union
 from utilmeta.utils.constant import Header
+from utilmeta.utils.context import ContextPropertySwitch
 
 
 class HttpError(Exception):
@@ -197,7 +198,7 @@ class RequestURITooLong(RequestError):
     status = 414
 
 
-class UnsupportedMediaType(RequestError):
+class UnsupportedMediaType(RequestError, ContextPropertySwitch):
     status = 415
 
 
@@ -217,7 +218,7 @@ class MisdirectedRequest(RequestError):
     status = 421
 
 
-class UnprocessableEntity(RequestError):
+class UnprocessableEntity(RequestError, ContextPropertySwitch):
     status = 422
 
 

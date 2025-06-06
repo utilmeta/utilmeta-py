@@ -88,7 +88,7 @@ class ParserQueryField(ParserField):
             else:
                 if (
                     self.type.__origin__
-                    and issubclass(self.type.__origin__, list)
+                    and issubclass(self.type.__origin__, (list, set))
                     and self.type.__args__
                 ):
                     self.related_single = False

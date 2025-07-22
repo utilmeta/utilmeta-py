@@ -45,6 +45,11 @@ utilmeta_process = make_cmd_process(
     cwd=BASE_DIR / 'utilmeta_site',
     port=9090
 )
+sanic_process = make_cmd_process(
+    BASE_DIR / 'sanic_site/server.py',
+    cwd=BASE_DIR / 'sanic_site',
+    port=9094
+)
 
 from tests.conftest import setup_service, make_live_process
 
@@ -220,12 +225,6 @@ class TestOperations:
             assert 'Hello' in str(hello.data)
 
     if sys.version_info >= (3, 9):
-        sanic_process = make_cmd_process(
-            BASE_DIR / 'sanic_site/server.py',
-            cwd=BASE_DIR / 'sanic_site',
-            port=9094
-        )
-
         def test_sanic_operations(self, sanic_process):
             time.sleep(OPS_WAIT)
             with OperationsClient(base_url='http://127.0.0.1:9094/ops', base_headers={

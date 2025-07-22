@@ -99,7 +99,8 @@ service.use(CacheConnections({
 }))
 service.use(Preference(
     default_aborted_response_status=500,
-    default_timeout_response_status=500
+    default_timeout_response_status=500,
+    orm_on_conflict_type='error'
 ))
 service.use(Time(
     use_tz=django.VERSION > (3, 2)

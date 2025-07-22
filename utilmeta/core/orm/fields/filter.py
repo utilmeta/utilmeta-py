@@ -62,7 +62,7 @@ class ParserFilter(ParserField):
             if isinstance(self.field, Filter):
                 if self.field_name:
                     self.model_field = model.get_field(
-                        self.field_name, allow_addon=True, silently=True
+                        self.field_name, silently=False
                     )
                     if self.model_field:
                         self.validate_field()
@@ -101,7 +101,6 @@ class ParserFilter(ParserField):
             if self.field.query:
                 return None
             if self.model_field:
-                # including addon
                 return self.model_field.query_name or self.name
         return self.name
 

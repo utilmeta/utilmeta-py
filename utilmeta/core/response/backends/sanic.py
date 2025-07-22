@@ -1,4 +1,4 @@
-from sanic.response import HTTPResponse
+from sanic.response import HTTPResponse, ResponseStream
 
 try:
     from sanic.response import Header

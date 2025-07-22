@@ -36,7 +36,11 @@ class StarletteResponseAdaptor(ResponseAdaptor):
         #
         #     response = StreamingResponse(resp.file, **kwargs)
         # else:
-        response = HttpResponse(resp.body, **kwargs)
+        stream = resp.event_stream
+        if stream:
+            response = StreamingResponse(stream, **kwargs)
+        else:
+            response = HttpResponse(resp.body, **kwargs)
         for key, val in resp.prepare_headers():
             # set values in this way cause headers is a List[Tuple]
             response.headers[key] = val

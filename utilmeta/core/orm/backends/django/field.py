@@ -1,3 +1,5 @@
+import typing
+from utype.types import Self
 from utilmeta.utils import multi
 from ..base import ModelFieldAdaptor
 from typing import Union, Optional, Type, TYPE_CHECKING, Tuple, Any
@@ -10,7 +12,6 @@ from . import expressions as exp
 from utype import Rule, Lax
 from utype import types
 from functools import cached_property
-import warnings
 
 if TYPE_CHECKING:
     from .model import DjangoModelAdaptor
@@ -47,47 +48,48 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     field: Union[models.Field, ForeignObjectRel, exp.BaseExpression, exp.Combinable]
     model: "DjangoModelAdaptor"
 
-    def __init__(self, field, addon: str = None, model=None, lookup_name: str = None):
+    def __init__(
+        self, field,
+        model: "DjangoModelAdaptor" = None,
+        transform_name: str = None,
+        query_lookup: str = None,
+        query_name: str = None,
+    ):
         if isinstance(field, DeferredAttribute):
             field = field.field
-            if not lookup_name:
-                lookup_name = getattr(field, "field_name", getattr(field, "name", None))
-
-        # if isinstance(field, str):
-        #     from .model import DjangoModelAdaptor
-        #     if isinstance(model, DjangoModelAdaptor):
-        #         field = model.get_field(field)
+            field_name = getattr(field, "field_name", getattr(field, "name", None))
+            if not query_name:
+                fields = [field_name]
+                if transform_name:
+                    fields.append(transform_name)
+                if query_lookup:
+                    fields.append(query_lookup)
+                query_name = '__'.join(fields)
 
         if not self.qualify(field):
             raise TypeError(f"Invalid field: {field}")
 
-        super().__init__(field, addon, model, lookup_name)
-        self.validate_addon()
+        super().__init__(
+            field, model=model,
+            transform_name=transform_name,
+            query_name=query_name,
+            query_lookup=query_lookup
+        )
 
     @property
     def multi_relations(self):
-        return self.lookup_name and "__" in self.lookup_name
+        return self.query_name and "__" in self.query_name
 
-    def validate_addon(self):
-        if not self.addon:
-            return
-        if not isinstance(self.addon, str):
-            raise TypeError(f"Invalid addon: {repr(self.addon)}, must be str")
-        if self.is_concrete:
-            _t = self.field.get_internal_type()
-            addons = constant.ADDON_FIELD_LOOKUPS.get(_t, [])
-            if self.addon not in addons:
-                from django.db.models import JSONField
-
-                if not isinstance(self.field, JSONField):
-                    warnings.warn(
-                        f"Invalid addon: {repr(self.addon)} for field: {self.field},"
-                        f" only {addons} are supported"
-                    )
-        else:
-            raise TypeError(
-                f"Not concrete field: {self.field} cannot have addon: {repr(self.addon)}"
-            )
+    # @classmethod
+    # def allow_arbitrary_transform(cls, field):
+    #     from django.db.models import JSONField
+    #     fields = [JSONField]
+    #     try:
+    #         from django.contrib.postgres.fields import JSONField as _pgJSONField
+    #         fields.append(_pgJSONField)
+    #     except ImportError:
+    #         pass
+    #     return isinstance(field, tuple(fields))
 
     @property
     def title(self) -> Optional[str]:
@@ -271,7 +273,17 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         _args = []
         field = self.field
 
-        if self.is_o2:
+        if self.query_lookup:
+            _type = constant.LOOKUP_TYPE_MAP.get(self.query_lookup)
+            if _type == Self:
+                _type = self._get_type(self.field)
+            field = None
+
+        elif self.transform_name:
+            _type = constant.TRANSFORM_TYPE_MAP.get(self.transform_name)
+            field = None
+
+        elif self.is_o2:
             mod = self.related_model
             if mod:
                 _type = mod.pk_field.rule
@@ -288,7 +300,6 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
 
         elif self.is_concrete:
             _type = self._get_type(self.field)
-            # todo: deal with JSONField: its type include dict/list/null and other types that can be serialized
 
             if _type != Any:
                 if _type and self.is_nullable:
@@ -301,13 +312,15 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
                 # shortcut for Count: do not set le limit
                 return types.NaturalInt
             field = self.model.resolve_output_field(self.field)
-            _type = self._get_type(field)
+            _type = self._get_type(field) if field else None
 
         elif self.is_many:
             _type = list
             target_field = self.target_field
             if target_field:
                 _args = [target_field.rule]
+            field = None
+
         else:
             try:
                 from django.contrib.postgres.fields import ArrayField
@@ -321,57 +334,62 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
                         base_field = self.__class__(field.base_field, model=self.model)
                         _args = [base_field.rule]
 
-        params = self._get_params(field)
-
-        if _type == bool:
-            params = {}
-            # requires no params
-
         kwargs = {}
 
-        if params.get("max_length"):
-            kwargs["max_length"] = params["max_length"]
-        if params.get("min_length"):
-            kwargs["min_length"] = params["min_length"]
-        if "max_value" in params:
-            kwargs["le"] = params["max_value"]
-        if "min_value" in params:
-            kwargs["ge"] = params["min_value"]
-
-        if isinstance(field, models.DecimalField):
-            kwargs["max_length"] = field.max_digits
-            kwargs["decimal_places"] = Lax(field.decimal_places)
-        # for the reason that IntegerField is the base class of All integer fields
-        # so the isinstance determine will be the last to include
-        elif isinstance(field, models.IntegerField):
-            if isinstance(field, models.PositiveSmallIntegerField):
-                kwargs["ge"] = 0
-                kwargs["le"] = constant.SM
-            elif isinstance(field, models.PositiveBigIntegerField):
-                kwargs["ge"] = 0
-                kwargs["le"] = constant.LG
-            elif isinstance(field, models.PositiveIntegerField):
-                kwargs["ge"] = 0
-                kwargs["le"] = constant.MD
-            elif isinstance(field, models.BigAutoField):
-                kwargs["ge"] = 1
-                kwargs["le"] = constant.LG
-            elif isinstance(field, models.AutoField):
-                kwargs["ge"] = 1
-                kwargs["le"] = constant.MD
-            elif isinstance(field, models.BigIntegerField):
-                kwargs["ge"] = -constant.LG
-                kwargs["le"] = constant.LG
-            elif isinstance(field, models.SmallIntegerField):
-                kwargs["ge"] = -constant.SM
-                kwargs["le"] = constant.SM
+        if field:
+            if _type == bool:
+                params = {}
+                # requires no params
             else:
-                kwargs["ge"] = -constant.MD
-                kwargs["le"] = constant.MD
+                params = self._get_params(field)
+
+            if params.get("max_length"):
+                kwargs["max_length"] = params["max_length"]
+            if params.get("min_length"):
+                kwargs["min_length"] = params["min_length"]
+            if "max_value" in params:
+                kwargs["le"] = params["max_value"]
+            if "min_value" in params:
+                kwargs["ge"] = params["min_value"]
+
+            if isinstance(field, models.DecimalField):
+                kwargs["max_length"] = field.max_digits
+                kwargs["decimal_places"] = Lax(field.decimal_places)
+            # for the reason that IntegerField is the base class of All integer fields
+            # so the isinstance determine will be the last to include
+            elif isinstance(field, models.IntegerField):
+                if isinstance(field, models.PositiveSmallIntegerField):
+                    kwargs["ge"] = 0
+                    kwargs["le"] = constant.SM
+                elif isinstance(field, models.PositiveBigIntegerField):
+                    kwargs["ge"] = 0
+                    kwargs["le"] = constant.LG
+                elif isinstance(field, models.PositiveIntegerField):
+                    kwargs["ge"] = 0
+                    kwargs["le"] = constant.MD
+                elif isinstance(field, models.BigAutoField):
+                    kwargs["ge"] = 1
+                    kwargs["le"] = constant.LG
+                elif isinstance(field, models.AutoField):
+                    kwargs["ge"] = 1
+                    kwargs["le"] = constant.MD
+                elif isinstance(field, models.BigIntegerField):
+                    kwargs["ge"] = -constant.LG
+                    kwargs["le"] = constant.LG
+                elif isinstance(field, models.SmallIntegerField):
+                    kwargs["ge"] = -constant.SM
+                    kwargs["le"] = constant.SM
+                else:
+                    kwargs["ge"] = -constant.MD
+                    kwargs["le"] = constant.MD
 
         if _type is None:
             # fallback to string field
             _type = str
+
+        if not _args and not kwargs and isinstance(_type, type) and issubclass(_type, Rule):
+            # shortcut
+            return _type
 
         return Rule.annotate(_type, *_args, constraints=kwargs)
 
@@ -386,18 +404,6 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             return self.field.field_name
         return None
 
-    @property
-    def query_name(self) -> Optional[str]:
-        if self.is_exp:
-            return None
-        return self.lookup_name
-        # name = self.name
-        # if not name:
-        #     return None
-        # if not self.addon:
-        #     return name
-        # return f'{name}__{self.addon}'
-
     def check_query(self):
         qn = self.query_name
         if not qn:
@@ -408,7 +414,8 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             else:
                 try:
                     self.model.get_queryset({qn: None})
-                except ValueError:
+                    # TypeError if qn endswith __in
+                except (TypeError, ValueError):
                     self.model.get_queryset({qn: ""})
         except exceptions.FieldError as e:
             raise exceptions.FieldError(
@@ -427,8 +434,9 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
     @property
     def to_field(self) -> Optional[str]:
         if self.is_fk:
+            field: models.ForeignKey = self.field   # noqa
             try:
-                return self.field.to_fields[0]
+                return field.to_fields[0]
             except IndexError:
                 pass
         return None

@@ -19,7 +19,7 @@ class WerkzeugResponseAdaptor(ResponseAdaptor):
             resp = Response(resp)
 
         response = WerkzeugResponse(
-            resp.body,
+            resp.event_stream or resp.body,
             status=resp.status,
             headers=resp.prepare_headers(),
             content_type=resp.content_type,

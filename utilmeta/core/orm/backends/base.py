@@ -19,14 +19,20 @@ class ModelFieldAdaptor(BaseAdaptor):
     def __init__(
         self,
         field,
-        addon: str = None,
         model: "ModelAdaptor" = None,
-        lookup_name: str = None,
+        transform_name: str = None,
+        query_lookup: str = None,
+        query_name: str = None,
     ):
         self.field = field
-        self.addon = addon
-        self.lookup_name = lookup_name
+        self.transform_name = transform_name
+        self.query_lookup = query_lookup
+        self.query_name = query_name
         self._model = model
+
+    @property
+    def serializable(self):
+        return not self.query_lookup
 
     @property
     def title(self) -> Optional[str]:
@@ -50,7 +56,7 @@ class ModelFieldAdaptor(BaseAdaptor):
 
     @property
     def reverse_lookup(self) -> Tuple[str, str]:
-        return self.model.get_reverse_lookup(self.lookup_name)
+        return self.model.get_reverse_lookup(self.query_name)
 
     @property
     def target_field(self) -> Optional["ModelFieldAdaptor"]:
@@ -82,9 +88,9 @@ class ModelFieldAdaptor(BaseAdaptor):
     def name(self) -> str:
         raise NotImplementedError
 
-    @property
-    def query_name(self) -> str:
-        raise NotImplementedError
+    # @property
+    # def query_name(self) -> str:
+    #     raise NotImplementedError
 
     def check_query(self):
         raise NotImplementedError
@@ -349,7 +355,6 @@ class ModelAdaptor(BaseAdaptor):
         name: str,
         validator: Callable = None,
         silently: bool = False,
-        allow_addon: bool = False,
     ) -> Optional[field_adaptor_cls]:
         """
         Get name from a field references

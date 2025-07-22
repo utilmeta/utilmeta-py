@@ -190,7 +190,7 @@ class ParserQueryField(ParserField):
 
             if not SchemaClassParser.valid_schema(bound):
                 warnings.warn(
-                    f"orm.Field: {repr(self.attname)} can only applied"
+                    f"orm.Field can only applied"
                     f" for orm.Schema of its subclasses",
                     stacklevel=self.STACK_LEVEL,
                 )
@@ -206,9 +206,22 @@ class ParserQueryField(ParserField):
         if not isinstance(self.model, ModelAdaptor):
             return
 
-        self.model_field = self.model.get_field(
-            self.field_name, allow_addon=True, silently=True
-        )
+        try:
+            self.model_field = self.model.get_field(
+                self.field_name, silently=False
+            )
+        except Exception as e:
+            if isinstance(self.field, QueryField) and isinstance(self.field.field, str):
+                # use field = orm.Field('field_name') to specify a query name
+                raise e
+            # ignore
+            # self.model_field = None
+        else:
+            if not self.model_field.serializable:
+                raise ValueError(f'orm.Field field got a lookup: {repr(self.model_field.query_name)}'
+                                 f' that can only be used in query '
+                                 f'(eg. orm.Filter({self.field_name}) in orm.Query class)')
+
         self.related_model = (
             self.model_field.related_model if self.model_field else None
         )
@@ -221,14 +234,16 @@ class ParserQueryField(ParserField):
                 # is queryset
                 if self.queryset is not None:
                     raise ValueError(
-                        f"specify queryset field and queryset param at the same time is not supported"
+                        f"orm.Field specify queryset field and queryset "
+                        f"param at the same time is not supported"
                     )
                 self.queryset = self.field_object
 
             elif self.model_field:
                 # 1. func
                 # 2. query expression
-                msg = f'orm.field: {repr(self.field_name)} with {self.field_object} conflicted with model field'
+                msg = (f'orm.Field field name: {repr(self.field_name)} with '
+                       f'{self.field_object} conflicted with model field')
                 if pref.orm_on_conflict_annotation == 'error':
                     raise ValueError(msg)
                 elif pref.orm_on_conflict_annotation == 'warn':
@@ -271,7 +286,7 @@ class ParserQueryField(ParserField):
                 self.func_multi = bool(func.pos_var)
                 if self.queryset is not None:
                     raise ValueError(
-                        f"specify function field and queryset at the same time is not supported"
+                        f"orm.Field specify function field and queryset at the same time is not supported"
                     )
 
             elif self.queryset is not None:
@@ -281,14 +296,14 @@ class ParserQueryField(ParserField):
                         self.mode = "r"
                     self.related_model = self.model.get_model(self.subquery)
                     if not self.related_model:
-                        raise ValueError(f"No model detected in queryset: {self.subquery}")
+                        raise ValueError(f"orm.Field No model detected in queryset: {self.subquery}")
 
             elif self.field_object is not None:
                 # not function
                 # not queryset
                 # maybe expression
                 self.model_field = self.model.get_field(
-                    self.field_object, allow_addon=True, silently=True
+                    self.field_object, silently=True
                 )
 
         # fix: get related model before get query schema
@@ -296,7 +311,7 @@ class ParserQueryField(ParserField):
 
         if self.subquery is not None and not self.related_single:
             warnings.warn(
-                f"{self.model.model} schema field: {repr(self.name)} is a multi-relation with a subquery, "
+                f"orm.Field field is a multi-relation with a subquery, "
                 f"you need to make sure that only 1 row of the query is returned, "
                 f"otherwise use query function instead",
                 stacklevel=self.STACK_LEVEL,
@@ -381,7 +396,7 @@ class ParserQueryField(ParserField):
             if self.queryset is not None:
                 if not self.related_model:
                     raise ValueError(
-                        f"Invalid queryset for field: {repr(self.model_field.name)}, "
+                        f"orm.Field got Invalid queryset for field: {repr(self.model_field.name)}, "
                         f"no related model"
                     )
                 qs = self.related_model.check_queryset(
@@ -389,7 +404,7 @@ class ParserQueryField(ParserField):
                 )
                 if not qs:
                     raise ValueError(
-                        f"Invalid queryset for field: {repr(self.model_field.name)}, "
+                        f"orm.Field got Invalid queryset for field: {repr(self.model_field.name)}, "
                         f"must be a queryset of model {self.related_model.model}"
                     )
 
@@ -399,15 +414,15 @@ class ParserQueryField(ParserField):
                         f"in model: {self.model.model}, which can cause incomplete output, "
                         f"consider use query function instead"
                     )
-                    if pref.orm_on_non_exists_required_field == 'error':
+                    if pref.orm_on_sliced_field_queryset == 'error':
                         raise ValueError(msg)
-                    elif pref.orm_on_non_exists_required_field == 'warn':
+                    elif pref.orm_on_sliced_field_queryset == 'warn':
                         warnings.warn(msg, stacklevel=self.STACK_LEVEL)
 
                 self.reverse_lookup, c = self.model.get_reverse_lookup(self.field_name)
                 if c or not self.reverse_lookup:
                     raise ValueError(
-                        f"Invalid queryset for field: {repr(self.model_field.name)}, "
+                        f"orm.Field Invalid queryset for field: {repr(self.model_field.name)}, "
                         f"invalid reverse lookup: {self.reverse_lookup}, {c}"
                     )
 
@@ -446,15 +461,17 @@ class ParserQueryField(ParserField):
                 # we do no need to merge the field rule
                 rule = self.model_field.rule
                 try:
-                    self.type = rule.merge_type(self.type)
+                    self.type = rule.merge_type(self.type, strict=True)
                     # merge declared type and model field type
-                except utype.exc.ConfigError as e:
-                    warnings.warn(
-                        f"orm.Schema[{self.model.model}] got model field: [{repr(self.name)}] "
-                        f"with rule: {rule} "
-                        f"conflicted to the declared type: {self.type}, using the declared type,"
-                        f"error: {e}"
-                    )
+                except Exception as e:
+                    err = (f"orm.Field with rule: {rule} conflicted to the declared type: "
+                           f"{self.type}, using the declared type, error: {e}")
+
+                    if pref.orm_on_conflict_type == 'error':
+                        raise
+                    elif pref.orm_on_conflict_type == 'warn':
+                        warnings.warn(err, stacklevel=self.STACK_LEVEL)
+
                 # fixme: do not merge for ForwardRef
 
             # VALIDATE FIELDS
@@ -465,10 +482,10 @@ class ParserQueryField(ParserField):
                 # field: ... = orm.Field('field.lookup')
                 # detect field collision
                 conflicted_field = self.model.get_field(
-                    self.name, allow_addon=True, silently=True
+                    self.name, silently=True
                 )
                 if conflicted_field:
-                    msg = (f'orm.field: {repr(self.name)} with field {repr(self.field_name)} '
+                    msg = (f'orm.Field field name {repr(self.field_name)} '
                            f'conflicted with model field')
                     if pref.orm_on_conflict_annotation == 'error':
                         raise ValueError(msg)
@@ -477,14 +494,10 @@ class ParserQueryField(ParserField):
                     self.annotation_conflicted = True
 
         else:
-            if isinstance(self.field, QueryField) and isinstance(self.field.field, str):
-                raise ValueError(
-                    f"orm.Field({repr(self.field.field)}) not exists in model: {self.model.model}"
-                )
-
             if self.queryset is not None:
                 raise ValueError(
-                    f"orm.Field with queryset not specified a valid field name for model: {self.model.model}, "
+                    f"orm.Field with queryset not "
+                    f"specified a valid field name for model: {self.model.model}, "
                     f"use the attribute name of orm.Field('field_name') to specify the field or lookup"
                     f" to the target queryset"
                 )
@@ -494,7 +507,7 @@ class ParserQueryField(ParserField):
                 if self.has_mode(options, "r"):
                     if not self.always_no_input(options):
                         msg = (
-                            f"orm.Field: name {repr(self.field_name)} not exists "
+                            f"orm.Field field name {repr(self.field_name)} not exists "
                             f"in model: {self.model.model} and is required for query"
                         )
                         if pref.orm_on_non_exists_required_field == 'error':
@@ -505,7 +518,7 @@ class ParserQueryField(ParserField):
                 if self.has_mode(options, "a", "w"):
                     if not self.always_no_output(options):
                         msg = (
-                            f"orm.Field: name {repr(self.field_name)} not exists "
+                            f"orm.Field field name {repr(self.field_name)} not exists "
                             f"in model: {self.model.model} and will be inputted for create/update"
                         )
                         if pref.orm_on_non_exists_required_field == 'error':
@@ -541,9 +554,12 @@ class ParserQueryField(ParserField):
 
     def resolve_forward_refs(self):
         super().resolve_forward_refs()
-        self.related_schema, r = resolve_forward_type(self.related_schema)
         if self.original_type != self.type:
             self.original_type, r = resolve_forward_type(self.original_type)
+            self.get_query_schema()
+            # refresh related schema
+        elif self.related_schema:
+            self.related_schema, r = resolve_forward_type(self.related_schema)
 
     def setup_relational_update(self, options: utype.Options):
         if not self.related_schema:
@@ -713,6 +729,12 @@ class ParserQueryField(ParserField):
             data.update(related_model=self.related_model.ident)
         return data
 
+    @property
+    def default_included(self):
+        if isinstance(self.field, QueryField):
+            return not self.field.included_only
+        return True
+
 
 class QueryField(Field):
     parser_field_cls = ParserQueryField
@@ -725,6 +747,9 @@ class QueryField(Field):
         fail_silently: bool = None,
         auth: dict = None,
         key_validator=None,
+        included_only: bool = None,     # new in 2.7.7
+        # requires the include Scope param to explicitly include this field,
+        # by default it will not be queried
         isolated: bool = None,
         **kwargs
         # if module enabled result control (page / rows / limit / offset) and such params is provided
@@ -736,5 +761,6 @@ class QueryField(Field):
         self.isolated = isolated
         self.queryset = queryset
         self.key_validator = key_validator
+        self.included_only = included_only
         # validate foreign key value by
         self.auth = auth

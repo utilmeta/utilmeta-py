@@ -240,16 +240,18 @@ class Schema(utype.Schema):
         # todo: add auto_distinct
         cls: Type[Schema]
         values = []
-        for val in cls._get_compiler(queryset, context=context).get_values():
-            values.append(cls.__from__(val, cls.__serialize_options__))
+        compiler = cls._get_compiler(queryset, context=context)
+        for val in compiler.get_values():
+            values.append(cls.__from__(val, compiler.serialize_options))
         return values
 
     @classmethod
     async def aserialize(cls: Type[T], queryset, context=None) -> List[T]:
         cls: Type[Schema]
         values = []
-        for val in await cls._get_compiler(queryset, context=context).get_values():
-            values.append(cls.__from__(val, cls.__serialize_options__))
+        compiler = cls._get_compiler(queryset, context=context)
+        for val in await compiler.get_values():
+            values.append(cls.__from__(val, compiler.serialize_options))
         return values
 
     @classmethod
@@ -257,10 +259,11 @@ class Schema(utype.Schema):
         # initialize this schema with the given queryset (first element)
         # raise error if queryset is empty
         cls: Type[Schema]
-        values = cls._get_compiler(queryset, context=context, single=True).get_values()
+        compiler = cls._get_compiler(queryset, context=context, single=True)
+        values = compiler.get_values()
         if not values:
             raise exceptions.EmptyQueryset(f"Empty queryset")
-        return cls.__from__(values[0], cls.__serialize_options__)
+        return cls.__from__(values[0], compiler.serialize_options)
 
     @classmethod
     # @awaitable(init)
@@ -268,12 +271,11 @@ class Schema(utype.Schema):
         # initialize this schema with the given queryset (first element)
         # raise error if queryset is empty
         cls: Type[Schema]
-        values = await cls._get_compiler(
-            queryset, context=context, single=True
-        ).get_values()
+        compiler = cls._get_compiler(queryset, context=context, single=True)
+        values = await compiler.get_values()
         if not values:
             raise exceptions.EmptyQueryset(f"Empty queryset")
-        return cls.__from__(values[0], cls.__serialize_options__)
+        return cls.__from__(values[0], compiler.serialize_options)
 
     def commit(self, queryset: T) -> T:  # -> queryset
         # commit the data in the schema to the queryset (update)

@@ -91,6 +91,8 @@ class BaseQueryCompiler:
     def __init__(
         self, parser: SchemaClassParser, queryset, context: QueryContext = None
     ):
+        parser.resolve_forward_refs()
+        # resolve unresolved forward refs when query compiler is built (related schema might be resolved)
         self.parser = parser
         self.model = parser.model
         if not self.model:
@@ -185,14 +187,26 @@ class BaseQueryCompiler:
         )
 
     @property
-    def serialize_options(self):
-        return getattr(
+    def serialize_options(self) -> Options:
+        options = getattr(
             self.parser.obj,
             "__serialize_options__",
             Options(
-                mode="r", addition=True, ignore_required=True, ignore_constraints=True
+                mode="r",
+                addition=True,
+                ignore_required=True,
+                ignore_constraints=True
             ),
-        )
+        )  # original options
+        if self.context.includes:
+            options = options & Options(defer_default=True)
+            # prevent defaults in includes
+        elif self.context.excludes:
+            options = options & Options(
+                defer_default=list(self.context.excludes)
+                # supported in utype >= 0.6.7
+            )
+        return options
 
     def get_recursion_objects(self, schema_cls: Type[Schema], *pks):
         mp = {}
@@ -259,7 +273,9 @@ class BaseQueryCompiler:
             if not field.readable:
                 continue
             if not self.context.in_scope(
-                field.all_aliases, dependants=field.dependants
+                field.all_aliases,
+                dependants=field.dependants,
+                default_included=field.default_included
             ):
                 continue
             self.process_query_field(field)

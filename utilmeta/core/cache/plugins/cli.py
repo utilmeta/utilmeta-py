@@ -192,7 +192,7 @@ class ClientCache(BaseCacheInterface):
     @classmethod
     def vary_function(cls, request: Request):
         # can be inherit and modify
-        return request.hostname
+        return request.host
 
     def bypass_request(self, request: Request):
         if not request:
@@ -200,10 +200,10 @@ class ClientCache(BaseCacheInterface):
         if request.method not in self.included_methods:
             return True
         if self.included_hosts:
-            if request.hostname not in self.included_hosts:
+            if request.host not in self.included_hosts:
                 return True
         elif self.excluded_hosts:
-            if request.hostname in self.excluded_hosts:
+            if request.host in self.excluded_hosts:
                 return True
         return False
 
@@ -284,8 +284,8 @@ class ClientCache(BaseCacheInterface):
         entity = self.get_entity(variant=self.vary_function(request))
         cached_response = entity.get(resp_key, single=True)
         if isinstance(cached_response, Response):
-            if not cached_response.data:
-                cached_response.data = cached_response.result
+            if not cached_response.result:
+                cached_response.result = cached_response.result
             cached_response.cached = True
             cached_response.request = request
             return cached_response
@@ -358,14 +358,14 @@ class ClientCache(BaseCacheInterface):
         raw = response.raw_response
         data = response.data
         request = response.request
-        if response.data == response.result:
-            response.data = None
+        if response.result == response.result:
+            response.result = None
         response.raw_response = None
         response.request = None
         # ---
 
         entity.set(key=resp_key, val=response, timeout=timeout)
-        response.data = data
+        response.result = data
         response.raw_response = raw
         response.request = request
         return response

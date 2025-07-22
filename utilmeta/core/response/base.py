@@ -4,6 +4,7 @@ import os.path
 import warnings
 from http.cookies import SimpleCookie
 from pprint import pprint
+from typing import AsyncGenerator, Generator
 
 from utilmeta.core.request import Request
 from utype.types import *
@@ -47,6 +48,7 @@ PLAIN = "text/plain"
 JSON = "application/json"
 XML = "text/xml"
 OCTET_STREAM = "application/octet-stream"
+EVENT_STREAM = "text/event-stream"
 
 
 class Response:
@@ -82,6 +84,8 @@ class Response:
     name: str = None
     description: str = None
 
+    example: Any
+    # examples: Any
     wrapped: bool = False
 
     def __class_getitem__(cls, item):
@@ -155,6 +159,7 @@ class Response:
         count: int = None,
         reason: str = None,
         status: int = None,
+        event_stream: [Generator, AsyncGenerator] = None,
         extra: dict = None,
         content: Union[bytes, dict, list, str] = None,
         content_type: str = None,
@@ -198,7 +203,7 @@ class Response:
                     aborted = aborted or response.is_aborted
                     timeout = timeout or response.is_timeout
                     strict = strict or response.strict
-
+                    event_stream = event_stream or response.event_stream
             else:
                 self.adaptor = ResponseAdaptor.dispatch(response)
 
@@ -241,6 +246,7 @@ class Response:
         # 4. response: retry 2
         self._stack = stack
 
+        self._event_stream = None
         self._file: Optional[FileAdaptor] = None
         self._filepath = None
         self._filename = None
@@ -257,6 +263,7 @@ class Response:
             self.init_error(error)
             self.init_result(result)
             self.init_file(file or attachment)
+            self.init_event_stream(event_stream)
 
         self.parse_headers()
 
@@ -354,12 +361,22 @@ class Response:
                     headers or {}, context=self.schema_parser.options.make_context()
                 )
         self.headers = Headers(headers or {})
+        content_type = self.headers.get("content-type")
+        if content_type:
+            self.content_type = content_type
 
     def init_result(self, result):
         if hasattr(result, "__next__"):
             # convert generator yield result into list
             # result = list(result)
-            result = get_generator_result(result)
+            if self.content_type == EVENT_STREAM:
+                self.init_event_stream(result)
+                return
+            else:
+                result = get_generator_result(result)
+        elif inspect.isgenerator(result):
+            self.init_event_stream(result)
+            return
 
         if isinstance(result, (Exception, Error)):
             self.init_error(result)
@@ -407,6 +424,17 @@ class Response:
             return
         if file_like(file):
             self._file = FileAdaptor.dispatch(file)
+
+    def init_event_stream(self, es: Union[AsyncGenerator, Generator]):
+        if not es:
+            return
+        if not inspect.isgenerator(es) and not inspect.isasyncgen(es):
+            return
+        self._event_stream = es
+        self.content_type = EVENT_STREAM
+        if isinstance(self.headers, Headers):
+            self.headers.setdefault('cache-control', 'no-cache')
+            self.headers.setdefault('x-accel-buffering', 'no')      # prevent nginx caching sse
 
     def init_error(self, error: Union[Error, Exception]):
         if isinstance(error, Exception):
@@ -500,6 +528,8 @@ class Response:
                         "content-disposition",
                         f'{disp}; filename="{quote(self._filename)}"',
                     )
+        elif self._event_stream:
+            self._content = self._event_stream
         else:
             data = self.build_data()
             if hasattr(data, "__iter__"):
@@ -539,6 +569,9 @@ class Response:
                 self.content_type = content_type or OCTET_STREAM
             else:
                 self.content_type = OCTET_STREAM
+            return
+        elif self._event_stream:
+            self.content_type = EVENT_STREAM
             return
         if self.content_type is not None:
             return
@@ -781,6 +814,10 @@ class Response:
     @file.setter
     def file(self, file):
         self.init_file(file)
+
+    @property
+    def event_stream(self):
+        return self._event_stream
 
     @property
     def json(self) -> Union[dict, list, None]:

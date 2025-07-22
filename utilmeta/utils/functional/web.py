@@ -150,6 +150,8 @@ def etag(data, weak: bool = False) -> str:
             return data
     elif isinstance(data, (dict, list)):
         data = json_dumps(data)
+    elif isinstance(data, bytes):
+        data = data.decode()
     elif not isinstance(data, str):
         data = str(data)
     comp = fast_digest(data, compress=36, consistent=True).lower()

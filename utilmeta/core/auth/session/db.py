@@ -128,16 +128,19 @@ class DBSessionSchema(BaseSessionSchema):
         # await obj.asave(
         #     force_insert=must_create, force_update=not must_create and force
         # )
+        data = self.get_session_data()
+        if inspect.isawaitable(data):
+            data = await data
         if must_create:
             try:
-                await self._model_cls.query().acreate(self.get_session_data())
+                await self._model_cls.query().acreate(**data)
             except Exception as e:
                 raise SessionCreateError(f'Create session failed with error: {e}') from e
             return
         # update or create
         await self._model_cls.query().aupdate_or_create(
             session_key=self.session_key,
-            defaults=self.get_session_data(),
+            defaults=data
         )
 
     def save(self, must_create: bool = False):

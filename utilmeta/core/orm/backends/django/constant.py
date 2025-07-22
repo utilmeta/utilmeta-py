@@ -61,44 +61,7 @@ FIELDS_TYPE = {
     ("BinaryField",): bytes,
 }
 
-datetime_lookups = ["date", "time"]
-date_lookups = ["year", "iso_year", "month", "day", "week", "week_day", "quarter"]
-time_lookups = ["hour", "minute", "second"]
-option_allowed_lookups = [*datetime_lookups, *date_lookups, *time_lookups, "len"]
-
-ADDON_FIELD_LOOKUPS = {
-    "DateField": date_lookups,
-    "TimeField": time_lookups,
-    "DateTimeField": [*date_lookups, *time_lookups, *datetime_lookups],
-    "JSONField": ["contains", "contained_by", "has_key", "has_any_keys", "has_keys"],
-    "ArrayField": ["contains", "contained_by", "overlap", "len"],
-    "HStoreField": [
-        "contains",
-        "contained_by",
-        "has_key",
-        "has_any_keys",
-        "has_keys",
-        "keys",
-        "values",
-    ],
-    "RangeField": [
-        "contains",
-        "contained_by",
-        "overlap",
-        "fully_lt",
-        "fully_gt",
-        "not_lt",
-        "not_gt",
-        "adjacent_to",
-        "isempty",
-        "lower_inc",
-        "lower_inf",
-        "upper_inc",
-        "upper_inf",
-    ],
-}
-
-ADDON_LOOKUP_RULES = {
+TRANSFORM_TYPE_MAP = {
     "date": date,
     "time": time,
     "year": Year,
@@ -112,6 +75,7 @@ ADDON_LOOKUP_RULES = {
     "minute": Minute,
     "second": Second,
     "len": int,
+    "length": int,
     "has_key": str,
     "has_any_keys": list,
     "has_keys": list,
@@ -123,7 +87,34 @@ ADDON_LOOKUP_RULES = {
     "upper_inf": bool,
     "lower_inf": bool,
 }
-ADDON_FIELDS = {
+
+LOOKUP_TYPE_MAP = {
+    'exact': Self,
+    'iexact': str,
+    'contains': str,
+    'icontains': str,
+    'in': list,
+    'gt': Self,
+    'gte': Self,
+    'lt': Self,
+    'lte': Self,
+    'startswith': str,
+    'istartswith': str,
+    'endswith': str,
+    'iendswith': str,
+    'range': list,
+    'isnull': bool,
+    'regex': str,
+    'iregex': str,
+    "has_key": str,
+    "has_keys": list,
+    "has_any_keys": list,
+    "contained_by": list,
+    "overlap": list,
+}
+
+TRANSFORM_OUTPUT_TYPES = {
+    # date/time transforms
     "date": models.DateField,
     "time": models.TimeField,
     "year": models.PositiveIntegerField,
@@ -136,23 +127,43 @@ ADDON_FIELDS = {
     "hour": models.PositiveSmallIntegerField,
     "minute": models.PositiveSmallIntegerField,
     "second": models.PositiveSmallIntegerField,
+
+    # char transforms
+    "length": models.PositiveIntegerField,
     "len": models.PositiveIntegerField,
+    "lower": models.CharField,
+    "upper": models.CharField,
+    "trim": models.CharField,
+    "ltrim": models.CharField,
+    "rtrim": models.CharField,
+
+    "sha256": models.CharField,
+    "md5": models.CharField,
+    "left": models.CharField,
+    "right": models.CharField,
+    "concat": models.CharField,
+    "repeat": models.CharField,
+    "replace": models.CharField,
+    "reverse": models.CharField,
+    "strpos": models.PositiveIntegerField,
+    "substr": models.CharField,
+    "regex_replace": models.CharField,
 }
 
-OPERATOR_FIELDS = [
-    dict(cls=models.FloatField, type=float, operators=["+", "-", "/", "*", "%", "^"]),
-    dict(cls=models.IntegerField, type=int, operators=["+", "-", "%"]),
-    dict(cls=models.IntegerField, type=float, operators=["/", "*", "^"]),
-    dict(
-        cls=models.DecimalField, type=Decimal, operators=["+", "-", "/", "*", "%", "^"]
-    ),
-    dict(cls=models.CharField, type=str, operators=["+"]),  # 'abc' + 'd' = 'abcd'
-    dict(cls=models.TextField, type=str, operators=["+"]),
-    dict(cls=models.CharField, type=int, operators=["*"]),
-    dict(cls=models.TextField, type=int, operators=["*"]),
-    dict(cls=models.DurationField, type=timedelta, operators=["+", "-"]),
-    dict(cls=models.DurationField, type=float, operators=["*", "/"]),
-    dict(cls=models.DateTimeField, type=timedelta, operators=["+", "-"]),
-]
+# OPERATOR_FIELDS = [
+#     dict(cls=models.FloatField, type=float, operators=["+", "-", "/", "*", "%", "^"]),
+#     dict(cls=models.IntegerField, type=int, operators=["+", "-", "%"]),
+#     dict(cls=models.IntegerField, type=float, operators=["/", "*", "^"]),
+#     dict(
+#         cls=models.DecimalField, type=Decimal, operators=["+", "-", "/", "*", "%", "^"]
+#     ),
+#     dict(cls=models.CharField, type=str, operators=["+"]),  # 'abc' + 'd' = 'abcd'
+#     dict(cls=models.TextField, type=str, operators=["+"]),
+#     dict(cls=models.CharField, type=int, operators=["*"]),
+#     dict(cls=models.TextField, type=int, operators=["*"]),
+#     dict(cls=models.DurationField, type=timedelta, operators=["+", "-"]),
+#     dict(cls=models.DurationField, type=float, operators=["*", "/"]),
+#     dict(cls=models.DateTimeField, type=timedelta, operators=["+", "-"]),
+# ]
 
 # PK_TYPES = (int, str, float, Decimal, UUID)

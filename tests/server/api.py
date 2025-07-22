@@ -29,6 +29,9 @@ class HeaderSchema(utype.Schema):
 class TestResponse(response.Response):
     result_key = 'test'
     message_key = 'message'
+    example = {
+        'test': 1
+    }
 
 
 class Test1Response(response.Response):
@@ -116,11 +119,12 @@ class ParentAPI(api.API):
 @api.route('the/api')
 class TheAPI(api.API):
     world_header: str = request.HeaderParam('X-Hello', default='world')
+    world_query: str = request.QueryParam('hello', default=None)
     # test default value in API properties
 
     @api.get
     def hello(self):
-        return TestResponse(self.world_header, message='hello')
+        return TestResponse([self.world_header, self.world_query], message='hello')
 
 
 class TestAPI(api.API):

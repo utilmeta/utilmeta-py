@@ -64,7 +64,7 @@ class ParserOrderBy(ParserField):
             orders = {}
             for key, order in self.field.orders.items():
                 field_name = order.field or key
-                field = model.get_field(field_name, allow_addon=True)
+                field = model.get_field(field_name)
                 name = key if isinstance(key, str) else field.query_name
                 if not name:
                     raise ValueError(f"Order field: {key} must have a valid name")
@@ -111,7 +111,7 @@ class ParserOrderBy(ParserField):
             field_name = order.field or key
             name = key
             if not isinstance(name, str):
-                field = self.model.get_field(field_name, allow_addon=True)
+                field = self.model.get_field(field_name)
                 name = field_name = field.query_name
             orders[name] = dict(
                 document=order.document,

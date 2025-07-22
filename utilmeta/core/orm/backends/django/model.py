@@ -129,7 +129,6 @@ class DjangoModelAdaptor(ModelAdaptor):
         name: str,
         validator: Callable = None,
         silently: bool = False,
-        allow_addon: bool = False,
     ) -> Optional[field_adaptor_cls]:
         """
         Get name from a field references
@@ -138,6 +137,7 @@ class DjangoModelAdaptor(ModelAdaptor):
             if silently:
                 return None
             raise ValueError(f"{self.model}: empty field")
+
         if not isinstance(name, str):
             # field ref / expression
             try:
@@ -148,33 +148,71 @@ class DjangoModelAdaptor(ModelAdaptor):
                 raise
 
         if name == "pk":
-            return self.field_adaptor_cls(self.meta.pk, model=self, lookup_name=name)
+            return self.field_adaptor_cls(self.meta.pk, model=self)
+
         model = self.model
-        lookups = name.replace(".", SEG).split(SEG)
-        f = None
-        addon = None
+        query_name = name.replace(".", SEG)
+        lookups = query_name.split(SEG)
+
+        f: Optional[models.Field] = None
+        field_transform = None
+        query_lookup = None
+
         for i, lk in enumerate(lookups):
+            if not model:
+                # get lookup
+                # get transform
+                if f:
+                    try:
+                        trans = f.get_transform(lk)
+                        if not trans:
+                            raise exc.FieldDoesNotExist
+                    except (exc.FieldError, exc.FieldDoesNotExist, AttributeError):
+                        try:
+                            lookup = f.get_lookup(lk)
+                            if not lookup:
+                                raise exc.FieldDoesNotExist
+                        except (exc.FieldError, exc.FieldDoesNotExist, AttributeError):
+                            pass
+                        else:
+                            query_lookup = lk
+                            break
+                    else:
+                        field_transform = lk
+                        break
+
+                if silently:
+                    return None
+                raise exc.FieldDoesNotExist(
+                    f"Field: {repr(query_name)} of {self.model} not found"
+                )
+
             try:
-                if not model:
-                    raise exc.FieldDoesNotExist
                 meta: Options = getattr(model, "_meta")
                 f = meta.get_field(lk)
                 if callable(validator):
                     validator(f)
                 model = f.related_model
             except exc.FieldDoesNotExist as e:
-                if f and i and allow_addon:
-                    addon = SEG.join(lookups[i:])
-                    break
                 if silently:
                     return None
-                raise exc.FieldDoesNotExist(
-                    f"Field: {repr(name)} lookup {repr(lk)}"
-                    f" of model {model} not exists: {e}"
-                )
-        return self.field_adaptor_cls(
-            f, addon=addon, model=self, lookup_name=SEG.join(lookups)
-        )
+                msg = f"Field: {repr(query_name)} of {self.model} not found"
+                if model != self.model:
+                    msg += f": lookup {repr(lk)} of model {model} not exists"
+                raise exc.FieldDoesNotExist(msg) from e
+
+        try:
+            return self.field_adaptor_cls(
+                f,
+                model=self,
+                transform_name=field_transform,
+                query_lookup=query_lookup,
+                query_name=query_name
+            )
+        except (TypeError, ValueError, exc.FieldDoesNotExist):
+            if silently:
+                return None
+            raise
 
     def get_backward(self, field: str) -> str:
         raise NotImplementedError
@@ -321,30 +359,18 @@ class DjangoModelAdaptor(ModelAdaptor):
         name = self.field_adaptor_cls.get_exp_field(expr)
         if not name:
             return None
-        field = self.get_field(name, allow_addon=True)
+        field = self.get_field(name)
+        if not field:
+            return None
         output_field = field.field
-        if field.addon:
-            addon_field = constant.ADDON_FIELDS.get(field.addon)
-            if addon_field:
-                output_field = addon_field
+        if field.transform_name:
+            trans_field = constant.TRANSFORM_OUTPUT_TYPES.get(field.transform_name)
+            if trans_field:
+                output_field = trans_field
         # Avg, Variance and StdDev is handled by NumericOutputFieldMixin
         return output_field
 
     def check_expressions(self, expr):
-        # if isinstance(expr, exp.CombinedExpression):
-        #     for exp_field in self.field_adaptor_cls.iter_combined_expression(expr):
-        #         f = self.field_adaptor_cls.get_exp_field(exp_field)
-        #         if f:
-        #             self.get_field(f, allow_addon=True)
-        # else:
-        #     f = self.field_adaptor_cls.get_exp_field(expr)
-        #     if f:
-        #         self.get_field(f, allow_addon=True)
-        #
-        # output_field = self.resolve_output_field(expr)
-        # if output_field:
-        #     # force set output field if resolved
-        #     expr.output_field = output_field
         try:
             _ = self.get_queryset().values(_=expr)
         except exc.FieldError as e:

@@ -22,6 +22,12 @@ class UserBase(orm.Schema[User]):
     signup_time: datetime
 
 
+class ArticleRefSchema(orm.Schema[Article]):
+    id: int
+    title: str
+    comments: List['ContentSchema']
+
+
 class ContentSchema(orm.Schema[BaseContent]):
     id: int = orm.Field(mode='raw', required='r')
     content: str = orm.Field(
@@ -250,8 +256,8 @@ class UserQuery(orm.Query[User]):
 
     page: int = orm.Page(alias='@page')
     rows: int = orm.Limit(alias='@rows')
-    scope: Union[dict, list] = orm.Scope()
-    exclude: Union[dict, list] = orm.Scope(excluded=True)
+    scope: str = orm.Scope(nested_brackets=['('])
+    exclude: str = orm.Scope(excluded=True)
 
 
 class ArticleQuery(orm.Query[Article]):

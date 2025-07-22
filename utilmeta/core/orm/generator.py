@@ -109,6 +109,6 @@ class BaseQuerysetGenerator:
             self.limit = value
         elif isinstance(field.field, Scope):
             if field.field.excluded:
-                self.excludes = Scope.get_scope_value(value)
+                self.excludes = field.field.parse_scope(value)
             else:
-                self.includes = Scope.get_scope_value(value)
+                self.includes = field.field.parse_scope(value)

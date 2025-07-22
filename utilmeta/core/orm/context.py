@@ -34,7 +34,12 @@ class QueryContext(DataClass):
     ):
         super().__init__(locals())
 
-    def in_scope(self, aliases: List[str], dependants: List[str] = None):
+    def in_scope(
+        self,
+        aliases: List[str],
+        dependants: List[str] = None,
+        default_included: bool = True
+    ):
         if not aliases:
             return False
         if self.includes:
@@ -43,7 +48,7 @@ class QueryContext(DataClass):
             )
         if self.excludes:
             return not set(aliases).intersection(self.excludes)
-        return True
+        return default_included
 
     def merge(self, context: "QueryContext" = None) -> "QueryContext":
         if not isinstance(context, QueryContext):

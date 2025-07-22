@@ -112,6 +112,21 @@ def get_docs_from_url(url, timeout: int = None):
     return obj
 
 
+def normalize_dict(data: dict, key_orders: list):
+    data: dict = json.loads(json_dumps(data))
+    sorted_dict = {}
+    for key in key_orders:
+        if key in data:
+            sorted_dict[key] = data[key]
+
+    # 添加原始字典中存在但未在顺序中指定的键（按原始顺序）
+    for key, val in data.items():
+        if key not in sorted_dict:
+            sorted_dict[key] = val
+
+    return sorted_dict
+
+
 class OpenAPIGenerator(JsonSchemaGenerator):
     DEFAULT_REF_PREFIX = "#/components/schemas/"
 
@@ -174,6 +189,7 @@ class OpenAPIGenerator(JsonSchemaGenerator):
         parser = getattr(response, "__parser__", None)
         result_field = parser.get_field("result") if parser else None
         headers_field = parser.get_field("headers") if parser else None
+        example = getattr(response, 'example', None)
 
         result_schema = self.generate_for_field(result_field) if result_field else None
         headers_schema = (
@@ -235,8 +251,14 @@ class OpenAPIGenerator(JsonSchemaGenerator):
             if not content_type:
                 content_type = guess_content_type(data_schema) or JSON
 
+        content_data = {
+            "schema": data_schema
+        }
+        if example is not None:
+            content_data["example"] = example
+
         response_schema = dict(
-            content={content_type: {"schema": data_schema}},
+            content={content_type: content_data},
         )
         if headers:
             response_schema.update(headers=headers)
@@ -299,6 +321,18 @@ class OpenAPI(BaseAPISpec):
     FORMATS = ["json", "yaml"]
     PARAMS_IN = ["path", "query", "header", "cookie"]
     URL_FETCH_TIMEOUT = 5
+    FIELD_ORDERS = [
+        'openapi',
+        'info',
+        'jsonSchemaDialect',
+        'servers',
+        'paths',
+        'webhooks',
+        'components',
+        'security',
+        'tags',
+        'externalDocs'
+    ]
     # None -> dict
     # json -> json string
     # yml -> yml string
@@ -637,14 +671,12 @@ class OpenAPI(BaseAPISpec):
         return self.save_to(schema, file)
 
     @classmethod
-    def save_to(cls, schema, file: str):
+    def save_to(cls, schema, file: str, compressed: bool = False):
         if file.endswith(".yaml") or file.endswith(".yml"):
-            requires(yaml="pyyaml")
-            import yaml  # requires pyyaml
-
-            content = yaml.dump(schema)
+            content = cls.make_yaml(schema)
         else:
-            content = json_dumps(schema, indent=4)
+            content = json_dumps(schema, indent=None if compressed else 4)
+
         with open(file, mode="w", encoding="utf-8") as f:
             f.write(content)
 
@@ -653,7 +685,19 @@ class OpenAPI(BaseAPISpec):
         return file
 
     @classmethod
-    def as_api(cls, path: str = None, private: bool = True, external_docs=None):
+    def make_yaml(cls, data: dict):
+        requires(yaml="pyyaml>=5.1")
+        import yaml  # requires pyyaml
+        yaml_kwargs = dict()
+        if yaml.__version__ >= '5.1':
+            yaml_kwargs.update(sort_keys=False)
+        return yaml.dump(
+            normalize_dict(data, key_orders=cls.FIELD_ORDERS),
+            **yaml_kwargs
+        )
+
+    @classmethod
+    def as_api(cls, path: str = None, private: bool = True, external_docs=None, json_compressed: bool = False):
         from utilmeta.core import api
 
         # if path is not specified, use local mem instead
@@ -665,8 +709,8 @@ class OpenAPI(BaseAPISpec):
                 from utilmeta import service
 
                 global _generated_document
-                if _generated_document:
-                    return _generated_document
+                # if _generated_document:
+                #     return _generated_document
 
                 # external_docs = None
                 # from utilmeta.ops import Operations
@@ -675,31 +719,29 @@ class OpenAPI(BaseAPISpec):
                 #     external_docs = ops_config.openapi
                 openapi = cls(service, external_docs=external_docs)
                 # generate document
-                _generated_document = openapi()
-                # _path = path
-                # if not _path:
-                #     _path = self.request.path
+                if not _generated_document:
+                    _generated_document = openapi()
+
+                is_yaml = False
+                file_path = ''
                 if path:
                     file_path = os.path.join(service.project_dir, path)
-                    if path.endswith(".yml"):
-                        requires(yaml="pyyaml")
-                        import yaml  # requires pyyaml
-
-                        content = yaml.dump(_generated_document)
-                    else:
-                        content = json_dumps(_generated_document)
-                    with open(file_path, "w") as f:
-                        f.write(content)
-                    return content
+                    if path.endswith(".yml") or path.endswith(".yaml"):
+                        is_yaml = True
                 else:
                     if ".yaml" in self.request.path or ".yml" in self.request.path:
-                        requires(yaml="pyyaml")
-                        import yaml  # requires pyyaml
+                        is_yaml = True
 
-                        content = yaml.dump(_generated_document)
-                        return content
+                if is_yaml:
+                    content = cls.make_yaml(_generated_document)
+                else:
+                    content = json_dumps(_generated_document, indent=None if json_compressed else 4)
 
-                return _generated_document
+                if file_path:
+                    with open(file_path, "w") as f:
+                        f.write(content)
+
+                return content
 
         return OpenAPI_API
 

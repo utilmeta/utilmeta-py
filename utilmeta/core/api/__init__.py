@@ -5,6 +5,7 @@ from . import decorator
 from .plugins.base import APIPlugin as Plugin
 from .plugins.retry import RetryPlugin as Retry
 from .plugins.cors import CORSPlugin as CORS
+from .plugins.cache import HttpCache as Cache
 
 # from .plugins.rate import RateLimitPlugin as RateLimit
 

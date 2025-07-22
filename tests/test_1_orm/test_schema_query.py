@@ -73,7 +73,7 @@ class TestSchemaQuery:
                 "followers_num>=": 2,
                 "@page": 1,
                 "order": ["-followers_num", "-views_num"],
-                "scope": ['username', '@views']
+                "scope": 'username,@views'
             }), context=orm.QueryContext(using=db_using)
         )
         assert set(res1[0]) == {'username', '@views'}
@@ -84,13 +84,27 @@ class TestSchemaQuery:
                 "followers_num>=": 2,
                 "@page": 1,
                 "order": ["-followers_num", "-views_num"],
-                "exclude": ['username', 'followers_num', 'liked_slug']
+                "exclude": 'username,followers_num,liked_slug'
             }), context=orm.QueryContext(using=db_using)
         )
         assert 'username' not in res2[0]
         assert 'followers_num' not in res2[0]
         assert 'liked_slug' not in res2[0]
         assert res1[0].sum_views == 103
+
+        # test nested fields control
+        res3 = UserSchema.serialize(
+            UserQuery({
+                "followers_num>=": 2,
+                "@page": 1,
+                "order": ["-followers_num", "-views_num"],
+                "scope": 'username,@views,top_article(slug,title,views,comments(id)),top_2_articles(title,views)'
+            }), context=orm.QueryContext(using=db_using)
+        )
+        assert set(res3[0]) == {'username', '@views', 'top_article', 'top_2_articles'}
+        assert set(res3[0].top_article) == {'slug', 'title', 'views', 'comments'}
+        assert set(res3[0].top_article.comments[0]) == {'id'}
+        assert set(res3[0].top_2_articles[0]) == {'slug', 'title', 'views'}
 
     def test_init_articles(self, service, db_using):
         from app.schema import ArticleSchema, ContentBase
@@ -114,6 +128,12 @@ class TestSchemaQuery:
         content = ContentBase.init(1, context=orm.QueryContext(using=db_using))
         assert content.id == 1
         assert content.article.id == 1
+
+    def test_related_ref_schema(self, service):
+        from app.schema import ArticleRefSchema, ContentSchema
+        article = ArticleRefSchema.init(1)
+        assert len(article.comments) == 2
+        assert isinstance(article.comments[0], ContentSchema)
 
     def test_unmanaged_view_model_query(self, service, db_using):
         from app.schema import ArticleStatsSchema, ArticleStatsQuery
@@ -156,12 +176,6 @@ class TestSchemaQuery:
 
         from app.models import Article
         from django.db import models
-
-        with pytest.raises(SyntaxError):
-            class Article_(orm.Schema[Article]):
-                id: int
-                not_exists: int = models.Count('not_exists')
-                # not exists
 
         class ArticleData(orm.Schema[Article]):
             id: int

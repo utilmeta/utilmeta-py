@@ -110,10 +110,23 @@ def get_requests(backend: str = None, asynchronous: bool = False):
         (
             "get",
             "the/api/hello",
-            {},
+            {
+                'hello': 'what'
+            },
             None,
             {},
-            {'test': 'world', 'message': 'hello'},
+            {'test': ['world', 'what'], 'message': 'hello'},
+            200,
+        ),
+        (
+            "get",
+            "the/api/hello",
+            {},
+            None,
+            {
+                'x-hello': 'what'
+            },
+            {'test': ['what', None], 'message': 'hello'},
             200,
         ),
         (

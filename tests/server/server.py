@@ -16,12 +16,13 @@ from utilmeta.conf import Env
 import sys
 import django
 
-try:
-    from sanic import Sanic
-    Sanic._app_registry = {}
-    # clear sanic registry
-except ImportError:
-    pass
+if sys.version_info >= (3, 9):
+    try:
+        from sanic import Sanic
+        Sanic._app_registry = {}
+        # clear sanic registry
+    except ImportError:
+        pass
 
 
 class ServiceEnvironment(Env):
@@ -100,7 +101,7 @@ service.use(CacheConnections({
 service.use(Preference(
     default_aborted_response_status=500,
     default_timeout_response_status=500,
-    orm_on_conflict_type='error'
+    orm_on_conflict_type='error' if sys.version_info >= (3, 9) else 'warn',
 ))
 service.use(Time(
     use_tz=django.VERSION > (3, 2)

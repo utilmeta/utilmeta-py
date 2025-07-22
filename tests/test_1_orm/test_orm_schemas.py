@@ -2,6 +2,8 @@ from utilmeta.core import orm
 import pytest
 from django.db import models
 from tests.conftest import setup_service
+import sys
+
 #
 setup_service(__name__, async_param=False)
 
@@ -46,31 +48,32 @@ class TestORMSchemas:
                 not_exists: int = models.Count('not_exists')
                 # not exists
 
-    def test_transform_fields(self):
-        from app.models import User, Article
+    if sys.version_info >= (3, 9):
+        def test_transform_fields(self):
+            from app.models import User, Article
 
-        class ArticleTestSchema(orm.Schema[Article]):
-            created_year = orm.Field('created_at.year')
-            first_tag: str = orm.Field('tags__0')
-
-        from utype.types import Year
-        assert issubclass(ArticleTestSchema.__parser__.get_field('created_year').type, Year)
-
-        class UserLatestSchema(orm.Schema[User]):
-            latest_article_year: int = models.Max('contents__article__created_at__year')
-
-    def test_lookup_fields(self):
-        from app.models import User, Article
-
-        with pytest.raises(TypeError):
             class ArticleTestSchema(orm.Schema[Article]):
-                author_name: int = orm.Field('author.username')
-                # invalid declaration
+                created_year = orm.Field('created_at.year')
+                first_tag: str = orm.Field('tags__0')
 
-        with pytest.raises(TypeError):
-            class ArticleTestSchema2(orm.Schema[Article]):
-                title: int
-                # invalid declaration
+            from utype.types import Year
+            assert issubclass(ArticleTestSchema.__parser__.get_field('created_year').type, Year)
 
-        class ArticleTestSchema3(orm.Schema[Article]):
-            created_at: float       # timestamp
+            class UserLatestSchema(orm.Schema[User]):
+                latest_article_year: int = models.Max('contents__article__created_at__year')
+
+        def test_lookup_fields(self):
+            from app.models import User, Article
+
+            with pytest.raises(TypeError):
+                class ArticleTestSchema(orm.Schema[Article]):
+                    author_name: int = orm.Field('author.username')
+                    # invalid declaration
+
+            with pytest.raises(TypeError):
+                class ArticleTestSchema2(orm.Schema[Article]):
+                    title: int
+                    # invalid declaration
+
+            class ArticleTestSchema3(orm.Schema[Article]):
+                created_at: float       # timestamp

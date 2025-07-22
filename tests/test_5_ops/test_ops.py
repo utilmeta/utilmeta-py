@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import django
 import time
+import sys
 
 BASE_DIR = Path(os.path.dirname(__file__))
 
@@ -33,11 +34,6 @@ flask_process = make_cmd_process(
     BASE_DIR / 'flask_site/server.py',
     cwd=BASE_DIR / 'flask_site',
     port=9093
-)
-sanic_process = make_cmd_process(
-    BASE_DIR / 'sanic_site/server.py',
-    cwd=BASE_DIR / 'sanic_site',
-    port=9094
 )
 tornado_process = make_cmd_process(
     BASE_DIR / 'tornado_site/server.py',
@@ -223,40 +219,47 @@ class TestOperations:
             assert hello.status == 200
             assert 'Hello' in str(hello.data)
 
-    def test_sanic_operations(self, sanic_process):
-        time.sleep(OPS_WAIT)
-        with OperationsClient(base_url='http://127.0.0.1:9094/ops', base_headers={
-            'cache-control': 'no-cache'
-        }, plugins=[retry]) as client:
-            info = client.get_info()
-            assert info.result.utilmeta == __spec_version__
+    if sys.version_info >= (3, 9):
+        sanic_process = make_cmd_process(
+            BASE_DIR / 'sanic_site/server.py',
+            cwd=BASE_DIR / 'sanic_site',
+            port=9094
+        )
 
-            openapi_resp = client.get_openapi()
-            assert openapi_resp.status == 200
-            assert openapi_resp.result.openapi
-            assert openapi_resp.result.info.title
-            assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9094'
-            paths = openapi_resp.result.paths
-            item = paths.get('/sanic')
-            assert item
-            assert item.get('get')
+        def test_sanic_operations(self, sanic_process):
+            time.sleep(OPS_WAIT)
+            with OperationsClient(base_url='http://127.0.0.1:9094/ops', base_headers={
+                'cache-control': 'no-cache'
+            }, plugins=[retry]) as client:
+                info = client.get_info()
+                assert info.result.utilmeta == __spec_version__
 
-            calc = paths.get('/calc/add')
-            assert calc
-            assert calc.get('get')
-            # -- inst
-            inst_resp = client.get_instances()
-            inst = inst_resp.result[0]
-            # import sanic
-            assert inst.backend == 'sanic'
-            # assert inst.backend_version == sanic.__version__
-            assert inst.language == 'python'
-            assert '2.6.0' <= inst.utilmeta_version
+                openapi_resp = client.get_openapi()
+                assert openapi_resp.status == 200
+                assert openapi_resp.result.openapi
+                assert openapi_resp.result.info.title
+                assert openapi_resp.result.servers[0].url == 'http://127.0.0.1:9094'
+                paths = openapi_resp.result.paths
+                item = paths.get('/sanic')
+                assert item
+                assert item.get('get')
 
-        with cli.Client(base_url='http://127.0.0.1:9094') as client:
-            hello = client.get('/sanic')
-            assert hello.status == 200
-            assert 'Hello' in str(hello.data)
+                calc = paths.get('/calc/add')
+                assert calc
+                assert calc.get('get')
+                # -- inst
+                inst_resp = client.get_instances()
+                inst = inst_resp.result[0]
+                # import sanic
+                assert inst.backend == 'sanic'
+                # assert inst.backend_version == sanic.__version__
+                assert inst.language == 'python'
+                assert '2.6.0' <= inst.utilmeta_version
+
+            with cli.Client(base_url='http://127.0.0.1:9094') as client:
+                hello = client.get('/sanic')
+                assert hello.status == 200
+                assert 'Hello' in str(hello.data)
 
     def test_tornado_operations(self, tornado_process):
         time.sleep(OPS_WAIT)

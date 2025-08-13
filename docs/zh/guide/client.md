@@ -193,6 +193,63 @@ class UserClient(cli.Client):
 !!! tip "在 API 函数中直接返回响应"
 	`Client` 类中请求得到的响应和 API 类中最终生成的响应的类型是一致的，都是 `utilmeta.core.response.Response` 类，这样带来了很多方便之处，除了响应模板可以复用外，你可以在 API 函数中把调用 `Client` 类得到的响应直接作为 API 函数的响应进行返回，UtilMeta 可以直接识别处理，这对于编写一些代理接口来说非常方便
 
+#### 处理 Server-Sent Events 流式响应
+
+使用 Client 客户端还可以处理 Server-Sent Events（SSE） 流式响应，需要使用 `response.SSEResponse` 作为 SSE 接口的响应提示，示例如下：
+
+```python
+from utilmeta.core import cli, request, api, response
+import utype
+from utype.types import *
+
+class ErrorEvent(response.ServerSentEvent):
+    event = 'error'
+    data: str
+
+class MessageEvent(response.ServerSentEvent):
+    event = 'message'
+
+    class _message_data(utype.Schema):
+        v: str
+
+    data: _message_data
+
+class StreamClient(cli.Client):
+    @api.get('/stream')
+    def get_events(self) -> response.SSEResponse[Union[MessageEvent, ErrorEvent]]:
+        pass
+```
+
+SSE 接口请求得到的 `response.SSEResponse` 对象可以被当作生成器或异步生成器进行迭代，其中的元素为 SSE 中的一个事件，其基本类型为 `response.ServerSentEvent`，包含的字段为：
+
+* `event`: 事件类型，如 `message` 表示消息， `error` 表示错误，`close` 表示关闭连接
+* `data`: 事件的数据，可以为一个 JSON 对象
+* `id`: 事件的 ID（可选）
+* `retry`: :断连时的重连毫秒时间（可选）
+
+!!! tip
+	`SSEResponse` 中设置了 `stream = True` ，会被 Client 类自动处理为流式响应
+
+如果 SSE 接口中返回的事件有着更明确的事件类型和数据结构，你可以将其声明并按照如上例子的方式进行传递，`SSEResponse` 会根据 `event` 的值进行解析，并得到符合声明的事件数据类型实例，调用示例如下：
+
+```python
+import httpx
+
+async with StreamClient(
+    base_url=f'http://127.0.0.1:8000/api/',
+    backend=httpx
+) as client:
+	async for event in client.get_events():
+	    print(event)
+	    # MessageEvent(event='message', data=MessageEvent._message_data(v='content'))
+	    # ErrorEvent(event='error', data='Error Message')
+```
+
+若使用 `httpx` / `aiohttp` 这样的异步请求库，就使用 `async for` 迭代异步生成器，否则使用 `for` 进行迭代即可，其中的元素会被正确地进行类型提示 （ 如例子中的 `Union[MessageEvent, ErrorEvent]`）便于开发
+
+!!! note
+	UtilMeta >= 2.8 版本支持此特性
+
 #### 自定义请求函数
 
 在上面的例子中，我们都是使用声明式的请求参数声明和响应模板声明，让 `Client` 类自动根据声明构建请求与解析响应，这样的请求函数我们称之为 **默认请求函数**，它的函数体不需要任何内容，只需要 `pass` 即可
@@ -531,6 +588,13 @@ with client:
 	)
 ```
 
+!!! tip
+	对于 `httpx` 与 `aiohttp` 等异步请求库，需要使用 `async with` 进行会话管理
+
+在 `with` / `async with` 语句块中，不仅可以保持 Cookies 状态，Client 还会将请求会话（`httpx.Client` / `aiohttp.Session` / `requests.Session`）进行复用，不会在单个请求结束后关闭，客户端可以复用 TCP 连接与 TLS 握手，对于同域名的多次请求会有性能的提升，在语句块结束后关闭对应的请求会话（使用 `async with` 可以调用对应的异步 `close` 方法）
+
+!!! note
+	UtilMeta >= 2.8 版本支持 `async with` 语法与自动处理请求会话的复用和关闭
 
 ## 生成 `Client` 类代码
 
@@ -593,6 +657,7 @@ class ArticleResponse(response.Response):
 	result_key = "article"
 	content_type = "application/json"
 	result: ArticleSchema
+	status = 200
 
 class ErrorResponse(response.Response):
 	result_key = "errors"
@@ -604,7 +669,7 @@ class APIClient(cli.Client):
     def get_article(
         self, slug: str = request.PathParam(regex="[a-z0-9]+(?:-[a-z0-9]+)*")
     ) -> Union[
-        ArticleResponse[200],
+        ArticleResponse,
         ErrorResponse
     ]:
         pass

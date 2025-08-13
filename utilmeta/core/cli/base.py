@@ -1,4 +1,5 @@
 import inspect
+import warnings
 
 from utilmeta.utils import (
     PluginEvent,
@@ -11,6 +12,7 @@ from utilmeta.utils import (
     EndpointAttr,
     parse_query_string,
     parse_query_dict,
+    import_obj
 )
 
 from utype.types import *
@@ -71,6 +73,24 @@ def parse_proxies(
         for _s, _urls in proxies.items():
             values.update(parse_proxies(_urls, scheme=_s))
     return {}
+
+
+def get_backend(asynchronous: bool = None, stream: bool = False):
+    backends = ['httpx']
+    if asynchronous:
+        backends.extend(['aiohttp', 'requests'])
+    else:
+        backends.extend(['requests', 'aiohttp'])
+
+    for backend_name in backends:
+        try:
+            return import_obj(backend_name)
+        except (ModuleNotFoundError, ImportError):
+            continue
+    if stream:
+        warnings.warn('Client backend: urllib does not support stream, '
+                      'try another request backend: httpx / requests / aiohttp')
+    return urllib
 
 
 def is_timeout_error(e: Exception) -> bool:
@@ -215,34 +235,35 @@ class Client(PluginTarget):
         allow_redirects: bool = None,
         charset: str = "utf-8",
         fail_silently: bool = False,
+        stream: bool = None
     ):
 
         super().__init__(plugins=plugins)
 
         if not backend:
             pref = Preference.get()
-            backend = pref.client_default_request_backend or urllib
+            backend = pref.client_default_request_backend
 
         self._internal = internal
         self._mock = mock
 
-        # backend_name = None
+        backend_name = None
         if isinstance(backend, str):
             backend_name = backend
         elif inspect.ismodule(backend):
             backend_name = backend.__name__
-        else:
-            raise TypeError(
-                f"Invalid backend: {repr(backend)}, must be a module or str"
-            )
+        # else:
+        #     raise TypeError(
+        #         f"Invalid backend: {repr(backend)}, must be a module or str"
+        #     )
 
         self._backend_name = backend_name
         self._backend = backend
-
         self._service = service
         self._base_query = base_query or {}
         self._default_timeout = default_timeout
         self._base_headers = base_headers or {}
+        self._stream = stream
 
         if base_url:
             # check base url
@@ -263,6 +284,8 @@ class Client(PluginTarget):
         self._proxies = proxies
         self._allow_redirects = allow_redirects
         self._charset = charset
+        self._request_clients = None
+        # an cache for request clients (like httpx)
 
         # self._prepend_route = prepend_route
         self._append_slash = append_slash
@@ -314,12 +337,42 @@ class Client(PluginTarget):
                 setattr(self, name, client)
 
     def __enter__(self: T) -> T:
+        self._request_clients = {}  # set to cacheable
+        return self
+
+    async def __aenter__(self: T) -> T:
+        self._request_clients = {}  # set to cacheable
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._cookies = SimpleCookie(self._original_cookies)
         self._base_headers = dict(self._original_headers)
         self._base_query = dict(self._original_query)
+
+        if self._request_clients:
+            for val in self._request_clients.values():
+                if callable(getattr(val, 'close', None)):
+                    val.close()
+
+        self._request_clients = None
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self._cookies = SimpleCookie(self._original_cookies)
+        self._base_headers = dict(self._original_headers)
+        self._base_query = dict(self._original_query)
+
+        if self._request_clients:
+            for val in self._request_clients.values():
+                if callable(getattr(val, 'close', None)):
+                    v = val.close()
+                    if inspect.isawaitable(v):
+                        await v
+                elif callable(getattr(val, 'aclose', None)):
+                    v = val.aclose()
+                    if inspect.isawaitable(v):
+                        await v
+
+        self._request_clients = None
 
     @property
     def fail_silently(self):
@@ -345,10 +398,10 @@ class Client(PluginTarget):
         cls._generator = generator
         return cls
 
-    def get_client_params(self):
+    def get_client_params(self, asynchronous: bool = None):
         return ClientParameters(
             base_url=self._base_url,
-            backend=self._backend,
+            backend=self._backend or get_backend(asynchronous),
             service=self._service,
             base_headers=self._base_headers,
             base_query=self._base_query,
@@ -442,13 +495,18 @@ class Client(PluginTarget):
         # form: dict = None,
         headers: dict = None,
         cookies=None,
+        asynchronous: bool = None,
     ):
         url = self._build_url(path=path, query=query)
         headers = self._build_headers(headers=headers, cookies=cookies)
         # if content_type:
         #     headers.setdefault('content-type', content_type)
         return self._request_cls(
-            method=method, url=url, data=data, headers=headers, backend=self._backend
+            method=method,
+            url=url,
+            data=data,
+            headers=headers,
+            backend=self._backend or get_backend(asynchronous=asynchronous)
         )
 
     def __request__(self, endpoint: ClientEndpoint, request: Request):
@@ -460,7 +518,11 @@ class Client(PluginTarget):
 
         def make_request(req: Request = request):
             return endpoint.parse_response(
-                self._make_request(req), fail_silently=self._fail_silently
+                self._make_request(
+                    req,
+                    stream=endpoint.stream,
+                    timeout=endpoint.timeout,
+                ), fail_silently=self._fail_silently
             )
 
         handler = self._chain_cls(self, endpoint).build_client_handler(
@@ -477,7 +539,11 @@ class Client(PluginTarget):
 
         async def make_request(req: Request = request):
             return endpoint.parse_response(
-                await self._make_async_request(req), fail_silently=self._fail_silently
+                await self._make_async_request(
+                    req,
+                    stream=endpoint.stream,
+                    timeout=endpoint.timeout,
+                ), fail_silently=self._fail_silently
             )
 
         handler = self._chain_cls(self, endpoint).build_client_handler(
@@ -485,7 +551,12 @@ class Client(PluginTarget):
         )
         return await handler(request)
 
-    def _make_request(self, request: Request, timeout: int = None) -> Response:
+    def _make_request(
+        self,
+        request: Request,
+        timeout: int = None,
+        stream: bool = None
+    ) -> Response:
         if self._internal:
             service = self._service
             if not service:
@@ -514,7 +585,12 @@ class Client(PluginTarget):
                     timeout=timeout,
                     allow_redirects=self._allow_redirects,
                     proxies=self._proxies,
+                    stream=stream or self._stream,
+                    clients=self._request_clients
                 )
+                if inspect.isawaitable(resp):
+                    raise RuntimeError(f'{self}: request backend: {self._backend} '
+                                       f'support only async request function')
             except Exception as e:
                 if not self._fail_silently:
                     raise e from e
@@ -531,7 +607,10 @@ class Client(PluginTarget):
         return response
 
     async def _make_async_request(
-        self, request: Request, timeout: int = None
+        self,
+        request: Request,
+        timeout: int = None,
+        stream: bool = None
     ) -> Response:
         if self._internal:
             service = self._service
@@ -558,6 +637,9 @@ class Client(PluginTarget):
                 resp = adaptor(
                     timeout=timeout or self._default_timeout,
                     allow_redirects=self._allow_redirects,
+                    proxies=self._proxies,
+                    stream=stream or self._stream,
+                    clients=self._request_clients
                 )
                 if inspect.isawaitable(resp):
                     resp = await resp
@@ -590,6 +672,7 @@ class Client(PluginTarget):
             # form=form,
             headers=headers,
             cookies=cookies,
+            asynchronous=False
         )
         return self._make_request(request, timeout=timeout)
 
@@ -610,6 +693,7 @@ class Client(PluginTarget):
             data=data,
             headers=headers,
             cookies=cookies,
+            asynchronous=True
         )
         return await self._make_async_request(request, timeout=timeout)
 

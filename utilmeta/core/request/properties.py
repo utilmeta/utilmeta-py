@@ -9,6 +9,7 @@ from utype.parser.field import ParserField, Field
 from utype.utils.datastructures import unprovided
 from . import var
 from ipaddress import IPv6Address, IPv4Network, IPv6Network, IPv4Address
+from urllib.parse import unquote
 
 
 __all__ = [
@@ -394,6 +395,12 @@ class PathParam(RequestParam):
     @classmethod
     def get_mapping(cls, request: Request) -> Optional[Mapping]:
         return var.path_params.getter(request)
+
+    def get_value(self, data: Mapping, field: ParserField):
+        value = super().get_value(data, field)
+        if isinstance(value, str):
+            value = unquote(value)
+        return value
 
     __in__ = Path
     __no_default__ = True

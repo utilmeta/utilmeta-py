@@ -1,5 +1,23 @@
 # 版本发布记录
 
+## v2.8
+
+### 新特性
+
+* API 接口支持 Server-Sent Events (SSE) 事件流响应： [API 中实现 SSE](../../guide/api-route#server-sent-events)
+* Client 客户端支持处理  Server-Sent Events (SSE) 等流式响应： [处理 SSE 响应](../../guide/client#server-sent-events)
+* `@api` 装饰器新增 `timeout` 参数，用于为 API 类的处理函数指定超时时间或为 Client 类的请求函数指定请求超时
+* 新增 HTTP 缓存插件 `api.Cache`：可以自动处理 Last-Modifed / Etag 等 HTTP 缓存机制
+
+### 优化项
+
+* 优化 `orm.Field` 的字段解析和校验和字段规则的整合
+* Client 客户端在 `with` 与 `async with` 语句块中会复用请求会话 （`httpx.Client` / `aiohttp.Session` / `requests.Session`）
+
+### 问题修复
+
+* 修复自动生成的 OpenAPI 文档的 YAML 输出
+
 ## v2.7.6
 
 发布时间：2025/6/6

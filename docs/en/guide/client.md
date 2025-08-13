@@ -191,6 +191,63 @@ The request function returns an `response.Response` instance when none of the pr
 !!! tip "Return the response directly in the API function"
 	The response class you get from the request function is identical to the response class in API class (both are `utilmeta.core.response.Response`), So you can directly return the response from `Client` class as the return value of API function
 
+#### Handle Server-Sent Events (SSE)
+
+Client can also handle streaming response like `Server-Sent Events`（SSE）, for example:
+
+```python
+from utilmeta.core import cli, request, api, response
+import utype
+from utype.types import *
+
+class ErrorEvent(response.ServerSentEvent):
+    event = 'error'
+    data: str
+
+class MessageEvent(response.ServerSentEvent):
+    event = 'message'
+
+    class _message_data(utype.Schema):
+        v: str
+
+    data: _message_data
+
+class StreamClient(cli.Client):
+    @api.get('/stream')
+    def get_events(self) -> response.SSEResponse[Union[MessageEvent, ErrorEvent]]:
+        pass
+```
+
+The `response.SSEResponse` used for the request function can be iterated as a generator or async generator, the iterated item is a `response.ServerSentEvent` object, contains the following fields:
+
+* `event`: Event type, like `message` / `error`  / `close`
+* `data`: Event Data
+* `id`: Event ID（Optional）
+* `retry`: Reconnect miliseconds when disconnected（Optional）
+
+!!! tip
+	`SSEResponse` has set `stream = True`, will be processed as streaming response by Client
+
+If the event in SSE has a more specific data structure, you can define it and pass it in the same way as the example above. `SSEResponse` will parse event stream based on the `event` value, example of calling:
+
+```python
+import httpx
+
+async with StreamClient(
+    base_url=f'http://127.0.0.1:8000/api/',
+    backend=httpx
+) as client:
+	async for event in client.get_events():
+	    print(event)
+	    # MessageEvent(event='message', data=MessageEvent._message_data(v='content'))
+	    # ErrorEvent(event='error', data='Error Message')
+```
+
+If you are using async request library like `httpx` / `aiohttp`, you should use `async for` to iterate the events
+
+!!! note
+	 requires UtilMeta >= 2.8
+
 #### Custom Request Function
 
 In the above examples, we use the declarative request parameter and response template, let the `Client` class automatically build the request and parse the response according to the declaration. Such a request function is called **Default request function**, the function body does not need anything, just a `pass`.
@@ -528,6 +585,13 @@ with client:
 	)
 ```
 
+!!! tip
+	For async request library like `httpx` and `aiohttp`, use `async with`
+
+In `with` / `async with`, Client will reuse the request session（`httpx.Client` / `aiohttp.Session` / `requests.Session`）. Performance for multiple requests for the same domain will be improved
+
+!!! note
+	UtilMeta >= 2.8  supports `async with`
 
 ## Generate `Client` code
 
@@ -591,6 +655,7 @@ class ArticleResponse(response.Response):
 	result_key = "article"
 	content_type = "application/json"
 	result: ArticleSchema
+	status = 200
 
 class ErrorResponse(response.Response):
 	result_key = "errors"
@@ -602,7 +667,7 @@ class APIClient(cli.Client):
     def get_article(
         self, slug: str = request.PathParam(regex="[a-z0-9]+(?:-[a-z0-9]+)*")
     ) -> Union[
-        ArticleResponse[200],
+        ArticleResponse,
         ErrorResponse
     ]:
         pass

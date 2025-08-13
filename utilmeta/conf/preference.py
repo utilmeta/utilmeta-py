@@ -14,6 +14,7 @@ class Preference(Config):
     client_default_request_backend: Any
 
     default_response_status: Optional[int]
+    default_response_streaming_chunk_size: Optional[int]
     default_aborted_response_status: int
     default_timeout_response_status: int
     default_dns_resolve_timeout: Optional[float]
@@ -59,6 +60,7 @@ class Preference(Config):
         # client_default_strict_response: Optional[bool] = True,
         client_default_request_backend=None,
         default_response_status: Optional[int] = 200,
+        default_response_streaming_chunk_size: Optional[int] = None,
         default_aborted_response_status: int = 503,
         default_timeout_response_status: int = 504,
         # ---------

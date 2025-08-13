@@ -5,6 +5,12 @@ from .base import ResponseAdaptor
 class TornadoClientResponseAdaptor(ResponseAdaptor):
     response: ClientResponse
 
+    def iter_bytes(self, chunk_size=None):
+        chunk_size = chunk_size or self.get_default_chunk_size()
+        if self.response.buffer:
+            for chunk in self.response.buffer.read(chunk_size):
+                yield chunk
+
     @classmethod
     def qualify(cls, obj):
         return isinstance(obj, ClientResponse)
@@ -32,7 +38,6 @@ class TornadoClientResponseAdaptor(ResponseAdaptor):
     def close(self):
         if self.response.buffer:
             self.response.buffer.close()
-
 
 # class TornadoServerResponseAdaptor(ResponseAdaptor):
 #     response: ServerResponse

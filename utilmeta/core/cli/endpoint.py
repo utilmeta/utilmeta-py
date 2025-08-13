@@ -17,6 +17,13 @@ from .hook import ClientErrorHook, ClientAfterHook, ClientBeforeHook
 if TYPE_CHECKING:
     from .base import Client
 
+DEFAULT_STREAM_CONTENT_TYPES = [
+    'text/event-stream',
+    'application/x-ndjson',
+    'application/json-seq',
+    'application/octet-stream'
+]
+
 
 def prop_is(prop: properties.Property, ident):
     return prop.__ident__ == ident
@@ -129,12 +136,18 @@ class ClientEndpoint(BaseEndpoint):
         return self.f.__name__
 
     def __call__(self, client: "Client", /, *args, **kwargs):
-        if not self.is_passed:
-            return self.executor(client, *args, **kwargs)
-        if self.parser.is_asynchronous:
-            return client.__async_request__(self, *args, **kwargs)
-        else:
-            return client.__request__(self, *args, **kwargs)
+        raise NotImplementedError
+
+    @property
+    def stream(self) -> bool:
+        if self.response_types:
+            for resp in self.response_types:
+                if resp.stream is None:
+                    return resp.content_type in DEFAULT_STREAM_CONTENT_TYPES
+                return bool(resp.stream)
+        elif self.return_type:
+            return bool(getattr(self.return_type, 'stream', False))
+        return False
 
     def build_request(self, client: "Client", /, *args, **kwargs) -> Request:
         # get Call object from kwargs
@@ -144,7 +157,7 @@ class ClientEndpoint(BaseEndpoint):
         for i, arg in enumerate(args):
             kwargs[self.parser.pos_key_map[i]] = arg
 
-        client_params = client.get_client_params()
+        client_params = client.get_client_params(asynchronous=self.ASYNCHRONOUS)
         try:
             url = utils.url_join(
                 client_params.base_url or "",
@@ -299,7 +312,8 @@ class SyncClientEndpoint(ClientEndpoint):
                     hook.serve(client, request)
 
                 if not self.is_passed:
-                    r = self.executor(client, *args, **kwargs)
+                    executor = self.get_executor(asynchronous=False)
+                    r = executor(client, *args, **kwargs)
                     if inspect.isawaitable(r):
                         raise exc.ServerError("awaitable detected in sync function")
 
@@ -339,7 +353,8 @@ class AsyncClientEndpoint(ClientEndpoint):
                         await _
 
                 if not self.is_passed:
-                    r = self.executor(client, *args, **kwargs)
+                    executor = self.get_executor(asynchronous=True)
+                    r = executor(client, *args, **kwargs)
                     while inspect.isawaitable(r):
                         # executor is maybe a sync function, which will not need to await
                         r = await r

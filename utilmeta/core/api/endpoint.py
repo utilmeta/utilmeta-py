@@ -1,6 +1,7 @@
 from utilmeta import utils
 from utilmeta.utils import exceptions as exc
-from typing import Callable, Type, List, TYPE_CHECKING
+from utilmeta.utils import handle_timeout
+from typing import Callable, Type, List, Union, TYPE_CHECKING
 from utilmeta.utils.plugin import PluginTarget, PluginEvent
 from utilmeta.utils.context import ContextWrapper, Property
 from utilmeta.utils.exceptions import InvalidDeclaration
@@ -14,6 +15,8 @@ from ..request import Request, var
 from ..request.properties import QueryParam, PathParam
 from ..response import Response
 import utype
+from datetime import timedelta
+
 
 if TYPE_CHECKING:
     from .base import API
@@ -137,6 +140,7 @@ class BaseEndpoint(PluginTarget):
         # instead of function name (maybe affected by not-@wrap decorator function)
         plugins: list = None,
         idempotent: bool = None,
+        timeout: Union[int, float, timedelta] = None,
         eager: bool = False,
         local_vars: dict = None,
     ):
@@ -153,6 +157,9 @@ class BaseEndpoint(PluginTarget):
         self.name = self.__name__ = name or f.__name__
         self.path_names = self.PATH_REGEX.findall(self.route)
         self.local_vars = local_vars
+        if isinstance(timeout, timedelta):
+            timeout = timeout.total_seconds()
+        self.timeout = timeout
 
         # ---------------
         parser = self.parser_cls.apply_for(f)
@@ -309,6 +316,7 @@ class Endpoint(BaseEndpoint):
         name: str = None,
         plugins: list = None,
         idempotent: bool = None,
+        timeout: Union[int, float, timedelta] = None,
         eager: bool = False,
         # openapi specs:
         operation_id: str = None,
@@ -325,6 +333,7 @@ class Endpoint(BaseEndpoint):
             method=method,
             name=name,
             idempotent=idempotent,
+            timeout=timeout,
             eager=eager,
             local_vars=local_vars,
         )
@@ -381,6 +390,13 @@ class Endpoint(BaseEndpoint):
     async def async_handler(self, api: "API"):
         args, kwargs = await self.async_parse_request(api.request)
         return await self(api, *args, **kwargs)
+
+    def get_executor(self, asynchronous: bool = False):
+        exe = super().get_executor(asynchronous)
+        if self.timeout:
+            # apply to function directly
+            exe = handle_timeout(self.timeout)(exe)
+        return exe
 
     def parse_request(self, request: Request):
         try:

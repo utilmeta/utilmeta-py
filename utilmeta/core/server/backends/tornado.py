@@ -1,3 +1,5 @@
+import inspect
+
 import tornado
 from tornado.web import RequestHandler, Application
 from utilmeta.core.response import Response
@@ -117,8 +119,19 @@ class TornadoServerAdaptor(ServerAdaptor):
                         self.set_header(key, value)
                     if response.status in (204, 304) or (100 <= response.status < 200):
                         return
-                    body = response.prepare_body()
-                    self.write(body)
+
+                    if response.event_stream:
+                        if inspect.isasyncgen(response.event_stream):
+                            async for event in response.event_stream:
+                                self.write(event)
+                                await self.flush()
+                        else:
+                            for event in response.event_stream:
+                                self.write(event)
+                                await self.flush()
+                    else:
+                        body = response.prepare_body()
+                        self.write(body)
 
         else:
 
@@ -184,8 +197,17 @@ class TornadoServerAdaptor(ServerAdaptor):
 
                     if response.status in (204, 304) or (100 <= response.status < 200):
                         return
-                    body = response.prepare_body()
-                    self.write(body)
+
+                    if response.event_stream:
+                        if inspect.isasyncgen(response.event_stream):
+                            raise RuntimeError(f'async event stream generator: {response.event_stream}'
+                                               f' for a sync tornado server')
+                        for event in response.event_stream:
+                            self.write(event)
+                            self.flush()
+                    else:
+                        body = response.prepare_body()
+                        self.write(body)
 
         return Handler
 

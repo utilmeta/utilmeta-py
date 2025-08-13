@@ -1,3 +1,5 @@
+from typing import AsyncIterator
+
 from utilmeta import utils
 from utype.types import *
 from utilmeta.utils.adaptor import BaseAdaptor
@@ -27,6 +29,31 @@ class ResponseAdaptor(BaseAdaptor):
                 if isinstance(module, str):
                     return module.split('.')[0]
         return name
+
+    @classmethod
+    def get_default_chunk_size(cls):
+        from utilmeta.conf import Preference
+        pref = Preference.get()
+        return pref.default_response_streaming_chunk_size
+
+    def iter_bytes(self, chunk_size=None) -> Iterator[bytes]:
+        raise NotImplementedError
+
+    async def aiter_bytes(self, chunk_size=None) -> AsyncIterator[bytes]:
+        raise NotImplementedError
+
+    def __iter__(self):
+        yield from self.iter_bytes()
+
+    async def __aiter__(self):
+        async for b in self.aiter_bytes():  # noqa
+            yield b
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     @classmethod
     def reconstruct(cls, adaptor):
@@ -188,6 +215,9 @@ class ResponseAdaptor(BaseAdaptor):
 
     def close(self):
         pass
+
+    async def aclose(self):
+        self.close()
 
     @property
     def total_traffic(self):

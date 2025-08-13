@@ -34,6 +34,10 @@ class RootAPI(api.API):
 * `deprecated`：API 是否已弃用
 * `idempotent`：API 是否 **幂等**（相同参数多次调用与单次调用效果一致，对于编写客户端重试机制很重要）
 * `private`：API 是否是私有接口，私有接口不提供公开调用，也不会出现在生成的 API 文档中
+* `tags`:  指定生成的 OpenAPI 文档中的标签 (默认为按照接口的定义路由生成)
+* `description`:  指定生成的 OpenAPI 文档中的说明 (默认为接口函数的 doc_string)
+* `extension`: 额外定义或覆盖  OpenAPI 文档的 JSON 对象，如果是额外定义的字段需要以 `x-` 开头
+* `timeout`: 指定接口的超时时间，如果接口函数在此时间内都没有返回响应则会抛出 TimeoutError 
 
 !!! tip
 	你在 API 类或 API 函数中编写的文档（`"""doc_string"""`）会被解析整合到 OpenAPI 文档接口中的 `description`，如
@@ -475,6 +479,9 @@ class MultiArticlesResponse(response.Response):
 * `state`：传入业务状态码，只有当模板指定了 `state_key` 时有效
 * `message`：传入消息，只有当模板指定了 `message_key` 时有效
 * `count`：传入结果数量，只有当模板指定了 `count_key` 时有效
+* `file`:传入一个文件对象或文件路径，对应的文件将作为响应体
+* `content_type`: 指定响应的 `Content-Type`
+* `event_stream`: SSE 响应的事件生成器（或异步生成器）
 
 !!! tip
 	如果响应模板定义了 `result_key`，这里的 `result` 结果数据指的就是 `result_key` 键对应的数据，否则指的是整个响应体数据
@@ -512,6 +519,66 @@ class ArticleAPI(api.API):
 
 !!! tip
 	即使你没有在 API 类中定义 `response` 属性，你在 API 函数中访问 `self.response` 也会得到一个 Response 类，所以你在任何 API 函数中都可以使用 `return self.response(...)` 来构造响应对象
+
+### Server-Sent Events
+
+API 服务端可以使用 Server-Sent Events (SSE) 技术向客户端发送流式事件响应，如处理大语言模型的流式输出，UtilMeta 框架也支持定义 SSE 接口，
+```python
+from utilmeta.core import api, request, response
+
+class ChatAPI(api.API):
+    @api.post
+    async def chat(
+        self,
+        message: str = request.BodyParam()
+    ) -> response.SSEResponse:
+        async for chunk in await self.get_client().chat.completions.create(
+            messages=[{'role': 'user', 'content': message}],
+            stream=True
+        ):
+            yield response.ServerSentEvent(
+	            event='message', 
+	            data={'v': chunk.choices[0].delta.content}
+	        )
+            
+    def get_client(self):
+        # init LLM Client
+        ...
+```
+
+如果你生成 SSE 的生成器 / 异步生成器函数已经定义好了，你也可以直接在响应构建的 `event_stream` 参数传入一个生成器 / 异步生成器，这样 UtilMeta 也会自动进行 SSE 响应的处理，例如：
+```python
+from utilmeta.core import api, request, response
+
+class ChatAPI(api.API):
+    async def event_stream(self, message: str):
+        async for chunk in await self.get_client().chat.completions.create(
+            messages=[{'role': 'user', 'content': message}],
+            stream=True
+        ):
+            yield response.ServerSentEvent(
+	            event='message', 
+	            data={'v': chunk.choices[0].delta.content}
+	        )
+
+    @api.post
+    async def chat(
+        self,
+        message: str = request.BodyParam()
+    ):
+        return self.response(event_stream=self.event_stream(message))
+
+    def get_client(self):
+        # init LLM Client
+        ...
+```
+
+!!! tip
+	当 SSE 的生成器在迭代过程中抛出异常时，会被自动处理为一个 `event: error` 事件（包括当 API 接口定义了 `timeout` 时，在时限内没有完成输出抛出的 TimeoutError）
+
+!!! note
+	UtilMeta >= 2.8 版本支持此特性
+
 
 ## 钩子机制
 

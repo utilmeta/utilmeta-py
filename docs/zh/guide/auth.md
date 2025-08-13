@@ -251,7 +251,7 @@ from utilmeta.core.auth.session.cached_db import CachedDBSession
 ```python
 from utilmeta.core import auth
 from utilmeta.core.auth.session.cached_db import CachedDBSession
-from utilmeta.conf.http import Cookoe
+from utilmeta.conf.http import Cookie
 from .models import Session
 
 session_config = CachedDBSession(

@@ -1,5 +1,5 @@
 from tests.conftest import make_live_process, setup_service, make_server_thread
-from .params import do_live_api_tests
+from .params import do_live_api_tests, do_live_api_sse_tests
 from utilmeta import UtilMeta
 import sys
 import asyncio
@@ -17,6 +17,8 @@ def test_flask_api(service, flask_server_process):
     service._application = None
     service.adaptor.app = None
     do_live_api_tests(service)
+    do_live_api_sse_tests(port=18003 if service.asynchronous else 8003, asynchronous=False)
+    # flask cannot handle async sse
     service._application = None
     service.adaptor.app = None
 

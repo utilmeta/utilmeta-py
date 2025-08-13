@@ -144,8 +144,79 @@ class ArticlesClient(cli.Client):
     def get_article(self, slug: str = request.PathParam) -> response.Response: pass
 
 
+class ErrorEvent(response.ServerSentEvent):
+    event = 'error'
+
+    class _error(utype.Schema):
+        message: str
+        timeout: bool = False
+
+    data: _error
+
+
+class MessageEvent(response.ServerSentEvent):
+    event = 'message'
+
+    class _data(utype.Schema):
+        v: str
+
+    data: _data
+
+
+class HeadEvent(response.ServerSentEvent):
+    event: Literal["head"] = 'head'
+
+    class _data(utype.Schema):
+        headers: dict
+
+    data: _data
+
+
+class StreamClient(cli.Client):
+    @api.get('/')
+    def get_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent]]:
+        pass
+
+    @api.get('/async')
+    def get_async_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent]]:
+        pass
+
+    @api.get('/')
+    async def aget_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent]]:
+        pass
+
+    @api.get('/async')
+    async def aget_async_events(self) -> response.SSEResponse[Union[response.ServerSentEvent, MessageEvent, HeadEvent]]:
+        pass
+
+    @api.get('/timeout')
+    def get_timeout_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent, ErrorEvent]]:
+        pass
+
+    @api.get('/async/timeout')
+    def get_async_timeout_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent, ErrorEvent]]:
+        pass
+
+    @api.get('/timeout')
+    async def aget_timeout_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent, ErrorEvent]]:
+        pass
+
+    @api.get('/async/timeout')
+    async def aget_async_timeout_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent, ErrorEvent]]:
+        pass
+
+    @api.get('/long_poll')
+    def get_long_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent, ErrorEvent]]:
+        pass
+
+    @api.get('/long_poll')
+    async def aget_long_events(self) -> response.SSEResponse[Union[MessageEvent, HeadEvent, ErrorEvent]]:
+        pass
+
+
 class APIClient(cli.Client):
     test: TestClient
+    stream: StreamClient
     user: UserClient
     comments: CommentClient
 

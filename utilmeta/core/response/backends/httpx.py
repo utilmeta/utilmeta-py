@@ -6,6 +6,19 @@ from http.cookies import SimpleCookie
 class HttpxClientResponseAdaptor(ResponseAdaptor):
     response: Response
 
+    def iter_bytes(self, chunk_size=None):
+        chunk_size = chunk_size or self.get_default_chunk_size()
+        yield from self.response.iter_bytes(chunk_size)
+
+    async def aiter_bytes(self, chunk_size=None):
+        chunk_size = chunk_size or self.get_default_chunk_size()
+        try:
+            async for chunk in self.response.aiter_bytes(chunk_size):
+                yield chunk
+        except RuntimeError:
+            for chunk in self.response.iter_bytes(chunk_size):
+                yield chunk
+
     @classmethod
     def qualify(cls, obj):
         return isinstance(obj, Response)
@@ -57,6 +70,12 @@ class HttpxClientResponseAdaptor(ResponseAdaptor):
 
     def close(self):
         self.response.close()
+
+    async def aclose(self):
+        try:
+            await self.response.aclose()
+        except RuntimeError:
+            self.response.close()
 
     @property
     def request(self):

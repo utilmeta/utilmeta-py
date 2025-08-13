@@ -1,12 +1,20 @@
 from aiohttp.client_reqrep import ClientResponse
 from aiohttp.web_response import Response as ServerResponse
-
-# from utilmeta.utils import async_to_sync
+from typing import AsyncIterator
 from .base import ResponseAdaptor
 
 
 class AiohttpClientResponseAdaptor(ResponseAdaptor):
     response: ClientResponse
+
+    async def aiter_bytes(self, chunk_size=None) -> AsyncIterator[bytes]:
+        chunk_size = chunk_size or self.get_default_chunk_size()
+        if chunk_size:
+            reader = self.response.content.iter_chunked(chunk_size)
+        else:
+            reader = self.response.content
+        async for chunk in reader:
+            yield chunk
 
     @classmethod
     def qualify(cls, obj):
@@ -48,8 +56,6 @@ class AiohttpClientResponseAdaptor(ResponseAdaptor):
         return self.response.cookies
 
     def close(self):
-        if isinstance(self.response, ClientResponse):
-            pass
         self.response.close()
 
     @property

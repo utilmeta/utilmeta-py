@@ -6,6 +6,9 @@ from .base import ResponseAdaptor
 class RequestsResponseAdaptor(ResponseAdaptor):
     response: Response
 
+    def iter_bytes(self, chunk_size=None):
+        yield from self.response.iter_content(chunk_size=chunk_size or self.get_default_chunk_size() or 1)
+
     @classmethod
     def qualify(cls, obj):
         return isinstance(obj, Response)

@@ -4,6 +4,7 @@
 
 ## 服务初始化参数
 
+UtilMeta 服务的定义方式如下：
 ```python
 from utilmeta import UtilMeta
 
@@ -197,9 +198,6 @@ UtilMeta 内置的常用配置有
 
 !!! warning
 	一个类型的配置只能使用 `use` 注入一次
-
-
-UtilMeta 提供了一个 `DjangoSettings` 配置，能够方便地对 Django 项目和需要使用 Django ORM 的项目进行 Django 配置
 
 ### `setup()` 配置的安装
 
@@ -509,7 +507,7 @@ service.use(CacheConnections({
 目前 UtilMeta 支持两种缓存配置
 
 * **DjangoCache**：默认的缓存配置，将会使用 Django 的缓存进行实现，其中 `engine` 参数可以传入 Django 的缓存类
-* **RedisCache**：Redis 缓存配置，同时支持同步与异步用法，同步的用法由 Django 实现，异步的用法使用 `aioredis` 实现
+* **RedisCache**：Redis 缓存配置，同时支持同步与异步用法
 
 ### `Time` 时间与时区配置
 
@@ -540,11 +538,12 @@ service.use(Time(
 
 ```python
 from utilmeta.conf import Preference
+import httpx
 
 service.use(Preference(
 	client_default_request_backend=httpx,
 	default_aborted_response_status=500,
-	orm_raise_non_exists_required_field=True
+	orm_on_non_exists_required_field='error'
 ))
 ```
 
@@ -557,8 +556,9 @@ service.use(Preference(
 * `default_timeout_response_status`：如果客户端请求超时默认生成的响应码，默认为 504
 * `orm_default_query_distinct`：`orm.Query` 查询是否默认进行 `DISTINCT` ，默认不开启，需要在 `orm.Query` 类中指定 `__distinct__ = True` 才会进行去重处理
 * `orm_default_gather_async_fields`：在 `orm.Schema` 的异步查询方法中，是否对无关联的关系字段查询进行 `asyncio.gather` 聚合，默认是 False
-* `orm_raise_non_exists_required_field`：在 `orm.Schema`中的必传的字段没有在模型中检测到有对应名称的字段时，是否抛出错误，默认为 False，会给出 warnings 提示
 * `orm_schema_query_max_depth`：使用 `orm.Schema` 进行关系查询的最大查询深度，默认是 100，虽然关系查询有自动检测避免无限循环嵌套的机制，这个参数也可以作为兜底策略应对其他可能的情况增强关系查询的鲁棒性
+* `orm_on_non_exists_required_field`: 对于 `orm.Field` 中定义的不存在的且必需的模型字段的行为，默认为 `warn`，还可选 `ignore`, `error`
+* `orm_on_conflict_type`: 对于 `orm.Field` 对应的字段声明类型与模型字段类型冲突时的行为，默认为 `warn`，还可选 `ignore`, `error`
 * `dependencies_auto_install_disabled`:  是否对运行服务或执行命令所需的未安装依赖库 **禁用** 自动安装，默认为 False，UtilMeta 检测到的未安装依赖会自动运行 `pip install` 进行安装，但是如果你的环境可能导致安装多次失败重试的话，你可以考虑开启这个参数对自动安装进行禁用，避免依赖安装占用大量的进程资源
 
 ## 运行服务

@@ -1,5 +1,7 @@
 import os.path
+import time
 
+from utilmeta import UtilMeta
 from utilmeta.core.file.backends.django import DjangoFileAdaptor  # noqa
 from io import BytesIO
 from utilmeta.core.response import Response
@@ -430,3 +432,52 @@ def do_live_api_tests(service):
                 if isinstance(content, bytes):
                     content = content.decode()
                 assert content == result, f"{method} {path} failed with {repr(content)}, {repr(result)} expected"
+
+
+def do_live_api_sse_tests(port: int, asynchronous: bool = False, with_timeout: bool = True):
+    from client import StreamClient, MessageEvent, HeadEvent, ErrorEvent
+    import requests
+    with StreamClient(
+        base_url=f'http://127.0.0.1:{port}/api/stream',
+        backend=requests
+    ) as client:
+        if asynchronous:
+            resp = client.get_async_events()
+        else:
+            resp = client.get_events()
+
+        events = []
+        for event in resp:
+            events.append(event)
+            if isinstance(event, HeadEvent):
+                assert event.data.headers.get('status') == 'ok'
+            elif isinstance(event, MessageEvent):
+                assert event.data.v
+            else:
+                raise ValueError(f'invalid event: {event}')
+        assert len(events) == 2, f'got: {len(events)} events: {events}'
+
+        # -- timeout test
+        if asynchronous:
+            to_resp = client.get_async_timeout_events()
+        else:
+            to_resp = client.get_timeout_events()
+
+        st = time.time()
+        events = []
+        print('TO RESP:', to_resp)
+        for event in to_resp:
+            events.append(event)
+            if isinstance(event, HeadEvent):
+                assert event.data.headers.get('status') == 'ok'
+            elif isinstance(event, MessageEvent):
+                assert event.data.v
+            elif isinstance(event, ErrorEvent):
+                assert event.data.message
+            else:
+                raise ValueError(f'invalid event: {event}')
+        if with_timeout:
+            tm = time.time() - st
+            assert 0.9 < tm < 1.5, f':{port} total time: {tm} incorrect'     # timeout=1
+        assert len(events) == 4, f':{port} got: {to_resp.url} {len(events)} events: {events}'
+        # only 1 event is returned

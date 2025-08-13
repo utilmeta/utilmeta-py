@@ -2,7 +2,7 @@ from django.http.response import (
     StreamingHttpResponse,
     HttpResponse,
     HttpResponseBase,
-    FileResponse,
+    # FileResponse,
 )
 from typing import Union, TYPE_CHECKING
 from .base import ResponseAdaptor
@@ -45,7 +45,10 @@ class DjangoResponseAdaptor(ResponseAdaptor):
         # if resp.file:
         #     response = FileResponse(resp.file, **kwargs)
         # else:
-        response = HttpResponse(resp.body, **kwargs)
+        if resp.event_stream:
+            response = StreamingHttpResponse(resp.event_stream, **kwargs)
+        else:
+            response = HttpResponse(resp.body, **kwargs)
         if not pass_headers:
             for k, v in headers:
                 response[k] = v
@@ -62,7 +65,7 @@ class DjangoResponseAdaptor(ResponseAdaptor):
     @property
     def headers(self):
         if django.VERSION >= (3, 2):
-            return self.response.headers
+            return self.response.headers    # noqa
         return {k: v for k, v in self.response.items()}
 
     @property

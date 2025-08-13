@@ -1,5 +1,5 @@
 from tests.conftest import make_live_process, setup_service, make_live_thread
-from .params import do_live_api_tests
+from .params import do_live_api_tests, do_live_api_sse_tests
 import sys
 
 if sys.version_info >= (3, 9):
@@ -12,6 +12,13 @@ if sys.version_info >= (3, 9):
 
     def test_sanic_api(service, sanic_server_process):
         do_live_api_tests(service)
+
+        if service.asynchronous:
+            do_live_api_sse_tests(port=18004 if service.asynchronous else 8004, asynchronous=False)
+            do_live_api_sse_tests(port=18004 if service.asynchronous else 8004, asynchronous=True)
+            # sanic error: sanic.exceptions.ServerError: Attempted response to unknown request
+            # but not interfere the result
+
         service._application = None
         service.adaptor.app = None
         Sanic._app_registry = {}

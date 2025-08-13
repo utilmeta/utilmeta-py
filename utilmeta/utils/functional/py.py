@@ -6,6 +6,7 @@ import typing
 from functools import wraps
 import subprocess
 import sys
+import asyncio
 
 __all__ = [
     "return_type",
@@ -24,7 +25,8 @@ __all__ = [
     "get_doc",
     "requires",
     "get_base_type",
-    "lazy_classmethod_loader"
+    "lazy_classmethod_loader",
+    "async_to_sync_gen"
 ]
 
 
@@ -419,3 +421,14 @@ def import_obj(dotted_path):
             'Module "%s" does not define a "%s" attribute/class'
             % (module_path, class_name)
         ) from err
+
+
+def async_to_sync_gen(async_gen):
+    loop = asyncio.get_event_loop()
+    agen = async_gen.__aiter__()
+    while True:
+        try:
+            chunk = loop.run_until_complete(agen.__anext__())
+            yield chunk
+        except StopAsyncIteration:
+            break

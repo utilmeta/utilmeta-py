@@ -27,9 +27,11 @@ from .backends.base import ResponseAdaptor
 from utilmeta.utils.error import Error
 from utype.parser.cls import ClassParser
 from utype.utils.functional import get_obj_name
+from utype.utils.compat import get_args, is_union
 from utype.parser.rule import LogicalType
 import utype
 import re
+from typing import Generic, TypeVar
 from ..file.base import File
 from ..file.backends.base import FileAdaptor
 
@@ -44,6 +46,10 @@ class ResponseClassParser(ClassParser):
         return name in cls.NAMES
 
 
+T = TypeVar("T")
+_T = TypeVar("_T")
+
+
 PLAIN = "text/plain"
 JSON = "application/json"
 XML = "text/xml"
@@ -51,7 +57,10 @@ OCTET_STREAM = "application/octet-stream"
 EVENT_STREAM = "text/event-stream"
 
 
-class Response:
+class Response(Generic[_T]):
+    from utilmeta.utils.protocol.sse import ServerSentEvent
+    ServerSentEvent = ServerSentEvent
+
     __parser_cls__ = ResponseClassParser
     __parser__: ResponseClassParser
     __json_encoder_cls__ = utype.JSONEncoder
@@ -69,12 +78,13 @@ class Response:
     state_header: str = None
     # ----
 
-    result = None
+    result: _T = None
     state = None
     # when response is json type and __params__ specified result is the inner result key
     # otherwise result is an alias of data, but often be inherited and annotated
     strict: bool = None
 
+    stream: bool = None
     status: int = None
     reason: str = None
     charset: str = None
@@ -114,19 +124,22 @@ class Response:
         if not item:
             return cls
 
-        response_name = cls.__name__
-        if not isinstance(item, int):
-            if isinstance(item, str):
-                name = item
-            else:
-                name = get_obj_name(item)
-            response_name = f"{cls.__name__}_{name}"
+        if isinstance(item, int):
+            warnings.warn(f'Response[status] is deprecated, ', category=DeprecationWarning)
+            return cls
+
+        if isinstance(item, str):
+            # can be forward ref
+            name = item
+        elif is_union(item):
+            name = '_'.join(['union'] + [get_obj_name(arg) for arg in get_args(item)])
+        else:
+            name = get_obj_name(item)
+
+        response_name = f"{cls.__name__}_{name}"
 
         class _response(cls):
-            if isinstance(item, int):
-                status = item
-            else:
-                result: item
+            result: item
 
         _response.__name__ = response_name
         _response.__qualname__ = ".".join(
@@ -136,6 +149,10 @@ class Response:
         return _response
 
     def __init_subclass__(cls, **kwargs):
+        result_type = cls.__annotations__.get('result')
+        if result_type and isinstance(result_type, TypeVar):
+            cls.__annotations__.pop('result')
+
         cls.__parser__ = cls.__parser_cls__.apply_for(cls)
         cls.description = cls.description or get_doc(cls)
         cls.wrapped = bool(
@@ -296,10 +313,27 @@ class Response:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.aclose()
+
     def close(self, fail_silently=True):
         try:
             if self.adaptor:
                 self.adaptor.close()
+            if self._file:
+                self._file.close()
+        except Exception as e:
+            if not fail_silently:
+                raise
+            warnings.warn(f"close response: {Self} failed with error: {e}")
+
+    async def aclose(self, fail_silently=True):
+        try:
+            if self.adaptor:
+                await self.adaptor.aclose()
             if self._file:
                 self._file.close()
         except Exception as e:
@@ -369,7 +403,7 @@ class Response:
         if hasattr(result, "__next__"):
             # convert generator yield result into list
             # result = list(result)
-            if self.content_type == EVENT_STREAM:
+            if self.is_event_stream:
                 self.init_event_stream(result)
                 return
             else:
@@ -428,8 +462,42 @@ class Response:
     def init_event_stream(self, es: Union[AsyncGenerator, Generator]):
         if not es:
             return
-        if not inspect.isgenerator(es) and not inspect.isasyncgen(es):
+
+        if inspect.isgenerator(es):
+            def _event_stream(_es):
+                try:
+                    for item in _es:
+                        if isinstance(item, bytes):
+                            yield item
+                        elif isinstance(item, str):
+                            yield item.encode()
+                        else:
+                            yield str(item).encode()
+                except Exception as e:
+                    yield str(self.ServerSentEvent(
+                        event='error',
+                        data={'message': str(e)}
+                    )).encode()
+            es = _event_stream(es)
+        elif inspect.isasyncgen(es):
+            async def _async_event_stream(_es):
+                try:
+                    async for item in _es:
+                        if isinstance(item, bytes):
+                            yield item
+                        elif isinstance(item, str):
+                            yield item.encode()
+                        else:
+                            yield str(item).encode()
+                except Exception as e:
+                    yield str(self.ServerSentEvent(
+                        event='error',
+                        data={'message': str(e)}
+                    )).encode()
+            es = _async_event_stream(es)
+        else:
             return
+
         self._event_stream = es
         self.content_type = EVENT_STREAM
         if isinstance(self.headers, Headers):
@@ -506,6 +574,8 @@ class Response:
         if self._content is not None:
             return
         if self.adaptor:
+            if self.is_event_stream:
+                return
             self._content = self.adaptor.get_content()
             self.parse_content()
             return
@@ -605,6 +675,10 @@ class Response:
     @property
     def is_json(self):
         return self.content_type and self.content_type.startswith(JSON)
+
+    @property
+    def is_event_stream(self):
+        return self.content_type and self.content_type.startswith(EVENT_STREAM)
 
     @property
     def data(self):

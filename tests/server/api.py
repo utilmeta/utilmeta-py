@@ -1,4 +1,6 @@
 import os.path
+import asyncio
+import time
 
 from utilmeta.core import api, response, request, file
 from utype.types import *
@@ -406,18 +408,79 @@ class TestAPI(api.API):
     async def async_plugin(self):
         return self.response(status=403)
 
+    @api.get(timeout=0.5)
+    def timeout(self):
+        import time
+        time.sleep(3)
+        return 1
+
+    @api.get('/async/timeout', timeout=0.5)
+    async def async_timeout(self):
+        await asyncio.sleep(3)
+        return 1
+
     @api.get('/{path}')
     def fallback(self, path: str = request.FilePathParam):
         return path
 
 
 from app.api import UserAPI
+# from utilmeta.core.response.sse import SSEResponse
+
+
+class StreamAPI(api.API):
+    response = response.SSEResponse
+
+    def get(self):
+        yield self.response.ServerSentEvent(event='head', data={'headers': {'status': 'ok'}})
+        import time
+        time.sleep(0.1)
+        yield self.response.ServerSentEvent(event='message', data={'v': 'content'})
+
+    @api.get('/async')
+    async def async_events(self):
+        yield self.response.ServerSentEvent(event='head', data={'headers': {'status': 'ok'}})
+        await asyncio.sleep(0.1)
+        yield self.response.ServerSentEvent(event='message', data={'v': 'content'})
+
+    @api.get(timeout=1)
+    def timeout(self):
+        yield self.response.ServerSentEvent(event='head', data={'headers': {'status': 'ok'}})
+        import time
+        time.sleep(0.2)
+        yield self.response.ServerSentEvent(event='message', data={'v': '1'})
+        time.sleep(0.2)
+        yield self.response.ServerSentEvent(event='message', data={'v': '2'})
+        time.sleep(3)
+        yield self.response.ServerSentEvent(event='message', data={'v': '3'})
+
+    @api.get('/async/timeout', timeout=1)
+    async def async_timeout_events(self):
+        yield self.response.ServerSentEvent(event='head', data={'headers': {'status': 'ok'}})
+        await asyncio.sleep(0.2)
+        yield self.response.ServerSentEvent(event='message', data={'v': '1'})
+        await asyncio.sleep(0.2)
+        yield self.response.ServerSentEvent(event='message', data={'v': '2'})
+        await asyncio.sleep(3)
+        yield self.response.ServerSentEvent(event='message', data={'v': '3'})
+
+    @api.get
+    def long_poll(self):
+        yield self.response.ServerSentEvent(event='head', data={'headers': {'status': 'ok'}})
+        import time
+        time.sleep(0.3)
+        yield self.response.ServerSentEvent(event='message', data={'v': '1'})
+        time.sleep(0.3)
+        yield self.response.ServerSentEvent(event='message', data={'v': '2'})
+        time.sleep(3)
+        yield self.response.ServerSentEvent(event='message', data={'v': '3'})
 
 
 @api.CORS(allow_origin='*')
 class RootAPI(api.API):
     test: TestAPI
     user: UserAPI
+    stream: StreamAPI
 
     class response(response.Response):
         result_key = 'data'

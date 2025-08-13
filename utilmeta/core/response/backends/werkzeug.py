@@ -1,3 +1,5 @@
+import inspect
+
 from .base import ResponseAdaptor
 from werkzeug.wrappers import Response as WerkzeugResponse
 from typing import Union
@@ -18,8 +20,16 @@ class WerkzeugResponseAdaptor(ResponseAdaptor):
         elif not isinstance(resp, Response):
             resp = Response(resp)
 
+        if resp.event_stream:
+            if inspect.isasyncgen(resp.event_stream):
+                raise RuntimeError(f'Flask cannot handle async generator as response, use another backend')
+            else:
+                content = resp.event_stream
+        else:
+            content = resp.body
+
         response = WerkzeugResponse(
-            resp.event_stream or resp.body,
+            content,
             status=resp.status,
             headers=resp.prepare_headers(),
             content_type=resp.content_type,

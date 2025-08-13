@@ -1,7 +1,6 @@
 import time
 from functools import wraps
 import threading
-import multiprocessing.pool
 from typing import List, Callable, Union, Type
 from .constant import COMMON_ERRORS
 from .exceptions import BadRequest, CombinedError
@@ -9,6 +8,8 @@ from datetime import timedelta
 from utilmeta.utils.error import Error
 from utilmeta.utils import time_now
 import warnings
+import asyncio
+import multiprocessing.pool
 
 __all__ = [
     "omit",
@@ -118,25 +119,103 @@ def error_convert(errors: List[Type[Exception]], target: Type[Exception]):
 handle_parse = error_convert(errors=COMMON_ERRORS, target=BadRequest)
 
 
-def handle_timeout(timeout: timedelta):
-    def decorator(f):
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            pool = multiprocessing.pool.ThreadPool(processes=1)
-            async_result = pool.apply_async(f, args, kwargs)
-            try:
-                r = async_result.get(timeout.total_seconds())
-            except multiprocessing.context.TimeoutError:
-                # pool.terminate()
-                raise TimeoutError(
-                    f"function <{f.__name__}> execute beyond expect"
-                    f" time limit {timeout.total_seconds()} seconds"
-                )
-            finally:
-                pool.close()
-            return r
+def handle_timeout(timeout: Union[int, float], iter_timeout: Union[int, float] = None):
+    if isinstance(timeout, timedelta):
+        timeout = timeout.total_seconds()
+    if isinstance(iter_timeout, timedelta):
+        iter_timeout = iter_timeout.total_seconds()
 
-        return wrapper
+    def decorator(func):
+        if inspect.isasyncgenfunction(func):
+            @wraps(func)
+            async def async_gen_wrapper(*args, **kwargs):
+                agen = func(*args, **kwargs)
+
+                import time
+                start = time.monotonic()
+
+                async def next_with_timeout():
+                    elapsed = time.monotonic() - start
+                    remaining = max(0.0, timeout - elapsed) if timeout else None
+                    curr_iter_timeout = min(iter_timeout, remaining) if iter_timeout else remaining
+
+                    try:
+                        if remaining == 0:
+                            raise asyncio.TimeoutError
+                        return await asyncio.wait_for(agen.__anext__(), curr_iter_timeout)
+                    except StopAsyncIteration:
+                        raise
+                    except asyncio.TimeoutError:
+                        raise TimeoutError(
+                            f"Async generator '{func.__name__}' iteration timed out after {timeout} seconds")
+
+                try:
+                    while True:
+                        yield await next_with_timeout()
+                except StopAsyncIteration:
+                    return
+            return async_gen_wrapper
+
+        elif inspect.isgeneratorfunction(func):
+            @wraps(func)
+            def sync_gen_wrapper(*args, **kwargs):
+                gen = func(*args, **kwargs)
+
+                import time
+                start = time.monotonic()
+
+                def next_with_timeout():
+                    pool = multiprocessing.pool.ThreadPool(processes=1)
+                    async_result = pool.apply_async(gen.__next__)
+
+                    elapsed = time.monotonic() - start
+                    remaining = max(0.0, timeout - elapsed) if timeout else None
+                    curr_iter_timeout = min(iter_timeout, remaining) if iter_timeout else remaining
+
+                    try:
+                        if remaining == 0:
+                            raise multiprocessing.context.TimeoutError
+                        r = async_result.get(curr_iter_timeout)
+                    except multiprocessing.context.TimeoutError:
+                        # pool.terminate()
+                        raise TimeoutError(
+                            f"Generator <{func.__name__}> iteration timed out after {timeout} seconds"
+                        )
+                    finally:
+                        pool.close()
+                    return r
+                try:
+                    while True:
+                        yield next_with_timeout()
+                except StopIteration:
+                    return
+            return sync_gen_wrapper
+
+        elif inspect.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                try:
+                    return await asyncio.wait_for(func(*args, **kwargs), timeout)
+                except asyncio.TimeoutError:
+                    raise TimeoutError(f"Function '{func.__name__}' timed out after {timeout} seconds")
+            return async_wrapper
+
+        else:
+            @wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                pool = multiprocessing.pool.ThreadPool(processes=1)
+                async_result = pool.apply_async(func, args, kwargs)
+                try:
+                    r = async_result.get(timeout)
+                except multiprocessing.context.TimeoutError:
+                    # pool.terminate()
+                    raise TimeoutError(
+                        f"Function <{func.__name__}> timed out after {timeout} seconds"
+                    )
+                finally:
+                    pool.close()
+                return r
+            return sync_wrapper
 
     return decorator
 

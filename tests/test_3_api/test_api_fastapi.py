@@ -1,5 +1,5 @@
 from tests.conftest import make_live_process, setup_service, make_live_thread
-from .params import do_live_api_tests
+from .params import do_live_api_tests, do_live_api_sse_tests
 
 setup_service(__name__, backend='fastapi', async_param=[True])
 # FastAPI (starlette) can have bad response to a full-sync context, so we only test the asynchronous version
@@ -12,6 +12,8 @@ fastapi_server_thread = make_live_thread(
 
 def test_fastapi_api(service, fastapi_server_process):
     do_live_api_tests(service)
+    do_live_api_sse_tests(port=18002 if service.asynchronous else 8002, asynchronous=False)
+    do_live_api_sse_tests(port=18002 if service.asynchronous else 8002, asynchronous=True)
     service._application = None
     service.adaptor.app = None
 

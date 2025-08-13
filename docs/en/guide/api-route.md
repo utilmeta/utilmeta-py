@@ -34,6 +34,10 @@ All `@api` decorators support passing in parameters to specify configurations, i
 * `deprecated`: Whether the API is deprecated (not recommended to use)
 * `idempotent`: Whether the API is **idempotent** (multiple requests of the same params have the same effect as a single request, which is important for writing a client-side retry mechanism)
 * `private`: Whether the API is private. Private API do not provide public access and do not appear in the generated API documentation.
+* `tags`:  Specify the `tags` of OpenAPI operation (by default generated from API routes)
+* `description`:  Specify the `description` of OpenAPI operation (using the doc string of function by default)
+* `extension`: Specify the extra OpenAPI operation fields by a dict, custom fields should be startswith `x-`
+* `timeout`: Set the timeout of the API function, raise `TimeoutError` if the function cannot return the response in such timeout. 
 
 !!! tip
 	The `"""doc_string"""` of your API class of function will be integrated to the `description` field of the generated OpenAPI docs, such as
@@ -466,6 +470,9 @@ All response templates can be instantiated into response instances with the foll
 * `state`: Incoming business status code, valid only when the template is specified `state_key`
 * `message`: Incoming message, valid only when the template is `message_key` specified
 * `count`: The number of results passed in, valid only when the template is `count_key` specified
+* `file`: Specify a file object or file path for the response body.
+* `content_type`: Specify the `Content-Type` of the response,
+* `event_stream`: An event generator / async generator for Server-Sent Events (SSE) response.
 
 !!! tip
 	If the response template defined `result_key`, the `result` is the data corresponding to the `result_key` key. Otherwise, it will be to the entire response body data.
@@ -503,6 +510,66 @@ We use `MultiArticlesResponse` to construct the corresponding response in the ge
 
 !!! tip
 	Even if you didn't defined a `response` property in the API class, you can still access `self.request` in API function and get a Response class, so in any endpoints, you can use  `return self.response(...)` to construct response
+
+### Server-Sent Events
+
+API server can use `Server-Sent Events` (SSE) to send streaming events to client (eg. handle LLM stream output), UtilMeta also support SSE API:
+
+```python
+from utilmeta.core import api, request, response
+
+class ChatAPI(api.API):
+    @api.post
+    async def chat(
+        self,
+        message: str = request.BodyParam()
+    ) -> response.SSEResponse:
+        async for chunk in await self.get_client().chat.completions.create(
+            messages=[{'role': 'user', 'content': message}],
+            stream=True
+        ):
+            yield response.ServerSentEvent(
+	            event='message', 
+	            data={'v': chunk.choices[0].delta.content}
+	        )
+            
+    def get_client(self):
+        # init LLM Client
+        ...
+```
+
+You can also use the `event_stream` of response to pass in a event generator / async generator: 
+```python
+from utilmeta.core import api, request, response
+
+class ChatAPI(api.API):
+    async def event_stream(self, message: str):
+        async for chunk in await self.get_client().chat.completions.create(
+            messages=[{'role': 'user', 'content': message}],
+            stream=True
+        ):
+            yield response.ServerSentEvent(
+	            event='message', 
+	            data={'v': chunk.choices[0].delta.content}
+	        )
+
+    @api.post
+    async def chat(
+        self,
+        message: str = request.BodyParam()
+    ):
+        return self.response(event_stream=self.event_stream(message))
+
+    def get_client(self):
+        # init LLM Client
+        ...
+```
+
+!!! tip
+	the exception raised by SSE generator will be processed to an `event: error` event (includes the TimeoutError if the API has set `timeout`)
+	
+!!! note
+	requires UtilMeta >= 2.8 
 ## Hook mechanism
 
 In the API class, you can also define a special function called **Hook**, which can applied on one or more endpoints and sub-routes of the API class to perform operations such as custom verification, data preprocessing, response processing, and error handling. The types of hook functions in the API class are

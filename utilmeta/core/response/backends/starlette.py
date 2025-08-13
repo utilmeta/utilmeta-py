@@ -71,6 +71,3 @@ class StarletteResponseAdaptor(ResponseAdaptor):
         for cookie in self.response.headers.getlist("set-cookie"):
             cookies.load(cookie)
         return cookies
-
-    def close(self):
-        pass

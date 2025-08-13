@@ -1,7 +1,7 @@
 import inspect
 from typing import Union, TypeVar, List
 from utilmeta.utils import METHODS, EndpointAttr, multi, CommonMethod, HOOK_TYPES
-import warnings
+from datetime import timedelta
 
 
 T = TypeVar("T")
@@ -151,6 +151,7 @@ class APIDecoratorWrapper:
         eager: bool = None,
         tags: List[Union[dict, str]] = None,
         description: str = None,
+        timeout: Union[int, float, timedelta] = None,
         extension: dict = None,
         **kwargs,
     ):

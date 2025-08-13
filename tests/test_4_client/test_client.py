@@ -5,14 +5,14 @@ from utilmeta.core.api import Retry
 from typing import List
 from tests.conftest import make_live_process, make_server_thread, setup_service
 import pytest
-import utype
+import time
 
 setup_service(__name__, backend='django', async_param=[False])
 # server_process = make_live_process(
 #     backend='django',
 #     port=8666
 # )
-from tests.server.client import TestClient, APIClient, DataSchema
+from tests.server.client import TestClient, APIClient, DataSchema, MessageEvent, HeadEvent, ErrorEvent
 server_thread = make_server_thread(
     backend='django',
     port=8666
@@ -114,7 +114,7 @@ class TestClientClass:
 
     @pytest.mark.asyncio
     async def test_live_server_async(self, server_thread, async_request_backend):
-        with TestClient(
+        async with TestClient(
             base_url='http://127.0.0.1:8666/api/test',
             backend=async_request_backend,
         ) as client:
@@ -311,6 +311,94 @@ class TestClientClass:
                 client.get_doc(category='test')
                 # retry stop at max_retries
 
+    def test_sse_sync(self, server_thread, sync_request_backend):
+        if sync_request_backend == urllib:
+            return
+        with APIClient(
+            base_url='http://127.0.0.1:8666/api',
+            backend=sync_request_backend,
+        ) as client:
+            resp = client.stream.get_events()
+            events = []
+            for event in resp:
+                events.append(event)
+                if isinstance(event, HeadEvent):
+                    assert event.data.headers.get('status') == 'ok'
+                elif isinstance(event, MessageEvent):
+                    assert event.data.v
+                else:
+                    raise ValueError(f'invalid event: {event}')
+            assert len(events) == 2
+
+            # test client side timeout
+            to_resp = client.stream.get_long_events()
+
+            st = time.time()
+            events = []
+            timeout = False
+            print('TO RESP:', to_resp)
+            for event in to_resp.iter(total_timeout=1, raise_timeout=False):
+                events.append(event)
+                if isinstance(event, HeadEvent):
+                    assert event.data.headers.get('status') == 'ok'
+                elif isinstance(event, MessageEvent):
+                    assert event.data.v
+                elif isinstance(event, ErrorEvent):
+                    assert event.data.timeout
+                elif event.event == 'error':
+                    event = ErrorEvent(**event)
+                    assert event.data.timeout
+                    timeout = True
+                else:
+                    raise ValueError(f'invalid event: {event}')
+            assert timeout
+            assert 0.9 < time.time() - st < 1.5  # timeout=1
+            assert len(events) == 4, f'got: {to_resp.url} {len(events)} events: {events}'  # only 1 event is returned
+
+    @pytest.mark.asyncio
+    async def test_sse_async(self, server_thread, async_request_backend):
+        async with APIClient(
+            base_url='http://127.0.0.1:8666/api',
+            backend=async_request_backend,
+        ) as client:
+            resp = await client.stream.aget_events()
+            events = []
+            async for event in resp:
+                events.append(event)
+                if isinstance(event, HeadEvent):
+                    assert event.data.headers.get('status') == 'ok'
+                elif isinstance(event, MessageEvent):
+                    assert event.data.v
+                else:
+                    raise ValueError(f'invalid event: {event}')
+            assert len(events) == 2
+
+            # test client side timeout
+            to_resp = await client.stream.aget_long_events()
+
+            st = time.time()
+            timeout = False
+            events = []
+            print('TO RESP:', to_resp)
+            async for event in to_resp.aiter(total_timeout=1, raise_timeout=False):
+                events.append(event)
+                if isinstance(event, HeadEvent):
+                    assert event.data.headers.get('status') == 'ok'
+                elif isinstance(event, MessageEvent):
+                    assert event.data.v
+                elif isinstance(event, ErrorEvent):
+                    assert event.data.timeout
+                elif event.event == 'error':
+                    event = ErrorEvent(**event)
+                    assert event.data.timeout
+                    timeout = True
+                else:
+                    raise ValueError(f'invalid event: {event}')
+
+            assert timeout
+            assert 0.9 < time.time() - st < 1.5  # timeout=1
+            assert len(events) == 4, f'got: {to_resp.url} {len(events)} events: {events}'  # only 1 event is returned
+
     @pytest.mark.asyncio
     async def test_request_async_retry(self):
         # test retry
@@ -320,7 +408,7 @@ class TestClientClass:
         retry2 = Retry(
             max_retries=100, max_retries_timeout=0.5, retry_interval=0.1
         )
-        with TestClient(
+        async with TestClient(
             base_url='http://127.0.0.1:1',
             default_timeout=0.2,
             plugins=[retry1],
@@ -343,7 +431,7 @@ class TestClientClass:
 
     @pytest.mark.asyncio
     async def test_async_request_failure(self, async_request_backend):
-        with TestClient(
+        async with TestClient(
             base_url='http://127.0.0.1:1',
             backend=async_request_backend,
             default_timeout=0.5
@@ -351,7 +439,7 @@ class TestClientClass:
             with pytest.raises(Exception):
                 await client.aget_doc(category='test')
 
-        with TestClient(
+        async with TestClient(
             base_url='http://127.0.0.1:1',
             backend=async_request_backend,
             default_timeout=0.5,

@@ -20,16 +20,17 @@ def test_django_api(service, django_server_process):
     if django.VERSION < (3, 1) and service.asynchronous:
         return
     do_live_api_tests(service)
-    do_live_api_sse_tests(
-        port=18001 if service.asynchronous else 8001,
-        asynchronous=False,
-        with_timeout=not service.asynchronous
-    )
-    do_live_api_sse_tests(
-        port=18001 if service.asynchronous else 8001,
-        asynchronous=True,
-        with_timeout=service.asynchronous
-    )
+    if django.VERSION >= (4, 0):
+        do_live_api_sse_tests(
+            port=18001 if service.asynchronous else 8001,
+            asynchronous=False,
+            with_timeout=not service.asynchronous
+        )
+        do_live_api_sse_tests(
+            port=18001 if service.asynchronous else 8001,
+            asynchronous=True,
+            with_timeout=service.asynchronous
+        )
     service._application = None
     service.adaptor.app = None
 

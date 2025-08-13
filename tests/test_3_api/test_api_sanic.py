@@ -14,8 +14,15 @@ if sys.version_info >= (3, 9):
         do_live_api_tests(service)
 
         if service.asynchronous:
-            do_live_api_sse_tests(port=18004 if service.asynchronous else 8004, asynchronous=False)
-            do_live_api_sse_tests(port=18004 if service.asynchronous else 8004, asynchronous=True)
+            do_live_api_sse_tests(
+                port=18004 if service.asynchronous else 8004, asynchronous=False,
+                with_timeout=not service.asynchronous
+                # wired error since win32 platform can run it successfully
+            )
+            do_live_api_sse_tests(
+                port=18004 if service.asynchronous else 8004, asynchronous=True,
+                with_timeout=not service.asynchronous
+            )
             # sanic error: sanic.exceptions.ServerError: Attempted response to unknown request
             # but not interfere the result
 

@@ -121,7 +121,7 @@ class Response(Generic[_T]):
         and since the SDK code is basically auto-generated,
         it's considered the best practice for SDK
         """
-        if not item:
+        if not item or isinstance(item, TypeVar):
             return cls
 
         if isinstance(item, int):
@@ -149,10 +149,9 @@ class Response(Generic[_T]):
         return _response
 
     def __init_subclass__(cls, **kwargs):
-        result_type = cls.__annotations__.get('result')
-        if result_type and isinstance(result_type, TypeVar):
-            cls.__annotations__.pop('result')
-
+        # result_type = cls.__annotations__.get('result')
+        # if result_type and isinstance(result_type, TypeVar):
+        #     cls.__annotations__.pop('result')
         cls.__parser__ = cls.__parser_cls__.apply_for(cls)
         cls.description = cls.description or get_doc(cls)
         cls.wrapped = bool(

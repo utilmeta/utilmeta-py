@@ -5,6 +5,7 @@ from ..base import (
     ModelQueryAdaptor,
     ModelFieldAdaptor,
 )
+import peewee
 
 
 class PeeweeModelFieldAdaptor(ModelFieldAdaptor):
@@ -39,6 +40,8 @@ class PeeweeQuerysetAdaptor(ModelQueryAdaptor):
 
 
 class PeeweeModelAdaptor(ModelAdaptor):
+    backend = peewee
+    backend_name = 'peewee'
     model: Type[Model]
     field_adaptor_cls = PeeweeModelFieldAdaptor
     query_adaptor_cls = PeeweeQuerysetAdaptor

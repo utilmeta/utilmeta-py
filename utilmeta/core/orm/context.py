@@ -1,14 +1,20 @@
 from utype import DataClass
 from utype.types import *
 from utilmeta.utils import merge_dict
+from utilmeta.core.request import Request
 
 
 class QueryContext(DataClass):
+    request: Optional[Request] = None
     using: Optional[str] = None
     includes: Optional[dict] = None
     excludes: Optional[dict] = None
     single: bool = False
     recursion_map: Optional[dict] = None
+    # record schema: pk objects to avoid infinite recursion
+    # redundant_map: Optional[dict] = None
+    # record model and serialized pk to handle redundant deep layer foreign objects
+
     relation_routes: Optional[List[Tuple[str, type]]] = None
     # reduce the redundant query using [schema_cls] + [PK] identification
     force_expressions: Optional[dict] = None
@@ -20,6 +26,7 @@ class QueryContext(DataClass):
 
     def __init__(
         self,
+        request: Optional[Request] = None, *,
         using: Optional[str] = None,
         includes: Optional[dict] = None,
         excludes: Optional[dict] = None,
@@ -37,14 +44,14 @@ class QueryContext(DataClass):
     def in_scope(
         self,
         aliases: List[str],
-        dependants: List[str] = None,
+        dependents: List[str] = None,
         default_included: bool = True
     ):
         if not aliases:
             return False
         if self.includes:
             return bool(
-                set(aliases).union(dependants or []).intersection(self.includes)
+                set(aliases).union(dependents or []).intersection(self.includes)
             )
         if self.excludes:
             return not set(aliases).intersection(self.excludes)
@@ -52,8 +59,12 @@ class QueryContext(DataClass):
 
     def merge(self, context: "QueryContext" = None) -> "QueryContext":
         if not isinstance(context, QueryContext):
-            return self
+            if isinstance(context, Request):
+                context = QueryContext(context)
+            else:
+                return self
         return self.__class__(
+            request=self.request or context.request,
             using=self.using or context.using,
             includes=merge_dict(self.includes, context.includes, null=True),
             excludes=merge_dict(self.excludes, context.excludes, null=True),

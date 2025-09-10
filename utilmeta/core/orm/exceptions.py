@@ -26,12 +26,4 @@ class EmptyQueryset(ValueError):
 
     def __init__(self, msg: str = None, model=None):
         self.model = model
-        super().__init__(msg or "orm.Error: result is empty")
-
-
-class InvalidMode(TypeError):
-    pass
-
-
-class InvalidSchema(TypeError):
-    pass
+        super().__init__(msg or "orm.Error: query is empty")

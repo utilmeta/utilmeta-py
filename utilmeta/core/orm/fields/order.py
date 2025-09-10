@@ -46,8 +46,53 @@ class Order:
         self.notnull = notnull
 
 
+class OrderBy(Field):
+    def __init__(
+        self,
+        orders: Union[list, Dict[Any, Order]],
+        *,
+        # orders can be a list of model fields, or a dict of order configuration
+        # key: str = None,
+        # max_length: int = None,
+        desc_prefix: str = "-",
+        ignore_invalids: bool = True,
+        ignore_conflicts: bool = True,  # like if asc and desc is provided at the same time
+        required: bool = False,
+        description: str = None,
+        single: bool = False,
+        **kwargs,
+    ):
+        if isinstance(orders, list):
+            orders = {o: Order() for o in orders}
+
+        order_docs = []
+        for key, order in orders.items():
+            if order.document:
+                order_docs.append(f"{key}: {order.document}")
+        order_doc = "\n".join(order_docs)
+        if description:
+            description += "\n" + order_doc
+        else:
+            description = order_doc
+
+        super().__init__(**kwargs, description=description, required=required)
+
+        self.orders = orders
+        self.desc_prefix = desc_prefix
+        self.ignore_invalids = ignore_invalids
+        self.ignore_conflicts = ignore_conflicts
+        self.single = single
+
+    @property
+    def schema_annotations(self):
+        return {
+            "class": "order_by",
+        }
+
+
 class ParserOrderBy(ParserField):
     field: "OrderBy"
+    field_cls = OrderBy
 
     def __init__(self, model: "ModelAdaptor" = None, **kwargs):
         super().__init__(**kwargs)
@@ -91,17 +136,6 @@ class ParserOrderBy(ParserField):
                 unique=True,
             )
 
-    # def parse_value(self, value, context):
-    #     value = super().parse_value(value, context=context)
-    #     if isinstance(context, QueryContext):
-    #         orders = []
-    #         for o in value:
-    #             if o in self.orders:
-    #                 order, flag = self.orders[o]
-    #                 context.orders.append((o, order, flag))
-    #         return orders
-    #     return value
-
     @property
     def schema_annotations(self):
         data = dict(self.field.schema_annotations or {})
@@ -125,47 +159,4 @@ class ParserOrderBy(ParserField):
         return data
 
 
-class OrderBy(Field):
-    parser_field_cls = ParserOrderBy
-
-    def __init__(
-        self,
-        orders: Union[list, Dict[Any, Order]],
-        *,
-        # orders can be a list of model fields, or a dict of order configuration
-        # key: str = None,
-        # max_length: int = None,
-        desc_prefix: str = "-",
-        ignore_invalids: bool = True,
-        ignore_conflicts: bool = True,  # like if asc and desc is provided at the same time
-        required: bool = False,
-        description: str = None,
-        single: bool = False,
-        **kwargs,
-    ):
-        if isinstance(orders, list):
-            orders = {o: Order() for o in orders}
-
-        order_docs = []
-        for key, order in orders.items():
-            if order.document:
-                order_docs.append(f"{key}: {order.document}")
-        order_doc = "\n".join(order_docs)
-        if description:
-            description += "\n" + order_doc
-        else:
-            description = order_doc
-
-        super().__init__(**kwargs, description=description, required=required)
-
-        self.orders = orders
-        self.desc_prefix = desc_prefix
-        self.ignore_invalids = ignore_invalids
-        self.ignore_conflicts = ignore_conflicts
-        self.single = single
-
-    @property
-    def schema_annotations(self):
-        return {
-            "class": "order_by",
-        }
+OrderBy.parser_field_cls = ParserOrderBy

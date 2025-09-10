@@ -1,5 +1,7 @@
 import inspect
 
+import utype.utils.exceptions
+
 from utilmeta.core.orm.compiler import BaseQueryCompiler, TransactionWrapper
 from ...fields.field import ParserQueryField
 from . import expressions as exp
@@ -322,23 +324,58 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         pk_list = self.pk_list
         if not pk_list:
             return
-        pk_map = {}
 
+        pk_map = {}
         key = field.name
         query_key = "__" + key
         # avoid "conflicts with a field on the model."
 
         current_qs: models.QuerySet = self.model.get_queryset(pk_list, using=self.using)
+        expression = field.expression
         related_subquery: models.QuerySet = field.subquery
         related_queryset: models.QuerySet = field.queryset
         # - current_qs.filter(pk__in=self.pk_list).values(related_field, PK)   [no related_qs provided]
         # - current_qs.filter(pk__in=self.pk_list).values(related_field=exp.Subquery(related_qs), PK)
         #   - related_schema.serialize(related_qs)   [related_schema provided]
 
-        if field.expression:
+        if field.func:
+            # 1. has related schema (schema with related model attached)
+            #    we extract primary key values only for the next related schema query
+            # 2. has no related schema
+            #    this can happen if user only wants to query certain values without further query
+            #    we return the function result AS IS
+            args = ()
+            kwargs = {}
+            if field.func_pos_var:
+                args = self.pk_list
+            if field.wrapper:
+                if self.context.request:
+                    kwargs.update(field.wrapper.parse_context(self.context.request))
+
+            try:
+                value = field.func(*args, **kwargs, __class__=self.parser.obj)
+            except utype.utils.exceptions.AbsenceError:
+                # context required
+                # ignore this field
+                return
+
+            if isinstance(value, dict):
+                pk_map = self.normalize_pk_map(value, pk_only=bool(field.related_schema))
+            elif self.model.check_query_expression(value):
+                expression = value
+            elif self.model.check_queryset(value):
+                if self.model.check_subquery(value):
+                    related_subquery = value
+                else:
+                    related_queryset = value
+
+        if pk_map:
+            # query done
+            pass
+        elif expression:
             pk_map = {
                 val[PK]: val[query_key]
-                for val in current_qs.values(PK, **{query_key: field.expression})
+                for val in current_qs.values(PK, **{query_key: expression})
             }
 
         elif isinstance(related_subquery, models.QuerySet):
@@ -377,23 +414,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 if fk is not None:
                     pk_map.setdefault(val[PK], fk)
 
-        elif field.func:
-            # 1. has related schema (schema with related model attached)
-            #    we extract primary key values only for the next related schema query
-            # 2. has no related schema
-            #    this can happen if user only wants to query certain values without further query
-            #    we return the function result AS IS
-
-            if field.func_multi:
-                pk_map = field.func(*self.pk_list, __class__=self.parser.obj)
-                # normalize pks from user input
-            else:
-                for pk in self.pk_list:
-                    pk_map[str(pk)] = field.func(pk, __class__=self.parser.obj)
-
-            pk_map = self.normalize_pk_map(pk_map, pk_only=bool(field.related_schema))
-            # normalize user input
-        else:
+        elif not field.func:
             # many related field / common values
             # like author__followers / author__followers__join_date
             # we need to serialize its value first
@@ -578,13 +599,50 @@ class DjangoQueryCompiler(BaseQueryCompiler):
         # avoid "conflicts with a field on the model."
 
         current_qs: models.QuerySet = self.model.get_queryset(pk_list, using=self.using)
+        expression = field.expression
         related_subquery: models.QuerySet = field.subquery
         related_queryset: models.QuerySet = field.queryset
 
-        if field.expression:
+        if field.func:
+            # 1. has related schema (schema with related model attached)
+            #    we extract primary key values only for the next related schema query
+            # 2. has no related schema
+            #    this can happen if user only wants to query certain values without further query
+            #    we return the function result AS IS
+            args = ()
+            kwargs = {}
+            if field.func_pos_var:
+                args = self.pk_list
+            if field.wrapper:
+                if self.context.request:
+                    kwargs.update(await field.wrapper.async_parse_context(self.context.request))
+
+            try:
+                value = field.func(*args, **kwargs, __class__=self.parser.obj)
+                if inspect.isawaitable(value):
+                    value = await value
+            except utype.utils.exceptions.AbsenceError:
+                # context required
+                # ignore this field
+                return
+
+            if isinstance(value, dict):
+                pk_map = await self.async_normalize_pk_map(value, pk_only=bool(field.related_schema))
+            elif self.model.check_query_expression(value):
+                expression = value
+            elif self.model.check_queryset(value):
+                if self.model.check_subquery(value):
+                    related_subquery = value
+                else:
+                    related_queryset = value
+
+        if pk_map:
+            # query done
+            pass
+        elif expression:
             pk_map = {
                 val[PK]: val[query_key]
-                async for val in current_qs.values(PK, **{query_key: field.expression})
+                async for val in current_qs.values(PK, **{query_key: expression})
             }
 
         elif isinstance(related_subquery, models.QuerySet):
@@ -621,26 +679,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                 if fk is not None:
                     pk_map.setdefault(val[PK], fk)
 
-        elif field.func:
-            # 1. has related schema (schema with related model attached)
-            #    we extract primary key values only for the next related schema query
-            # 2. has no related schema
-            #    this can happen if user only wants to query certain values without further query
-            #    we return the function result AS IS
-
-            if field.func_multi:
-                pk_map = field.func(*self.pk_list, __class__=self.parser.obj)
-                if inspect.isawaitable(pk_map):
-                    pk_map = await pk_map
-            else:
-                for pk in self.pk_list:
-                    rel_qs = field.func(pk, __class__=self.parser.obj)
-                    if inspect.isawaitable(rel_qs):
-                        rel_qs = await rel_qs
-                    pk_map[str(pk)] = rel_qs
-            pk_map = await self.async_normalize_pk_map(pk_map, pk_only=bool(field.related_schema))
-
-        else:
+        elif not field.func:
             if field.is_sub_relation:
                 # fixme: async backend may not fetch pk along with one-to-rel
 

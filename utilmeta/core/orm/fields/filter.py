@@ -1,4 +1,3 @@
-import inspect
 from utype import Field
 from utype.parser.field import ParserField
 from utype.types import *
@@ -22,11 +21,13 @@ class Filter(Field):
         # lambda val: Case(*[When(**{field: v, 'then': pos}) for pos, v in enumerate(val)])
         fail_silently: bool = False,
         required: bool = False,
+        distinct: bool = False,
         **kwargs,
     ):
         self.field = field
         self.query = query
         self.order = order
+        self.distinct = distinct
         # pref = Preference.get()
         # if fail_silently is None:
         #     fail_silently = pref.orm_default_field_fail_silently
@@ -54,7 +55,7 @@ class ParserFilter(ParserField):
         self.model_field: Optional[ModelFieldAdaptor] = None
         # self.query: Optional[Callable] = None
         self.filter = self.field if isinstance(self.field, Filter) else Filter()
-        self.query = self.filter.query
+        self.query = getattr(self, 'query', self.filter.query)
 
         if isinstance(model, ModelAdaptor):
             self.model = model
@@ -108,10 +109,20 @@ class ParserFilter(ParserField):
     def filterable(self):
         return isinstance(self.field, Filter) or self.model_field
 
+    @property
+    def distinct(self):
+        return self.filter.distinct
+
+    def get_expression(self, value: str):
+        if self.model_field and self.model_field.is_exp:
+            return self.model_field.field
+        return None
+
     def validate_field(self):
         if self.model_field.is_exp:
             self.model.check_expressions(self.model_field.field)
-        self.model_field.check_query()
+        # self.model_field.check_query()
+        # requires no check_query (field) because get_lookup / get_transform in get_field already checked
 
     @property
     def field_name(self):

@@ -4,7 +4,7 @@ import sys
 from typing import Union, List
 
 from utilmeta import UtilMeta
-from utilmeta.utils import import_obj, multi
+from utilmeta.utils import import_obj, multi, LOCAL_IP, LOCAL
 from utilmeta.conf.base import Config
 from utilmeta.conf.time import Time
 from utilmeta.core.orm.databases import DatabaseConnections, Database
@@ -417,8 +417,11 @@ class DjangoSettings(Config):
         hosts = list(self.allowed_hosts)
         if service.origin:
             from urllib.parse import urlparse
-
             hosts.append(urlparse(service.origin).hostname)
+        if LOCAL_IP in hosts and LOCAL not in hosts:
+            hosts.append(LOCAL)
+        if LOCAL in hosts and LOCAL_IP not in hosts:
+            hosts.append(LOCAL_IP)
 
         self.merge_list_settings("MIDDLEWARE", self.middleware)
         self.merge_list_settings("ALLOWED_HOSTS", hosts)
@@ -651,8 +654,12 @@ class DjangoSettings(Config):
         hosts = list(self.allowed_hosts)
         if service.origin:
             from urllib.parse import urlparse
-
             hosts.append(urlparse(service.origin).hostname)
+        if LOCAL_IP in hosts and LOCAL not in hosts:
+            hosts.append(LOCAL)
+        if LOCAL in hosts and LOCAL_IP not in hosts:
+            hosts.append(LOCAL_IP)
+
         self.wsgi_application = self.wsgi_application or self.get_service_wsgi_app(
             service
         )

@@ -63,8 +63,9 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
         return await qs.acount()
 
     def process_filter(self, field: ParserFilter, value):
-        if field.model_field and field.model_field.is_exp:
-            self._add_annotate(field.attname or field.name, field.model_field.field)
+        expr = field.get_expression(value)
+        if expr:
+            self._add_annotate(field.attname or field.name, expr)
 
         if field.query:
             q = field.query
@@ -96,6 +97,9 @@ class DjangoQuerysetGenerator(BaseQuerysetGenerator):
             if not multi(order):
                 order = [order]
             self.orders.extend(order)
+
+        if field.distinct:
+            self.distinct = True
 
     def process_order(
         self, order: Order, field: ModelFieldAdaptor, name: str, flag: int = 1

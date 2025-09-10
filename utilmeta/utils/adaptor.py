@@ -10,6 +10,7 @@ class BaseAdaptor:
     __backends_route__ = None
     __backends_names__ = None
     backend = None
+    backend_name = None
 
     @classmethod
     def get_module_name(cls, obj):

@@ -2,10 +2,10 @@
 
 ## Long term planing
 
-### WebSocket / SSE
+### WebSocket
 
-* Support writing WebSocket / SSE / Server Push APIs in declarative way
-* Support document generation and testing for WebSocket / SSE APIs
+* Support writing WebSocket APIs in declarative way
+* Support document generation and testing for WebSocket APIs
 
 ### GraphQL
 
@@ -31,7 +31,7 @@
 
 ## Version roadmap
 
-### v2.8
+### v2.9
 
 **New Features**
 

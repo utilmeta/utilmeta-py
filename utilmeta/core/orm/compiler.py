@@ -144,6 +144,12 @@ class BaseQueryCompiler:
             )
 
     @property
+    def orm_model(self):
+        if self.model:
+            return self.model.model
+        return None
+
+    @property
     def ident(self):
         return self.parser.obj
 
@@ -172,6 +178,7 @@ class BaseQueryCompiler:
         routes = [(field.name, field.related_schema)]
         relation_routes = (self.context.relation_routes or []) + routes
         return QueryContext(
+            self.context.request,
             using=self.context.using,
             # single=field.related_single,
             single=False,  # not make it single, related context is always about multiple
@@ -274,7 +281,8 @@ class BaseQueryCompiler:
                 continue
             if not self.context.in_scope(
                 field.all_aliases,
-                dependants=field.dependants,
+                dependents=getattr(field, 'dependents', getattr(field, 'dependants', None)),
+                # for utype > 0.7, this will be dependents=field.dependents
                 default_included=field.default_included
             ):
                 continue

@@ -6,7 +6,7 @@ from utype.parser.field import ParserField
 from utype.parser.cls import ClassParser
 from utype.parser.rule import LogicalType, resolve_forward_type
 from utype.types import *
-from utilmeta.utils import class_func, time_now
+from utilmeta.utils import class_func, time_now, ContextWrapper
 
 
 if TYPE_CHECKING:
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 class ParserQueryField(ParserField):
     STACK_LEVEL = 11
+    wrapper_cls = ContextWrapper
 
     def __init__(self, model: "ModelAdaptor" = None, **kwargs):
         super().__init__(**kwargs)
@@ -45,7 +46,8 @@ class ParserQueryField(ParserField):
         self.reverse_lookup = None
         self.primary_key = False
         self.func = None
-        self.func_multi = False
+        self.parser = None
+        self.wrapper: Optional[ContextWrapper] = None
         self.type_override = False
         self.original_type = None
 
@@ -155,6 +157,12 @@ class ParserQueryField(ParserField):
                     # common schema, not related schema
                     return
 
+                if not schema.__parser__.model:
+                    raise TypeError(
+                        f"orm.Field({repr(self.name)}): "
+                        f"Invalid related schema: {schema}: model not specified"
+                    )
+
             self.related_schema = schema
             self.isolated = True
 
@@ -262,10 +270,11 @@ class ParserQueryField(ParserField):
             if class_func(self.field_object):
                 from utype.parser.func import FunctionParser
 
-                func = FunctionParser.apply_for(self.field_object)
+                parser = FunctionParser.apply_for(self.field_object)
                 # fixme: ugly approach, getting the awaitable async function
-                async_func = getattr(func.obj, "_asyncfunc", None)
-                sync_func = getattr(func.obj, "_syncfunc", None)
+                async_func = getattr(parser.obj, "_asyncfunc", None)
+                sync_func = getattr(parser.obj, "_syncfunc", None)
+
                 if async_func and sync_func:
                     from utilmeta.utils import awaitable
 
@@ -280,10 +289,13 @@ class ParserQueryField(ParserField):
                     )
                     self.func = awaitable(sync_wrapper)(async_wrapper)
                 else:
-                    self.func = func.wrap(
+                    self.func = parser.wrap(
                         ignore_methods=True, parse_params=True, parse_result=True
                     )
-                self.func_multi = bool(func.pos_var)
+
+                self.parser = parser
+                self.wrapper = self.wrapper_cls(parser)
+
                 if self.queryset is not None:
                     raise ValueError(
                         f"orm.Field specify function field and queryset at the same time is not supported"
@@ -457,22 +469,21 @@ class ParserQueryField(ParserField):
                             # 2. ManyToManyField / ManyToManyRel
                             self.relation_update_enabled = True
 
-                # if user has provided a related schema
-                # we do no need to merge the field rule
-                rule = self.model_field.rule
-                try:
-                    self.type = rule.merge_type(self.type, strict=True)
-                    # merge declared type and model field type
-                except Exception as e:
-                    err = (f"orm.Field with rule: {rule} conflicted to the declared type: "
-                           f"{self.type}, using the declared type, error: {e}")
+                if not isinstance(self.type, ForwardRef):
+                    # if user has provided a related schema
+                    # we do no need to merge the field rule
+                    rule = self.model_field.rule
+                    try:
+                        self.type = rule.merge_type(self.type, strict=True)
+                        # merge declared type and model field type
+                    except Exception as e:
+                        err = (f"orm.Field with rule: {rule} conflicted to the declared type: "
+                               f"{self.type}, using the declared type, error: {e}")
 
-                    if pref.orm_on_conflict_type == 'error':
-                        raise
-                    elif pref.orm_on_conflict_type == 'warn':
-                        warnings.warn(err, stacklevel=self.STACK_LEVEL)
-
-                # fixme: do not merge for ForwardRef
+                        if pref.orm_on_conflict_type == 'error':
+                            raise
+                        elif pref.orm_on_conflict_type == 'warn':
+                            warnings.warn(err, stacklevel=self.STACK_LEVEL)
 
             # VALIDATE FIELDS
             if self.model_field.is_exp:
@@ -532,6 +543,10 @@ class ParserQueryField(ParserField):
             if not self.no_output:
                 # no output for write / create
                 self.no_output = "aw"
+
+    @property
+    def func_pos_var(self):
+        return self.parser.pos_var if self.parser else False
 
     @classmethod
     def has_mode(cls, options: utype.Options, *modes: str):

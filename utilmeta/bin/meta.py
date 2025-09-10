@@ -150,11 +150,14 @@ class MetaCommand(BaseServiceCommand):
     def gen_openapi(
         self,
         to: str = Arg(alias="--to", default=None),
+        split: bool = Arg(alias="--split", default=False),
+        format: str = Arg(alias="--format", default='json'),
         api_prefix: str = Arg(alias="--prefix", default=None)
     ):
         """
         Generate OpenAPI document file for current service
         --to: target file name, default to be openapi.json
+        --split: split into separate API endpoint files
         --prefix: specify an API path prefix, this generation will only generate APIs with path startswith this prefix
         """
         self.service.setup()  # setup here
@@ -165,11 +168,17 @@ class MetaCommand(BaseServiceCommand):
         from utilmeta.core.api.specs.openapi import OpenAPI
         openapi = self._get_openapi(api_prefix=api_prefix)
         if not to:
-            if api_prefix:
-                to = f'{api_prefix.strip("/").replace("/", "_")}_openapi.json'
+            suffix = 'yml' if format in ('yaml', 'yml') else 'json'
+            if split:
+                to = 'openapi_apis'
+            elif api_prefix:
+                to = f'{api_prefix.strip("/").replace("/", "_")}_openapi.{suffix}'
             else:
-                to = 'openapi.json'
-        path = OpenAPI.save_to(openapi, to)
+                to = f'openapi.{suffix}'
+        if split:
+            path = OpenAPI.split_to(openapi, to, format=format)
+        else:
+            path = OpenAPI.save_to(openapi, to)
         print(f"OpenAPI document generated at {path}")
 
     @command()
@@ -178,9 +187,9 @@ class MetaCommand(BaseServiceCommand):
         openapi: str = Arg(alias="--openapi", default=None),
         to: str = Arg(alias="--to", default=None),
         api_prefix: str = Arg(alias="--prefix", default=None),
-        split_body_params: str = Arg(alias="--split-body-params", default=True),
-        black: str = Arg(alias="--black", default=True),
-        space_indent: str = Arg(alias="--spaces-indent", default=True),
+        split_body_params: bool = Arg(alias="--split-body-params", default=True),
+        black: bool = Arg(alias="--black", default=True),
+        space_indent: bool = Arg(alias="--spaces-indent", default=True),
     ):
         """
         Generate UtilMeta Client code for current service or specified OpenAPI document (url or file)

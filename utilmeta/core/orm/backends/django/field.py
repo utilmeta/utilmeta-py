@@ -1,4 +1,3 @@
-import typing
 from utype.types import Self
 from utilmeta.utils import multi
 from ..base import ModelFieldAdaptor
@@ -6,7 +5,6 @@ from typing import Union, Optional, Type, TYPE_CHECKING, Tuple, Any
 from django.db import models
 from django.db.models.fields.reverse_related import ForeignObjectRel
 from django.db.models.query_utils import DeferredAttribute
-from django.core import exceptions
 from . import constant
 from . import expressions as exp
 from utype import Rule, Lax
@@ -404,27 +402,6 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
             return self.field.field_name
         return None
 
-    def check_query(self):
-        qn = self.query_name
-        if not qn:
-            return
-        try:
-            if "__" not in qn:
-                self.model.get_queryset({qn + "__isnull": False})
-            else:
-                try:
-                    self.model.get_queryset({qn: None})
-                    # TypeError if qn endswith __in
-                except (TypeError, ValueError):
-                    self.model.get_queryset({qn: ""})
-        except exceptions.FieldError as e:
-            raise exceptions.FieldError(
-                f"Invalid query name: {repr(qn)} for {self.model.model}: {e}"
-            )
-        except ValueError as e:
-            print(f"failed to check query field: {repr(qn)} for {self.model.model}", e)
-            pass
-
     @property
     def column_name(self) -> Optional[str]:
         if isinstance(self.field, models.Field):
@@ -539,3 +516,6 @@ class DjangoModelFieldAdaptor(ModelFieldAdaptor):
         elif isinstance(exp, (exp.BaseExpression, exp.Combinable)):
             yield exp
         return
+
+    def get_lookup(self, lookup: str):
+        return self.field.get_lookup(lookup)

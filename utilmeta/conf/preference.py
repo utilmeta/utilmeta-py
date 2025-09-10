@@ -28,8 +28,8 @@ class Preference(Config):
     orm_on_sliced_field_queryset: Literal['error', 'warn', 'ignore'] = 'warn'
     orm_on_conflict_annotation: Literal['error', 'warn', 'ignore'] = 'warn'
     orm_on_conflict_type: Literal['error', 'warn', 'ignore'] = 'warn'
-    # ValueError: The annotation 'label' conflicts with a field on the model.
-
+    # ValueError: The annotation 'xxx' conflicts with a field on the model.
+    # orm_schema_redundant_fk_objects: Literal['exclude', 'preserve_pk', 'ignore'] = 'ignore'
     orm_schema_query_max_depth: Optional[int]
     # orm_recursion: bool
     # orm_default_filter_required: Optional[bool]
@@ -71,6 +71,7 @@ class Preference(Config):
         orm_on_sliced_field_queryset: Literal['error', 'warn', 'ignore'] = 'warn',
         orm_on_conflict_annotation: Literal['error', 'warn', 'ignore'] = 'warn',
         orm_on_conflict_type: Literal['error', 'warn', 'ignore'] = 'warn',
+        # orm_schema_redundant_fk_objects: Literal['exclude', 'preserve_pk', 'ignore'] = 'ignore',
         orm_schema_query_max_depth: Optional[int] = 100,
         dependencies_auto_install_disabled: bool = False,
         error_variable_max_length: Optional[int] = 100,

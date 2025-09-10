@@ -190,7 +190,7 @@ class TestSchemaQuery:
         from app.schema import UserBase, ArticleSchema
         from app.models import Article, User
         from typing import List, Optional
-        from utilmeta.core import orm
+        from utilmeta.core import orm, request
         from django.db import models
 
         class UserSchema(UserBase):
@@ -206,29 +206,47 @@ class TestSchemaQuery:
                 ).order_by('-views')[:1]
             )
 
-            top_2_articles: List[ArticleSchema] = orm.Field(
-                lambda user_id: Article.objects.filter(
-                    author_id=user_id
-                ).order_by('-views')[:2]
-            )
+            @classmethod
+            def get_top_2_articles(cls, *pks):
+                pk_map = {}
+                for pk in pks:
+                    pk_map.setdefault(pk, list(
+                        Article.objects.filter(author_id=pk).order_by('-views')[:2].values_list('pk', flat=True)))
+                return pk_map
+
+            top_2_articles: List[ArticleSchema] = orm.Field(get_top_2_articles)
 
             @classmethod
-            def get_runtime_schema(cls, user_id):
-                def get_followers_you_known(*pks):
-                    mp = {}
-                    for val in User.objects.filter(
-                        followings__in=pks,
-                        followers=user_id
-                    ).values('followings', 'pk').using(db_using):
-                        mp.setdefault(val['followings'], []).append(val['pk'])
-                    return mp
+            def get_followers_you_known(cls, *pks, user_id: int = request.var.user_id):
+                mp = {}
+                for val in User.objects.filter(
+                    followings__in=pks,
+                    followers=user_id
+                ).values('followings', 'pk').using(db_using):
+                    mp.setdefault(val['followings'], []).append(val['pk'])
+                return mp
 
-                class user_schema(cls):
-                    followers_you_known: List[cls] = orm.Field(
-                        get_followers_you_known
-                    )
+            followers_you_known: List[UserBase] = orm.Field(
+                get_followers_you_known
+            )
 
-                return user_schema
+            # @classmethod
+            # def get_runtime_schema(cls, user_id):
+            #     def get_followers_you_known(*pks):
+            #         mp = {}
+            #         for val in User.objects.filter(
+            #             followings__in=pks,
+            #             followers=user_id
+            #         ).values('followings', 'pk').using(db_using):
+            #             mp.setdefault(val['followings'], []).append(val['pk'])
+            #         return mp
+            #
+            #     class user_schema(cls):
+            #         followers_you_known: List[cls] = orm.Field(
+            #             get_followers_you_known
+            #         )
+            #
+            #     return user_schema
 
         res = UserSchema.init(2, context=orm.QueryContext(using=db_using))
         assert res.top_article.views == 10
@@ -236,7 +254,13 @@ class TestSchemaQuery:
         assert len(res.top_2_articles) == 2
         assert res.top_2_articles[0].id == 1
 
-        user = UserSchema.get_runtime_schema(2).init(1, context=orm.QueryContext(using=db_using))
+        req = request.Request(
+            method='get',
+            url='/'
+        )
+        request.var.user_id.setter(req, 2)
+
+        user = UserSchema.init(1, context=orm.QueryContext(req, using=db_using))
         assert len(user.followers_you_known) == 1
         assert user.followers_you_known[0].username == 'jack'
         assert user.followers_you_known[0].followers_num == 1
@@ -251,6 +275,38 @@ class TestSchemaQuery:
         query = ArticleQuery(limit=10)
         assert query.count(dup_qs, using=db_using) == 4
         assert query.get_queryset(dup_qs, using=db_using).count() == 4
+
+    def test_search(self, service, db_using):
+        from app.schema import ArticleQuery, ArticleBase
+
+        values = ArticleBase.serialize(ArticleQuery(
+            search='news Default',
+            limit=10
+        ))
+        article = values[0]
+        assert article.slug == 'some-news'
+
+        values = ArticleBase.serialize(ArticleQuery(
+            search='BIG HEAD',
+            limit=10
+        ))
+        assert len(values) == 0
+
+        values = ArticleBase.serialize(ArticleQuery(
+            search_union='BIG HEAD',
+            limit=10
+        ))
+        article = values[0]
+        assert article.slug == 'big-shot'
+
+        values = ArticleBase.serialize(ArticleQuery(
+            search_any='TECH, SHOT',
+            limit=10,
+            order='views'
+        ))
+        assert len(values) == 2
+        assert values[0].slug == 'big-shot'
+        assert values[1].slug == 'about-tech'
 
     @pytest.mark.asyncio
     async def test_async_queryset_generator(self, service, db_using):
@@ -790,6 +846,18 @@ class TestSchemaQuery:
         assert user1.id == 1
         assert any([follower.id == 1 for follower in user1.followers])
         assert any([following.id == 1 for following in user1.followings])
+
+    def test_request_context(self):
+        from app.schema import ArticleSchema
+        from utilmeta.core.request import Request, var
+        req = Request(
+            method='get',
+            url='/'
+        )
+        var.user_id.setter(req, 1)
+        article = ArticleSchema.init(1, context=req)
+        assert article.liked
+        assert article.following_likes == 1
 
     def test_pure_query_function(self):
         from app.models import Follow, User, Article

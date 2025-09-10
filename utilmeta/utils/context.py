@@ -174,7 +174,7 @@ class ContextWrapper:
     def parse_context(self, context: object) -> dict:
         if not isinstance(context, self.context_cls):
             # should raise TypeError
-            pass
+            return {}
         params = {}
         mp = {k: list(v) for k, v in self.ident_props.items()}
         for key, prop in self.properties.items():
@@ -182,7 +182,6 @@ class ContextWrapper:
                 value = prop.get(context)
             except ContextPropertySwitch as e:
                 if not self._switch_failed_prop(mp, prop.prop):
-                    print('NOT SWITCH ERR:', e, prop.prop, prop.prop.__ident__, self.ident_props, mp)
                     raise
                 value = None
             else:
@@ -194,7 +193,7 @@ class ContextWrapper:
     async def async_parse_context(self, context: object) -> dict:
         if not isinstance(context, self.context_cls):
             # should raise TypeError
-            pass
+            return {}
         params = {}
         mp = {k: list(v) for k, v in self.ident_props.items()}
         for key, prop in self.properties.items():

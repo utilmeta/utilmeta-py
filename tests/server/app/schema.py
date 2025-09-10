@@ -1,5 +1,5 @@
 from utype.types import *
-from utilmeta.core import orm, auth
+from utilmeta.core import orm, auth, request
 from .models import User, Article, Comment, BaseContent, ArticleStats
 from utype import Field
 from utilmeta.core.orm.backends.django import expressions as exp
@@ -8,7 +8,9 @@ from django.db import models
 
 
 __all__ = ["UserSchema", "ArticleSchema", "CommentSchema", "ArticleStatsSchema", "ArticleStatsQuery",
-           "ContentSchema", 'UserBase', 'UserQuery', 'ArticleQuery', 'ArticleBase', 'ContentBase']
+           "ContentSchema", 'UserBase', 'UserQuery', 'ArticleQuery', 'ArticleBase', 'ContentBase',
+           "UserRecursiveSchema",
+           'UserRedundantSchema', 'ArticleRedundantSchema', 'ArticleRecursiveSchema', 'ArticleRefSchema']
 
 
 class UserBase(orm.Schema[User]):
@@ -45,7 +47,17 @@ class ContentSchema(orm.Schema[BaseContent]):
     liked_bys_num: int = orm.Field(exp.Count("liked_bys"))
     comments_num: int = orm.Field(exp.Count("comments"))
     author_id: int = orm.Field(mode='ra')  # test with author
-    liked: bool = False
+
+    @classmethod
+    def get_liked(cls, user_id: int = request.var.user_id):
+        return models.Exists(
+            User.objects.filter(
+                pk=user_id,
+                likes=exp.OuterRef('pk')
+            )
+        )
+
+    liked: bool = orm.Field(get_liked, default=False)
 
 
 class CommentSchema(ContentSchema[Comment]):
@@ -124,15 +136,15 @@ class ArticleSchema(ContentSchema[Article]):
             self.slug = '-'.join([''.join(filter(str.isalnum, v)) for v in self.title.split()]).lower()
 
     @classmethod
-    def get_runtime_schema(cls, user_id):
-        class article_schema(cls):
-            following_likes: int = exp.SubqueryCount(
-                User.objects.filter(
-                    followers=user_id,
-                    likes=exp.OuterRef('pk')
-                )
+    def get_following_likes(cls, user_id: int = request.var.user_id):
+        return exp.SubqueryCount(
+            User.objects.filter(
+                followers=user_id,
+                likes=exp.OuterRef('pk')
             )
-        return article_schema
+        )
+
+    following_likes: int = orm.Field(get_following_likes, default_factory=list)
 
 
 class ArticleBase(orm.Schema[Article]):
@@ -166,14 +178,33 @@ class UserSchema(UserBase):
                 author_id=pk).order_by('-views')[:2].values_list('pk', flat=True)])
         return pk_map
 
+    @classmethod
+    def get_top_2_likes_articles(cls, *pks):
+        pk_map = {}
+        for pk in pks:
+            for article in Article.objects.annotate(
+                likes_num=models.Count('liked_bys')
+            ).filter(
+                author_id=pk
+            ).order_by('-likes_num')[:2]:
+                pk_map.setdefault(pk, []).append(article)
+        return pk_map
+
+    @classmethod
+    @awaitable(get_top_2_likes_articles)
+    async def get_top_2_likes_articles(cls, *pks):
+        pk_map = {}
+        for pk in pks:
+            async for article in Article.objects.annotate(
+                likes_num=models.Count('liked_bys')
+            ).filter(
+                author_id=pk
+            ).order_by('-likes_num')[:2]:
+                pk_map.setdefault(pk, []).append(article)
+        return pk_map
+
     top_2_articles: List[ArticleSchema] = orm.Field(get_top_2_articles)
-    top_2_likes_articles: List[ArticleSchema] = orm.Field(
-        lambda user_id: Article.objects.annotate(
-            likes_num=models.Count('liked_bys')
-        ).filter(
-            author_id=user_id
-        ).order_by('-likes_num')[:2]
-    )
+    top_2_likes_articles: List[ArticleSchema] = orm.Field(get_top_2_likes_articles)
 
     top_articles: List[ArticleBase] = orm.Field(
         'contents__article',
@@ -210,6 +241,17 @@ class UserSchema(UserBase):
     # @property
     # def total_views(self) -> int:
     #     return sum([article.views for article in self.articles])
+
+    @classmethod
+    def get_followed(cls, user_id: int = request.var.user_id):
+        return models.Exists(
+            User.objects.filter(
+                pk=user_id,
+                followers=exp.OuterRef('pk')
+            )
+        )
+
+    followed: bool = orm.Field(get_followed, default=False)
 
 
 class UserQuery(orm.Query[User]):
@@ -271,7 +313,29 @@ class ArticleQuery(orm.Query[Article]):
         created_at__gte=datetime.now() - timedelta(days=v)
     ))
 
-    search: str = orm.Filter(query=lambda v: exp.Q(content__icontains=v))
+    search: str = orm.Search(
+        Article.title,
+        Article.content,
+        Article.description,
+        Article.slug,
+        Article.tags
+    )
+    search_union: str = orm.Search(
+        Article.title,
+        Article.content,
+        Article.description,
+        Article.slug,
+        Article.tags,
+        match_mode=orm.Search.UNION_ALL
+    )
+    search_any: str = orm.Search(
+        Article.title,
+        Article.content,
+        Article.description,
+        Article.slug,
+        Article.tags,
+        match_mode=orm.Search.ANY_ANY
+    )
 
     liked: str = orm.Filter('liked_bys.username')
 
@@ -298,3 +362,27 @@ class ArticleStatsSchema(orm.Schema[ArticleStats]):
     article_id: int
     comments_num: int
     liked_bys_num: int
+
+
+class ArticleRedundantSchema(orm.Schema[Article]):
+    id: int
+    title: str
+    author: UserSchema
+
+
+class ArticleRecursiveSchema(orm.Schema[Article]):
+    id: int
+    title: str
+    author: 'UserRecursiveSchema'
+
+
+class UserRedundantSchema(orm.Schema[User]):
+    id: int
+    username: str
+    articles: List[ArticleRedundantSchema] = orm.Field('contents__article')
+
+
+class UserRecursiveSchema(orm.Schema[User]):
+    id: int
+    username: str
+    articles: List[ArticleRecursiveSchema] = orm.Field('contents__article')

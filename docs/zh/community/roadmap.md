@@ -2,10 +2,10 @@
 
 ## 长期功能规划
 
-### WebSocket / SSE
+### WebSocket
 
-* 支持声明式语法编写 WebSocket / SSE / Server Push 接口
-* 支持 WebSocket / SSE 接口的文档生成与调试
+* 支持声明式语法编写 WebSocket 接口
+* 支持 WebSocket 接口的文档生成与调试
 
 ### GraphQL
 
@@ -31,7 +31,7 @@
 
 ## 后续版本规划
 
-### v2.8
+### v2.9
 
 **新特性**
 

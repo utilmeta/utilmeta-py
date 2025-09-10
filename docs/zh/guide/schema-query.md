@@ -400,33 +400,9 @@ class UserSchema(orm.Schema[User]):
 !!! warning "不要切片"
 	请 **不要** 对指定的 `queryset` 查询集进行切片处理（比如限制返回结果数量），因为为了优化 N + 1 查询问题， `queryset` 查询集的查询实现是一次性查询全部的关系对象并按照对应关系进行分发，如果你将查询集进行切片，查询出的实例所分配到的关系对象列表可能是不完整的，如果你需要实现类似 “为每个实例查询最多 N 条关系对象” 的需求，请参考下方的 **关系查询函数** 进行实现
 
-### 关系查询函数
+#### 单条关系对象查询
 
-关系查询函数提供了一个可以自定义的函数钩子，你可以为关系查询编写任意的条件，比如添加过滤和排序条件，控制数量等，关系查询函数有以下几种声明方式
-
-#### 单个主键查询函数
-函数接受目标查询集中的单个主键作为输入，返回一个关系模型的查询集，我们以一个需求作为例子：需要查询一个用户列表，其中每个用户都需要附带 **点赞数最多的2篇文章**，实现的代码示例如下
-```python hl_lines="8-12"
-class ArticleSchema(orm.Schema[Article]):
-    id: int
-    content: str
-    
-class UserSchema(orm.Schema[User]):
-    username: str
-    top_2_articles: List[ArticleSchema] = orm.Field(
-		lambda user_id: Article.objects.annotate(
-            favorites_num=models.Count('favorited_bys')
-        ).filter(
-			author_id=user_id
-		).order_by('-favorites_num')[:2]
-	)
-```
-
-这个例子中 UserSchema 的 `top_2_articles` 字段指定了一个关系查询函数，接受目标用户的一个主键值，并返回对应的文章查询集，之后 UtilMeta 会按照字段的类型声明（`List[ArticleSchema]`）完成序列化以及结果分发
-
-**单条关系对象的优化压缩**
-
-观察上面的例子我们可以明显得出，要想得到目标的条件关系值，函数中的查询需要运行 N 次，N 是目标查询集的长度，那么什么情况可以压缩为单条查询呢？答案是当你只需要查询 **1 个** 目标关系对象时，这时你可以直接把查询集声明出来，UtilMeta 会将其处理成一条 **subquery 子查询** 从而压缩到单条查询，比如
+当你只需要查询 **1 个** 目标关系对象时，这时你可以直接把查询集声明出来，UtilMeta 会将其处理成一条 **subquery 子查询** 从而压缩到单条查询，比如
 
 ```python hl_lines="8-12"
 class ArticleSchema(orm.Schema[Article]):
@@ -447,40 +423,47 @@ class UserSchema(orm.Schema[User]):
 !!! tip "OuterRef"
 	`OuterRef` 是 Django 中用于引用外部查询的字段的用法，在例子中实际上引用的目标 User 模型查询集的主键值
 
-#### 主键列表查询函数
-我们以另外一个需求作为例子，假设我们需要查询一个用户列表，其中每个用户都需要附带 “当前请求用户的关注者中有哪些关注了目标用户”，这在微博，Twitter(X) 等社交媒体中是常见的需求，在前端大概会展示为 “你关注的 A, B 也关注了他” 或 “Followers you known”，这样的需求就可以使用主键列表函数简单高效地实现
+### 关系查询函数
 
-```python hl_lines="16"
+关系查询函数提供了一个可以自定义的函数钩子，你可以为关系查询编写任意的条件，比如添加过滤和排序条件，控制数量等
+
+我们以一个需求作为例子，假设我们需要查询一个用户列表，其中每个用户都需要附带 **“当前请求用户的关注者中有哪些关注了目标用户”**，这在微博，Twitter(X) 等社交媒体中是常见的需求，在前端大概会展示为 “你关注的 A, B 也关注了他” 或 “Followers you known”，这样的需求就可以使用关系查询函数简单高效地实现
+
+```python hl_lines="7 17"
+from utilmeta.core import orm, request
+
 class UserSchema(orm.Schema[User]):
     username: str
     
 	@classmethod
-	def get_runtime_schema(cls, user_id):
-		def get_followers_you_known(*pks):
-			mp = {}
-			for val in User.objects.filter(
-				followings__in=pks,
-				followers=user_id
-			).values('followings', 'pk'):
-				mp.setdefault(val['followings'], []).append(val['pk'])
-			return mp
+	def get_followers_you_known(cls, *pks, user_id: int = request.var.user_id):
+		mp = {}
+		for val in User.objects.filter(
+			followings__in=pks,
+			followers=user_id
+		).values('followings', 'pk').using(db_using):
+			mp.setdefault(val['followings'], []).append(val['pk'])
+		return mp
 
-		class user_schema(cls):
-			followers_you_known: List[cls] = orm.Field(get_followers_you_known)
-			
-		return user_schema
+	followers_you_known: List[UserBase] = orm.Field(
+		get_followers_you_known, 
+		default_factory=list
+	)
 ```
 
-例子中 UserSchema 定义了一个类函数，从而可以为不同的请求用户生成不同的查询，在其中我们定义了一个 `get_followers_you_known` 查询函数，接受 **当前查询到的 Schema 实例的主键列表** 并构造出了一个字典，为每个主键映射到一个 **目标关系的主键列表**（即 Followers you known 的用户主键列表），之后返回这个字典，UtilMeta 会完成后续的聚合查询以及结果分发，最后每个用户 Schema 实例的 `followers_you_known` 字段都会包含满足条件要求的查询结果
+例子中 UserSchema 定义了一个类函数，从而可以为不同的请求用户生成不同的查询，在其中我们定义了一个 `get_followers_you_known` 查询函数，使用 `*pks` 接受 **当前查询到的 Schema 实例的主键列表** 并构造出了一个字典，为每个主键映射到一个 **目标关系的主键列表**（即 Followers you known 的用户主键列表），之后返回这个字典，UtilMeta 会完成后续的聚合查询以及结果分发，最后每个用户 Schema 实例的 `followers_you_known` 字段都会包含满足条件要求的查询结果
 
-!!! tip  "动态 Schema 查询"
-	对于上面的例子，你在 API 函数中可以使用 `UserSchema.get_runtime_schema(request_user_id)` 获得根据当前用户 ID 动态生成的查询 Schema 类。这样的方式可以称为运行时的动态 Schema 查询
+!!! tip
+	在查询函数中可以使用 `request.var` 中的属性作为参数默认值声明请求的上下文参数，常用的包括：
+	`request.var.user_id`：当前请求用户 ID，
+	`request.var.user`: 当前请求用户实例，
+	`request.var.ip`: 当前请求 IP 地址
+	
+	 在调用时，将 `init` / `serialize` 方法的 `context` 参数传入当前请求对象（`self.request`） ，例如 `UserSchema.init(1, context=self.request)` 即可完成请求上下文字段的查询
 
-### 值查询函数
+#### 关系值查询函数
 
-上面我们介绍了关系查询函数，关系查询函数需要把当前查询到的数据主键与关联模型的主键进行对应，再由字段定义的关系模型 Schema 进行序列化
-
-不过如果我们不需要进行进一步的序列化，而是直接将查询函数中的结果输出，那么只需要完成主键与字段值的对应即可定义**值查询函数**，比如下面的例子
+关系查询函数除了可以使用其定义的关系 Schema 对象查询关系对象外，还可以直接查询关系表中的字段值，即不需要进行进一步的序列化，而是直接将查询函数中的结果输出，那么只需要完成主键与字段值的对应即可定义**值查询函数**，比如下面的例子
 
 ```python
 from .models import User, Article
@@ -503,7 +486,7 @@ class UserQuerySchema(orm.Schema[User]):
 
 这个例子中我们定义的 `article_tags` 并不直接对应模型字段，而是使用 `get_article_tags` 函数把文章作者与作者所有文章的标签进行对应，就可以得到每个作者的全部文章标签集合
 
-`get_article_tags` 就是值查询函数，这是一种方便且高效地组织查询代码的方式，比如上面的例子就使用一条查询完成了任意数量用户的文章标签查询
+`get_article_tags` 就是关系值查询函数，这是一种方便且高效地组织查询代码的方式，比如上面的例子就使用一条查询完成了任意数量用户的文章标签查询
 
 ### 表达式查询
 
@@ -557,29 +540,32 @@ class UserSchema(orm.Schema[User]):
 #### `Exists`
 有时你需要返回一个条件查询集是否存在的字段，比如查询一个用户时返回【当前请求的用户是否已经关注了该用户】，你就可以使用 `Exists` 表达式
 
-```python hl_lines="11"
-from utilmeta.core import orm
+```python hl_lines="9"
+from utilmeta.core import orm, request
 from django.db import models
 
 class UserSchema(orm.Schema[User]):
     username: str
-    following: bool = False
-
+    
     @classmethod
-    def get_runtime(cls, user_id):
-        class user_schema(cls):
-            following: bool = models.Exists(
-				Follow.objects.filter(
-					following=models.OuterRef('pk'), 
-					follower=user_id
-				)
-			)
-        return user_schema
+    def get_followed(cls, user_id: int = request.var.user_id):
+        return models.Exists(
+            User.objects.filter(
+                pk=user_id,
+                followers=exp.OuterRef('pk')
+            )
+        )
+
+    followed: bool = orm.Field(get_followed, default=False)
 ```
+
+我们使用请求上下文参数的声明方式，使用 `followed` 字段查询当前的请求用户（`request.var.user_id`）是否关注了此用户
+
 #### `SubqueryCount`
 对于一些关系计数你可能需要增加一些条件，比如查询一篇文章时需要返回【当前用户的关注用户中有多少人喜欢该文章】，这时你可以使用 `SubqueryCount` 表达式
 
 ```python hl_lines="10"
+from utilmeta.core import orm, request
 from utilmeta.core.orm.backends.django import expressions as exp
 
 class ArticleSchema(orm.Schema[Article]):
@@ -587,16 +573,18 @@ class ArticleSchema(orm.Schema[Article]):
     content: str
     
     @classmethod
-    def get_runtime_schema(cls, user_id):
-        class article_schema(cls):
-            following_likes: int = exp.SubqueryCount(
-                User.objects.filter(
-                    followers=user_id,
-                    favorites=exp.OuterRef('pk')
-                )
+    def get_following_likes(cls, user_id: int = request.var.user_id):
+        return exp.SubqueryCount(
+            User.objects.filter(
+                followers=user_id,
+                likes=exp.OuterRef('pk')
             )
-        return article_schema
+        )
+
+    following_likes: int = orm.Field(get_following_likes, default_factory=list)
 ```
+
+我们使用请求上下文参数的声明方式，使用 `following_likes` 字段查询当前的请求用户（`request.var.user_id`）的关注用户中有多少人喜欢该文章
 
 ## `orm.Schema` 的使用
 
@@ -794,6 +782,39 @@ class ArticleAPI(api.API):
 * `required`：是否必须，默认 `orm.Filter` 是 `required=False` 的，也就是非必须参数，只有当请求提供时才会应用相应的查询条件
 * `default`：指定查询参数的默认值
 * `alias`：指定查询参数的别名
+
+#### 搜索参数
+一类常用的查询参数的作用是模糊匹配目标的一个或多个字段进行搜索，这样的搜索参数在 UtilMeta 中可以使用 `orm.Search` 参数定义，如
+```python
+from utilmeta.core import orm
+from datetime import datetime
+from django.db import models
+
+class ArticleQuery(orm.Query[Article]):
+	search: str = orm.Search(
+        Article.title,
+        Article.content,
+        Article.slug,
+        Article.tags
+    )
+
+class ArticleAPI(api.API):
+	def get(self, query: ArticleQuery) -> List[ArticleSchema]:
+		return ArticleSchema.serialize(query)
+```
+
+`orm.Search`  可以接收一系列模型中可用于搜索的字段的字符串或引用（一般包含模型主要信息的文本字符串，如标题，概要，描述说明等），此外还有一些参数可供选择：
+
+* `case_sensitive`: 大小写敏感，默认为 False
+* `keyword_delimiters`: 指定关键词的分隔符，搜索时会先将搜索文本分割成关键词，再对字段进行查询匹配，默认为 `(' ', ',', ';', '|')`
+* `match_mode`: 字段与关键词的匹配模式，目前支持的包括：
+	* `orm.Search.ANY_ANY`: 任意字段匹配任意关键词即可，最为宽松的搜索
+	* `orm.Search.UNION_ALL`: 实例的可搜索字段匹配所有的关键词（可以分步在任意一个或多个字段）即可
+	* `orm.Search.ANY_ALL`: 任意单个可搜索字段需要匹配所有的关键词，**默认方式**
+	* `orm.Search.ALL_ALL`: 所有的字段都需要匹配所有的关键词，最严格的搜索
+
+!!! note
+	UtilMeta >= 2.8.0 支持 `orm.Search` 搜索参数
 
 ### 排序参数
 

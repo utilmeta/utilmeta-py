@@ -119,7 +119,10 @@ class Schema(utype.Schema):
             context = generator.get_context(single=single).merge(context)
         else:
             qs = queryset
-            context = context or QueryContext(using=using)
+            if isinstance(context, req.Request):
+                context = QueryContext(context, using=using, single=single)
+            else:
+                context = context or QueryContext(using=using, single=single)
         if cls.__integrity_error_cls__:
             context.integrity_error_cls = cls.__integrity_error_cls__
         return cls.__parser__.get_compiler(qs, context=context)
@@ -262,7 +265,7 @@ class Schema(utype.Schema):
         compiler = cls._get_compiler(queryset, context=context, single=True)
         values = compiler.get_values()
         if not values:
-            raise exceptions.EmptyQueryset(f"Empty queryset")
+            raise exceptions.EmptyQueryset(f"Empty queryset", model=compiler.orm_model)
         return cls.__from__(values[0], compiler.serialize_options)
 
     @classmethod
@@ -274,7 +277,7 @@ class Schema(utype.Schema):
         compiler = cls._get_compiler(queryset, context=context, single=True)
         values = await compiler.get_values()
         if not values:
-            raise exceptions.EmptyQueryset(f"Empty queryset")
+            raise exceptions.EmptyQueryset(f"Empty queryset", model=compiler.orm_model)
         return cls.__from__(values[0], compiler.serialize_options)
 
     def commit(self, queryset: T) -> T:  # -> queryset

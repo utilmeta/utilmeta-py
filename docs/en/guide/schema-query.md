@@ -401,35 +401,8 @@ The pre-condition for `queryset` parameter is to specify a **Multiple Relation N
 !!! warning "No Slicing"
 	Please **DO NOT** slice the specified `queryset` (such as limiting the number of returned results), because in order to optimize N+1 query problems, The query implementation of `queryset` is to query all relational objects at once and distribute them according to their corresponding relationships. If you slice the queryset, the list of relational objects assigned to the queried instances may be incomplete. If you need to implement a requirement similar to "querying up to N relational objects per instance", please refer to the **relational query function** below.
 
-### Relational query function
-
-Relational query function provides a hook that can be customized. You can write any condition for the relational query, such as adding filter and sort conditions, controlling the quantity, etc. The relational query function can be declared in the following ways
-
-#### Single primary-key function
-The function accepts a single primary key of the target queryset as input, and returns the related queryset. Let’s take a requirement as an example: we need to query a list of users, each user needs to attach **two most liked articles**. The code example for implementation is as follows
-
-```python hl_lines="8-12"
-class ArticleSchema(orm.Schema[Article]):
-    id: int
-    content: str
-    
-class UserSchema(orm.Schema[User]):
-    username: str
-    top_2_articles: List[ArticleSchema] = orm.Field(
-		lambda user_id: Article.objects.annotate(
-            favorites_num=models.Count('favorited_bys')
-        ).filter(
-			author_id=user_id
-		).order_by('-favorites_num')[:2]
-	)
-```
-
-In this example, the `top_2_articles` field of UserSchema specifies a relational query function, which accepts a primary key value of the target user and returns the corresponding article queryset. UtilMeta will complete the serialization and result distribution according to the type annotation ( `List[ArticleSchema]`) of the field
-
-**Optimized compression of a single relationship object** 
-
-Looking at the above example, we can clearly see that in order to get the conditional relation value of the target, the query in the function needs to run N times, N is the length of the target queryset, so what can be compressed into a single query? 
-The answer is that when you only need to query **1** of the target relational object, you can directly declare the queryset, and UtilMeta will process it into a **subquery** to compress it into a single query, such as
+#### Single relationship object
+when you only need to query **1** of the target relational object, you can directly declare the queryset, and UtilMeta will process it into a **subquery** to compress it into a single query, such as
 
 ```python hl_lines="8-12"
 class ArticleSchema(orm.Schema[Article]):
@@ -449,37 +422,44 @@ class UserSchema(orm.Schema[User]):
 
 !!! tip "OuterRef"
 	Django uses `OuterRef` to reference the outer fields, in the example, we referenced the primary key of the target User model
+### Relational query function
 
-#### Primary-Key List Function
-Let’s take another requirement as an example. Suppose we need to query a list of users, in which each user needs to attach “**Followers the current request user knows**”, which is a common requirement in social media such as Twitter (X). so the requirement can be simply and efficiently implemented by using the primary key list function.
+Relational query function provides a hook that can be customized. You can write any condition for the relational query, such as adding filter and sort conditions, controlling the quantity, etc. The relational query function can be declared in the following ways
 
-```python hl_lines="16"
+Let’s take a requirement as an example. Suppose we need to query a list of users, in which each user needs to attach “**Followers the current request user knows**”, which is a common requirement in social media such as Twitter (X). so the requirement can be simply and efficiently implemented by using the primary key list function.
+
+```python hl_lines="7 17"
+from utilmeta.core import orm, request
+
 class UserSchema(orm.Schema[User]):
     username: str
     
 	@classmethod
-	def get_runtime_schema(cls, user_id):
-		def get_followers_you_known(*pks):
-			mp = {}
-			for val in User.objects.filter(
-				followings__in=pks,
-				followers=user_id
-			).values('followings', 'pk'):
-				mp.setdefault(val['followings'], []).append(val['pk'])
-			return mp
+	def get_followers_you_known(cls, *pks, user_id: int = request.var.user_id):
+		mp = {}
+		for val in User.objects.filter(
+			followings__in=pks,
+			followers=user_id
+		).values('followings', 'pk').using(db_using):
+			mp.setdefault(val['followings'], []).append(val['pk'])
+		return mp
 
-		class user_schema(cls):
-			followers_you_known: List[cls] = orm.Field(get_followers_you_known)
-			
-		return user_schema
+	followers_you_known: List[UserBase] = orm.Field(
+		get_followers_you_known, 
+		default_factory=list
+	)
 ```
 
 In the example, `UserSchema` defines a class function that generate different queries for different requesting users, in which we define a `get_followers_you_known` query function that accepts a list of **queried primary keys** of current Schema instances and constructs a dict that map each key with a primary key list of the **target relationship** (Followers you known). After this dictionary is returned, UtilMeta will complete the subsequent aggregate query and result distribution. Finally, the followers_you_known field of each user Schema instance will contain the query results that meet the condition requirement
 
-!!! tip "Dynamic Schema Query"
-	For the above example, you can call `UserSchema.get_runtime_schema(request_user_id)` in the API function to get the dynamic generated Schema class based on the user id of the current request, we often call it **Dynamic Schema Query**
-
-
+!!! tip
+	Query function can use properties of `request.var` as the request context variables, such as: 
+	`request.var.user_id`：Current request user ID,
+	`request.var.user`:  Current request user instance,
+	`request.var.ip`: Current request IP address.
+	
+	 You can pass the current request object (`self.request` of API) as the `context` param of the `init` / `serialize` method, such as `UserSchema.init(1, context=self.request)` to query the context fields
+	
 ### Value query function
 
 Above, we introduced the relational query function, which needs to correspond the primary key of the currently queried data with the primary key of the related model for the target field, and then serialize it using the relational model schema defined by the field.
@@ -555,29 +535,29 @@ Here are some expressions that are commonly used in real-world development
 #### `Exists`
 Sometimes you need to return the field of whether a conditional queryset exists, for example, when querying a user, you can use `Exists` an expression to return "**whether the current request user has followed**".
 
-```python hl_lines="11"
+```python hl_lines="9"
 from utilmeta.core import orm
 from django.db import models
 
 class UserSchema(orm.Schema[User]):
     username: str
-    following: bool = False
 
     @classmethod
-    def get_runtime(cls, user_id):
-        class user_schema(cls):
-            following: bool = models.Exists(
-				Follow.objects.filter(
-					following=models.OuterRef('pk'), 
-					follower=user_id
-				)
-			)
-        return user_schema
+    def get_followed(cls, user_id: int = request.var.user_id):
+        return models.Exists(
+            User.objects.filter(
+                pk=user_id,
+                followers=exp.OuterRef('pk')
+            )
+        )
+
+    followed: bool = orm.Field(get_followed, default=False)
 ```
 #### `SubqueryCount`
 For some relation counts you may need to add some conditions, for example, when querying an article, you need to return "**how many of the current user’s followings liked the article**", in which case you can use `SubqueryCount` expressions.
 
 ```python hl_lines="10"
+from utilmeta.core import orm, request
 from utilmeta.core.orm.backends.django import expressions as exp
 
 class ArticleSchema(orm.Schema[Article]):
@@ -585,15 +565,15 @@ class ArticleSchema(orm.Schema[Article]):
     content: str
     
     @classmethod
-    def get_runtime_schema(cls, user_id):
-        class article_schema(cls):
-            following_likes: int = exp.SubqueryCount(
-                User.objects.filter(
-                    followers=user_id,
-                    favorites=exp.OuterRef('pk')
-                )
+    def get_following_likes(cls, user_id: int = request.var.user_id):
+        return exp.SubqueryCount(
+            User.objects.filter(
+                followers=user_id,
+                likes=exp.OuterRef('pk')
             )
-        return article_schema
+        )
+
+    following_likes: int = orm.Field(get_following_likes, default_factory=list)
 ```
 
 !!! tip
@@ -794,6 +774,41 @@ In addition,  you can specify a query expression with the `query` parameter of `
 * `default`:  Specify default values for query parameter
 * `alias`:  Specify an alias for the query parameter
 
+#### Search Param
+
+A commonly used type of query parameter is used to search for fuzzy matching of one or more fields of the target. Such search parameter can be defined using the `orm.Search` in UtilMeta, such as
+
+```python
+from utilmeta.core import orm
+from datetime import datetime
+from django.db import models
+
+class ArticleQuery(orm.Query[Article]):
+	search: str = orm.Search(
+        Article.title,
+        Article.content,
+        Article.slug,
+        Article.tags
+    )
+
+class ArticleAPI(api.API):
+	def get(self, query: ArticleQuery) -> List[ArticleSchema]:
+		return ArticleSchema.serialize(query)
+```
+
+`orm.Search` can receive strings or a field references of model that can be used for searching (usually text strings containing the main information of the model, such as title, summary, description, etc.), in addition, there are some search settings that can be specified:
+
+* `case_sensitive`: Whether to search case sensitively, default to False
+* `keyword_delimiters`: Specify the delimiter for keywords. the search text will be divided into keywords first, and then the fields will be queried and matched. The default is `(' ', ',', ';', '|')`
+* `match_mode`: Match mode for field and keywords, includes:
+	* `orm.Search.ANY_ANY`: Match any field with any keyword for the most relaxed search
+	* `orm.Search.UNION_ALL`: The searchable fields of the instance can match all keywords (which can be divided into any one or more fields)
+	* `orm.Search.ANY_ALL`: Any single searchable field needs to match all keywords, **default**
+	* `orm.Search.ALL_ALL`: All fields need to match all keywords, the strictest search
+
+!!! note
+	UtilMeta >= 2.8.0 支持 `orm.Search` 搜索参数
+	
 ### Sorting params
 
 You can also declare sorting parameter in `orm.Query` class. with the supported sorting fields and the corresponding configuration. Examples are as follows

@@ -650,7 +650,7 @@ class RootAPI(api.API):
 
 此外，利用响应处理钩子，你还可以批量为接口生成响应，响应处理钩子的返回结果会代替 API 函数的返回结果作为响应进行返回，比如
 ```python hl_lines="28-29"
-from utilmeta.core import api, orm, request
+from utilmeta.core import api, orm, request, response
 
 class SingleArticleResponse(response.Response):
     result_key = 'article'
@@ -743,7 +743,7 @@ class RootAPI(api.API):
     def handle_user_auth(self, e: Error):
         return self.response(state=State.AUTH_FAILED, error=e)
     
-    @api.handle('*', exc.Notfound)
+    @api.handle('*', exc.NotFound)
     def handle_not_found(self, e: Error):
         return self.response(state=State.NOT_FOUND, error=e)
 ```

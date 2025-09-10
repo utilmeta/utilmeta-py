@@ -20,6 +20,7 @@ class DjangoModelAdaptor(ModelAdaptor):
     # Model adaptor is the entry point to all the orm adaptors
     # (like server adaptor is the entry point for request/response adaptor)
     backend = django
+    backend_name = 'django'
     field_adaptor_cls = DjangoModelFieldAdaptor
     query_adaptor_cls = DjangoModelQueryAdaptor
     generator_cls = DjangoQuerysetGenerator
@@ -369,6 +370,9 @@ class DjangoModelAdaptor(ModelAdaptor):
                 output_field = trans_field
         # Avg, Variance and StdDev is handled by NumericOutputFieldMixin
         return output_field
+
+    def check_query_expression(self, expr):
+        return isinstance(expr, (exp.BaseExpression, exp.Combinable))
 
     def check_expressions(self, expr):
         try:

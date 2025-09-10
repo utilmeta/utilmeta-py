@@ -1,5 +1,28 @@
 # Release Note
 
+## v2.8.0
+
+Release Date:  2025/9/10
+
+### New features
+
+* API support **Server-Sent Events (SSE)**: [Use SSE in API](../../guide/api-route#server-sent-events)
+* Clien support handling Server-Sent Events (SSE) response:  [Handle SSE Response](../../guide/client#server-sent-events)
+* `@api` decorator added `timeout` parameter to specifiy the timeout for API function processing time or Client request timeout.
+* Added HTTP cache plugin: `api.Cache`: can handle HTTP caching like `Last-Modifed` / `Etag` automatically
+* Added search parameter `orm.Search`, support various search mode for multiple model fields: [Search Param](../../guide/schema-query/#search-param)
+* `orm.Schema` support defining request context variables (such as current request user / IP) and query request context fields by passing the current request object to `context` param of the serialize methods: [Use context vars in query function](../../guide/schema-query/#relational-query-function)
+* `meta gen_openapi` support `--split` parameter that spliting the API document in seperate files by endpoint, convenient for AI tools to parse and read
+
+### Optimized
+
+* Optimize `orm.Field` field parsing and rule merging.
+* Client reuse request session  (`httpx.Client` / `aiohttp.Session` / `requests.Session`)  in `with` and `async with` block.
+
+### Fixed
+
+* Fix YAML output format of generated OpenAPI document.
+
 ## v2.7.6
 
 Release Date:  2025/6/6

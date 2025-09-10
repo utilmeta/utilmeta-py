@@ -16,7 +16,7 @@ from utilmeta.core.file.base import File
 from utilmeta.core.auth.properties import User
 from utilmeta.core.response.base import Headers, JSON, OCTET_STREAM, PLAIN
 from utilmeta.utils.context import Property, ParserProperty
-from utilmeta.utils.constant import HAS_BODY_METHODS
+from utilmeta.utils.constant import HAS_BODY_METHODS, HTTP_METHODS
 from utilmeta.utils import (
     valid_url,
     json_dumps,
@@ -37,6 +37,7 @@ from .base import BaseAPISpec
 import os
 import json
 import re
+import copy
 
 
 if TYPE_CHECKING:
@@ -333,6 +334,10 @@ class OpenAPI(BaseAPISpec):
         'tags',
         'externalDocs'
     ]
+    OPERATION_FIELD_ORDERS = [
+        'method', 'path', 'operationId', 'description', 'tags', 'security', 'parameters', 'requestBody', 'responses'
+    ]
+
     # None -> dict
     # json -> json string
     # yml -> yml string
@@ -677,7 +682,10 @@ class OpenAPI(BaseAPISpec):
         else:
             content = json_dumps(schema, indent=None if compressed else 4)
 
-        with open(file, mode="w", encoding="utf-8") as f:
+        mode = 'wb' if isinstance(content, bytes) else 'w'
+        encoding = "utf-8" if isinstance(content, str) else None
+
+        with open(file, mode=mode, encoding=encoding) as f:
             f.write(content)
 
         if not os.path.isabs(file):
@@ -685,15 +693,94 @@ class OpenAPI(BaseAPISpec):
         return file
 
     @classmethod
-    def make_yaml(cls, data: dict):
+    def _resolve_ref(cls, obj, root, visited=None):
+        if visited is None:
+            visited = set()
+
+        if isinstance(obj, dict):
+            if "$ref" in obj:
+                ref_path = obj["$ref"]
+                if not ref_path.startswith("#/"):
+                    raise ValueError(f"暂不支持外部引用: {ref_path}")
+
+                # prevent cycle
+                if ref_path in visited:
+                    return {"$ref_cycle": ref_path}
+                visited.add(ref_path)
+
+                parts = ref_path.lstrip("#/").split("/")
+                target = root
+                for part in parts:
+                    if part not in target:
+                        raise KeyError(f"Invalid ref: {ref_path}")
+                    target = target[part]
+
+                resolved = cls._resolve_ref(copy.deepcopy(target), root, visited)
+                visited.remove(ref_path)
+                return resolved
+            else:
+                return {k: cls._resolve_ref(v, root, visited) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [cls._resolve_ref(i, root, visited) for i in obj]
+        else:
+            return obj
+
+    @classmethod
+    def split_to(cls, openapi: dict, directory: str, format: str = 'json', compressed: bool = False):
+        if not isinstance(openapi, OpenAPISchema):
+            try:
+                openapi = OpenAPISchema(openapi)
+            except Exception as e:
+                raise e.__class__(f'Invalid openapi schema: {openapi}, raised error: {e}') from e
+        os.makedirs(directory, exist_ok=True)
+
+        for path, methods in openapi.paths.items():
+            for method, operation in methods.items():
+                if not isinstance(operation, dict) or str(method).upper() not in HTTP_METHODS:
+                    continue
+
+                operation_id = operation.get("operationId")
+                if not operation_id:
+                    operation_id = f"{method}_{path.strip('/').replace('/', '_') or 'root'}"
+
+                resolved_operation = cls._resolve_ref(operation, openapi)
+                resolved_operation.update(
+                    method=method,
+                    path=path,
+                )
+
+                if format in ('yml', 'yaml'):
+                    suffix = 'yml'
+                    content = cls.make_yaml(resolved_operation,
+                                            key_orders=cls.OPERATION_FIELD_ORDERS)
+                else:
+                    suffix = 'json'
+                    content = json_dumps(resolved_operation, indent=None if compressed else 4)
+
+                file_path = os.path.join(directory, f"{operation_id}.{suffix}")
+
+                mode = 'wb' if isinstance(content, bytes) else 'w'
+                encoding = "utf-8" if isinstance(content, str) else None
+
+                with open(file_path, mode=mode, encoding=encoding) as f:
+                    f.write(content)
+
+                print(f'writing [{operation_id}] to {file_path}')
+        return directory
+
+    @classmethod
+    def make_yaml(cls, data: dict, key_orders=tuple(FIELD_ORDERS)):
         requires(yaml="pyyaml>=5.1")
         import yaml  # requires pyyaml
         yaml_kwargs = dict()
         if yaml.__version__ >= '5.1':
             yaml_kwargs.update(sort_keys=False)
         return yaml.dump(
-            normalize_dict(data, key_orders=cls.FIELD_ORDERS),
-            **yaml_kwargs
+            normalize_dict(data, key_orders=key_orders),
+            **yaml_kwargs,
+            default_flow_style=False,
+            encoding='utf-8',
+            allow_unicode=True
         )
 
     @classmethod

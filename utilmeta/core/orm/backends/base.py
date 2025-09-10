@@ -88,13 +88,6 @@ class ModelFieldAdaptor(BaseAdaptor):
     def name(self) -> str:
         raise NotImplementedError
 
-    # @property
-    # def query_name(self) -> str:
-    #     raise NotImplementedError
-
-    def check_query(self):
-        raise NotImplementedError
-
     @property
     def column_name(self) -> str:
         raise NotImplementedError
@@ -192,6 +185,9 @@ class ModelFieldAdaptor(BaseAdaptor):
 
     @classmethod
     def iter_combined_expression(cls, exp):
+        raise NotImplementedError
+
+    def get_lookup(self, lookup: str):
         raise NotImplementedError
 
 
@@ -388,6 +384,9 @@ class ModelAdaptor(BaseAdaptor):
         raise NotImplementedError
 
     def resolve_output_field(self, expr):
+        raise NotImplementedError
+
+    def check_query_expression(self, expr):
         raise NotImplementedError
 
     def check_expressions(self, expr):

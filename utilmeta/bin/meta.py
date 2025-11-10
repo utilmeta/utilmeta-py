@@ -176,7 +176,7 @@ class MetaCommand(BaseServiceCommand):
             else:
                 to = f'openapi.{suffix}'
         if split:
-            path = OpenAPI.split_to(openapi, to, format=format)
+            path = OpenAPI.split_to(openapi, to, format=format, clear_dir=True)
         else:
             path = OpenAPI.save_to(openapi, to)
         print(f"OpenAPI document generated at {path}")

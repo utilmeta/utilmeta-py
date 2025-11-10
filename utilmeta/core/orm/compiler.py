@@ -123,9 +123,10 @@ class BaseQueryCompiler:
         #    for recursion duplicate objects, only give a schema with values field (not relation fields)
         # 2. reduce redundant schema queries
 
-        self.pk_map = {}
         # self.recursive_pk_list = []
         self.recursively = False
+        self.pk_map = {}
+        self.pk_orders = []
         self.pk_list = []
         # self.recursively = False
         self.values: List[dict] = []

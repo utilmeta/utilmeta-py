@@ -300,19 +300,28 @@ def pop_null(data):
 
 
 def order_list(data: list, orders: list, by: str, join_rest: bool = False) -> list:
-    result = []
-    if len(data) <= 1 or not orders:
+    if not data or not orders:
         return data
-    for i in orders:
-        for d in data:
-            d: dict
-            if str(d.get(by)) == str(i):
-                result.append(d)
-                data.remove(d)
-                break
+
+    order_map = {value: index for index, value in enumerate(orders)}
+
+    in_orders = []
+    not_in_orders = []
+
+    for item in data:
+        key_value = item.get(by)
+        if key_value in order_map:
+            in_orders.append((order_map[key_value], item))
+        else:
+            not_in_orders.append(item)
+
+    in_orders.sort(key=lambda x: x[0])
+    sorted_data = [item for _, item in in_orders]
+
     if join_rest:
-        result += data  # if there is remaining data left, join the result
-    return result
+        sorted_data.extend(not_in_orders)
+
+    return sorted_data
 
 
 def order_dict(data: dict, orders: tuple) -> OrderedDict:

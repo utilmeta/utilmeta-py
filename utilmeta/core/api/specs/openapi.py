@@ -38,7 +38,7 @@ import os
 import json
 import re
 import copy
-
+from pathlib import Path
 
 if TYPE_CHECKING:
     from utilmeta import UtilMeta
@@ -126,6 +126,18 @@ def normalize_dict(data: dict, key_orders: list):
             sorted_dict[key] = val
 
     return sorted_dict
+
+
+def remove_files(directory, suffixes):
+    directory = Path(directory)
+    for suffix in suffixes:
+        for file in directory.glob(f"*{suffix}"):
+            if file.is_file():
+                try:
+                    file.unlink()
+                except Exception as e:
+                    print(f"Failed to delete {file}: {e}")
+                    continue
 
 
 class OpenAPIGenerator(JsonSchemaGenerator):
@@ -726,12 +738,19 @@ class OpenAPI(BaseAPISpec):
             return obj
 
     @classmethod
-    def split_to(cls, openapi: dict, directory: str, format: str = 'json', compressed: bool = False):
+    def split_to(cls, openapi: dict, directory: str, format: str = 'json',
+                 compressed: bool = False,
+                 clear_dir: bool = False
+                 ):
         if not isinstance(openapi, OpenAPISchema):
             try:
                 openapi = OpenAPISchema(openapi)
             except Exception as e:
                 raise e.__class__(f'Invalid openapi schema: {openapi}, raised error: {e}') from e
+
+        if clear_dir and os.path.exists(directory):
+            remove_files(directory, suffixes=['.json'] if format == 'json' else ['.yml', '.yaml'])
+
         os.makedirs(directory, exist_ok=True)
 
         for path, methods in openapi.paths.items():

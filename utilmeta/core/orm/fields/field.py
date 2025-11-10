@@ -473,6 +473,10 @@ class ParserQueryField(ParserField):
                     # if user has provided a related schema
                     # we do no need to merge the field rule
                     rule = self.model_field.rule
+                    if self.many_included and self.model_field.is_concrete:
+                        # a many related concrete field
+                        # eg. followers__username
+                        rule = Rule.annotate(list, rule)
                     try:
                         self.type = rule.merge_type(self.type, strict=True)
                         # merge declared type and model field type

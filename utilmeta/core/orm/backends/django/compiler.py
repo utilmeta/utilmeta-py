@@ -7,7 +7,7 @@ from ...fields.field import ParserQueryField
 from . import expressions as exp
 from .constant import PK, ID, SEG
 from django.db import models
-from utilmeta.utils import awaitable, Error, multi, pop
+from utilmeta.utils import awaitable, Error, multi, pop, order_list
 from typing import List, Tuple, Type, Union, TYPE_CHECKING
 from .queryset import AwaitableQuerySet
 import asyncio
@@ -94,6 +94,7 @@ class DjangoQueryCompiler(BaseQueryCompiler):
                     self.queryset = self.model.get_queryset().none()
                 else:
                     self.queryset = self.model.get_queryset(pks)
+                    self.pk_orders = pks
             else:
                 pk = self._get_pk(self.queryset)
                 if pk is not None:
@@ -148,6 +149,8 @@ class DjangoQueryCompiler(BaseQueryCompiler):
             result.append(val)
         self.pk_list = pk_list
         self.pk_map = pk_map
+        if self.pk_orders and result:
+            result = order_list(result, orders=self.pk_orders, by=PK, join_rest=True)
         self.values: List[dict] = result
 
     def process_annotation_aliases(self, val: dict):

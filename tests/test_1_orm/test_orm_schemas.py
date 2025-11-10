@@ -1,3 +1,5 @@
+import utype.utils.exceptions
+
 from utilmeta.core import orm
 import pytest
 from django.db import models
@@ -18,6 +20,19 @@ class TestORMSchemas:
         with pytest.raises(Exception):
             class UserSchema(orm.Schema[User]):
                 followers: List[ContentSchema]
+
+    def test_multiple_single_field_type(self):
+        from app.models import User
+
+        class UserTestSchema(orm.Schema[User]):
+            follower_names = orm.Field('followers.username')
+
+        ft = UserTestSchema.__parser__.get_field('follower_names').type
+        assert getattr(ft, '__origin__', None) == list
+        assert ft([1, 2]) == ['1', '2']
+
+        with pytest.raises(utype.utils.exceptions.ParseError):
+            ft(['a' * 30])
 
     def test_non_exists_fields(self):
         from app.models import User, Article

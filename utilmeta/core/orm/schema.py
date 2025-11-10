@@ -487,8 +487,8 @@ class Query(utype.Schema):
             raise NotImplementedError
         return await self.get_generator(using=using).acount(base)
 
-    def get_context(self, using: str = None):
-        return self.get_generator(using=using).get_context()
+    def get_context(self, using: str = None, request: req.Request = None):
+        return self.get_generator(using=using).get_context(request=request)
 
     def __call__(self, base=None, using: str = None):
         return self.get_queryset(base, using=using)

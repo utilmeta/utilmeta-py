@@ -391,16 +391,32 @@ class TestSchemaQuery:
         assert user.top_2_articles[0].author_tag["name"] == "alice"
         assert user.top_2_articles[0].views == 103
 
+    def test_serialize_orders(self, service, db_using):
+        from app.schema import ArticleSchema
+        articles_1 = ArticleSchema.serialize(
+            [1, 2, 3], context=orm.QueryContext(using=db_using)
+        )
+        articles_2 = ArticleSchema.serialize(
+            [3, 2, 1], context=orm.QueryContext(using=db_using)
+        )
+        articles_3 = ArticleSchema.serialize(
+            [2, 3, 1], context=orm.QueryContext(using=db_using)
+        )
+        assert [a.pk for a in articles_1] == [1, 2, 3]
+        assert [a.pk for a in articles_2] == [3, 2, 1]
+        assert [a.pk for a in articles_3] == [2, 3, 1]
+
     @pytest.mark.asyncio
     async def test_async_serialize_articles(self, service, db_using):
         await self.refresh_db(db_using)
         from app.schema import ArticleSchema
         from app.models import Article
         articles = await ArticleSchema.aserialize(
-            [1, 2], context=orm.QueryContext(using=db_using)
+            [1, 2, 3], context=orm.QueryContext(using=db_using)
         )
-        assert len(articles) == 2
-        assert {a.pk for a in articles} == {1, 2}
+        assert [a.pk for a in articles] == [1, 2, 3]
+        # test pk order is equal to input list
+
         articles = await ArticleSchema.aserialize(
             Article.objects.filter(
                 slug='big-shot'

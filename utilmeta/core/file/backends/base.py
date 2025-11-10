@@ -56,19 +56,33 @@ class FileAdaptor(BaseAdaptor):
     def filepath(self):
         return None
 
-    def save(self, path: str, name: str = None):
-        file_path = path
-        name = name or self.filename
-        if name:
-            if not os.path.exists(file_path):
-                os.makedirs(file_path, exist_ok=True)
+    def _get_file_path(self, path: str, name: str = None):
+        file_path = path or ''
+        # 1. path exist:
+        #       is dir: as dir
+        #       not dir: as target file
+
+        if os.path.exists(file_path):
             if os.path.isdir(file_path):
-                file_path = os.path.join(file_path, name)
+                name = name or self.filename
+                if name:
+                    file_path = os.path.join(file_path, name)
+                else:
+                    raise PermissionError(
+                        f"Attempt to write file to directory: {file_path}"
+                    )
         else:
-            if os.path.isdir(file_path):
-                raise PermissionError(
-                    f"Attempt to write file to directory: {file_path}"
-                )
+            if name:
+                os.makedirs(file_path, exist_ok=True)
+                file_path = os.path.join(file_path, name)
+            else:
+                base_path = os.path.dirname(file_path)
+                # make sure base dir exists
+                os.makedirs(base_path, exist_ok=True)
+        return file_path
+
+    def save(self, path: str, name: str = None):
+        file_path = self._get_file_path(path, name=name)
         with open(file_path, "wb") as fp:
             if self.seekable:
                 self.object.seek(0)
@@ -80,14 +94,7 @@ class FileAdaptor(BaseAdaptor):
         return file_path
 
     async def asave(self, path: str, name: str = None):
-        file_path = path
-        name = name or self.filename
-        if name:
-            if not os.path.exists(file_path):
-                os.makedirs(file_path, exist_ok=True)
-            if os.path.isdir(file_path):
-                file_path = os.path.join(file_path, name)
-
+        file_path = self._get_file_path(path, name=name)
         with open(file_path, "wb") as fp:
             if self.seekable:
                 r = self.object.seek(0)

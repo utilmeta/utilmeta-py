@@ -18,12 +18,14 @@ class Env(Schema):
         sys_env: Union[bool, str] = None,
         ref: str = None,
         file: str = None,
+        encoding: str = 'utf-8',
     ):
         self._data = data or {}
         self._sys_env = bool(sys_env)
         self._sys_env_prefix = sys_env if isinstance(sys_env, str) else ""
         self._ref = ref
         self._file = file
+        self._encoding = encoding
         for items in (
             self._load_from_ref(),
             self._load_from_file(),
@@ -78,7 +80,7 @@ class Env(Schema):
                 self._file = rel_file
 
         if self._file.endswith(".json"):
-            return json.load(open(self._file, "r"))
+            return json.load(open(self._file, "r", encoding=self._encoding))
 
         if self._file.endswith(".yml") or self._file.endswith(".yaml"):
             from utilmeta.utils import requires
@@ -86,9 +88,9 @@ class Env(Schema):
             requires(yaml="pyyaml")
             import yaml
 
-            return yaml.safe_load(open(self._file, "r"))
+            return yaml.safe_load(open(self._file, "r", encoding=self._encoding))
 
-        content = open(self._file, "r").read()
+        content = open(self._file, "r", encoding=self._encoding).read()
         data = {}
         for line in content.splitlines():
             if not line.strip():

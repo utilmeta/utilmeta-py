@@ -1,6 +1,6 @@
 # 版本发布记录
 
-## v2.8
+## v2.8.0
 
 发布时间：2025/9/10
 
@@ -9,7 +9,7 @@
 * API 接口支持 Server-Sent Events (SSE) 事件流响应： [API 中实现 SSE](../../guide/api-route#server-sent-events)
 * Client 客户端支持处理  Server-Sent Events (SSE) 等流式响应： [处理 SSE 响应](../../guide/client#server-sent-events)
 * `@api` 装饰器新增 `timeout` 参数，用于为 API 类的处理函数指定超时时间或为 Client 类的请求函数指定请求超时
-* 新增 HTTP 缓存插件 `api.Cache`：可以自动处理 Last-Modifed / Etag 等 HTTP 缓存机制
+* 新增 HTTP 缓存插件 `api.Cache`：可以自动处理 Last-Modified / Etag 等 HTTP 缓存机制
 * 新增搜索参数 `orm.Search`, 可以支持多种搜索模式对多个模型字段进行搜索匹配
 * `orm.Schema` 支持在查询函数中定义请求上下文参数（如当前请求用户 / IP），在序列化时通过 `context` 参数传当前请求对象实现请求上下文字段的查询
 * `meta gen_openapi` 命令支持 `--split` 参数，可以将 API 文档按照接口输出到独立的文件中，每个接口文档文件都包含接口的完整参数与响应定义，更方便 AI 工具解析读取

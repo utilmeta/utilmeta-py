@@ -5,7 +5,7 @@ setup_service(__name__, backend='django', async_param=[False])
 
 class TestLog:
     def test_parse_values(self, service):
-        from utilmeta.ops.log import Logger
+        from utilmeta.ops.log.logger import Logger
         logger = Logger()
         assert (logger.parse_values([{'user': {'password': '123', 'token': 'XXX'}}]) ==
                 [{'user': {'password': '********', 'token': '********'}}])

@@ -19,6 +19,7 @@ __all__ = [
     "represent",
     "valid_attr",
     # "check_requirement",
+    "get_ref",
     "get_root_base",
     "function_pass",
     "common_representable",
@@ -384,6 +385,12 @@ def requires(*names, **mp):
     # this will cause ServerAdaptor to recursively dispatch further
 
 
+def get_ref(obj) -> typing.Optional[str]:
+    module = getattr(obj, '__module__', '')
+    name = getattr(obj, '__qualname__', '') or getattr(obj, '__name__', '')
+    return '.'.join([module, name]) or None
+
+
 def import_obj(dotted_path):
     """
     Import a dotted module path and return the attribute/class designated by the
@@ -399,28 +406,29 @@ def import_obj(dotted_path):
         # directly import packages and modules
         return importlib.import_module(dotted_path)
     except (ImportError, ModuleNotFoundError) as e:
-        if dotted_path not in str(e):
-            raise e
-    if ":" not in dotted_path and "." not in dotted_path:
-        # module only
-        return importlib.import_module(dotted_path)
+        if ":" not in dotted_path and "." not in dotted_path:
+            # module only
+            raise
     try:
         if ":" in dotted_path:
-            module_path, class_name = dotted_path.split(":")
+            module_path, *objs = dotted_path.split(":")
         else:
-            module_path, class_name = dotted_path.rsplit(".", 1)
+            module_path, *objs = dotted_path.split(".")
     except ValueError as err:
         raise ImportError("%s doesn't look like a module path" % dotted_path) from err
 
-    module = importlib.import_module(module_path)
+    obj = importlib.import_module(module_path)
 
     try:
-        return getattr(module, class_name)
+        for obj_name in objs:
+            obj = getattr(obj, obj_name)
     except AttributeError as err:
         raise ImportError(
             'Module "%s" does not define a "%s" attribute/class'
-            % (module_path, class_name)
+            % (module_path, '.'.join(objs))
         ) from err
+
+    return obj
 
 
 def async_to_sync_gen(async_gen):

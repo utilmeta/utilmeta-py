@@ -819,13 +819,19 @@ class Response(Generic[_T]):
 
     @property
     def time(self):
-        if not self.request:
-            return None
-        return self.request.time
+        return self._setup_time
 
     @property
     def extra(self):
         return self._extra
+
+    @property
+    def is_client_error(self):
+        return self.status and 400 <= self.status < 500
+
+    @property
+    def is_server_error(self):
+        return self.is_timeout or not self.status or 500 <= self.status
 
     @property
     def is_timeout(self):

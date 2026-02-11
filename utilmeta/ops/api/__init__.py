@@ -4,16 +4,17 @@ from ..query import SupervisorPatch, AccessTokenSchema
 from utilmeta.utils import exceptions, adapt_async, Error, convert_time
 from ..models import Supervisor, AccessToken
 from .. import __spec_version__
-from ..key import decode_token
+from utilmeta.ops.spv.key import decode_token
 from utilmeta.core.request import var
 from django.db.utils import IntegrityError, DatabaseError
 from django.core.exceptions import EmptyResultSet
 from utype.types import *
-from ..connect import save_supervisor
+from utilmeta.ops.spv.connect import save_supervisor
 from .data import DataAPI
 from .log import LogAPI
 from .servers import ServersAPI
 from .token import TokenAPI
+from .action import ActionAPI
 from .utils import (
     opsRequire,
     WrappedResponse,
@@ -23,7 +24,7 @@ from .utils import (
     resources_var,
     access_token_var,
 )
-from ..log import request_logger, Logger
+from utilmeta.ops.store import store
 
 NO_CACHES = ["no-cache", "no-store", "max-age=0"]
 
@@ -41,24 +42,13 @@ NO_CACHES = ["no-cache", "no-store", "max-age=0"]
 )
 class OperationsAPI(api.API):
     __external__ = True
+    response = WrappedResponse
 
+    logs: LogAPI
     servers: ServersAPI
     data: DataAPI
-    logs: LogAPI
     token: TokenAPI
-
-    # openapi: opsRequire('api.view')(
-    #     OpenAPI.as_api(private=False, external_docs=config.external_openapi)
-    # ) = api.route(
-    #     alias=['openapi.json', 'openapi.yaml', 'openapi.yml'],
-    # )
-
-    response = WrappedResponse
-    # @api.get
-    # @opsRequire('api.view')
-    # def openapi(self):
-    #     from utilmeta import service
-    #     openapi = OpenAPI(service)()
+    action: ActionAPI
 
     @api.get
     @opsRequire("api.view")
@@ -70,14 +60,10 @@ class OperationsAPI(api.API):
             openapi = config.openapi
         return response.Response(openapi)
 
-    # @api.post
-    # @opsRequire()
-    # def sync(self):
-    #     pass
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        logger: Logger = request_logger.getter(self.request)
+        from ..log.logger import Logger
+        logger: Logger = store.request_logger.getter(self.request)
         if logger:
             logger.make_events_only(True)
 
@@ -107,10 +93,11 @@ class OperationsAPI(api.API):
                 requires.append('connection_key')
         else:
             requires.append('authorization')
+        import time
         return dict(
             utilmeta=__spec_version__,
             service=name,
-            timestamp=int(self.request.time.timestamp() * 1000),
+            timestamp=int(time.time() * 1000),
             requires=requires,
         )
 

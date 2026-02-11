@@ -612,6 +612,7 @@ class Client(PluginTarget):
         timeout: int = None,
         stream: bool = None
     ) -> Response:
+        request.adaptor.update_context(asynchronous=True)       # set flag
         if self._internal:
             service = self._service
             if not service:

@@ -37,34 +37,35 @@ class Supervisor(models.Model):
     # will require an update
     url = models.URLField(default=None, null=True)
 
-    operation_timeout = models.DecimalField(
+    default_timeout = models.DecimalField(
         max_digits=8, decimal_places=3, default=None, null=True
     )
     # open_scopes = models.JSONField(default=list)
     # disabled_scopes = models.JSONField(default=list)
 
     heartbeat_interval = models.PositiveIntegerField(default=None, null=True)
+    last_heartbeat: datetime = models.DateTimeField(default=None, null=True)
     # open for every request user
     latency = models.PositiveIntegerField(default=None, null=True)  # ms
-
-    settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
-    # heartbeat_enabled: False
-    # report_enabled: true
-    # notify_enabled: false
-    # users_analytics: false
-    # endpoints_analytics: false
-
     # info = models.JSONField(default=dict)  # store backward compat information
     connected = models.BooleanField(default=False)
     disabled = models.BooleanField(default=False)
 
     # -- advanced
     alert_settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
-    task_settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
-    # heartbeat_settings: dict = models.JSONField(default=dict)
-    aggregate_settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
+    # - events:
+    # - metrics:
+    # task_settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
+    report_settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
+    # service:
+    # endpoint:
+    # system:
+    # user:
+    settings: dict = models.JSONField(default=dict, encoder=JSONEncoder)
+    # other settings
 
     data = models.JSONField(default=dict, encoder=JSONEncoder)
+    # ext data
 
     resources_etag = models.TextField(default=None, null=True)
     # if resources etag doesn't change
@@ -142,6 +143,10 @@ class Resource(models.Model):
     # table (data model)
     # database
     # cache
+    # -----
+    # metric
+    # event (triggered by server side)
+    # action (triggered by admin console)
     ident = models.CharField(max_length=200)
     route = models.CharField(max_length=500)
     # :type/:node/:ident
@@ -214,6 +219,38 @@ class Resource(models.Model):
             # server=cls.get_current_server(),
         ).first()
 
+    @classmethod
+    def get_current_databases(cls) -> models.QuerySet:
+        from utilmeta import service
+        from .config import Operations
+        from utilmeta.core.orm import DatabaseConnections
+        databases = DatabaseConnections.config()
+        config = service.get_config(Operations)
+        qs = cls.filter(
+            type="database",
+            service=service.name,
+            ident__in=list(databases.databases)
+        )
+        if config.node_id:
+            qs = qs.filter(models.Q(node_id=config.node_id) | models.Q(node_id=None))
+        return qs
+
+    @classmethod
+    def get_current_caches(cls) -> models.QuerySet:
+        from utilmeta import service
+        from .config import Operations
+        from utilmeta.core.cache import CacheConnections
+        caches = CacheConnections.config()
+        config = service.get_config(Operations)
+        qs = cls.filter(
+            type="cache",
+            service=service.name,
+            ident__in=list(caches.caches)
+        )
+        if config.node_id:
+            qs = qs.filter(models.Q(node_id=config.node_id) | models.Q(node_id=None))
+        return qs
+
 
 class SystemMetrics(models.Model):
     objects = models.Manager()
@@ -221,9 +258,11 @@ class SystemMetrics(models.Model):
     cpu_percent = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
     memory_percent = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
     used_memory = models.PositiveBigIntegerField(default=0)
+    used_space = models.PositiveBigIntegerField(default=None, null=True)
     disk_percent = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
     file_descriptors = models.PositiveIntegerField(default=None, null=True)
     open_files = models.PositiveBigIntegerField(default=None, null=True)
+    # None for system-wide ()
     active_net_connections = models.PositiveIntegerField(default=0)
     total_net_connections = models.PositiveIntegerField(default=0)
     net_connections_info = models.JSONField(default=dict, encoder=JSONEncoder)
@@ -347,6 +386,14 @@ class Worker(SystemMetrics, ServiceMetrics):
             return None
         return cls.objects.filter(pid=pid, server=Resource.get_current_server()).first()
 
+    @classmethod
+    def current_workers(cls, connected: bool = True) -> models.QuerySet:
+        return cls.objects.filter(
+            server=Resource.get_current_server(),
+            instance=Resource.get_current_instance(),
+            connected=connected
+        )
+
     def get_sys_metrics(self):
         import psutil
 
@@ -460,10 +507,6 @@ class ServerMonitor(SystemMetrics):
         db_table = "utilmeta_server_monitor"
         ordering = ("time",)
 
-    @classmethod
-    def current(cls) -> Optional["ServerMonitor"]:
-        return cls.objects.last()  # already order by time
-
 
 class WorkerMonitor(SystemMetrics, ServiceMetrics):
     time = models.DateTimeField(default=time_now)
@@ -525,6 +568,9 @@ class DatabaseMonitor(models.Model):
     active_connections = models.PositiveBigIntegerField(default=0)
     current_connections = models.PositiveBigIntegerField(default=0)
     server_connections = models.PositiveBigIntegerField(default=0)
+    idle_connections_percent = models.DecimalField(max_digits=10, decimal_places=2, default=None, null=True)
+    server_connections_percent = models.DecimalField(max_digits=10, decimal_places=2, default=None, null=True)
+    # server_connections / max_connections
 
     new_transactions = models.PositiveBigIntegerField(default=0)
 
@@ -621,18 +667,6 @@ class VersionLog(models.Model):
 
     success = models.BooleanField(default=None, null=True)
     restart_data = models.JSONField(default=dict, encoder=JSONEncoder)
-    # trigger_index = models.CharField(max_length=100, default=None, null=True)
-    # trigger_value = models.FloatField(default=None, null=True)
-    # threshold = models.FloatField(default=None, null=True)
-    #
-    # return_code = models.PositiveSmallIntegerField(default=None, null=True)
-    # manual = models.BooleanField(default=False)
-    # success = models.BooleanField(default=None, null=True)
-    # reload = models.BooleanField(default=False)
-    # method = models.CharField(max_length=40, null=True, default=None)
-    # like chain-reload. zerg-dance supported by the wsgi backend
-
-    # info = models.JSONField(default=dict)
 
     version = models.CharField(max_length=100)
     remote_id = models.CharField(max_length=100, default=None, null=True)
@@ -640,75 +674,36 @@ class VersionLog(models.Model):
     class Meta:
         db_table = "utilmeta_version_log"
 
-    # @property
-    # def message(self):
-    #     man_str = 'Manual' if self.manual else 'Automatic'
-    #     type = 'task' if self.instance.task else 'service'
-    #     restart = 'reload' if self.reload else 'restart'
-    #     due = f' due to [{self.trigger_index} > {self.threshold}]' \
-    #           f' (={self.trigger_value})' if self.trigger_value else ''
-    #     ident = f'[{self.instance.service}]({self.instance.server.ip})'
-    #     return f'{man_str} triggered {type} instance {ident} {restart}' \
-    #            f'{due} at {self.time.strftime(DateFormat.DATETIME)}'
-
-
-class AlertType(models.Model):
-    service = models.CharField(max_length=100)
-    node_id = models.CharField(max_length=100, default=None, null=True, db_index=True)
-    category = models.CharField(max_length=40)
-    level = models.CharField(max_length=40)
-
-    settings_id = models.CharField(max_length=40, default=None, null=True)
-    # settings: AlertSettings = OneToOneField(
-    #     AlertSettings, on_delete=SET_NULL, default=None, null=True, related_name='alert_type')
-    threshold = models.FloatField(default=None, null=True)
-    # for downgrade types, configurable
-
-    subcategory = models.CharField(max_length=200)
-    name = models.CharField(max_length=100)  # settings name or custom name
-    target = models.TextField()
-    # eg
-    # type.category: resource_saturated
-    # type.subcategory: cpu_percent_exceed
-    # type.name: cpu_percent > 80
-
-    # type.category: service_downgrade
-    # type.subcategory: slow_response
-    # type.name: Slow response at POST /api/user
-
-    ident = models.CharField(max_length=500)
-
-    compress_window: int = models.PositiveBigIntegerField(
-        null=True, default=None
-    )  # seconds
-    min_times: int = models.PositiveIntegerField(default=1)
-
-    resource = models.ForeignKey(
-        Resource,
-        on_delete=models.SET_NULL,
-        null=True,
-        default=None,
-        related_name="alert_types",
-    )
-
-    created_time = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "utilmeta_alert_type"
-        unique_together = ("service", "ident")
-
-    # @classmethod
-    # def get(cls, ident: str) -> Optional['AlertSettings']:
-    #     from utilmeta.conf import config
-    #     return cls.objects.filter(service_id=config.name, ident=ident).first()
-
 
 class AlertLog(models.Model):
     objects = models.Manager()
 
-    type: AlertType = models.ForeignKey(
-        AlertType, on_delete=models.CASCADE, related_name="alert_logs"
+    # type = models.ForeignKey(
+    #     AlertType, on_delete=models.CASCADE, related_name="alert_logs"
+    # )
+
+    service = models.CharField(max_length=100)
+    node_id = models.CharField(max_length=100, default=None, null=True, db_index=True)
+    supervisor: Supervisor = models.ForeignKey(
+        Supervisor,
+        on_delete=models.CASCADE,
+        related_name='alert_logs',
+        null=True,
     )
+    settings_id = models.CharField(max_length=40, default=None, null=True)
+    # remote settings ID
+    settings_name = models.CharField(max_length=500, null=True)
+    # index_name > threshold | baseline | strategy
+    # event_name
+    settings_data = models.JSONField(default=None, null=True, encoder=JSONEncoder)
+
+    event_id = models.TextField(default=None, null=True)
+    # CUSTOM event id, provide by the developer
+    # to de-duplicate the alert (event) request
+    # otherwise compress the same event name with compress window (might be missing event)
+
+    severity = models.PositiveIntegerField()
+
     server: Resource = models.ForeignKey(
         Resource,
         on_delete=models.CASCADE,
@@ -723,6 +718,13 @@ class AlertLog(models.Model):
         default=None,
         null=True,
     )
+    target: Resource = models.ForeignKey(
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="alert_logs",
+        default=None,
+        null=True,
+    )
     version = models.ForeignKey(
         VersionLog,
         related_name="alert_logs",
@@ -731,30 +733,34 @@ class AlertLog(models.Model):
         default=None,
     )
 
-    # impact_requests = models.PositiveBigIntegerField(default=None, null=True)
-    # impact_users = models.PositiveIntegerField(default=None, null=True)
-    # impact_ips = models.PositiveIntegerField(default=None, null=True)
-    # impact services / tasks can be interfere from [server] field
-
-    relieved_time = models.DateTimeField(default=None, null=True)
-    # relieved_time=None (opening alert) are open for new count
+    recovered_time: datetime = models.DateTimeField(default=None, null=True)
 
     # trigger_times: list = fields.ArrayField(models.DateTimeField(), default=list)
     # trigger_values: list = fields.ArrayField(models.FloatField(), default=list)
 
-    trigger_times = models.JSONField(default=list, encoder=JSONEncoder)
-    trigger_values = models.JSONField(default=list, encoder=JSONEncoder)
+    # trigger_times = models.JSONField(default=list, encoder=JSONEncoder)
+    triggered_values: dict = models.JSONField(default=dict, encoder=JSONEncoder)
+    # time: value
 
-    # [dict(value=<SOME_VALUE>, time=<SOME_TIME>), ...]
-    time = models.DateTimeField(default=time_now)
+    time: datetime = models.DateTimeField(default=time_now)
     # start time (first alert trigger time)
     latest_time: datetime = models.DateTimeField(default=time_now)
     # latest time (latest alert trigger time)
+    latest_alarm_time: datetime = models.DateTimeField(default=None, null=True)
 
+    remote_id = models.CharField(max_length=500, default=None, null=True)
     # current_count = PositiveBigIntegerField(default=1)
-    count = models.PositiveBigIntegerField(default=1)
-    # message = models.TextField(default='')     # brief message to notify
-    data = models.JSONField(default=None, null=True, encoder=JSONEncoder)
+    remote_recovered_time = models.DateTimeField(default=None, null=True)
+
+    count: int = models.PositiveBigIntegerField(default=1)
+    description: str = models.TextField(default='')
+    message = models.TextField(default='')     # brief message to notify
+    details = models.JSONField(default=None, null=True, encoder=JSONEncoder)
+    impact = models.JSONField(default=None, null=True, encoder=JSONEncoder)
+    # impact_requests = models.PositiveBigIntegerField(default=None, null=True)
+    # impact_users = models.PositiveIntegerField(default=None, null=True)
+    # impact_ips = models.PositiveIntegerField(default=None, null=True)
+    # impact services / tasks can be interfere from [server] field
 
     class Meta:
         db_table = "utilmeta_alert_log"
@@ -765,28 +771,18 @@ class AlertLog(models.Model):
             return None
         return cls.objects.filter(id=id).first()
 
-    @property
-    def uncertain(self):
-        return self.count < self.type.min_times
-
-    @property
-    def compressible(self):
-        if not self.type.compress_window:
-            return False
-        return (
-            time_now() - self.latest_time
-        ).total_seconds() < self.type.compress_window
-
-    def relieve(self):
-        if self.relieved_time:
-            return True
-        if self.uncertain:
-            # only append relieve times so the alert is still open
-            self.delete()
-            return True
-        self.relieved_time = time_now()
-        self.save(update_fields=["relieved_time"])
-        return self.compressible  # only report legit relieve
+    def is_certain(
+        self,
+        min_times: int = None,
+        min_duration: int = None,
+    ):
+        if min_times:
+            if self.count < min_times:
+                return False
+        if min_duration:
+            if (self.latest_time - self.time).total_seconds() < min_duration:
+                return False
+        return True
 
 
 class ServiceLog(WebMixin):
@@ -822,8 +818,8 @@ class ServiceLog(WebMixin):
         related_name="endpoint_logs",
     )
     # incase the endpoint not loaded yet
-    endpoint_ident = models.CharField(max_length=200, default=None, null=True)
-    endpoint_ref = models.CharField(max_length=200, default=None, null=True)
+    endpoint_ident = models.CharField(max_length=500, default=None, null=True)
+    endpoint_ref = models.CharField(max_length=500, default=None, null=True)
 
     # add redundant field endpoint_ident to make a quick query index and remain even after endpoint is deleted
     # endpoint_ident = models.CharField(max_length=200, null=True, default=None, db_index=True)
@@ -850,12 +846,13 @@ class ServiceLog(WebMixin):
     thread_id = models.PositiveBigIntegerField(default=None, null=True)
     # thread id that handle this request / invoke
 
-    user_id = models.CharField(max_length=100, null=True, default=None, db_index=True)
+    user_id = models.TextField(null=True, default=None, db_index=True)
     # referrer = URLField(default=None, null=True)
     ip = models.GenericIPAddressField()
 
     trace = models.JSONField(default=list, encoder=JSONEncoder)
     messages = models.JSONField(default=list, encoder=JSONEncoder)
+    details = models.JSONField(default=None, null=True, encoder=JSONEncoder)
 
     alert = models.ForeignKey(
         "AlertLog",
@@ -886,6 +883,29 @@ class ServiceLog(WebMixin):
     class Meta:
         db_table = "utilmeta_service_log"
 
+    @classmethod
+    def get_current_logs(cls) -> models.QuerySet:
+        # from utilmeta.utils import get_server_ip
+        from utilmeta import service
+        from utilmeta.ops import Operations
+        instance = Resource.get_current_instance()
+        config = Operations.config()
+        if instance:
+            q = models.Q(instance=instance) | models.Q(
+                node_id=config.node_id,
+                instance=None,
+                service=service.name
+            )
+        elif config.node_id:
+            q = models.Q(node_id=config.node_id) | models.Q(
+                node_id=None,
+                service=service.name
+            )
+        else:
+            q = models.Q(service=service.name)
+
+        return cls.objects.filter(q)
+
 
 class RequestLog(WebMixin):
     objects = models.Manager()
@@ -896,15 +916,21 @@ class RequestLog(WebMixin):
 
     # volatile = models.BooleanField(default=True)
     # requests made in other service request context
-    time = (
-        models.DateTimeField()
-    )  # not auto_now_add, cache stored log may add after request for some time
+    time = models.DateTimeField()
+    # not auto_now_add, cache stored log may add after request for some time
     # version = models.ForeignKey(
     #     VersionLog, related_name='service_logs',
     #     on_delete=models.SET_NULL, null=True, default=None
     # )
 
     duration = models.PositiveBigIntegerField(default=None, null=True)
+    instance = models.ForeignKey(
+        Resource,
+        related_name="instance_request_logs",
+        on_delete=models.SET_NULL,
+        null=True,
+        default=None,
+    )
     worker = models.ForeignKey(
         Worker,
         related_name="request_logs",
@@ -940,10 +966,10 @@ class RequestLog(WebMixin):
     client_error = models.BooleanField(
         default=False
     )  # ssl cert error when query the target host
-    ssl_error = models.BooleanField(
-        default=False
-    )  # ssl cert error when query the target host
-    dns_error = models.BooleanField(default=False)
+    # ssl_error = models.BooleanField(
+    #     default=False
+    # )  # ssl cert error when query the target host
+    # dns_error = models.BooleanField(default=False)
 
     alert = models.ForeignKey(
         AlertLog,
@@ -952,6 +978,7 @@ class RequestLog(WebMixin):
         null=True,
         default=None,
     )
+    details = models.JSONField(default=None, null=True, encoder=JSONEncoder)
 
     class Meta:
         db_table = "utilmeta_request_log"
@@ -1005,6 +1032,7 @@ class QueryLog(models.Model):
         null=True,
         default=None,
     )
+    details = models.JSONField(default=None, null=True, encoder=JSONEncoder)
 
     class Meta:
         db_table = "utilmeta_query_log"
@@ -1030,9 +1058,10 @@ class AggregationLog(models.Model):
     # 1: daily
     # 2: monthly
 
-    from_time = models.DateTimeField()
-    to_time = models.DateTimeField()
+    from_time: datetime = models.DateTimeField()
+    to_time: datetime = models.DateTimeField()
     date = models.DateField(default=None, null=True)
+    utcoffset = models.PositiveSmallIntegerField(default=None, null=True)
 
     created_time = models.DateTimeField(auto_now_add=True)
     reported_time = models.DateTimeField(default=None, null=True)
@@ -1046,7 +1075,7 @@ class AggregationLog(models.Model):
 
 supervisor_related_models = [
     Resource,
-    AlertType,
+    AlertLog,
     ServiceLog,
     RequestLog,
     VersionLog,
@@ -1056,4 +1085,86 @@ supervisor_key_models = {
     # AccessToken: 'issuer',
     ServiceLog: "supervisor",
     AggregationLog: "supervisor",
+    AlertLog: "supervisor"
+}
+monitors_aggregations = {
+    ('server', ServerMonitor): {
+        models.Avg: [
+            ServerMonitor.cpu_percent,
+            ServerMonitor.memory_percent,
+            ServerMonitor.used_memory,
+            ServerMonitor.file_descriptors,
+            ServerMonitor.open_files,
+            ServerMonitor.active_net_connections,
+            ServerMonitor.total_net_connections,
+            ServerMonitor.load_avg_1,
+            ServerMonitor.load_avg_5,
+            ServerMonitor.load_avg_15,
+        ],
+        models.Max: [
+            ServerMonitor.disk_percent,
+            ServerMonitor.used_space,
+        ]
+    },
+    ('instance', InstanceMonitor): {
+        models.Avg: [
+            InstanceMonitor.cpu_percent,
+            InstanceMonitor.memory_percent,
+            InstanceMonitor.file_descriptors,
+            InstanceMonitor.open_files,
+            InstanceMonitor.active_net_connections,
+            InstanceMonitor.total_net_connections,
+            InstanceMonitor.threads,
+            InstanceMonitor.avg_workers,
+            InstanceMonitor.avg_worker_lifetime,
+            InstanceMonitor.avg_time,
+            InstanceMonitor.rps,
+            InstanceMonitor.qps,
+            InstanceMonitor.query_avg_time,
+            InstanceMonitor.outbound_avg_time,
+            InstanceMonitor.outbound_rps,
+        ],
+        models.Sum: [
+            InstanceMonitor.in_traffic,
+            InstanceMonitor.out_traffic,
+            InstanceMonitor.requests,
+            InstanceMonitor.errors,
+            InstanceMonitor.queries_num,
+            InstanceMonitor.outbound_requests,
+            InstanceMonitor.outbound_timeouts,
+            InstanceMonitor.outbound_errors
+        ]
+    },
+    ('database', DatabaseMonitor): {
+        models.Avg: [
+            DatabaseMonitor.active_connections,
+            DatabaseMonitor.current_connections,
+            DatabaseMonitor.server_connections,
+            DatabaseMonitor.query_avg_time,
+            DatabaseMonitor.qps,
+            DatabaseMonitor.idle_connections_percent,
+            DatabaseMonitor.server_connections_percent,
+        ],
+        models.Sum: [
+            DatabaseMonitor.new_transactions,
+        ],
+        models.Max: [
+            DatabaseMonitor.used_space,
+            DatabaseMonitor.server_used_space,
+        ]
+    },
+    ('cache', CacheMonitor): {
+        models.Avg: [
+            CacheMonitor.cpu_percent,
+            CacheMonitor.memory_percent,
+            CacheMonitor.used_memory,
+            CacheMonitor.file_descriptors,
+            CacheMonitor.open_files,
+            CacheMonitor.current_connections,
+            CacheMonitor.qps
+        ],
+        models.Max: [
+            CacheMonitor.total_connections
+        ]
+    }
 }

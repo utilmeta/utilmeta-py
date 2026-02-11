@@ -1,6 +1,7 @@
 from django.db import models
 from .queryset import AwaitableManager, AwaitableQuerySet
 from utilmeta.utils.datastructure import Static
+from utilmeta.utils import time_now
 from django.db.models import CharField, NOT_PROVIDED
 import utype.utils.encode
 
@@ -346,3 +347,11 @@ class AbstractSession(AwaitableModel):
 
     class Meta:
         abstract = True
+
+    @classmethod
+    def active_filter(cls, *args, **kwargs):
+        exp_q = models.Q(expiry_time__gte=time_now()) | models.Q(expiry_time=None)
+        kwargs.update(
+            deleted_time__isnull=True,
+        )
+        return cls.objects.filter(*args, exp_q, **kwargs)

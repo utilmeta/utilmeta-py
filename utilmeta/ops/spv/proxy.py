@@ -83,7 +83,7 @@ class RegistryInstanceSchema(Schema):
     # python version
     backend: str
     backend_version: Optional[str]
-    created_time: datetime
+    # created_time: datetime
     # deleted_time = models.DateTimeField(default=None, null=True)
     deprecated: bool
 

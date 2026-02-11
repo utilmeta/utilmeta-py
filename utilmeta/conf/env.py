@@ -96,15 +96,22 @@ class Env(Schema):
             if not line.strip():
                 # empty line
                 continue
+            if line.startswith('#'):
+                # comment
+                continue
             try:
-                key, value = line.split("=")
-            except ValueError as e:
-                raise ValueError(
-                    f"{self.__class__}: file: {repr(self._file)} invalid line: {repr(line)}, "
-                    f"should be <KEY>=<VALUE>"
-                ) from e
+                key, *values = line.split("=")
+                # handle = in values
+            except ValueError:
+                # skip other lines
+                continue
+                # raise ValueError(
+                #     f"{self.__class__}: file: {repr(self._file)} invalid line: {repr(line)}, "
+                #     f"should be <KEY>=<VALUE>"
+                # ) from e
+
             key = str(key).strip()
-            value = str(value).strip()
+            value = str('='.join(values)).strip()
             if key:
                 data[key] = value
         return data

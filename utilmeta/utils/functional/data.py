@@ -7,6 +7,7 @@ import decimal
 from collections import OrderedDict
 from collections.abc import Mapping
 from typing import List, Dict, Callable, Union, Any
+from xml.etree import ElementTree as ET
 
 
 __all__ = [
@@ -471,7 +472,7 @@ def readable_size(size, depth=0):
         return f"0 {unit[depth]}"
     if 1 <= size < 1000:
         return f"{str(size)} {unit[depth]}"
-    return readable_size(int(size / 1024), depth + 1)
+    return readable_size(int(size / 1000), depth + 1)
 
 
 def parse_list(
@@ -731,6 +732,36 @@ def gen_key(
     # return ''.join(random.sample(sample, digit))
 
 
+def mask_xml_element(
+    root: ET.Element,
+    secret_names: List[str],
+    secret_value=constant.SECRET,
+) -> str:
+    secret_names = [s.lower() for s in secret_names]
+
+    def is_secret(name: str) -> bool:
+        name = name.lower()
+        return any(key in name for key in secret_names)
+
+    def walk(elem: ET.Element):
+        # 1. mask attributes
+        for attr in list(elem.attrib):
+            if is_secret(attr):
+                elem.attrib[attr] = secret_value
+
+        # 2. mask element text if tag name is secret
+        if is_secret(elem.tag):
+            if elem.text and elem.text.strip():
+                elem.text = secret_value
+
+        # 3. recurse children
+        for child in elem:
+            walk(child)
+
+    walk(root)
+    return ET.tostring(root, encoding="unicode")
+
+
 def hide_secret_values(
     data,
     secret_names,
@@ -767,6 +798,8 @@ def hide_secret_values(
                         v = secret_value
                 result[k] = v
         return result
+    if isinstance(data, ET.Element):
+        return mask_xml_element(data, secret_names, secret_value=secret_value)
     if isinstance(data, list):
         result = []
         for d in data:

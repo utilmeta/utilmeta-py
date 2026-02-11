@@ -6,7 +6,7 @@ from utilmeta.core import request
 from utype.types import *
 
 from .key import encrypt_data, decode_key
-from .schema import (
+from utilmeta.ops.schema import (
     NodeMetadata,
     SupervisorBasic,
     ServiceInfoSchema,
@@ -22,7 +22,9 @@ from .schema import (
     TableSchema,
     QuerySchema,
     CreateDataSchema,
-    UpdateDataSchema
+    UpdateDataSchema,
+    AlertSchema,
+    RecoveryEventData,
 )
 
 
@@ -118,6 +120,11 @@ class ReportResult(utype.Schema):
     created_records: int = 0
 
 
+class AlertResult(utype.Schema):
+    id: str
+    status: str = 'open'
+
+
 class SupervisorNodeResponse(SupervisorResponse):
     status = 200
     name = "add_node"
@@ -136,9 +143,16 @@ class SupervisorBatchReportResponse(SupervisorResponse):
     result: List[dict]
 
 
-# class AddNodeResponse(SupervisorResponse):
-#     name = 'info'
-#     result: InfoSchema
+class SupervisorAlertResponse(SupervisorResponse):
+    status = 200
+    name = "alert"
+    result: AlertResult
+
+
+class SupervisorEventResponse(SupervisorResponse):
+    status = 200
+    name = "event"
+    result: dict
 
 
 class SupervisorClient(Client):
@@ -203,32 +217,56 @@ class SupervisorClient(Client):
     @api.post("/report/batch")
     def batch_report_analytics(
         self, data: list = request.Body
-    ) -> (Union)[SupervisorBatchReportResponse, SupervisorResponse]:
+    ) -> Union[SupervisorBatchReportResponse, SupervisorResponse]:
         pass
 
     @api.post("/report/batch")
     async def async_batch_report_analytics(
         self, data: list = request.Body
-    ) -> (Union)[SupervisorBatchReportResponse, SupervisorResponse]:
+    ) -> Union[SupervisorBatchReportResponse, SupervisorResponse]:
+        pass
+
+    # @api.post("/event")
+    # def notify_event(self, data: EventSchema = request.Body) \
+    #         -> Union[SupervisorEventResponse, SupervisorResponse]:
+    #     pass
+    #
+    # @api.post("/event")
+    # async def async_notify_event(self, data: EventSchema = request.Body) \
+    #         -> Union[SupervisorEventResponse, SupervisorResponse]:
+    #     pass
+
+    @api.post("/alert")
+    def alert_incident(self, data: AlertSchema = request.Body)\
+            -> Union[SupervisorAlertResponse, SupervisorResponse]:
         pass
 
     @api.post("/alert")
-    def alert_incident(self):
+    async def async_alert_incident(self, data: AlertSchema = request.Body) \
+            -> Union[SupervisorAlertResponse, SupervisorResponse]:
         pass
 
-    @api.post("/alert")
-    async def async_alert_incident(self):
+    @api.post("/alert/recovery")
+    def recover_incident(self, data: RecoveryEventData = request.Body)\
+            -> Union[SupervisorEventResponse, SupervisorResponse]:
         pass
 
-    # @utype.parse
-    # def get_supervisors(self) -> List[SupervisorBasic]:
-    #     r = self.get('/list')
-    #     if r.success:
-    #         return r.data
-    #     return []
+    @api.post("/alert/recovery")
+    async def async_recover_incident(self, data: RecoveryEventData = request.Body) \
+            -> Union[SupervisorEventResponse, SupervisorResponse]:
+        pass
+
+    @api.post("/heartbeat")
+    def heartbeat(self) -> SupervisorResponse:
+        pass
+
+    @api.post("/heartbeat")
+    async def async_heartbeat(self) -> SupervisorResponse:
+        pass
 
     def __init__(
         self,
+        supervisor=None,
         access_key: str = None,
         cluster_key: str = None,
         cluster_id: str = None,
@@ -255,9 +293,13 @@ class SupervisorClient(Client):
         if cluster_id:
             headers.update({"X-Cluster-Id": cluster_id})
 
-        if node_id:
+        from utilmeta.ops.models import Supervisor
+
+        if isinstance(supervisor, Supervisor):
+            headers.update({"X-Node-ID": supervisor.node_id or node_id})
+
+        elif node_id:
             headers.update({"X-Node-ID": node_id})
-            from .models import Supervisor
 
             supervisor: Supervisor = Supervisor.objects.filter(
                 node_id=node_id,
@@ -265,6 +307,7 @@ class SupervisorClient(Client):
             if not supervisor:
                 raise ValueError(f"Supervisor for node ID [{node_id}] not exists")
 
+        if supervisor:
             if not node_key:
                 if supervisor.disabled:
                     raise ValueError("supervisor is disabled")
@@ -273,6 +316,8 @@ class SupervisorClient(Client):
 
             if not self._base_url:
                 self._base_url = supervisor.base_url
+            if not self._default_timeout:
+                self._default_timeout = supervisor.default_timeout
 
         if node_key:
             node_key = decode_key(node_key)
@@ -280,7 +325,7 @@ class SupervisorClient(Client):
         if service_id:
             headers.update({"X-Service-ID": service_id})
 
-        from .config import Operations
+        from utilmeta.ops.config import Operations
 
         config = Operations.config()
         if config:

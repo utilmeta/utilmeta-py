@@ -667,14 +667,24 @@ class AwaitableQuerySet(QuerySet):
     async def afirst(self):
         if not self.support_pure_async:
             return await sync_to_async(self.first)()
-        return await (self if self.ordered else self.order_by("pk"))[:1].instance()
+        if self.ordered:
+            queryset = self
+        else:
+            self._check_ordering_first_last_queryset_aggregation(method="first")
+            queryset = self.order_by("pk")
+        async for obj in queryset[:1]:
+            return obj
 
     async def alast(self):
         if not self.support_pure_async:
             return await sync_to_async(self.last)()
-        return await (self.reverse() if self.ordered else self.order_by("pk"))[
-            :1
-        ].instance()
+        if self.ordered:
+            queryset = self.reverse()
+        else:
+            self._check_ordering_first_last_queryset_aggregation(method="last")
+            queryset = self.order_by("-pk")
+        async for obj in queryset[:1]:
+            return obj
 
     def result(self, one: bool = False):
         result = list(self)
@@ -762,7 +772,8 @@ class AwaitableQuerySet(QuerySet):
                 if field.is_cached(obj):
                     field.delete_cached_value(obj)
 
-    async def save_obj(self, obj: Model):
+    async def save_obj(self, obj: Model = None, **kwargs):
+        obj = obj or self.fill_model_instance(kwargs)
         if not self.support_pure_async:
             return await sync_to_async(obj.save_base)(raw=True, using=self.db)
         return await self._insert_obj(obj, raw=True)

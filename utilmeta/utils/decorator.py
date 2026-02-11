@@ -1,4 +1,5 @@
 import time
+import inspect
 from functools import wraps
 import threading
 from typing import List, Callable, Union, Type
@@ -16,6 +17,7 @@ __all__ = [
     "error_convert",
     "handle_retries",
     "cached_property",
+    "cached_function",
     "awaitable",
     "async_to_sync",
     "adapt_async",
@@ -324,7 +326,27 @@ class cached_property:
         return res
 
 
-import inspect
+def cached_function(func):
+    cache_name = f"_{func.__name__}_cache"
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not hasattr(self, cache_name):
+            setattr(self, cache_name, {})
+
+        key = str(args) + str(sorted(kwargs.items()))
+
+        cache = getattr(self, cache_name)
+        if key in cache:
+            return cache[key]
+
+        result = func(self, *args, **kwargs)
+
+        cache[key] = result
+        return result
+
+    return wrapper
+
 
 _CO_NESTED = inspect.CO_NESTED
 _CO_FROM_COROUTINE = (

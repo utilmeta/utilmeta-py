@@ -18,6 +18,7 @@ class User(Property):
     # must be awaitable ----
     def get_user_id(self, request: Request) -> Union[str, int, Any]:
         data: Mapping = self.authentication.getter(request) or {}
+        var.user_config.setter(request, self)
         if isinstance(data, Mapping):
             user_id = data.get(self.key)
         else:
@@ -28,6 +29,7 @@ class User(Property):
     @awaitable(get_user_id)
     async def get_user_id(self, request: Request) -> Union[str, int, Any]:
         r = self.authentication.getter(request)
+        var.user_config.setter(request, self)
         if inspect.isawaitable(r):
             r = await r
         data: Mapping = r or {}
@@ -69,6 +71,7 @@ class User(Property):
 
     def getter(self, request: Request, field: ParserField = None):
         user_var = self.context_var.setup(request)
+        var.user_config.setter(request, self)
         # even if we registered factory
         # we still need to cache here
         # because parse_context will directly call getter
@@ -87,6 +90,7 @@ class User(Property):
     @awaitable(getter)
     async def getter(self, request: Request, field: ParserField = None):
         user_var = self.context_var.setup(request)
+        var.user_config.setter(request, self)
         if user_var.contains():
             # already cached
             # use await in async context
@@ -130,6 +134,7 @@ class User(Property):
         login_time_field=None,
         login_ip_field=None,
         password_field=None,
+        last_activity_field=None,
         default=unprovided,
         required: bool = None,
         # context var
@@ -157,6 +162,7 @@ class User(Property):
         self.login_time_field = login_time_field
         self.login_ip_field = login_ip_field
         self.password_field = password_field
+        self.last_activity_field = last_activity_field
         self.scopes_field = scopes_field
 
         self.field = field
@@ -187,6 +193,7 @@ class User(Property):
         self.login_time_field = self.validate_field(self.login_time_field)
         self.login_ip_field = self.validate_field(self.login_ip_field)
         self.password_field = self.validate_field(self.password_field)
+        self.last_activity_field = self.validate_field(self.last_activity_field)
         self.scopes_field = self.validate_field(self.scopes_field)
 
     def validate_field(self, f):
@@ -314,6 +321,8 @@ class User(Property):
         data = data or {}
         if self.login_time_field:
             data.update({self.login_time_field: request.time})
+        if self.last_activity_field:
+            data.update({self.last_activity_field: request.time})
         if self.login_ip_field:
             data.update({self.login_ip_field: str(request.ip_address)})
         if not data:

@@ -13,10 +13,12 @@ from utilmeta.utils import (
     get_ip,
     cached_property,
     import_obj,
+    get_ref,
     get_origin,
     get_server_ip,
     valid_url,
     time_now,
+    multi
 )
 from typing import Union
 from urllib.parse import urlsplit
@@ -26,6 +28,7 @@ import sys
 import hashlib
 import os
 import warnings
+from .alert import Alert
 
 
 class Operations(Config):
@@ -59,6 +62,7 @@ class Operations(Config):
         # DISCONNECTED_SERVER_RETENTION = timedelta(days=3)
         # SERVER_MONITOR_RETENTION = timedelta(days=7)
         # INSTANCE_MONITOR_RETENTION = timedelta(days=7)
+        default_cpu_interval: int
 
         def __init__(
             self,
@@ -73,6 +77,7 @@ class Operations(Config):
             instance_retention: timedelta = timedelta(days=7),
             database_retention: timedelta = timedelta(days=7),
             cache_retention: timedelta = timedelta(days=7),
+            default_cpu_interval: int = 1,
         ):
             super().__init__(locals())
 
@@ -81,6 +86,10 @@ class Operations(Config):
         INFO = 1
         WARN = 2
         ERROR = 3
+
+        logger_cls: Any
+        middleware_cls: Any
+        max_backlog: int
 
         store_data_level: Optional[int]
         store_result_level: Optional[int]
@@ -100,6 +109,10 @@ class Operations(Config):
 
         def __init__(
             self,
+            logger_cls=None,
+            middleware_cls=None,
+            max_backlog: int = 100,
+            # logger_cls=None,
             store_data_level: Optional[int] = None,
             store_result_level: Optional[int] = None,
             store_headers_level: Optional[int] = None,
@@ -166,13 +179,15 @@ class Operations(Config):
         # trusted_packages: List[str] = (),
         default_timeout: int = 30,
         secure_only: bool = True,
-        # local_disabled: bool = False,
-        logger_cls=None,
-        max_backlog: int = 100,
+        logger_cls=utype.Field(default=None, deprecated=True),
+        max_backlog: int = utype.Field(default=100, deprecated=True),
         # will trigger a log save if the log hits this limit
         worker_cycle: Union[int, float, timedelta] = timedelta(seconds=30),
         worker_task_cls=None,
-        resources_manager_cls=None,
+        # Registry ----------------
+        metric_registry=None,
+        event_registry=None,
+        action_registry=None,
         # every worker cycle, a worker will do
         # - save the logs
         # - save the worker monitor
@@ -180,6 +195,7 @@ class Operations(Config):
         openapi=None,  # openapi paths
         monitor: Monitor = Monitor(),
         log: Log = Log(),
+        alert: Alert = Alert(),
         report_disabled: bool = False,
         task_log: str = utype.Field(
             default=None,
@@ -189,15 +205,17 @@ class Operations(Config):
         ),
         task_log_level: Literal['info', 'warn', 'error'] = 'warn',
         max_retention_time: Union[int, float, timedelta] = timedelta(days=90),
+        resources_manager_cls=None,
+        max_sync_retries: int = 10,
         clear_daily: bool = False,
         local_scope: List[str] = ("*",),
+        private_scope: List[str] = (),
         eager_migrate: bool = False,
         eager_mount: bool = False,
         # new in v2.6.5 +---------
         proxy: Proxy = None,
         # new in v2.7.5 +---------
         connection_key: str = None,
-        private_scope: List[str] = (),
         # use token mode to authorize network service with private IP
     ):
         super().__init__(locals())
@@ -222,9 +240,9 @@ class Operations(Config):
             worker_cycle = worker_cycle.total_seconds()
 
         self.max_retention_time = max_retention_time
+        self.max_sync_retries = max_sync_retries
         self.worker_cycle = worker_cycle
         self.worker_task_cls_string = worker_task_cls
-        self.max_backlog = max_backlog
         self.external_openapi = openapi
         self.local_scope = list(local_scope or [])
         self.report_disabled = report_disabled
@@ -237,10 +255,28 @@ class Operations(Config):
             )
         if not isinstance(log, self.Log):
             raise TypeError(f"Operations log config must be a Log instance, got {log}")
+
         self.monitor = monitor
         self.log = log
-        self.logger_cls_string = logger_cls
+        self.alert = alert
+
+        self.logger_cls_string = self.log.logger_cls or logger_cls
+        self.log_middleware_cls_string = self.log.middleware_cls or logger_cls
         self.resources_manager_cls_string = resources_manager_cls
+        self.max_backlog = self.log.max_backlog or max_backlog
+
+        self.metric_registry = metric_registry
+        self.event_registry = event_registry
+        self.action_registry = action_registry
+
+        from utilmeta.ops.res.metric import BaseMetricRegistry
+        from utilmeta.ops.res.action import BaseActionRegistry
+        from utilmeta.ops.res.event import BaseEventRegistry
+
+        self.metric_registries: Dict[str, Type[BaseMetricRegistry]] = {}
+        self.event_registries: Dict[str, Type[BaseEventRegistry]] = {}
+        self.action_registries: Dict[str, Type[BaseActionRegistry]] = {}
+
         self.task_log = task_log
         self.task_log_level = task_log_level
         self.connection_key = connection_key
@@ -267,6 +303,20 @@ class Operations(Config):
                     f"Operations base_url should be an absolute url, got {base_url}"
                 )
         self._base_url = self.parse_base_url(base_url)
+
+    def export_config(self):
+        from utilmeta.ops.schema import OperationsConfigSchema
+        return OperationsConfigSchema(
+            worker_cycle_interval=self.worker_cycle,
+            max_backlog=self.max_backlog,
+            secret_names=self.secret_names,
+            trusted_hosts=self.trusted_hosts,
+            disabled_scope=self.disabled_scope,
+            max_retention_time=self.max_retention_time,
+            max_sync_retries=self.max_sync_retries,
+            local_scope=self.local_scope,
+            private_scope=self.private_scope,
+        )
 
     def parse_base_url(self, url: str):
         if not url:
@@ -362,43 +412,139 @@ class Operations(Config):
 
     @cached_property
     def logger_cls(self):
-        from utilmeta.ops.log import Logger
+        from utilmeta.ops.log.logger import Logger
+        return self.load_cls(
+            self.logger_cls_string,
+            base_cls=Logger,
+            name='log.logger_cls'
+        )
 
-        if not self.logger_cls_string:
-            return Logger
-        cls = import_obj(self.logger_cls_string)
-        if not issubclass(cls, Logger):
-            raise TypeError(
-                f"Operations.logger_cls must inherit utilmeta.ops.log.Logger, got {cls}"
-            )
-        return cls
+    @cached_property
+    def log_middleware(self):
+        from utilmeta.ops.log.middleware import LogMiddleware
+        from utilmeta.core.server import ServiceMiddleware
+        if not self.log_middleware_cls_string:
+            return LogMiddleware
+        return self.load_cls(
+            self.log_middleware_cls_string,
+            base_cls=ServiceMiddleware,
+            name='log.middleware_cls'
+        )
 
     @cached_property
     def resources_manager_cls(self):
-        from utilmeta.ops.resources import ResourcesManager
-
-        if not self.resources_manager_cls_string:
-            return ResourcesManager
-        cls = import_obj(self.resources_manager_cls_string)
-        if not issubclass(cls, ResourcesManager):
-            raise TypeError(
-                f"Operations.logger_cls must inherit utilmeta.ops.log.Logger, got {cls}"
-            )
-        return cls
+        from utilmeta.ops.spv.resources import ResourcesManager
+        return self.load_cls(
+            self.resources_manager_cls_string,
+            base_cls=ResourcesManager,
+            name='resources_manager_cls'
+        )
 
     @cached_property
     def worker_task_cls(self):
-        from utilmeta.ops.task import OperationWorkerTask
+        from utilmeta.ops.task.worker import OperationWorkerTask
+        return self.load_cls(
+            self.worker_task_cls_string,
+            base_cls=OperationWorkerTask,
+            name='worker_task_cls'
+        )
 
-        if not self.worker_task_cls_string:
-            return OperationWorkerTask
-        cls = import_obj(self.worker_task_cls_string)
-        if not issubclass(cls, OperationWorkerTask):
+    @classmethod
+    def load_cls(cls, cls_ref, base_cls: type, name: str):
+        if not cls_ref:
+            return base_cls
+        if isinstance(cls_ref, str):
+            cls_ref = import_obj(cls_ref)
+        if not isinstance(cls_ref, type) or not issubclass(cls_ref, base_cls):
             raise TypeError(
-                f"Operations.worker_task_cls must inherit "
-                f"utilmeta.ops.task.OperationWorkerTask, got {cls}"
+                f"Operations.{name} must inherit {base_cls}, got {cls_ref}"
             )
-        return cls
+        return cls_ref
+
+    @classmethod
+    def load_registry(cls, registry, base_cls: type, name: str) -> dict:
+        if not registry:
+            return {}
+        res = {}
+        if multi(registry):
+            for r in registry:
+                res.update(cls.load_registry(r, base_cls, name))
+        else:
+            if isinstance(registry, str):
+                ref = registry
+                registry = import_obj(ref)
+            else:
+                ref = get_ref(registry)
+            if not isinstance(registry, type) or not issubclass(registry, base_cls):
+                raise TypeError(
+                    f"Operations.{name} must inherit "
+                    f"{base_cls}, got {registry}"
+                )
+            res.update({ref: registry})
+        return res
+
+    def load_registries(self):
+        from utilmeta.ops.res.metric import BaseMetricRegistry
+        from utilmeta.ops.res.action import BaseActionRegistry
+        from utilmeta.ops.res.event import BaseEventRegistry
+        self.metric_registries = self.load_registry(
+            self.metric_registry,
+            base_cls=BaseMetricRegistry,
+            name='metric_registry'
+        )
+        self.event_registries = self.load_registry(
+            self.event_registry,
+            base_cls=BaseEventRegistry,
+            name='event_registry'
+        )
+        self.action_registries = self.load_registry(
+            self.action_registry,
+            base_cls=BaseActionRegistry,
+            name='action_registry'
+        )
+
+    def get_metrics(self, customized: bool = None):
+        # new metrics than the defaults
+        metrics = []
+        names = {}
+        for ref, registry in self.metric_registries.items():
+            for key, val in registry.__metrics__.items():
+                if customized:
+                    if val.ref.startswith('utilmeta.'):
+                        continue
+                if val.name in names:
+                    warnings.warn(f'Conflict metric name at: {repr(val.name)}: {ref}, {names[val.name]}')
+                names[val.name] = ref
+                metrics.append(val.dict())
+        return metrics
+
+    def get_events(self, customized: bool = None):
+        events = []
+        names = {}
+        for ref, registry in self.event_registries.items():
+            for key, val in registry.__events__.items():
+                if customized:
+                    if val.ref.startswith('utilmeta.'):
+                        continue
+                if val.name in names:
+                    warnings.warn(f'Conflict event name at: {repr(val.name)}: {ref}, {names[val.name]}')
+                names[val.name] = ref
+                events.append(val.dict())
+        return events
+
+    def get_actions(self, customized: bool = None):
+        actions = []
+        names = {}
+        for ref, registry in self.action_registries.items():
+            for key, val in registry.__actions__.items():
+                if customized:
+                    if val.ref.startswith('utilmeta.'):
+                        continue
+                if val.name in names:
+                    warnings.warn(f'Conflict action name at: {repr(val.name)}: {ref}, {names[val.name]}')
+                names[val.name] = ref
+                actions.append(val.dict())
+        return actions
 
     @classmethod
     def get_secret_key(cls, service: UtilMeta):
@@ -413,13 +559,20 @@ class Operations(Config):
 
         service.register_command(OperationsCommand)
 
+        if self.log:
+            service.use(self.log)
+        if self.monitor:
+            service.use(self.monitor)
+        if self.alert:
+            service.use(self.alert)
+
     def setup(self, service: UtilMeta):
         if self._ready:
             return
 
         # --- add log middleware
         if service.adaptor:
-            service.adaptor.add_middleware(self.logger_cls.middleware_cls(self))
+            service.adaptor.add_middleware(self.log_middleware(self))
         else:
             raise NotImplementedError(
                 "Operations setup error: service backend not specified"
@@ -520,6 +673,8 @@ class Operations(Config):
             #         except ValueError:
             #             # if already exists, quit mounting
             #             pass
+
+        self.load_registries()
 
         if service.meta_config:
             node_id = service.meta_config.get("node") or service.meta_config.get(

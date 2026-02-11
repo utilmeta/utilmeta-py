@@ -1,7 +1,7 @@
 __website__ = "https://utilmeta.com"
 __homepage__ = "https://utilmeta.com/py"
 __author__ = "Xulin Zhou (@voidZXL)"
-__version__ = "2.8.1"
+__version__ = "2.9.0-alpha"
 
 
 def version_info() -> str:

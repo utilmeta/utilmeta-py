@@ -1,3 +1,4 @@
+import utype
 from utype.types import *
 from .models import (
     ServiceLog,
@@ -10,7 +11,10 @@ from .models import (
     Supervisor,
     DatabaseMonitor,
     CacheMonitor,
+    RequestLog,
+    AlertLog
 )
+from .schema import DatabaseData, CacheData
 from utilmeta.core import orm
 
 
@@ -22,10 +26,10 @@ class SupervisorPatch(orm.Schema[Supervisor]):
     base_url: Optional[str] = orm.Field(default=None, defer_default=True)
     backup_urls: List[str] = orm.Field(default_factory=list)
     heartbeat_interval: Optional[int] = orm.Field(default=None, defer_default=True)
+    default_timeout: Optional[float] = orm.Field(default=None, defer_default=True)
     disabled: bool = orm.Field(default=False, defer_default=True)
     settings: dict = orm.Field(default_factory=dict, defer_default=True)
     alert_settings: dict = orm.Field(default_factory=dict, defer_default=True)
-    task_settings: dict = orm.Field(default_factory=dict, defer_default=True)
     aggregate_settings: dict = orm.Field(default_factory=dict, defer_default=True)
 
 
@@ -134,6 +138,7 @@ class ServiceLogSchema(WebMixinSchema, orm.Schema[ServiceLog]):
     in_traffic: int
     out_traffic: int
     public: bool
+    details: Optional[dict]
 
     def __validate__(self):
         from .api.utils import config
@@ -142,6 +147,66 @@ class ServiceLogSchema(WebMixinSchema, orm.Schema[ServiceLog]):
             self.ip = "*.*.*.*" if self.ip else ""
         if config.log.hide_user_id:
             self.user_id = "***" if self.user_id else None
+
+
+class RequestLogBase(orm.Schema[RequestLog]):
+    id: int
+    service: str
+    node_id: Optional[str]
+
+    instance_id: Optional[int]
+
+    time: float
+    duration: Optional[int]
+
+    scheme: Optional[str]
+    method: Optional[str]
+    status: Optional[int]
+    length: Optional[int]
+    full_url = Optional[str]
+
+
+class RequestLogSchema(RequestLogBase, WebMixinSchema):
+    worker_id: Optional[int]
+    worker_pid: Optional[int] = orm.Field("worker.pid")
+    context_type: Optional[str]
+    context_id: Optional[str]
+    host: Optional[str]
+    remote_log: Optional[str]
+    asynchronous: Optional[bool]
+    timeout: Optional[float]
+    timeout_error: bool
+    server_error: bool
+    client_error: bool
+    details: Optional[dict]
+
+
+class AlertLogBase(orm.Schema[AlertLog]):
+    id: int
+    service: str
+    node_id: Optional[str]
+    settings_id: Optional[str]
+    settings_name: Optional[str]
+    severity: int
+    instance_id: Optional[str]
+    target_id: Optional[str]
+    target_remote_id: Optional[str] = orm.Field("target.remote_id")
+    time: datetime
+    latest_time: datetime
+    recovered_time: Optional[datetime]
+    count: int
+
+
+class AlertLogSchema(AlertLogBase):
+    settings_data: Optional[dict]
+    triggered_values: dict
+    latest_alarm_time: datetime
+    remote_id: Optional[int]
+    remote_recovered_time: Optional[datetime]
+    description: str
+    message: str
+    details: Optional[dict]
+    impact: Optional[dict]
 
 
 class AccessTokenSchema(orm.Schema[AccessToken]):
@@ -168,11 +233,12 @@ class SystemMetricsMixin(orm.Schema):
     cpu_percent: float
     memory_percent: float
     disk_percent: float
+    used_space: int
     file_descriptors: int
     active_net_connections: int
     total_net_connections: int
     net_connections_info: Dict[str, int]
-    open_files: Optional[int]
+    open_files: Optional[int] = utype.Field(default=None, defer_default=True)
 
     # def __init__(self, cpu_percent: float, used_memory: float,
     #              memory_percent: float, disk_percent: float,
@@ -288,6 +354,8 @@ class DatabaseMonitorSchema(orm.Schema[DatabaseMonitor]):
     active_connections: int
     current_connections: int
     server_connections: int
+    idle_connections_percent: Optional[float] = orm.Field(default=None)
+    server_connections_percent: Optional[float] = orm.Field(default=None)
 
     new_transactions: int
 
@@ -297,6 +365,10 @@ class DatabaseMonitorSchema(orm.Schema[DatabaseMonitor]):
     qps: Optional[float]
     query_avg_time: float
     operations: dict
+
+
+class DatabaseFullMetrics(DatabaseMonitorSchema, DatabaseData):
+    pass
 
 
 class CacheMonitorSchema(orm.Schema[CacheMonitor]):
@@ -319,3 +391,7 @@ class CacheMonitorSchema(orm.Schema[CacheMonitor]):
     qps: Optional[float]
 
     # metrics: dict = orm.Field(no_output=True)
+
+
+class CacheFullMetrics(CacheMonitorSchema, CacheData):
+    pass

@@ -12,6 +12,7 @@ __all__ = [
     "utc_ms_ts",
     "wait_till",
     "get_timezone",
+    "time_midnight"
 ]
 
 
@@ -80,6 +81,18 @@ def convert_time(dt: datetime) -> datetime:
     from utilmeta.conf.time import Time
 
     return (Time.config() or Time()).convert_time(dt)
+
+
+def time_midnight(dt: datetime, utcoffset: int) -> datetime:
+    if dt.tzinfo is None:
+        dt_utc = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt_utc = dt.astimezone(timezone.utc)
+    target_tz = timezone(timedelta(hours=utcoffset))
+    dt_target = dt_utc.astimezone(target_tz)
+    midnight_target = dt_target.replace(hour=0, minute=0, second=0, microsecond=0)
+    midnight_utc = midnight_target.astimezone(timezone.utc)
+    return midnight_utc
 
 
 def get_interval(

@@ -4,9 +4,9 @@ import utype.utils.exceptions
 
 from .client import SupervisorClient
 from typing import Optional, List, Type
-from .models import Supervisor, Resource
-from .config import Operations
-from .schema import (
+from utilmeta.ops.models import Supervisor, Resource
+from utilmeta.ops.config import Operations
+from utilmeta.ops.schema import (
     NodeMetadata,
     ResourcesSchema,
     InstanceSchema,
@@ -14,11 +14,15 @@ from .schema import (
     DatabaseSchema,
     CacheSchema,
     ResourceData,
+    MetricData,
+    EventData,
+    ActionData,
     language_version,
 )
 from utilmeta import UtilMeta
 from utilmeta.utils import fast_digest, json_dumps, get_ip, time_now
 from django.db import models
+from utilmeta.ops.store import store
 import utilmeta
 
 
@@ -110,7 +114,7 @@ class ResourcesManager:
     #     return get_mac_address()
 
     def get_instances(self, node_id) -> List[InstanceSchema]:
-        from .schema import InstanceSchema
+        from utilmeta.ops.schema import InstanceSchema
 
         instances = []
         for val in Resource.filter(
@@ -126,8 +130,7 @@ class ResourcesManager:
             inst_data = val.data
             server_data = dict(server.data)
             if server.ident == self.ops_config.address:
-                from .monitor import get_current_server
-
+                from utilmeta.ops.task.monitor import get_current_server
                 inst_data.update(self.instance_data)
                 server_data.update(get_current_server())
             try:
@@ -157,8 +160,7 @@ class ResourcesManager:
         )
 
     def get_current_instance(self) -> InstanceSchema:
-        from .monitor import get_current_server
-
+        from utilmeta.ops.task.monitor import get_current_server
         return InstanceSchema(server=get_current_server(), **self.instance_data)
 
     def get_tables(self, with_model: bool = False) -> List[TableSchema]:
@@ -228,8 +230,8 @@ class ResourcesManager:
 
         return tables
 
-    def get_databases(self):
-        from .monitor import get_db_max_connections
+    def get_databases(self) -> List[DatabaseSchema]:
+        from utilmeta.ops.task.monitor import get_db_max_connections
         from utilmeta.core.orm.databases.config import DatabaseConnections
 
         db_config = self.service.get_config(DatabaseConnections)
@@ -252,7 +254,7 @@ class ResourcesManager:
             )
         return databases
 
-    def get_caches(self):
+    def get_caches(self) -> List[CacheSchema]:
         # from utilmeta.utils import get_ip
         from utilmeta.core.cache.config import CacheConnections
 
@@ -272,8 +274,18 @@ class ResourcesManager:
             )
         return caches
 
-    def get_tasks(self):
-        pass
+    def get_metrics(self) -> List[MetricData]:
+        return self.ops_config.get_metrics(customized=True)
+
+    def get_events(self) -> List[EventData]:
+        return self.ops_config.get_events(customized=True)
+
+    def get_actions(self) -> List[ActionData]:
+        return self.ops_config.get_actions(customized=True)
+
+    def get_extension_resources(self) -> dict:
+        # tobe inherited
+        raise NotImplementedError
 
     def get_resources(self, node_id, etag: str = None) -> Optional[ResourcesSchema]:
         instances = self.get_instances(node_id)
@@ -281,13 +293,25 @@ class ResourcesManager:
         if not included:
             instances.append(self.get_current_instance())
 
+        try:
+            ext = self.get_extension_resources()
+            if not isinstance(ext, dict):
+                ext = {}
+        except NotImplementedError:
+            ext = {}
+
         data = ResourcesSchema(
             metadata=self.get_metadata(),
+            config=self.ops_config.export_config(),
             openapi=self.ops_config.load_openapi(),  # use new openapi
             instances=instances,
             tables=self.get_tables(),
             databases=self.get_databases(),
             caches=self.get_caches(),
+            metrics=self.get_metrics(),
+            events=self.get_events(),
+            actions=self.get_actions(),
+            **ext
         )
         if etag:
             resources_etag = fast_digest(
@@ -499,32 +523,20 @@ class ResourcesManager:
                     self.log("[304] resources is identical to the remote supervisor, done", force=True)
                     continue
 
-                if resp.result.resources_etag:
-                    supervisor.resources_etag = resp.result.resources_etag
-                    supervisor.save(update_fields=["resources_etag"])
+                if resp.result.supervisor.node_id == supervisor.node_id:
+                    Supervisor.objects.filter(pk=supervisor.pk).update(
+                        **resp.result.supervisor
+                    )
+                    supervisor.refresh_from_db(using=ops_config.db_alias, fields=list(resp.result.supervisor))
 
                 self.save_resources(resp.result.resources, supervisor=supervisor)
-
                 self.log(
                     f"sync resources to supervisor[{supervisor.node_id}] successfully", force=True
                 )
-                if resp.result.url:
-                    if supervisor.url != resp.result.url:
-                        supervisor.url = resp.result.url
-                        supervisor.save(update_fields=["url"])
-
+                if resp.result.supervisor.url:
                     self.log(
-                        f"you can visit {resp.result.url} to view the updated resources", force=True
+                        f"you can visit {resp.result.supervisor.url} to view the updated resources", force=True
                     )
-
-    def get_instance(self):
-        from .log import setup_locals
-        from .models import Resource
-
-        setup_locals(self.ops_config)
-        from .log import _instance
-
-        return _instance or Resource.get_current_instance()
 
     def init_service_resources(
         self,
@@ -532,10 +544,10 @@ class ResourcesManager:
         instance: Resource = None,
         force: bool = False,
     ):
+        if not store.ready:
+            store.setup(self.ops_config)
         if self.ops_config.proxy:
-            if not instance:
-                instance = self.get_instance()
-            return self.register_service(supervisor=supervisor, instance=instance)
+            return self.register_service(supervisor=supervisor, instance=instance or store.instance)
         else:
             return self.sync_resources(supervisor=supervisor, force=force)
 

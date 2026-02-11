@@ -119,6 +119,7 @@ class RequestContextVar(Property):
 # cached context var
 user = RequestContextVar("_user", cached=True)
 user_id = RequestContextVar("_user_id", cached=True)
+user_config = RequestContextVar("_user_config", cached=True)
 ip = RequestContextVar("_ip", factory=lambda request: str(request.ip_address), cached=True)
 scopes = RequestContextVar("_scopes", cached=True)
 data = RequestContextVar("_data", cached=True)  # parsed str/dict data

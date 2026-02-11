@@ -23,7 +23,7 @@ def try_to_connect(timeout: int = 5):
             f"{__website__} and generate one"
         )
         return
-    from utilmeta.ops.client import OperationsClient, ServiceInfoResponse
+    from utilmeta.ops.spv.client import ServiceInfoResponse, OperationsClient
 
     t = time.time()
     live = False
@@ -107,7 +107,7 @@ class OperationsCommand(BaseServiceCommand):
         # before connect
 
         # check if service is live
-        from .client import OperationsClient, ServiceInfoResponse
+        from utilmeta.ops.spv.client import OperationsClient, ServiceInfoResponse
 
         info = OperationsClient(
             base_url=self.config.ops_api, fail_silently=True
@@ -198,7 +198,7 @@ class OperationsCommand(BaseServiceCommand):
 
             exit(1)
 
-        from .connect import connect_supervisor
+        from utilmeta.ops.spv.connect import connect_supervisor
 
         connect_supervisor(key=key, base_url=to, service_id=service)
 
@@ -211,7 +211,7 @@ class OperationsCommand(BaseServiceCommand):
         """
         # self.migrate_ops()
         # before connect
-        from .connect import delete_supervisor
+        from utilmeta.ops.spv.connect import delete_supervisor
 
         delete_supervisor(key=key, node_id=node)
 
@@ -229,10 +229,10 @@ class OperationsCommand(BaseServiceCommand):
         View the current service stats
         """
         self.config.migrate(with_default=True)
-        from .log import setup_locals
+        from .store import store
 
-        setup_locals(self.config)
-        from .client import OperationsClient, ServiceInfoResponse
+        store.setup(self.config)
+        from utilmeta.ops.spv.client import OperationsClient, ServiceInfoResponse
 
         info = OperationsClient(
             base_url=self.config.ops_api, fail_silently=True
@@ -241,13 +241,12 @@ class OperationsCommand(BaseServiceCommand):
         from utilmeta.utils import readable_size
         import utilmeta
         from . import __website__
-        from .log import _instance, _databases, _caches, _supervisor
 
         stage_str = "production" if self.service.production else "debug"
         status_str = (GREEN % f"{DOT} live") if live else (RED % f"{DOT} down")
         supervisor_str = (
-            BLUE % f"{_supervisor.url}"
-            if _supervisor
+            BLUE % f"{store.supervisor.url}"
+            if store.supervisor
             else f"not connected (connect at {__website__})"
         )
         print(
@@ -282,17 +281,17 @@ class OperationsCommand(BaseServiceCommand):
 
         latest_monitor = None
         workers = []
-        if _instance:
+        if store.instance:
             try:
                 latest_monitor = InstanceMonitorSchema.init(
                     InstanceMonitor.objects.filter(
-                        instance=_instance, layer=0
+                        instance=store.instance, layer=0
                     ).order_by("-time")
                 )
             except orm.EmptyQueryset:
                 pass
             workers = WorkerSchema.serialize(
-                Worker.objects.filter(instance=_instance, connected=True).order_by(
+                Worker.objects.filter(instance=store.instance, connected=True).order_by(
                     "-requests"
                 )
             )
@@ -349,7 +348,7 @@ class OperationsCommand(BaseServiceCommand):
                     )
                 )
 
-        if _databases:
+        if store.databases:
             from utilmeta.core.orm import DatabaseConnections
 
             db_config = DatabaseConnections.config()
@@ -359,7 +358,7 @@ class OperationsCommand(BaseServiceCommand):
                 form = "{:<15}{:<15}{:<15}{:<25}{:<15}{:<50}"
                 print(form.format(*fields))
                 print("-" * 60)
-                for alias, database in _databases.items():
+                for alias, database in store.databases.items():
                     db = db_config.get(alias)
                     if not db:
                         continue
@@ -393,7 +392,7 @@ class OperationsCommand(BaseServiceCommand):
                         )
                     )
 
-        if _caches:
+        if store.caches:
             cache_config = cache.CacheConnections.config()
             if cache_config:
                 print(BANNER % "{:<60}".format("Service Instance Caches"))
@@ -409,7 +408,7 @@ class OperationsCommand(BaseServiceCommand):
                 form = "{:<15}{:<15}{:<15}{:<25}{:<15}{:<15}{:<30}"
                 print(form.format(*fields))
                 print("-" * 60)
-                for alias, cache_obj in _caches.items():
+                for alias, cache_obj in store.caches.items():
                     cache = cache_config.get(alias)
                     if not cache:
                         continue

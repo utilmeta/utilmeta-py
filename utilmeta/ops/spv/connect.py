@@ -3,9 +3,9 @@ from utilmeta import __version__
 from concurrent.futures import ThreadPoolExecutor, wait
 from utilmeta.utils import exceptions, localhost
 from typing import Optional
-from .models import Supervisor
-from .config import Operations
-from .schema import SupervisorData
+from utilmeta.ops.models import Supervisor
+from utilmeta.ops.config import Operations
+from utilmeta.ops.schema import SupervisorData
 import base64
 
 # 1. meta connect --token=<ACCESS_TOKEN>

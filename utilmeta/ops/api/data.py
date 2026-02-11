@@ -88,8 +88,7 @@ class DataAPI(api.API):
         global _tables
         if _tables is not None:
             return _tables
-        from ..resources import ResourcesManager
-
+        from utilmeta.ops.spv.resources import ResourcesManager
         _tables = ResourcesManager().get_tables(with_model=True)
         return _tables
 

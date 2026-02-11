@@ -6,20 +6,22 @@ import time
 import utype
 
 from utilmeta.utils import (
-    get_max_open_files,
-    get_max_socket_conn,
+    get_max_fds,
+    get_system_max_fds,
+    get_system_max_socket_conn,
+    get_system_tcp_max_tw_buckets,
+    get_system_tcp_max_syn_backlog,
     get_mac_address,
     get_sql_info,
     get_sys_net_connections_info,
     get_system_fds,
-    get_system_open_files,
     get_server_ip,
     DB,
     multi,
     ignore_errors,
 )
-from .schema import ServerSchema
-from .models import DatabaseConnection
+from utilmeta.ops.schema import ServerSchema
+from utilmeta.ops.models import DatabaseConnection
 from utilmeta.core.orm import DatabaseConnections
 from utilmeta.core.cache import CacheConnections, Cache
 from typing import Optional, Tuple
@@ -58,8 +60,13 @@ def get_current_server(unit: int = 1024**2) -> ServerSchema:
         hostname=platform.node(),
         system=str(platform.system()).lower(),
         devices=devices,
-        max_open_files=get_max_open_files(),
-        max_socket_conn=get_max_socket_conn(),
+        limits=dict(
+            max_fds=get_max_fds(),
+            max_system_fds=get_system_max_fds(),
+            max_system_socket_conn=get_system_max_socket_conn(),
+            max_tcp_max_tw_buckets=get_system_tcp_max_tw_buckets(),
+            max_tcp_max_syn_backlog=get_system_tcp_max_syn_backlog(),
+        ),
         platform=dict(
             platform=platform.platform(),
             version=platform.version(),
@@ -71,22 +78,22 @@ def get_current_server(unit: int = 1024**2) -> ServerSchema:
     )
 
 
-def get_sys_metrics(cpu_interval: float = None, with_open_files: bool = True):
+def get_sys_metrics(cpu_interval: float = None):
     from utilmeta.ops.query import SystemMetricsMixin
 
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage(os.getcwd())
     total, active, info = get_sys_net_connections_info()
     cpu_percent = psutil.cpu_percent(interval=cpu_interval)
-    open_files = get_system_open_files() if with_open_files else None
+    # open_files = get_system_open_files() if with_open_files else None
     fds = get_system_fds()
     return SystemMetricsMixin(
         cpu_percent=cpu_percent,
         used_memory=mem.used,
         memory_percent=100 * mem.used / mem.total,
         disk_percent=100 * disk.used / disk.total,
+        used_space=disk.used,
         file_descriptors=fds,
-        open_files=open_files,
         active_net_connections=active,
         total_net_connections=total,
         net_connections_info=info,

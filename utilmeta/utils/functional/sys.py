@@ -36,17 +36,21 @@ __all__ = [
     "get_code",
     "resolve_domain",
     "current_master",
-    "get_system_fds",
+    # "get_system_fds",
     "read_from",
     "write_to",
     "get_server_ip",
     "get_server_ips",
     "get_real_ip",
     "remove_file",
-    "get_max_socket_conn",
-    "get_max_open_files",
+    "get_system_max_socket_conn",
+    "get_system_tcp_max_syn_backlog",
+    "get_system_tcp_max_tw_buckets",
+    "get_max_fds",
     "ip_belong_networks",
-    "get_system_open_files",
+    "get_system_fds",
+    # "get_system_open_files",
+    "get_system_max_fds",
     "create_only_write",
     "get_recursive_dirs",
     "get_sys_net_connections_info",
@@ -125,19 +129,8 @@ def read_from(file, mode: str = "r") -> str:
 
 
 def get_system_fds():
-    import psutil
-
-    fds = 0
-    if psutil.POSIX:
-        for proc in psutil.process_iter():
-            try:
-                fds += proc.num_fds()
-            except psutil.Error:
-                continue
-    return fds
-
-
-def get_system_open_files():
+    if not posix_os:
+        return None
     try:
         with open("/proc/sys/fs/file-nr") as file_nr:
             stats = file_nr.read().split()
@@ -145,15 +138,18 @@ def get_system_open_files():
             return total_fds
     except Exception:
         return None
-        # import psutil
-        # files = 0
-        # for proc in psutil.process_iter(['open_files']):
-        #     try:
-        #         proc.open_files()
-        #         files += len(proc.info['open_files'])
-        #     except psutil.Error:
-        #         continue
-        # return files
+
+
+# def get_system_open_files():
+#     import psutil
+#     files = 0
+#     for proc in psutil.process_iter(['open_files']):
+#         try:
+#             proc.open_files()
+#             files += len(proc.info['open_files'])
+#         except psutil.Error:
+#             continue
+#     return files
 
 
 def get_network_ip(ifname: str):
@@ -457,14 +453,13 @@ def find_port():
     return find
 
 
-def get_max_socket_conn():
+def _get_system_number(file_path: str):
     if not posix_os:
         return None
     try:
-        file = "/proc/sys/net/core/somaxconn"
-        if not os.path.exists(file):
+        if not os.path.exists(file_path):
             return None
-        r = os.popen(f"cat {file}").read().strip("\n")
+        r = os.popen(f"cat {file_path}").read().strip("\n")
         if not r:
             return None
         return int(r)
@@ -472,7 +467,23 @@ def get_max_socket_conn():
         return None
 
 
-def get_max_open_files():
+def get_system_max_socket_conn():
+    return _get_system_number("/proc/sys/net/core/somaxconn")
+
+
+def get_system_max_fds():
+    return _get_system_number("/proc/sys/fs/file-max")
+
+
+def get_system_tcp_max_tw_buckets():
+    return _get_system_number("/proc/sys/net/ipv4/tcp_max_tw_buckets")
+
+
+def get_system_tcp_max_syn_backlog():
+    return _get_system_number("/proc/sys/net/ipv4/tcp_max_syn_backlog")
+
+
+def get_max_fds():
     if not posix_os:
         return None
     try:
@@ -486,7 +497,6 @@ def get_max_open_files():
 
 def running(pid):
     import psutil
-
     try:
         return psutil.Process(pid).is_running()
     except psutil.Error:

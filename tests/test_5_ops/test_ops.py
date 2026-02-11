@@ -3,7 +3,7 @@ import datetime
 import pytest
 from tests.conftest import make_cmd_process, db_using
 from utilmeta.core import cli
-from utilmeta.ops.client import OperationsClient
+from utilmeta.ops.spv.client import OperationsClient
 from utilmeta.core.api.plugins.retry import RetryPlugin
 # test import client here, client should not depend on ops models
 from utilmeta.ops import __spec_version__

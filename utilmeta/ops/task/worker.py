@@ -1,57 +1,23 @@
+import asyncio
 import os
 import threading
-from .config import Operations
-from .log import setup_locals, batch_save_logs, worker_logger
-from .monitor import get_sys_metrics
+from utilmeta.ops.config import Operations
+from utilmeta.ops.log.middleware import batch_save_logs
+from utilmeta.ops.store import store
+from utilmeta.ops.alert.event import event
 import psutil
-from utilmeta.utils import time_now, replace_null, Error, normalize, ignore_errors
+from utilmeta.utils import time_now, time_midnight, replace_null, Error, normalize
 from datetime import timedelta, datetime, timezone
 from django.db import models
-from .aggregation import aggregate_logs, aggregate_endpoint_logs
-from typing import Optional
+from .monitor import get_sys_metrics
+from .report import ReportGenerator
+from typing import Optional, TYPE_CHECKING
 import random
 import time
+import functools
 
-
-# class LogRedirector:
-#     """
-#     Redirects stdout, warnings, and/or errors of the current thread to a specific file based on the level.
-#     """
-#     def __init__(self, file, level="info"):
-#         self.file = open(file, "a") if isinstance(file, str) else file
-#         self.level = level.lower() if isinstance(level, str) else None
-#         self.original_stdout = sys.stdout
-#         self.original_stderr = sys.stderr
-#         self.original_showwarning = warnings.showwarning
-#
-#     def __enter__(self):
-#         if not self.file:
-#             return self
-#         if self.level == "info":
-#             sys.stdout = self.file
-#             sys.stderr = self.file
-#             warnings.showwarning = self._redirect_warning
-#         elif self.level == "warn":
-#             sys.stderr = self.file
-#             warnings.showwarning = self._redirect_warning
-#         elif self.level == "error":
-#             sys.stderr = self.file
-#         return self
-#
-#     def __exit__(self, exc_type, exc_value, traceback):
-#         if not self.file:
-#             return self
-#         self.file.close()
-#         if not self.level:
-#             return
-#         sys.stdout = self.original_stdout
-#         sys.stderr = self.original_stderr
-#         warnings.showwarning = self.original_showwarning
-#         # thread_name = threading.current_thread().name
-#         # print(f"[INFO] Stdout, warnings, and errors of thread '{thread_name}' are restored.")
-#
-#     def _redirect_warning(self, message, category, filename, lineno, file=None, line=None):
-#         print(warnings.formatwarning(message, category, filename, lineno), file=self.file)
+if TYPE_CHECKING:
+    from utilmeta.ops.models import AggregationLog
 
 
 class BaseCycleTask:
@@ -106,32 +72,24 @@ class BaseCycleTask:
 
 
 class OperationWorkerTask(BaseCycleTask):
-    DISCONNECTED_WORKER_RETENTION = timedelta(hours=12)
-    DISCONNECTED_INSTANCE_RETENTION = timedelta(days=3)
-    DISCONNECTED_SERVER_RETENTION = timedelta(days=3)
-    AGGREGATION_EXPIRE_TIME = [timedelta(days=7), timedelta(days=30)]
-
+    report_generator_cls = ReportGenerator
+    asynchronous = False
     LAYER_INTERVAL = [timedelta(hours=1), timedelta(days=1)]
-    DEFAULT_CPU_INTERVAL = 1
-    MAX_SYNC_RETRIES = 10
-    UPDATE_BATCH_MAX_SIZE = 50
-    REPORT_BATCH_MAX_SIZE = 50
 
     def __init__(self, config: Operations):
         self.config = config
         super().__init__(interval=self.config.worker_cycle)
 
-        self.instance = None
-        self.worker = None
-        self.server = None
-        self.supervisor = None
+        # self.instance = None
+        # self.worker = None
+        # self.server = None
+        # self.supervisor = None
 
         from utilmeta import service
-
         self.service = service
 
-        self.hourly_aggregation = None
-        self.daily_aggregation = None
+        self.hourly_aggregation: Optional["AggregationLog"] = None
+        self.daily_aggregation: Optional["AggregationLog"] = None
 
         self._init_cycle = False
         self._synced = False
@@ -141,6 +99,8 @@ class OperationWorkerTask(BaseCycleTask):
     def __call__(self, *args, **kwargs):
         try:
             self.worker_cycle()
+            if self.asynchronous:
+                asyncio.run(self.async_worker_cycle())
             return True
         finally:
             self.clear_connections()
@@ -151,17 +111,13 @@ class OperationWorkerTask(BaseCycleTask):
         from django.db import connections
         connections.close_all()
 
-    @property
-    def node_id(self):
-        return self.supervisor.node_id if self.supervisor else None
-
-    def handle_error(self, e, type: str = 'ops.task'):
+    def handle_error(self, e, type: str = 'ops.task', level: str = 'level'):
         err = Error(e)
         err.setup(
             with_cause=False,
             with_variables=False
         )
-        self.log(str(e) + '\n' + err.full_info, level='error')
+        self.log(str(e) + '\n' + err.full_info, level=level)
         print(err.full_info)
 
     def log(self, message: str, level: str = 'info'):
@@ -169,6 +125,26 @@ class OperationWorkerTask(BaseCycleTask):
 
     def warn(self, message: str):
         return self.log(message, 'warn')
+
+    @property
+    def node_id(self):
+        return store.node_id
+
+    @property
+    def supervisor(self):
+        return store.supervisor
+
+    @property
+    def instance(self):
+        return store.instance
+
+    @property
+    def server(self):
+        return store.server
+
+    @property
+    def worker(self):
+        return store.worker
 
     def worker_cycle(self):
         if not self._last_exec:
@@ -183,33 +159,10 @@ class OperationWorkerTask(BaseCycleTask):
             # 1. db not created
             # 2. db not updated to the current version
 
-        setup_locals(self.config)
+        store.setup(self.config)
 
-        # try to set up locals before
-        from .log import _server, _worker, _instance, _supervisor
-
-        self.worker = _worker
-        self.server = _server
-        self.instance = _instance
-        self.supervisor = _supervisor
-
-        try:
-            # 1. save logs
-            batch_save_logs()
-        except Exception as e:
-            self.handle_error(e, type='ops.task.log')
-
-        try:
-            # 2. update worker
-            worker_logger.update_worker(
-                record=not self.config.monitor.worker_disabled,
-                interval=self.config.worker_cycle,
-            )
-            # update worker from every worker
-            # to make sure that the connected workers has the primary role to execute the following
-            self.update_workers()
-        except Exception as e:
-            self.warn(f"Update workers failed with error: {e}")
+        self.handle_func(batch_save_logs, event_type='save_log')()
+        self.handle_func(self.update_workers, event_type='update_worker')()
 
         if self._stopped:
             # if this worker is stopped
@@ -221,7 +174,7 @@ class OperationWorkerTask(BaseCycleTask):
         if self.is_worker_primary:
             # Is this worker the primary worker of the current instance
             # detect the running worker with the minimum PID
-            if not self._synced and self._sync_retries < self.MAX_SYNC_RETRIES:
+            if not self._synced and self._sync_retries < self.config.max_sync_retries:
                 # 1st cycle
                 manager = self.config.resources_manager_cls(self.service)
                 try:
@@ -236,16 +189,29 @@ class OperationWorkerTask(BaseCycleTask):
                     self._synced = True
 
             self.monitor()
-            self.heartbeat()
-            self.alert()
-            self.aggregation()
+            self.handle_func(self.heartbeat, event_type='heartbeat', level='warn')()
+            self.handle_func(self.alert, event_type='alert', level='warn')()
+            self.handle_func(self.report, event_type='report', level='warn')()
 
             if self.do_clear():
-                self.clear()
+                self.handle_func(self.clear, event_type='clear', level='warn')()
 
             self.log(f"worker cycle [primary] finished")
 
         self._init_cycle = True
+
+    async def async_worker_cycle(self):
+        pass
+
+    def handle_func(self, func, event_type: str, level: str = 'error'):
+        @functools.wraps(func)
+        def handler(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                self.handle_error(e, type=event_type, level=level)
+                event.ops_cycle_failed(self.instance, event_type=event_type)
+        return handler
 
     def do_clear(self):
         if not self.config.clear_daily:
@@ -257,7 +223,7 @@ class OperationWorkerTask(BaseCycleTask):
 
     @property
     def connected_workers(self):
-        from .models import Worker
+        from utilmeta.ops.models import Worker
 
         if not self.instance or not self.server:
             return Worker.objects.none()
@@ -269,7 +235,15 @@ class OperationWorkerTask(BaseCycleTask):
         )
 
     def update_workers(self):
-        from .models import Worker
+        # 2. update worker
+        store.update_worker(
+            record=not self.config.monitor.worker_disabled,
+            interval=self.config.worker_cycle,
+        )
+        # update worker from every worker
+        # to make sure that the connected workers has the primary role to execute the following
+
+        from utilmeta.ops.models import Worker
 
         if not self.instance or not self.server:
             return
@@ -374,25 +348,13 @@ class OperationWorkerTask(BaseCycleTask):
 
     def monitor(self):
         if not self.config.monitor.server_disabled:
-            try:
-                self.server_monitor()
-            except Exception as e:
-                self.warn(f"utilmeta.ops.task: server monitor failed: {e}")
+            self.handle_func(self.server_monitor, event_type='server_monitor', level='warn')()
         if not self.config.monitor.instance_disabled:
-            try:
-                self.instance_monitor()
-            except Exception as e:
-                self.warn(f"utilmeta.ops.task: instance monitor failed: {e}")
+            self.handle_func(self.instance_monitor, event_type='instance_monitor', level='warn')()
         if not self.config.monitor.database_disabled:
-            try:
-                self.database_monitor()
-            except Exception as e:
-                self.warn(f"utilmeta.ops.task: database monitor failed: {e}")
+            self.handle_func(self.database_monitor, event_type='database_monitor', level='warn')()
         if not self.config.monitor.cache_disabled:
-            try:
-                self.cache_monitor()
-            except Exception as e:
-                self.warn(f"utilmeta.ops.task: cache monitor failed: {e}")
+            self.handle_func(self.cache_monitor, event_type='cache_monitor', level='warn')()
 
     def instance_monitor(self):
         if not self.instance:
@@ -401,7 +363,7 @@ class OperationWorkerTask(BaseCycleTask):
         if not workers_num:
             # no workers
             return
-        from .models import InstanceMonitor
+        from utilmeta.ops.models import InstanceMonitor
 
         metrics = self.get_instance_metrics()
         # now = time_now()
@@ -422,11 +384,11 @@ class OperationWorkerTask(BaseCycleTask):
         )
 
     def server_monitor(self):
-        from .models import ServerMonitor
+        from utilmeta.ops.models import ServerMonitor
 
         if not self.server:
             return
-        metrics = get_sys_metrics(cpu_interval=self.DEFAULT_CPU_INTERVAL)
+        metrics = get_sys_metrics(cpu_interval=self.config.monitor.default_cpu_interval)
         try:
             l1, l5, l15 = psutil.getloadavg()
         except (AttributeError, OSError):
@@ -451,7 +413,7 @@ class OperationWorkerTask(BaseCycleTask):
             get_db_max_connections,
         )
         from utilmeta.core.orm import DatabaseConnections
-        from .models import Resource, DatabaseMonitor, DatabaseConnection
+        from utilmeta.ops.models import Resource, DatabaseMonitor, DatabaseConnection
 
         db_config = DatabaseConnections.config()
         if not db_config:
@@ -490,6 +452,13 @@ class OperationWorkerTask(BaseCycleTask):
             # database.save(update_fields=update_fields)
             update_databases.append(database)
             current, active = get_db_connections_num(db.alias)
+            current_connections = current or 0
+            active_connections = min(active or 0, current_connections)
+            server_connections = get_db_server_connections(db.alias) or 0
+            server_connections_percent = min(100.0, 100 * server_connections / max_conn) if max_conn else 0
+            idle_connections_percent = min(100.0, 100 * (
+                    current_connections - active_connections) / current_connections) if current_connections else 0
+
             db_monitors.append(
                 DatabaseMonitor(
                     database=database,
@@ -497,9 +466,11 @@ class OperationWorkerTask(BaseCycleTask):
                     time=self._last_exec,
                     used_space=size or 0,
                     server_used_space=get_db_server_size(db.alias) or 0,
-                    server_connections=get_db_server_connections(db.alias) or 0,
-                    current_connections=current or 0,
-                    active_connections=active or 0,
+                    server_connections=server_connections,
+                    server_connections_percent=server_connections_percent,
+                    idle_connections_percent=idle_connections_percent,
+                    current_connections=current_connections,
+                    active_connections=active_connections,
                     new_transactions=new_transactions,
                     metrics=db_metrics,
                 )
@@ -554,7 +525,7 @@ class OperationWorkerTask(BaseCycleTask):
 
     def cache_monitor(self):
         from .monitor import get_cache_stats
-        from .models import CacheMonitor, Resource
+        from utilmeta.ops.models import CacheMonitor, Resource
         from utilmeta.core.cache import CacheConnections
 
         cache_config = CacheConnections.config()
@@ -614,9 +585,8 @@ class OperationWorkerTask(BaseCycleTask):
         if cache_monitors:
             CacheMonitor.objects.bulk_create(cache_monitors)
 
-    @ignore_errors
     def clear(self):
-        from .models import (
+        from utilmeta.ops.models import (
             ServiceLog,
             RequestLog,
             QueryLog,
@@ -663,37 +633,51 @@ class OperationWorkerTask(BaseCycleTask):
             time__lt=now - self.config.monitor.worker_retention
         ).delete()
         Worker.objects.filter(
-            time__lt=now - self.DISCONNECTED_WORKER_RETENTION, connected=False
+            time__lt=now - self.config.monitor.worker_retention, connected=False
         ).delete()
 
-        # MONITOR RETENTION ----------------
+        # DEPRECATED RESOURCES
         Resource.objects.filter(type="instance", node_id=self.node_id,).annotate(
             latest_time=models.Max("instance_metrics__time")
-        ).filter(latest_time__lt=now - self.DISCONNECTED_INSTANCE_RETENTION).update(
+        ).filter(latest_time__lt=now - self.config.monitor.instance_retention).update(
             deleted_time=now, deprecated=True
         )
-        InstanceMonitor.objects.filter(
-            layer=0, time__lt=now - self.config.monitor.instance_retention
-        ).delete()
-
         Resource.objects.filter(type="server", node_id=self.node_id,).annotate(
             latest_time=models.Max("server_metrics__time")
-        ).filter(latest_time__lt=now - self.DISCONNECTED_SERVER_RETENTION).update(
+        ).filter(latest_time__lt=now - self.config.monitor.server_retention).update(
             deleted_time=now, deprecated=True
         )
-        ServerMonitor.objects.filter(
-            layer=0, time__lt=now - self.config.monitor.server_retention
-        ).delete()
 
+        # MONITOR RETENTION ----------------
+        InstanceMonitor.objects.filter(
+            models.Q(
+                layer=0,
+                time__lt=now - self.config.monitor.instance_retention
+            ) | models.Q(
+                time__lt=now - max_retention_time,
+            )
+        ).delete()
+        ServerMonitor.objects.filter(
+            models.Q(
+                layer=0, time__lt=now - self.config.monitor.server_retention
+            ) | models.Q(
+                time__lt=now - max_retention_time,
+            )
+        ).delete()
         DatabaseMonitor.objects.filter(
-            layer=0, time__lt=now - self.config.monitor.database_retention
+            models.Q(
+                layer=0, time__lt=now - self.config.monitor.database_retention
+            ) | models.Q(
+                time__lt=now - max_retention_time,
+            )
         ).delete()
         CacheMonitor.objects.filter(
-            layer=0, time__lt=now - self.config.monitor.cache_retention
+            models.Q(
+                layer=0, time__lt=now - self.config.monitor.cache_retention
+            ) | models.Q(
+                time__lt=now - max_retention_time,
+            )
         ).delete()
-
-    def alert(self):
-        pass
 
     @property
     def is_worker_primary(self):
@@ -709,7 +693,7 @@ class OperationWorkerTask(BaseCycleTask):
     @property
     def current_day(self) -> datetime:
         t = self._last_exec or time_now()
-        return datetime(year=t.year, month=t.month, day=t.day, tzinfo=t.tzinfo)
+        return time_midnight(t, utcoffset=store.report_settings.utcoffset)
 
     @property
     def current_hour(self) -> datetime:
@@ -718,14 +702,15 @@ class OperationWorkerTask(BaseCycleTask):
             year=t.year, month=t.month, day=t.day, hour=t.hour, tzinfo=t.tzinfo
         )
 
-    @property
-    def utc_day_begin(self):
-        return self._last_exec.astimezone(timezone.utc).hour == 0
+    # @property
+    # def utc_day_begin(self):
+    #     return self._last_exec.astimezone(timezone.utc).hour == 0
 
     @property
     def daily_report(self):
         if self.daily_aggregation:
-            if self.daily_aggregation.to_time == self.current_day:
+            if self.daily_aggregation.to_time.timestamp() == self.current_day.timestamp():
+                # compare regardless of timezone
                 # already
                 return False
         if not self.is_worker_primary:
@@ -736,17 +721,19 @@ class OperationWorkerTask(BaseCycleTask):
             return False
         return True
 
-    @ignore_errors
-    def aggregation(self):
-        self.logs_aggregation(0)
+    def report(self):
+        self.aggregate(0)
 
         if self.daily_report:
             # 1. it is the UTC begin
             # 2. daily aggregation not generated
             # 3. hourly aggregation already generated and reported
-            self.logs_aggregation(1)
+            self.aggregate(1)
 
-    def logs_aggregation(self, layer: int = 0):
+    def aggregate(self, layer: int = 0):
+        if self.config.report_disabled:
+            return
+
         #  HOURLY
         if layer == 0:
             current_time = self.current_hour
@@ -759,7 +746,12 @@ class OperationWorkerTask(BaseCycleTask):
 
         interval = [timedelta(hours=1), timedelta(days=1)][layer]
         last_time = current_time - interval
-        from .models import AggregationLog
+
+        from utilmeta.ops.models import AggregationLog
+
+        settings = store.report_settings
+        expiry_hours = settings.hourly_report_expiry_hours if layer == 0 else settings.daily_report_expiry_hours
+        expiry_duration = timedelta(hours=expiry_hours)
 
         if not aggregation or aggregation.from_time != current_time:
             aggregation: AggregationLog = AggregationLog.objects.filter(
@@ -772,36 +764,29 @@ class OperationWorkerTask(BaseCycleTask):
             ).first()
 
         if not aggregation:
-            service_data = aggregate_logs(
-                service=self.service.name, to_time=current_time, layer=layer
+            report_generator = self.report_generator_cls(
+                service=self.service.name,
+                to_time=current_time,
+                layer=layer,
+                settings=settings,
             )
-            endpoints = (
-                aggregate_endpoint_logs(
-                    service=self.service.name, to_time=current_time, layer=layer
-                )
-                if service_data
-                else None
-            )
+            report_data = report_generator()
+
             aggregation = AggregationLog.objects.create(
                 service=self.service.name,
                 node_id=self.node_id,
                 supervisor=self.supervisor,
-                data=normalize(
-                    dict(
-                        service=service_data,
-                        endpoints=endpoints,
-                    ),
-                    _json=True,
-                ),
+                data=normalize(report_data, _json=True),
                 layer=layer,
                 from_time=last_time,
                 to_time=current_time,
-                reported_time=self._last_exec if not service_data else None,
+                date=report_generator.to_date,
+                utcoffset=settings.utcoffset if layer else None,
+                reported_time=self._last_exec if not report_data else None,
             )
-
             # check daily ---------------------------------------------
         else:
-            service_data = (aggregation.data or {}).get("service")
+            report_data = aggregation.data
 
         if layer == 0:
             self.hourly_aggregation = aggregation
@@ -813,9 +798,7 @@ class OperationWorkerTask(BaseCycleTask):
 
         # daily ?
 
-        if not service_data:
-            return
-        if self.config.report_disabled:
+        if not report_data:
             return
         if not self.node_id:
             return
@@ -848,9 +831,10 @@ class OperationWorkerTask(BaseCycleTask):
         if self.supervisor.local:
             return
 
-        from .client import SupervisorClient, SupervisorReportResponse
+        from utilmeta.ops.spv.client import SupervisorClient, SupervisorReportResponse
 
         with SupervisorClient(
+            supervisor=self.supervisor,
             node_id=self.node_id,
             default_timeout=self.config.default_timeout,
             fail_silently=True,
@@ -858,19 +842,32 @@ class OperationWorkerTask(BaseCycleTask):
             resp = client.report_analytics(
                 data=dict(
                     time=current_time.astimezone(timezone.utc),
+                    date=aggregation.date,
                     layer=layer,
                     interval=layer_seconds,
+                    utcoffset=aggregation.utcoffset,
                     **aggregation.data,
                 )
             )
             updates = {}
-            if not resp.success:
-                updates.update(error=resp.message)
-            else:
+            if resp.success:
                 aggregation.reported_time = resp.time or self._last_exec
                 updates.update(
-                    remote_id=resp.result.id, reported_time=aggregation.reported_time
+                    reported_time=aggregation.reported_time
                 )
+                if resp.result and resp.result.id:
+                    updates.update(
+                        remote_id=resp.result.id,
+                    )
+            else:
+                updates.update(error=resp.message)
+                if resp.is_server_error:
+                    event.supervisor_request_failed(
+                        request_type='report',
+                        aggregation_log_id=aggregation.pk,
+                        response_status=resp.status,
+                        response_data=resp.data,
+                    )
 
             AggregationLog.objects.filter(pk=aggregation.pk).update(**updates)
 
@@ -885,8 +882,7 @@ class OperationWorkerTask(BaseCycleTask):
                     # layer=layer,
                     # no restrict on the layer
                     reported_time=None,
-                    created_time__gte=self._last_exec
-                    - self.AGGREGATION_EXPIRE_TIME[layer],
+                    created_time__gte=self._last_exec - expiry_duration,
                 )
                 .order_by("to_time")
                 .exclude(pk=aggregation.pk)
@@ -894,7 +890,7 @@ class OperationWorkerTask(BaseCycleTask):
 
             missing_count = missing_reports.count()
             if missing_count:
-                batch_size = self.REPORT_BATCH_MAX_SIZE
+                batch_size = settings.report_max_batch_size
                 empty_missing_reports = []
                 updates = []
                 errors = []
@@ -914,8 +910,10 @@ class OperationWorkerTask(BaseCycleTask):
                         values.append(
                             dict(
                                 time=obj.to_time.astimezone(timezone.utc),
-                                layer=obj.layer,
+                                date=obj.date,
+                                layer=layer,
                                 interval=layer_seconds,
+                                utcoffset=obj.utcoffset,
                                 **obj.data,
                             )
                         )
@@ -949,11 +947,12 @@ class OperationWorkerTask(BaseCycleTask):
                     AggregationLog.objects.bulk_update(
                         updates,
                         fields=["remote_id", "reported_time"],
-                        batch_size=self.UPDATE_BATCH_MAX_SIZE,
+                        batch_size=settings.report_max_batch_size,
                     )
                 if errors:
                     AggregationLog.objects.bulk_update(
-                        errors, fields=["error"], batch_size=self.UPDATE_BATCH_MAX_SIZE
+                        errors, fields=["error"],
+                        batch_size=settings.report_max_batch_size,
                     )
                 if empty_missing_reports:
                     AggregationLog.objects.filter(
@@ -961,4 +960,48 @@ class OperationWorkerTask(BaseCycleTask):
                     ).update(reported_time=self._last_exec or time_now())
 
     def heartbeat(self):
-        pass
+        if not self.supervisor:
+            return
+
+        if not self.supervisor.heartbeat_interval:
+            return
+
+        last_heartbeat = self.supervisor.last_heartbeat
+
+        if last_heartbeat and (time_now() - last_heartbeat) <= self.supervisor.heartbeat_interval:
+            return
+
+        from utilmeta.ops.spv.client import SupervisorClient
+        with SupervisorClient(
+            supervisor=self.supervisor,
+            node_id=self.node_id,
+            default_timeout=self.config.default_timeout,
+            fail_silently=True,
+        ) as client:
+            res = client.heartbeat()
+            if res.success:
+                self.supervisor.last_heartbeat = time_now()
+                self.supervisor.save(update_fields=["last_heartbeat"])
+            elif res.is_server_error:
+                event.supervisor_request_failed(
+                    request_type='heartbeat',
+                    response_status=res.status,
+                    response_data=res.data,
+                )
+
+    def alert(self):
+        if not self.config.alert:
+            return
+
+        from utilmeta.ops.alert import AlertMetric
+
+        registry_metrics = {}
+
+        for metric in store.alert_metrics:
+            registry_metrics.setdefault(metric.registry, []).append(metric)
+
+        for registry_cls, metrics in registry_metrics.items():
+            registry = registry_cls() if registry_cls else None
+            for metric in metrics:
+                metric: AlertMetric
+                metric.check(registry)

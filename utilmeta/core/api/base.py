@@ -351,7 +351,6 @@ class API(PluginTarget):
     @classonlymethod
     def _global_vars(cls):
         import sys
-
         return sys.modules[cls.__module__].__dict__
 
     @classonlymethod

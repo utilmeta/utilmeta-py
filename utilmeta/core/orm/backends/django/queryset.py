@@ -670,7 +670,8 @@ class AwaitableQuerySet(QuerySet):
         if self.ordered:
             queryset = self
         else:
-            self._check_ordering_first_last_queryset_aggregation(method="first")
+            if django.VERSION >= (4, 0):
+                self._check_ordering_first_last_queryset_aggregation(method="first")
             queryset = self.order_by("pk")
         async for obj in queryset[:1]:
             return obj
@@ -681,7 +682,8 @@ class AwaitableQuerySet(QuerySet):
         if self.ordered:
             queryset = self.reverse()
         else:
-            self._check_ordering_first_last_queryset_aggregation(method="last")
+            if django.VERSION >= (4, 0):
+                self._check_ordering_first_last_queryset_aggregation(method="last")
             queryset = self.order_by("-pk")
         async for obj in queryset[:1]:
             return obj
@@ -932,15 +934,19 @@ class AwaitableQuerySet(QuerySet):
         Internal django implementation of bulk_create is too complicate to split into async code
         and since it's async, we can do a async joined task to create all objects
         """
-        if not self.support_pure_async:
+        if not self.support_pure_async or django.VERSION < (4, 0):
+            params = dict(
+                update_conflicts=update_conflicts,
+                update_fields=update_fields,
+                unique_fields=unique_fields,
+            ) if django.VERSION >= (4, 0) else {}
             return await sync_to_async(self.bulk_create)(
                 objs,
                 batch_size=batch_size,
                 ignore_conflicts=ignore_conflicts,
-                update_conflicts=update_conflicts,
-                update_fields=update_fields,
-                unique_fields=unique_fields,
+                **params
             )
+
         if not objs:
             return objs
         has_parent = None
@@ -1184,7 +1190,11 @@ class AwaitableQuerySet(QuerySet):
         if not self.support_pure_async:
             return await sync_to_async(self.get)(*args, **kwargs)
         if self.query.combinator and (args or kwargs):
-            raise exceptions.NotSupportedError(
+            if django.VERSION < (4, 0):
+                cls = exceptions.FieldError
+            else:
+                cls = exceptions.NotSupportedError
+            raise cls(
                 "Calling QuerySet.get(...) with filters after %s() is not "
                 "supported." % self.query.combinator
             )

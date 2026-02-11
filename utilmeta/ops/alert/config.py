@@ -1,4 +1,3 @@
-import pytz
 from utype.types import *
 from utilmeta.conf import Config
 from django.db import models
